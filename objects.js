@@ -35,9 +35,9 @@ User.prototype.setPassword = function(pw) {
 	}, this));
 }
 
-User.prototype.setName = function(name) {
-	this.db.query('UPDATE users SET name = ? WHERE id = ?', [name, this.id], _.bind(function(res) {
-		this.name = name;
+User.prototype.setNickName = function(nickname) {
+	this.db.query('UPDATE users SET nickname = ? WHERE id = ?', [nickname, this.id], _.bind(function(res) {
+		this.nickname = nickname;
 		this.emit('name-changed');
 	}, this));
 }
@@ -51,15 +51,9 @@ User.prototype.setEMail = function(email) {
 
 User.prototype.listStocks = function(cb) {
 	this.db.query(
-	'SELECT d.userid, d.amount, d.buytime, d.selltime, s.id, s.stockid, s.lastvalue, s.lastchecktime, s.leader' +
-		'FROM depot_stocks AS d WHERE userid = ? JOIN stocks AS s ON d.stockid = s.id', [this.id], _.bind(function(res) {
+	'SELECT d.*, s.* FROM depot_stocks AS d WHERE userid = ? JOIN stocks AS s ON d.stockid = s.id', [this.id], _.bind(function(res) {
 		cb(_.map(res, function(row) { return new DepotStock(row); }));
 	}));
-}
-
-User.prototype.acquireStock = function(stock, amount) {
-	this.db.query(
-	'INSERT INTO depot_stocks (userid, stockid, amount, buytime, selltime)…
 }
 
 })();

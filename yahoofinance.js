@@ -32,7 +32,7 @@ util.inherits(YahooFinanceQuoteLoader, events.EventEmitter);
 
 YahooFinanceQuoteLoader.prototype._handleRecord = function(record) {
 	if (!record.length || record.length - 1 != this.format.length)
-		this.emit('error', 'Record length (' + (record.length - 1) + ') does not fit format length (' + (this.format.length) + ')!');
+		this.emit('error', new Error('Record length (' + (record.length - 1) + ') does not fit format length (' + (this.format.length) + ')!'));
 	
 	this.emit('record', new YahooFinanceQuoteEntry(record.shift(), this.format, record));
 }

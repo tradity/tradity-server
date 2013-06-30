@@ -16,14 +16,7 @@ function Database (options) {
 util.inherits(Database, events.EventEmitter);
 
 Database.prototype.query = function(query, args, cb) {
-	this.connection.query(query, args, _.bind(function(err, rows) {
-		if (err) {
-			this.emit('error', err);
-			return;
-		}
-		
-		cb(rows);
-	}, this));
+	this.connection.query(query, args, cb);
 }
 
 exports.Database = Database;

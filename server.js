@@ -7,10 +7,11 @@ var sio = require('socket.io');
 var assert = require('assert');
 
 var cfg = require('./config.js').config;
-var objects = require('./objects.js');
+var obj = require('./objects.js');
 var db_ = require('./dbbackend.js');
 
 var db = new db_.Database(cfg);
+var UserDB = new obj.UserDB(db);
 
 function ConnectionData() {
 	this.user = null;
@@ -19,28 +20,11 @@ function ConnectionData() {
 util.inherits(ConnectionData, events.EventEmitter);
 
 ConnectionData.prototype.client_insertPSEmail = function(query) {
-	var email = query.email;
-	
-	db.query('SELECT COUNT(*) AS c FROM ps_emails WHERE email = ?', [email], _.bind(function(err, res) {
-		if (err) {
-			this.emit('error', new Error(err));
-			return;
-		}
-		
-		assert.equal(res.length, 1);
-			
-		if (res[0].c != 0) {
-			assert.equal(res[0].c, 1);
+	UserDB.insertPSEmail(query.email, _.bind(function(alreadyPresent, success) {
+		if (alreadyPresent)
 			this.response({'code' : 'email-already-present'});
-			return;
-		}
-		
-		db.query('INSERT INTO ps_emails (email, time) VALUES(?, UNIX_TIMESTAMP())', [email], _.bind(function(err, res) {
-			if (err)
-				this.emit('error', new Error(err));
-			else
-				this.response({'code' : 'email-enter-success'});
-		}, this));
+		else if (success)
+			this.response({'code' : 'email-enter-success'});
 	}, this));
 }
 

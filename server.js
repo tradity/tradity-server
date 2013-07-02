@@ -22,9 +22,9 @@ util.inherits(ConnectionData, events.EventEmitter);
 ConnectionData.prototype.client_insertPSEmail = function(query) {
 	UserDB.insertPSEmail(query.email, _.bind(function(alreadyPresent, success) {
 		if (alreadyPresent)
-			this.response({'code' : 'email-already-present'});
+			this.response({'code' : 'email-already-present', 'is-reply-to': query.id});
 		else if (success)
-			this.response({'code' : 'email-enter-success'});
+			this.response({'code' : 'email-enter-success', 'is-reply-to': query.id});
 	}, this));
 }
 

@@ -76,7 +76,7 @@ UserDB.prototype.listStocks = function(user, cb) {
 	this.db.query(
 	'SELECT d.*, s.* FROM depot_stocks AS d WHERE userid = ? JOIN stocks AS s ON d.stockid = s.id', [user.id], _.bind(function(err, res) {
 		if (err)
-			this.emit('error');
+			this.emit('error', new Error(err));
 		
 		cb(_.map(res, function(row) { return new DepotStock(row); }));
 	}));

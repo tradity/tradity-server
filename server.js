@@ -8,10 +8,14 @@ var assert = require('assert');
 
 var cfg = require('./config.js').config;
 var obj = require('./objects.js');
+var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 
+var eh = new eh_.ErrorHandler(cfg);
 var db = new db_.Database(cfg);
+db.on('error', function(e) { eh.err(e); });
 var UserDB = new obj.UserDB(db);
+UserDB.on('error', function(e) { eh.err(e); });
 
 function ConnectionData() {
 	this.user = null;
@@ -65,11 +69,19 @@ io.sockets.on('connection', function(socket) {
 	});
 	
 	socket.on('query', function(query) {
-		d.query(query);
+		try {
+			d.query(query);
+		} catch (e) {
+			eh.err(e);
+		}
 	});
 	
 	socket.on('disconnect', function() {
-		d.disconnected();
+		try {
+			d.disconnected();
+		} catch (e) {
+			eh.err(e);
+		}
 	});
 });
 

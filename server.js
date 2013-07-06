@@ -37,6 +37,12 @@ ConnectionData.prototype.client_register = function(query) {
 	}, this));
 }
 
+ConnectionData.prototype.client_emailverif = function(query) {
+	UserDB.emailVerify(query.uid, query.key, _.bind(function(code) {
+		this.response({'code': code, 'is-reply-to': query.id});
+	}, this));
+}
+
 ConnectionData.prototype.response = function(data) {
 	this.emit('response', data);
 }

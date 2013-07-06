@@ -63,26 +63,84 @@ UserDB.prototype.insertPSEmail = function(email, cb) {
 	}, this));
 }
 
-UserDB.prototype.sendRegisterEmail = function(data, emailsender, cfg, cb) {
-	var opt = _.clone(cfg.mail['register-base']);
-	opt.to = data.email;
-	opt.subject += ' (' + data.name + ')';
-	opt.generateTextFromHTML = true;
-	opt.html = 'For completion of the registration, please click the following link:\n' + 
-	'[TODO: INSERT AN ACTUAL LINK.]';
-	
-	cb('reg-email-sending');
-	
-	emailsender.sendMail(opt, _.bind(function (error, resp) {
-		if (error) {
-			cb('reg-email-failed');
-			this.emit('error', error);
-		} else {
-			cb('reg-success');
-		}
+UserDB.prototype.sendRegisterEmail = function(data, uid, emailsender, cfg, cb) {
+	crypto.randomBytes(16, _.bind(function(ex, buf) {
+		var key = buf.toString('hex');
+		
+		this.db.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
+			[uid, key], _.bind(function(err, res) {
+			if (err) {
+				this.emit('error', new Error(err));
+				return;
+			}
+			
+			var url = cfg.regurl.replace(/\{\$key\}/, key).replace(/\{\$uid\}/, uid);
+			
+			var opt = _.clone(cfg.mail['register-base']);
+			opt.to = data.email;
+			opt.subject += ' (' + data.name + ')';
+			opt.generateTextFromHTML = true;
+			opt.html = '<p>For completion of the registration, please click the following link:\n' + 
+			'<a href="' + url + '">' + url + '</a></p>\n' + 
+			'<p>If you received this email accidentally, you may simply ignore it.</p>';
+			
+			cb('reg-email-sending');
+			
+			emailsender.sendMail(opt, _.bind(function (error, resp) {
+				if (error) {
+					cb('reg-email-failed');
+					this.emit('error', error);
+				} else {
+					cb('reg-success');
+				}
+			}, this));
+		}, this));
 	}, this));
 }
 					
+UserDB.prototype.emailVerify = function(uid, key, cb) {
+	this.db.query('SELECT email_verif AS v, 42 AS y FROM users WHERE id = ? ' +
+	'UNION SELECT COUNT(*) AS v, 41 AS y FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], _.bind(function(err, res) {
+		if (err) {
+			this.emit('error', new Error(err));
+			return;
+		}
+		
+		if (res.length != 2) {
+			console.log('strange email-verif stuff', res);
+			cb('email-verify-failure');
+			return;
+		}
+		
+		for (var i = 0; i < res.length; ++i) {
+			if (res[i].y == 42 && res[i].v != 0) {
+				cb('email-verify-already-verified');
+				return;
+			}
+			
+			if (res[i].y == 41 && res[i].v < 1) {
+				cb('email-verify-failure');
+				return;
+			}
+		}
+		
+		this.db.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid], _.bind(function(err) {
+		if (err) {
+			this.emit('error', new Error(err));
+			return;
+		}
+		this.db.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid], _.bind(function(err) {
+			if (err) {
+				this.emit('error', new Error(err));
+				return;
+			}
+			
+			cb('email-verify-success');
+		}, this));
+		}, this));
+	}, this));
+}
+
 UserDB.prototype.register = function(data, emailsender, cfg, cb) {
 	if ((data.gender != 'male' && data.gender != 'female' && data.gender != 'undisclosed') || !data.name) {
 		cb('format-error');
@@ -126,10 +184,13 @@ UserDB.prototype.register = function(data, emailsender, cfg, cb) {
 				'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
 				[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email],
 				_.bind(function(err, res) {
-					if (err) 
+					if (err) {
 						this.emit('error', new Error(err));
-					else 
-						this.sendRegisterEmail(data, emailsender, cfg, cb);
+					} else {
+						var uid = res.insertId;
+						
+						this.sendRegisterEmail(data, uid, emailsender, cfg, cb);
+					}
 				}, this));
 			}, this));
 		}, this);

@@ -5,13 +5,15 @@ var util = require('util');
 var events = require('events');
 var sio = require('socket.io');
 var assert = require('assert');
+var nodemailer = require('nodemailer');
 
 var cfg = require('./config.js').config;
 var obj = require('./objects.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 
-var eh = new eh_.ErrorHandler(cfg);
+var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
+var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 db.on('error', function(e) { eh.err(e); });
 var UserDB = new obj.UserDB(db);
@@ -24,11 +26,14 @@ function ConnectionData() {
 util.inherits(ConnectionData, events.EventEmitter);
 
 ConnectionData.prototype.client_insertPSEmail = function(query) {
-	UserDB.insertPSEmail(query.email, _.bind(function(alreadyPresent, success) {
-		if (alreadyPresent)
-			this.response({'code' : 'email-already-present', 'is-reply-to': query.id});
-		else if (success)
-			this.response({'code' : 'email-enter-success', 'is-reply-to': query.id});
+	UserDB.insertPSEmail(query.email, _.bind(function(code) {
+		this.response({'code' : code, 'is-reply-to': query.id});
+	}, this));
+}
+
+ConnectionData.prototype.client_register = function(query) {
+	UserDB.register(query, mailer, cfg, _.bind(function(code) {
+		this.response({'code': code, 'is-reply-to': query.id});
 	}, this));
 }
 
@@ -59,6 +64,7 @@ ConnectionData.prototype.disconnected = function() {
 var io = sio.listen(cfg.wsport);
 io.sockets.on('connection', function(socket) {
 	var d = new ConnectionData();
+	d.on('error', function(e) { eh.err(e); });
 	
 	d.on('response', function(data) {
 		socket.emit('response', data);

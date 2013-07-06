@@ -4,21 +4,20 @@ var _ = require('underscore');
 var fs = require('fs');
 var nodemailer = require('nodemailer');
 
-function ErrorHandler(cfg) {
-	this.cfg = cfg.mail;
-	this.transport = null;
+function ErrorHandler(cfg, mailer) {
+	this.prot = cfg.mail['error-base'];
+	this.transport = mailer;
 }
 
 ErrorHandler.prototype.err = function(e, noemail) {
 	noemail = noemail || false;
-	console.error(e);
 	
-	if (this.transport === null) 
-		this.transport = nodemailer.createTransport(this.cfg.transport, this.cfg.transportData);
-	
-	var opt = _.clone(this.cfg.options);
-	opt.subject = 'SoTrade Error'
+	var opt = _.clone(this.prot);
 	opt.text = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
+	if (e.stack)
+		opt.text += e.stack;
+		
+	console.error(opt.text);
 	
 	this.transport.sendMail(opt, _.bind(function (error, resp) {
 		if (error)

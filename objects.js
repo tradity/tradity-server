@@ -21,54 +21,11 @@ function UserDB (db) {
 }
 util.inherits(UserDB, DBSubsystemBase);
 
-UserDB.prototype.getUser = function(id) {
-	this.db.query('SELECT * FROM users WHERE id = ?', [id], _.bind(function(err, res) {
-		if (err)
-			this.emit('error', err);
-		if (res.length != 1)
-			this.emit('error', 'Expect query to return exactly one user entry');
-		
-		for (var e in res[0])
-			this[e] = res[0][e];
-	}, this));
-}
-
-UserDB.prototype.hasExactPassword = function(user, trypw) {
-	return hash('sha256', user.pwsalt + trypw) === user.pwhash;
-}
-
-UserDB.prototype.setPassword = function(user, pw) {
+UserDB.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, _.bind(function(ex, buf) {
 		var pwsalt = buf.toString('hex');
-		var pwhash = hash('sha256', user.pwsalt + pw);
-		this.db.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [pwsalt, pwhash, user.id], _.bind(function(err, res) {
-			if (err)
-				this.emit('error');
-			
-			user.pwsalt = pwsalt;
-			user.pwhash = pwhash;
-			this.dbevent('password-changed', user, 'user-identical');
-		}, this));
-	}, this));
-}
-
-UserDB.prototype.setNickName = function(nickname) {
-	this.db.query('UPDATE users SET nickname = ? WHERE id = ?', [nickname, this.id], _.bind(function(err, res) {
-		if (err)
-			this.emit('error');
-			
-		this.nickname = nickname;
-		this.dbevent('name-changed', user, '*');
-	}, this));
-}
-
-UserDB.prototype.setEMail = function(user, email) {
-	this.db.query('UPDATE users SET email = ? WHERE id = ?', [email, user.id], _.bind(function(err, res) {
-		if (err)
-			this.emit('error');
-			
-		user.email = email;
-		this.dbevent('email-changed', user, 'user-identical');
+		var pwhash = hash('sha256', pwsalt + pw);
+		cb(pwsalt, pwhash);
 	}, this));
 }
 
@@ -93,7 +50,7 @@ UserDB.prototype.insertPSEmail = function(email, cb) {
 			
 		if (res[0].c != 0) {
 			assert.equal(res[0].c, 1);
-			cb(true, false);
+			cb('email-already-present');
 			return;
 		}
 		
@@ -101,8 +58,87 @@ UserDB.prototype.insertPSEmail = function(email, cb) {
 			if (err)
 				this.emit('error', new Error(err));
 			else
-				cb(false, true);
+				cb('email-enter-success');
 		}, this));
+	}, this));
+}
+
+UserDB.prototype.sendRegisterEmail = function(data, emailsender, cfg, cb) {
+	var opt = _.clone(cfg.mail['register-base']);
+	opt.to = data.email;
+	opt.subject += ' (' + data.name + ')';
+	opt.generateTextFromHTML = true;
+	opt.html = 'For completion of the registration, please click the following link:\n' + 
+	'[TODO: INSERT AN ACTUAL LINK.]';
+	
+	cb('reg-email-sending');
+	
+	emailsender.sendMail(opt, _.bind(function (error, resp) {
+		if (error) {
+			cb('reg-email-failed');
+			this.emit('error', error);
+		} else {
+			cb('reg-success');
+		}
+	}, this));
+}
+					
+UserDB.prototype.register = function(data, emailsender, cfg, cb) {
+	if ((data.gender != 'male' && data.gender != 'female' && data.gender != 'undisclosed') || !data.name) {
+		cb('format-error');
+		return;
+	}
+	
+	if (!data.password || data.password.length < 5) {
+		cb('reg-too-short-pw');
+		return;
+	}
+	
+	this.db.query('SELECT email,name AS c FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?)', [data.email, data.name], _.bind(function(err, res) {
+		if (err) {
+			this.emit('error', new Error(err));
+			return;
+		}
+		
+		if (res.length > 0) {
+			if (res[0].name == data.name)
+				cb('reg-name-already-present');
+			else if (res[0].email == data.email)
+				cb('reg-email-already-present');
+			else
+				throw new Error('db returned bad email/name match: ' + [res[0], data]);
+			return;
+		}
+		
+		var schoolLookupCB = _.bind(function(err, res) {
+			if (err) {
+				this.emit('error', new Error(err));
+				return;
+			}
+			
+			if (res.length == 0) {
+				cb('reg-unknown-school');
+				return;
+			}
+			
+			this.generatePWKey(data.password, _.bind(function(pwsalt, pwhash) {
+				this.db.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, pwhash, pwsalt, gender, school, email)' +
+				'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
+				[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email],
+				_.bind(function(err, res) {
+					if (err) 
+						this.emit('error', new Error(err));
+					else 
+						this.sendRegisterEmail(data, emailsender, cfg, cb);
+				}, this));
+			}, this));
+		}, this);
+		
+		if (data.school !== null) {
+			this.db.query('SELECT COUNT(*) FROM schools WHERE id = ?', [data.school], schoolLookupCB);
+		} else {
+			schoolLookupCB(null, [0]);
+		}
 	}, this));
 }
 

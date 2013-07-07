@@ -8,7 +8,7 @@ var assert = require('assert');
 var nodemailer = require('nodemailer');
 
 var cfg = require('./config.js').config;
-var obj = require('./objects.js');
+var usr = require('./user.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 
@@ -16,7 +16,7 @@ var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportDa
 var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 db.on('error', function(e) { eh.err(e); });
-var UserDB = new obj.UserDB(db);
+var UserDB = new usr.UserDB(db);
 UserDB.on('error', function(e) { eh.err(e); });
 
 function ConnectionData() {

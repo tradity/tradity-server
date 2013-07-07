@@ -15,7 +15,7 @@ ErrorHandler.prototype.err = function(e, noemail) {
 	var opt = _.clone(this.prot);
 	opt.text = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
 	if (e.stack)
-		opt.text += e.stack;
+		opt.text += e.stack + '\n';
 		
 	console.error(opt.text);
 	

@@ -6,11 +6,20 @@ var events = require('events');
 var sio = require('socket.io');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
+var fs = require('fs');
 
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
+
+if (!fs.existsSync('./config.local.js')) {
+	fs.writeFile('./config.local.js', 'exports.config={};\n', function() {});
+} else {
+	var cfgl = require('./config.local.js').config;
+	for (var i in cfgl)	
+		cfg[i] = cfgl[i];
+}
 
 var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
 var eh = new eh_.ErrorHandler(cfg, mailer);
@@ -18,6 +27,10 @@ var db = new db_.Database(cfg);
 db.on('error', function(e) { eh.err(e); });
 var UserDB = new usr.UserDB(db);
 UserDB.on('error', function(e) { eh.err(e); });
+
+setInterval(function() {
+	UserDB.regularCallback();
+}, 60000);
 
 function ConnectionData() {
 	this.user = null;
@@ -37,10 +50,36 @@ ConnectionData.prototype.client_register = function(query) {
 	}, this));
 }
 
+ConnectionData.prototype.client_get_own_options = function(query) {
+	UserDB.getUserData(query.key, _.bind(function(data) {
+		if (data.code === null) {
+			this.response({'code': 'not-logged-in', 'is-reply-to': query.id});
+		} else {
+			this.response({'code': 'own-options-success', 'is-reply-to': query.id, 'data': data});
+		}
+	}, this));
+}
+
+ConnectionData.prototype.client_change_options = function(query) {
+	UserDB.changeOptions(query, mailer, cfg, _.bind(function(code) {
+		this.response({'code': code, 'is-reply-to': query.id});
+	}, this));
+}
+
 ConnectionData.prototype.client_emailverif = function(query) {
 	UserDB.emailVerify(query.uid, query.key, _.bind(function(code) {
 		this.response({'code': code, 'is-reply-to': query.id});
 	}, this));
+}
+
+ConnectionData.prototype.client_login = function(query) {
+	UserDB.login(query.name, query.pw, query.stayloggedin, _.bind(function(code, key) {
+		this.response({'code': code, 'is-reply-to': query.id, 'key': key});
+	}, this));
+}
+
+ConnectionData.prototype.client_logout = function(query) {
+	UserDB.logout(query.key);
 }
 
 ConnectionData.prototype.response = function(data) {
@@ -48,7 +87,7 @@ ConnectionData.prototype.response = function(data) {
 }
 
 ConnectionData.prototype.query = function(query) {
-	var t = query.type;
+	var t = query.type.replace(/-/, '_');
 	if (('client_' + t) in this)
 		_.bind(this['client_' + t], this)(query);
 	else

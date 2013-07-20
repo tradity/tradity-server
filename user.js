@@ -230,7 +230,7 @@ UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
 		return;
 	}
 	
-	this.db.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(uid != ?)',
+	this.db.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[data.email, data.name, uid], this.qcb(function(res) {
 		if (res.length > 0 && res[0].id !== uid) {
 			if (res[0].name == data.name)

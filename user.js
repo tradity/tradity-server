@@ -243,40 +243,52 @@ UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
 		}
 		
 		var schoolLookupCB = this.qcb(function(res) {
-			if (res.length == 0) {
-				cb('reg-unknown-school');
-				return;
-			}
-			
-			var updateCB = this.qcb(function(res) {
-				if (uid === null)
-					uid = res.insertId;
+			var schoolAddedCB = this.qcb(function(res) {
+				if (res && res.insertId)
+					data.school = res.insertId;
 				
-				this.sendRegisterEmail(data, uid, emailsender, cfg, cb);
+				var updateCB = this.qcb(function(res) {
+					if (uid === null)
+						uid = res.insertId;
+					
+					this.sendRegisterEmail(data, uid, emailsender, cfg, cb);
+				});
+				
+				if (type == 'update') {
+					this.generatePWKey(data.password, _.bind(function(pwsalt, pwhash) {
+						this.db.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, pwhash = ?, pwsalt = ?, gender = ?, school = ?, email = ?, email_verif = ?,' +
+						'birthday = ?, desc = ?, provision = ?, address = ? WHERE id = ?',
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email, data.email == user.email,
+						data.birthday, data.desc, data.provision, data.address, uid],
+						updateCB);
+					}, this));
+				} else {
+					this.generatePWKey(data.password, _.bind(function(pwsalt, pwhash) {
+						this.db.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, pwhash, pwsalt, gender, school, email)' +
+						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email],
+						updateCB);
+					}, this));
+				}
 			});
 			
-			if (type == 'update') {
-				this.generatePWKey(data.password, _.bind(function(pwsalt, pwhash) {
-					this.db.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, pwhash = ?, pwsalt = ?, gender = ?, school = ?, email = ?, email_verif = ?,' +
-					'birthday = ?, desc = ?, provision = ?, address = ? WHERE id = ?',
-					[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email, data.email == user.email,
-					data.birthday, data.desc, data.provision, data.address, uid],
-					updateCB);
-				}, this));
+			assert.equals(res.length, 1);
+			if (res[0].c == 0) {
+				if (parseInt(data.school) == data.school) {
+					cb('reg-unknown-school');
+					return;
+				} else {
+					this.db.query('INSERT INTO schools (name) VALUES(?)', [data.school], schoolAddedCB);
+				}
 			} else {
-				this.generatePWKey(data.password, _.bind(function(pwsalt, pwhash) {
-					this.db.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, pwhash, pwsalt, gender, school, email)' +
-					'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
-					[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email],
-					updateCB);
-				}, this));
+				schoolAddedCB(null, []);
 			}
 		}, this);
 		
 		if (data.school !== null) {
-			this.db.query('SELECT COUNT(*) FROM schools WHERE id = ?', [data.school], schoolLookupCB);
+			this.db.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [data.school], schoolLookupCB);
 		} else {
-			schoolLookupCB(null, [0]);
+			schoolLookupCB(null, [{c:0}]);
 		}
 	}));
 }

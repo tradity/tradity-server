@@ -67,6 +67,8 @@ YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
 }
 
 YahooFinanceQuoteLoader.prototype.loadQuotes = function(stocklist, callback) {
+	callback = callback || function() {};
+	
 	_.each(stocklist, _.bind(function(e) {
 		var cb;
 		cb = _.bind(function(record) { if (record.id == e) {

@@ -205,7 +205,7 @@ UserDB.prototype.register = function(data, emailsender, cfg, cb) {
 }
 
 UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
-	var uid = user.id;
+	var uid = user !== null ? user.id : null;
 	if ((data.gender != 'male' && data.gender != 'female' && data.gender != 'undisclosed') || !data.name) {
 		cb('format-error');
 		return;
@@ -249,7 +249,8 @@ UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
 			}
 			
 			var updateCB = this.qcb(function(res) {
-				uid = res.insertId;
+				if (uid === null)
+					uid = res.insertId;
 				
 				this.sendRegisterEmail(data, uid, emailsender, cfg, cb);
 			});

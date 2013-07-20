@@ -106,7 +106,14 @@ ConnectionData.prototype.disconnected = function() {
 	}
 }
 
-var io = sio.listen(cfg.wsport);
+var server = require('http').createServer();
+server.on('request', function (req, res) {
+	res.writeHead(200);
+	res.end('Hi!');
+});
+server.listen(cfg.wsport, 'localhost');
+var io = sio.listen(server);
+
 io.sockets.on('connection', function(socket) {
 	var d = new ConnectionData();
 	d.on('error', function(e) { eh.err(e); });

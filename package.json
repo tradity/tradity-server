@@ -10,7 +10,7 @@
 		"mysql": "*",
 		"nodemailer": "*",
 		"socket.io": "*",
-		"underscore": "*"
+		"underscore": "*",
 		"lapack": "*"
 	},
 	"preferGlobal": false,

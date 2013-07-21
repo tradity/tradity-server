@@ -27,18 +27,20 @@ var yfql = new yf.YahooFinanceQuoteLoader();
 var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
 var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
-db.on('error', function(e) { eh.err(e); });
 var UserDB = new usr.UserDB(db);
-UserDB.on('error', function(e) { eh.err(e); });
 var StocksDB = new stocks.StocksDB(db, yfql);
+
+yfql.on('error', function(e) { eh.err(e); });
+db.on('error', function(e) { eh.err(e); });
+UserDB.on('error', function(e) { eh.err(e); });
 StocksDB.on('error', function(e) { eh.err(e); });
 
 setInterval(function() {
 	UserDB.regularCallback();
-}, 60000);
+}, 60 * 1000);
 setInterval(function() {
 	StocksDB.regularCallback();
-}, 245);
+}, 240 * 1000);
 
 function ConnectionData() {
 	this.user = null;
@@ -88,6 +90,12 @@ ConnectionData.prototype.client_login = function(query) {
 
 ConnectionData.prototype.client_logout = function(query) {
 	UserDB.logout(query.key);
+}
+
+ConnectionData.prototype.client_stock_search = function(query) {
+	StocksDB.searchStocks(query.name, _.bind(function(code,results) {
+		this.response({'code': code, 'results': results});
+	}, this));
 }
 
 ConnectionData.prototype.response = function(data) {

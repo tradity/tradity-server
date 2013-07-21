@@ -3,6 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var lapack = require('lapack');
+var assert = require('assert');
 
 function StocksDB (db, quoteLoader) {
 	this.db = db;
@@ -20,9 +21,9 @@ function StocksDB (db, quoteLoader) {
 util.inherits(StocksDB, require('./objects.js').DBSubsystemBase);
 
 StocksDB.prototype.regularCallback = function() {
-	this.updateLeaderMatrix(_.bind(function() {
-		this.cleanUpUnusedStocks(_.bind(function() {
-			this.updateStockValues();
+	this.cleanUpUnusedStocks(_.bind(function() {
+		this.updateStockValues(_.bind(function() {
+			this.updateLeaderMatrix();
 		}, this));
 	}, this));
 }
@@ -36,19 +37,23 @@ StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 	this.db.query('DELETE FROM recent_searches');
 }
 
-StocksDB.prototype.updateStockValues = function() {
+StocksDB.prototype.updateStockValues = function(cb) {
 	this.db.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ?', [this.refetchLimit], this.qcb(function(res) {
-		this.quoteLoader.loadQuotes(_.map(res, function(entry) { return entry.stockid; }));
+		var stocklist = _.pluck(res, 'stockid');
+		if (stocklist.length > 0)
+			this.quoteLoader.loadQuotes(stocklist);	
+		cb();
 	}));
 }
 
 StocksDB.prototype.updateRecord = function(rec) {
+	assert.notStrictEqual(rec.lastTradePrice, null);
 	this.db.query('INSERT INTO stocks (stockid, lastvalue, lastchecktime, lrutime, leader, name) VALUES '+
 		'(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?) ON DUPLICATE KEY ' +
-		'UPDATE lastvalue = ?, lastchecktime = UNIX_TIMESTAMP(), name = ? WHERE stockid = ?',
+		'UPDATE lastvalue = ?, lastchecktime = UNIX_TIMESTAMP(), name = ?',
 		[rec.symbol, rec.lastTradePrice, rec.name, rec.lastTradePrice, rec.name, rec.symbol],
 		this.qcb(_.bind(function() {
-			this.emit('stock-update', {'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice, 'name': rec.name});
+			this.emit('stock-update', {'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice, 'name': rec.name, 'leader': null, 'leadername': null});
 		}, this))
 	);
 }
@@ -68,7 +73,7 @@ StocksDB.prototype.searchStocks = function(str, cb) {
 		this.quoteLoader.searchAndFindQuotes(str, _.bind(function(res2) {
 			this.db.query('INSERT INTO recent_searches (string) VALUES(?)', [str], this.qcb(function() {
 				var results = _.union(res1, _.map(res2, function(r) {
-					return {'stockid': res2.symbol, 'lastvalue': rec.lastTradePrice, 'name': rec.name, 'leader': null};
+					return {'stockid': res2.symbol, 'lastvalue': rec.lastTradePrice, 'name': rec.name, 'leader': null, 'leadername': null};
 				}));
 				handleResults(results);
 			}));
@@ -83,11 +88,13 @@ StocksDB.prototype.searchStocks = function(str, cb) {
 }
 
 StocksDB.prototype.updateLeaderMatrix = function(cb) {
+	cb = cb || function() {};
+	
 	this.db.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', this.qcb(function(users) {
 	this.db.query(
 		'SELECT ds.userid AS uid, SUM(ds.amount * s.lastvalue) AS valsum FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
 		'ON s.leader IS NULL AND s.id = ds.stockid GROUP BY uid', [], this.qcb(function(res_static) {
-	this.db.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount' +
+	this.db.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], this.qcb(function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		var users_inv = [];
@@ -112,13 +119,14 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		}
 		
 		for (var k = 0; k < res_leader.length; ++k) {
-			var luid = res_leader[k].luid; // leader
-			var fuid = res_leader[k].fuid; // follower
+			var l = users_inv[res_leader[k].luid]; // leader
+			var f = users_inv[res_leader[k].fuid]; // follower
 			var amount = res_leader[k].amount;
 			
-			A[fuid][luid] -= amount / this.valueShare;
+			A[f][l] -= amount / this.valueShare;
 		}
 		
+		//console.log(A, B);
 		var res = lapack.sgesv(A, B);
 		if (!res) {
 			this.emit('error', 'SLE solution not found for\nA = ' + A + '\nB = ' + B);
@@ -127,11 +135,24 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		
 		var X = _.pluck(res.X, 0);
 		
-		for (var i = 0; i < n; ++i) 
-			db.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i], users[i]], this.qcb());
+		for (var i = 0; i < n; ++i) {
+			_.bind(_.partial(function(i) {
+			assert.notStrictEqual(X[i], null);
+			this.db.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i], users[i]], this.qcb(function() {
+				this.db.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
+					[users[i]], this.qcb(function(res) {
+					//console.log(res, n, i, users[i], X[i]);
+					assert.equal(res.length, 1);
+					this.emit('stock-update', res[0]);
+				}));
+			}));
+			}, i), this)();
+		}
 	}));
 	}));
 	}));
 }
+
+exports.StocksDB = StocksDB;
 
 })();

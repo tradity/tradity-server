@@ -10,8 +10,10 @@ var fs = require('fs');
 
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
+var stocks = require('./stocks.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
+var yf = require('./yahoofinance.js');
 
 if (!fs.existsSync('./config.local.js')) {
 	fs.writeFile('./config.local.js', 'exports.config={};\n', function() {});
@@ -21,16 +23,22 @@ if (!fs.existsSync('./config.local.js')) {
 		cfg[i] = cfgl[i];
 }
 
+var yfql = new yf.YahooFinanceQuoteLoader();
 var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
 var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 db.on('error', function(e) { eh.err(e); });
 var UserDB = new usr.UserDB(db);
 UserDB.on('error', function(e) { eh.err(e); });
+var StocksDB = new stocks.StocksDB(db, yfql);
+StocksDB.on('error', function(e) { eh.err(e); });
 
 setInterval(function() {
 	UserDB.regularCallback();
 }, 60000);
+setInterval(function() {
+	StocksDB.regularCallback();
+}, 245);
 
 function ConnectionData() {
 	this.user = null;

@@ -11,6 +11,7 @@
 		"nodemailer": "*",
 		"socket.io": "*",
 		"underscore": "*"
+		"lapack": "*"
 	},
 	"preferGlobal": false,
 	"private": true

@@ -13,14 +13,14 @@ function StocksDB (db, quoteLoader) {
 	this.leaderMatrix = null;
 	this.valueShare = 100;
 	
-	this.updateLeaderMatrix();
+	this.regularCallback();
 	this.quoteLoader.on('record', _.bind(function(rec) {
 		this.updateRecord(rec);
 	}, this));
 }
 util.inherits(StocksDB, require('./objects.js').DBSubsystemBase);
 
-StocksDB.prototype.regularCallback = function() {
+StocksDB.prototype.regularCallback = function() {;
 	this.cleanUpUnusedStocks(_.bind(function() {
 		this.updateStockValues(_.bind(function() {
 			this.updateLeaderMatrix();
@@ -51,9 +51,9 @@ StocksDB.prototype.updateRecord = function(rec) {
 	this.db.query('INSERT INTO stocks (stockid, lastvalue, lastchecktime, lrutime, leader, name) VALUES '+
 		'(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?) ON DUPLICATE KEY ' +
 		'UPDATE lastvalue = ?, lastchecktime = UNIX_TIMESTAMP(), name = ?',
-		[rec.symbol, rec.lastTradePrice, rec.name, rec.lastTradePrice, rec.name, rec.symbol],
+		[rec.symbol, rec.lastTradePrice * 10000, rec.name, rec.lastTradePrice * 10000, rec.name, rec.symbol],
 		this.qcb(_.bind(function() {
-			this.emit('stock-update', {'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice, 'name': rec.name, 'leader': null, 'leadername': null});
+			this.emit('stock-update', {'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice * 10000, 'name': rec.name, 'leader': null, 'leadername': null});
 		}, this))
 	);
 }
@@ -73,7 +73,7 @@ StocksDB.prototype.searchStocks = function(str, cb) {
 		this.quoteLoader.searchAndFindQuotes(str, _.bind(function(res2) {
 			this.db.query('INSERT INTO recent_searches (string) VALUES(?)', [str], this.qcb(function() {
 				var results = _.union(res1, _.map(res2, function(r) {
-					return {'stockid': res2.symbol, 'lastvalue': rec.lastTradePrice, 'name': rec.name, 'leader': null, 'leadername': null};
+					return {'stockid': res2.symbol, 'lastvalue': rec.lastTradePrice * 10000, 'name': rec.name, 'leader': null, 'leadername': null};
 				}));
 				handleResults(results);
 			}));
@@ -126,7 +126,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			A[f][l] -= amount / this.valueShare;
 		}
 		
-		//console.log(A, B);
+		console.log(A, B);
 		var res = lapack.sgesv(A, B);
 		if (!res) {
 			this.emit('error', 'SLE solution not found for\nA = ' + A + '\nB = ' + B);
@@ -141,7 +141,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			this.db.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i], users[i]], this.qcb(function() {
 				this.db.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], this.qcb(function(res) {
-					//console.log(res, n, i, users[i], X[i]);
+					console.log(res, n, i, users[i], X[i]);
 					assert.equal(res.length, 1);
 					this.emit('stock-update', res[0]);
 				}));

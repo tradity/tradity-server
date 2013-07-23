@@ -92,8 +92,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	
 	this.db.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', this.qcb(function(users) {
 	this.db.query(
-		'SELECT ds.userid AS uid, SUM(ds.amount * s.lastvalue) AS valsum FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
-		'ON s.leader IS NULL AND s.id = ds.stockid GROUP BY uid', [], this.qcb(function(res_static) {
+		'SELECT ds.userid AS uid, SUM(ds.amount * s.lastvalue) + freemoney AS valsum FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
+		'ON s.leader IS NULL AND s.id = ds.stockid LEFT JOIN users ON ds.userid = users.id GROUP BY uid', [], this.qcb(function(res_static) {
 	this.db.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], this.qcb(function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
@@ -138,7 +138,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		for (var i = 0; i < n; ++i) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i], null);
-			this.db.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i], users[i]], this.qcb(function() {
+			this.db.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, users[i]], this.qcb(function() {
 				this.db.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], this.qcb(function(res) {
 					console.log(res, n, i, users[i], X[i]);
@@ -150,6 +150,40 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		}
 	}));
 	}));
+	}));
+}
+
+StocksDB.prototype.buyStock = function(query, user, cb) {
+	if ((!query.stockid && query.leader == null) || (query.stockid && query.leader)) 
+		return cb('format-error');
+	
+	if (query.leader != null)
+		query.stocks = '__LEADER_' + query.leader + '__';
+	
+	this.db.query('SELECT s.*, SUM(ds.amount) AS amount FROM stocks AS s LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], this.qcb(function(res) {
+		if (res.length == 0)
+			return cb('stock-buy-stock-not-found');
+		var r = res[0];
+		
+		var amount = parseInt(query.amount == null ? query.value / r.lastvalue : query.amount);
+		if (amount == 0) 
+			return cb('stock-buy-round-result-zero');
+		var price = amount * r.lastvalue;
+		if (price > user.freemoney)
+			return cb('stock-buy-out-of-money');
+		if (amount < -c.amount)
+			return cb('stock-buy-not-enough-stocks');
+		if (r.amount == null) {
+			this.db.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?)', 
+				[user.id, r.id, amount, query.comment], this.qcb(function() {
+				cb('stock-buy-success');
+			}));
+		} else {
+			this.db.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), comment = ? WHERE userid = ? AND stockid = ?', 
+				[amount, query.comment, user.id, r.id], this.qcb(function() {
+				cb('stock-buy-success');
+			}));
+		}
 	}));
 }
 

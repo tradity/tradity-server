@@ -61,12 +61,11 @@ ConnectionData.prototype.client_register = function(query) {
 }
 
 ConnectionData.prototype.client_get_own_options = function(query) {
-	UserDB.getUserData(query.key, _.bind(function(data) {
-		if (data.code === null) {
+	UserDB.loadSessionUser(query.key, _.bind(function(usr) {
+		if (usr === null) 
 			this.response({'code': 'not-logged-in', 'is-reply-to': query.id});
-		} else {
-			this.response({'code': 'own-options-success', 'is-reply-to': query.id, 'data': data});
-		}
+		else
+			this.response({'code': 'own-options-success', 'is-reply-to': query.id, 'data': usr});
 	}, this));
 }
 
@@ -93,8 +92,22 @@ ConnectionData.prototype.client_logout = function(query) {
 }
 
 ConnectionData.prototype.client_stock_search = function(query) {
-	StocksDB.searchStocks(query.name, _.bind(function(code,results) {
-		this.response({'code': code, 'results': results});
+	UserDB.loadSessionUser(query.key, _.bind(function(usr) {
+		if (!usr)
+			this.response({'code': 'not-logged-in', 'is-reply-to': query.id});
+		else StocksDB.searchStocks(query.name, _.bind(function(code,results) {
+			this.response({'code': code, 'results': results, 'is-reply-to': query.id});
+		}, this));
+	}, this));
+}
+
+ConnectionData.prototype.client_stock_buy = function(query) {
+	UserDB.loadSessionUser(query.key, _.bind(function(usr) {
+		if (!usr)
+			this.response({'code': 'not-logged-in', 'is-reply-to': query.id});
+		else StocksDB.buyStock(query, usr, _.bind(function(code) {
+			this.response({'code': code, 'is-reply-to': query.id});
+		}, this));
 	}, this));
 }
 

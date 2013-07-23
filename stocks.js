@@ -106,6 +106,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			users_inv[users[k]] = k;
 				
 		var n = users.length;
+		if (n == 0)
+			return;
+		
 		var A = _.map(_.range(n), function(i) {
 			return _.map(_.range(n), function(j) { return i == j ? 1.0 : 0.0; });
 		});

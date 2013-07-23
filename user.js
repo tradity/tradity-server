@@ -6,8 +6,10 @@ var hash = require('mhash').hash;
 var crypto = require('crypto');
 var assert = require('assert');
 
-function UserDB (db) {
+function UserDB (db, emailsender, config) {
 	this.db = db;
+	this.emailsender = emailsender;
+	this.cfg = config;
 }
 util.inherits(UserDB, require('./objects.js').DBSubsystemBase);
 
@@ -26,8 +28,8 @@ UserDB.prototype.listStocks = function(user, cb) {
 	}));
 }
 
-UserDB.prototype.insertPSEmail = function(email, cb) {
-	this.db.query('SELECT COUNT(*) AS c FROM ps_emails WHERE email = ?', [email], this.qcb(function(res) {		
+UserDB.prototype.insertPSEmail = function(query, user, access, cb) {
+	this.db.query('SELECT COUNT(*) AS c FROM ps_emails WHERE email = ?', [query.email], this.qcb(function(res) {		
 		assert.equal(res.length, 1);
 			
 		if (res[0].c != 0) {
@@ -36,22 +38,22 @@ UserDB.prototype.insertPSEmail = function(email, cb) {
 			return;
 		}
 		
-		this.db.query('INSERT INTO ps_emails (email, time) VALUES(?, UNIX_TIMESTAMP())', [email], this.qcb(function(res) {
+		this.db.query('INSERT INTO ps_emails (email, time) VALUES(?, UNIX_TIMESTAMP())', [query.email], this.qcb(function(res) {
 			cb('email-enter-success');
 		}));
 	}));
 }
 
-UserDB.prototype.sendRegisterEmail = function(data, uid, emailsender, cfg, cb) {
+UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 	crypto.randomBytes(16, _.bind(function(ex, buf) {
 		var key = buf.toString('hex');
 		
 		this.db.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
 			[uid, key], this.qcb(function(res) {
 			
-			var url = cfg.regurl.replace(/\{\$key\}/, key).replace(/\{\$uid\}/, uid);
+			var url = this.cfg.regurl.replace(/\{\$key\}/, key).replace(/\{\$uid\}/, uid);
 			
-			var opt = _.clone(cfg.mail['register-base']);
+			var opt = _.clone(this.cfg.mail['register-base']);
 			opt.to = data.email;
 			opt.subject += ' (' + data.name + ')';
 			opt.generateTextFromHTML = true;
@@ -59,22 +61,26 @@ UserDB.prototype.sendRegisterEmail = function(data, uid, emailsender, cfg, cb) {
 			'<a href="' + url + '">' + url + '</a></p>\n' + 
 			'<p>If you received this email accidentally, you may simply ignore it.</p>';
 			
-			cb('reg-email-sending');
+			cb('reg-email-sending', uid);
 			
-			emailsender.sendMail(opt, _.bind(function (error, resp) {
+			this.emailsender.sendMail(opt, _.bind(function (error, resp) {
 				if (error) {
-					cb('reg-email-failed');
+					cb('reg-email-failed', uid);
 					this.emit('error', error);
 				} else {
-					cb('reg-success');
+					cb('reg-success', uid);
 				}
 			}, this));
 		}));
 	}, this));
 }
 
-UserDB.prototype.login = function(name, pw, stayloggedin, cb) {
-	this.db.query('SELECT * FROM users WHERE email = ? OR name = ?', [name, name], this.qcb(function(res) {
+UserDB.prototype.login = function(query, user, access, cb) {
+	var name = query.name;
+	var pw = query.pw;
+	var stayloggedin = query.stayloggedin;
+	
+	this.db.query('SELECT * FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL', [name, name], this.qcb(function(res) {
 		if (res.length == 0) {
 			cb('login-badname');
 			return;
@@ -106,7 +112,7 @@ UserDB.prototype.login = function(name, pw, stayloggedin, cb) {
 			
 			this.db.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 				'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-				[id, key, stayloggedin ? 3628800 : 1800], this.db.qcb(function(res) {
+				[uid, key, stayloggedin ? 3628800 : 1800], this.qcb(function(res) {
 					cb('login-success', key);
 				})
 			);
@@ -114,34 +120,44 @@ UserDB.prototype.login = function(name, pw, stayloggedin, cb) {
 	}, this));
 }
 
-UserDB.prototype.logout = function(key) {
-	this.db.query('DELETE FROM sessions WHERE key = ?', [key], this.qcb(function() {}));
+UserDB.prototype.logout = function(query, user, access, cb) {
+	this.db.query('DELETE FROM sessions WHERE `key` = ?', [query.key], this.qcb(function() {}));
+	cb('logout-success');
+}
+
+UserDB.prototype.listSchools = function(query, user, access, cb) {
+	this.db.query('SELECT id, name FROM schools', [], this.qcb(cb));
 }
 
 UserDB.prototype.regularCallback = function() {
 	this.db.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', [], this.qcb(function() {}));
 }
 					
-UserDB.prototype.emailVerify = function(uid, key, cb) {
+UserDB.prototype.emailVerify = function(query, user, access, cb) {
+	var uid = user.id;
+	var key = query.key;
+	
 	this.db.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
-	'UNION SELECT COUNT(*) AS v, 41 AS y FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], this.qcb(function(res) {		
-		if (res.length != 2) {
-			console.log('strange email-verif stuff', res);
-			cb('email-verify-failure');
-			return;
-		}
-		
-		var email = null;
-		for (var i = 0; i < res.length; ++i) {
-			if (res[i].y == 42 && res[i].v != 0) {
-				cb('email-verify-already-verified');
-				email = res[i].email;
+	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], this.qcb(function(res) {		
+		if (access.indexOf('*') == -1) {
+			if (res.length != 2) {
+				console.log('strange email-verif stuff', res);
+				cb('email-verify-failure');
 				return;
 			}
 			
-			if (res[i].y == 41 && res[i].v < 1) {
-				cb('email-verify-failure');
-				return;
+			var email = null;
+			for (var i = 0; i < res.length; ++i) {
+				if (res[i].y == 42 && res[i].v != 0) {
+					cb('email-verify-already-verified');
+					email = res[i].email;
+					return;
+				}
+				
+				if (res[i].y == 41 && res[i].v < 1) {
+					cb('email-verify-failure');
+					return;
+				}
 			}
 		}
 		
@@ -161,50 +177,39 @@ UserDB.prototype.emailVerify = function(uid, key, cb) {
 }
 
 UserDB.prototype.loadSessionUser = function(key, cb) {
-	this.db.query('SELECT *, sessions.id AS sid, users.id AS uid FROM sessions JOIN users ON sessions.uid = users.id WHERE `key` = ? AND lastusetime + endtimeoffset < UNIX_TIMESTAMP()', [key], this.qcb(function(res) {
+	this.db.query('SELECT *, sessions.id AS sid, users.id AS uid FROM sessions JOIN users ON sessions.uid = users.id WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP()', [key], this.qcb(function(res) {
 		if (res.length == 0) {
 			cb(null);
 		} else {
 			assert.equal(res.length, 1);
+			var user = res[0];
+			user.id = user.uid;
 			
-			this.db.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [res], this.qcb());
-			cb(res);
+			this.db.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.id], this.qcb());
+			cb(user);
 		}
 	}));
 }
 
-UserDB.prototype.changeOptions = function(data, emailsender, cfg, cb) {
-	this.loadSessionUser(data.key, _.bind(function(user) {
-		if (user === null) {
-			cb('not-logged-in');
-			return;
-		}
-		
-		this.updateUser(data, 'change', user, emailsender, cfg, cb);
-	}, this));
+UserDB.prototype.register = function(query, user, access, cb) {
+	assert.strictEqual(user, null);
+	this.updateUser(query, 'register', null, cb);
 }
 
-UserDB.prototype.deleteUser = function(data, cb) {
-	this.loadSessionUser(data.key, _.bind(function(user) {
-		if (user === null) {
-			cb('not-logged-in');
-			return;
-		}
-		
-		this.db.query('DELETE FROM sessions WHERE uid = ?', [user.uid], this.qcb(function() {
-		this.db.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", gender="undisclosed", birthday=NULL, school=NULL, realnamepublish=0, desc="", provision=0, address=NULL, deletiontime=UNIX_TIMESTAMP()' +
-		'WHERE id = ?', [user.uid, user.uid], this.qcb(function() {
-			cb('delete-user-success');
-		}));
-		}));
-	}, this));
+UserDB.prototype.changeOptions = function(query, user, access, cb) {
+	this.updateUser(query, 'change', user, cb);
 }
 
-UserDB.prototype.register = function(data, emailsender, cfg, cb) {
-	this.updateUser(data, 'register', null, emailsender, cfg, cb);
+UserDB.prototype.deleteUser = function(query, user, access, cb) {
+	this.db.query('DELETE FROM sessions WHERE uid = ?', [user.id], this.qcb(function() {
+	this.db.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", gender="undisclosed", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, address=NULL, deletiontime = UNIX_TIMESTAMP()' +
+	'WHERE id = ?', [user.id, user.id], this.qcb(function() {
+		cb('delete-user-success');
+	}));
+	}));
 }
 
-UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
+UserDB.prototype.updateUser = function(data, type, user, cb) {
 	var uid = user !== null ? user.id : null;
 	if ((data.gender != 'male' && data.gender != 'female' && data.gender != 'undisclosed') || !data.name) {
 		cb('format-error');
@@ -216,7 +221,7 @@ UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
 		return;
 	}
 	
-	if (!/^[^\.,@<>\x00-\x20\0x7f!"'\/\\$#()^?&{}]+$/.test(data.name)) {
+	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(data.name)) {
 		cb('reg-name-invalid-char');
 		return;
 	}
@@ -251,7 +256,7 @@ UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
 					if (uid === null)
 						uid = res.insertId;
 					
-					this.sendRegisterEmail(data, uid, emailsender, cfg, cb);
+					this.sendRegisterEmail(data, uid, cb);
 				});
 				
 				if (type == 'update') {
@@ -272,7 +277,7 @@ UserDB.prototype.updateUser = function(data, type, user, emailsender, cfg, cb) {
 				}
 			});
 			
-			assert.equals(res.length, 1);
+			assert.equal(res.length, 1);
 			if (res[0].c == 0) {
 				if (parseInt(data.school) == data.school) {
 					cb('reg-unknown-school');

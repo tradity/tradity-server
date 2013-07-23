@@ -31,10 +31,12 @@ StocksDB.prototype.regularCallback = function() {;
 StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 	cb = cb || function() {};
 	
-	this.db.query('DELETE FROM stocks WHERE' +
-		'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) = 0 AND UNIX_TIMESTAMP()-stocks.lrutime > ? AND leader IS NULL', [this.lrutimeLimit],
-		this.qcb(cb));
-	this.db.query('DELETE FROM recent_searches');
+	this.db.query('DELETE FROM depot_stocks WHERE amount = 0', [], this.qcb(function() {
+		this.db.query('DELETE FROM stocks WHERE' +
+			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) = 0 AND UNIX_TIMESTAMP()-stocks.lrutime > ? AND leader IS NULL', [this.lrutimeLimit],
+			this.qcb(cb));
+		this.db.query('DELETE FROM recent_searches', [], this.qcb());
+	}));
 }
 
 StocksDB.prototype.updateStockValues = function(cb) {
@@ -50,19 +52,21 @@ StocksDB.prototype.updateRecord = function(rec) {
 	assert.notStrictEqual(rec.lastTradePrice, null);
 	this.db.query('INSERT INTO stocks (stockid, lastvalue, lastchecktime, lrutime, leader, name) VALUES '+
 		'(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?) ON DUPLICATE KEY ' +
-		'UPDATE lastvalue = ?, lastchecktime = UNIX_TIMESTAMP(), name = ?',
-		[rec.symbol, rec.lastTradePrice * 10000, rec.name, rec.lastTradePrice * 10000, rec.name, rec.symbol],
+		'UPDATE lastvalue = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) > LENGTH(?), name, ?)',
+		[rec.symbol, rec.lastTradePrice * 10000, rec.name, rec.lastTradePrice * 10000, rec.name, rec.name],
 		this.qcb(_.bind(function() {
 			this.emit('stock-update', {'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice * 10000, 'name': rec.name, 'leader': null, 'leadername': null});
 		}, this))
 	);
 }
 
-StocksDB.prototype.searchStocks = function(str, cb) {
+StocksDB.prototype.searchStocks = function(query, user, access, cb) {
+	var str = query.name;
+	
 	var handleResults = _.bind(function(results) {
 		var symbols = _.map(results, function(r) { return r.stockid; });
 		symbols = _.map(symbols, escape);
-		this.db.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE symbol IN ("' + _.map(symbols.join('","')) + '")', [], this.qcb());
+		this.db.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE symbol IN ("' + _.map(symbols, _.bind(this.db.escape, this.db)).join('","') + '")', [], this.qcb());
 		cb('stock-search-success', results);
 	}, this);
 	
@@ -73,11 +77,11 @@ StocksDB.prototype.searchStocks = function(str, cb) {
 		this.quoteLoader.searchAndFindQuotes(str, _.bind(function(res2) {
 			this.db.query('INSERT INTO recent_searches (string) VALUES(?)', [str], this.qcb(function() {
 				var results = _.union(res1, _.map(res2, function(r) {
-					return {'stockid': res2.symbol, 'lastvalue': rec.lastTradePrice * 10000, 'name': rec.name, 'leader': null, 'leadername': null};
+					return {'stockid': r.symbol, 'lastvalue': r.lastTradePrice * 10000, 'name': r.name, 'leader': null, 'leadername': null};
 				}));
 				handleResults(results);
 			}));
-		}));
+		}, this));
 	} else {
 		this.db.query('SELECT * FROM stocks WHERE name LIKE ? OR stockid LIKE ?', [xstr, xstr], this.qcb(function(res2) {
 			handleResults(_.union(res1, res2));
@@ -153,7 +157,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	}));
 }
 
-StocksDB.prototype.buyStock = function(query, user, cb) {
+StocksDB.prototype.buyStock = function(query, user, access, cb) {
 	if ((!query.stockid && query.leader == null) || (query.stockid && query.leader)) 
 		return cb('format-error');
 	

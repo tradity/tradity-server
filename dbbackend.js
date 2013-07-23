@@ -29,6 +29,10 @@ Database.prototype.query = function(query, args, cb) {
 	this.connection.query(query, args, cb);
 }
 
+Database.prototype.escape = function(str) {
+	return this.connection.escape(str);
+}
+
 exports.Database = Database;
 
 })();

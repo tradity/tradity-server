@@ -77,8 +77,8 @@ YahooFinanceQuoteLoader.prototype.loadQuotes = function(stocklist, callback) {
 	_.each(stocklist, _.bind(function(e) {
 		var cb;
 		cb = _.bind(function(record) { if (record.id == e) {
-			callback(record);
 			this.removeListener('record', cb);
+			callback(record);
 		}}, this);
 		
 		this.on('record', cb);
@@ -111,13 +111,17 @@ YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, callback)
 			for (var i = 0; i < rset.length; ++i) {
 				stocklist.push(rset[i].symbol);
 				records[i] = null;
-			}			
+			}
+			
+			if (stocklist.length == 0)
+				callback([]);
 			
 			this.loadQuotes(stocklist, _.bind(function(record) {
 				var sym = record.symbol;
 				for (var i = 0; i < rset.length; ++i) {
 					if (sym == rset[i].symbol) {
 						record.setName(rset[i].name);
+						this.emit('record', record);
 						records[i] = record;
 						break;
 					}

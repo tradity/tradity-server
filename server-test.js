@@ -132,6 +132,13 @@ socket.on('connect', function() {
 				break;
 			case 'login-3':
 				assert.equal(data.code, 'login-badname');
+				emit('query', {
+					type: 'ping',
+					id: 'ping',
+				});
+				break;
+			case 'ping':
+				assert.equal(data.code, 'pong');
 				console.log('Thank you for watching, please subscribe to my channel to view other tests');
 				process.exit(0);
 		}

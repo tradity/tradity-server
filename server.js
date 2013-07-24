@@ -129,6 +129,10 @@ ConnectionData.prototype.client_stock_buy = _login(function(query, cb) {
 	}, this));
 })
 
+ConnectionData.prototype.client_ping = function(query, cb) {
+	cb('pong');
+}
+
 ConnectionData.prototype.response = function(data) {
 	this.emit('response', data);
 }

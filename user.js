@@ -38,7 +38,7 @@ UserDB.prototype.insertPSEmail = function(query, user, access, cb) {
 			return;
 		}
 		
-		this.db.query('INSERT INTO ps_emails (email, time) VALUES(?, UNIX_TIMESTAMP())', [query.email], this.qcb(function(res) {
+		this.db.query('INSERT INTO ps_emails (email, time, lang) VALUES(?, UNIX_TIMESTAMP(), ?)', [query.email, query.lang], this.qcb(function(res) {
 			cb('email-enter-success');
 		}));
 	}));

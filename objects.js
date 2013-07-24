@@ -26,6 +26,13 @@ DBSubsystemBase.prototype.queryCallback = function(cb) {
 	}, this);
 }
 
+DBSubsystemBase.prototype.transaction = function(f) {
+	this.db.pushTransaction(this.qcb(function () {
+		_.bind(f,this)();
+		this.db.popTransaction(this.qcb());
+	}));
+}
+
 exports.DBSubsystemBase = DBSubsystemBase;
 
 })();

@@ -167,11 +167,13 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 				return;
 			}
 		
-			this.db.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid], this.qcb(function() {
-			this.db.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid], this.qcb(function() {
-				cb('email-verify-success');
-			}));
-			}));
+			this.transaction(function() {
+				this.db.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid], this.qcb(function() {
+				this.db.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid], this.qcb(function() {
+					cb('email-verify-success');
+				}));
+				}));
+			});
 		}));
 	}));
 }
@@ -201,12 +203,14 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 }
 
 UserDB.prototype.deleteUser = function(query, user, access, cb) {
-	this.db.query('DELETE FROM sessions WHERE uid = ?', [user.id], this.qcb(function() {
-	this.db.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", gender="undisclosed", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, address=NULL, deletiontime = UNIX_TIMESTAMP()' +
-	'WHERE id = ?', [user.id, user.id], this.qcb(function() {
-		cb('delete-user-success');
-	}));
-	}));
+	this.transaction(function() {
+		this.db.query('DELETE FROM sessions WHERE uid = ?', [user.id], this.qcb(function() {
+		this.db.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", gender="undisclosed", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, address=NULL, deletiontime = UNIX_TIMESTAMP()' +
+		'WHERE id = ?', [user.id, user.id], this.qcb(function() {
+			cb('delete-user-success');
+		}));
+		}));
+	});
 }
 
 UserDB.prototype.updateUser = function(data, type, user, cb) {

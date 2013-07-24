@@ -8,7 +8,7 @@ var assert = require('assert');
 function StocksDB (db, quoteLoader) {
 	this.db = db;
 	this.quoteLoader = quoteLoader;
-	this.lrutimeLimit = 200;
+	this.lrutimeLimit = 240;
 	this.refetchLimit = 260;
 	this.leaderMatrix = null;
 	this.valueShare = 100;
@@ -32,10 +32,11 @@ StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 	cb = cb || function() {};
 	
 	this.db.query('DELETE FROM depot_stocks WHERE amount = 0', [], this.qcb(function() {
+		this.db.query('DELETE FROM recent_searches', [], this.qcb(function() {
 		this.db.query('DELETE FROM stocks WHERE' +
 			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) = 0 AND UNIX_TIMESTAMP()-stocks.lrutime > ? AND leader IS NULL', [this.lrutimeLimit],
 			this.qcb(cb));
-		this.db.query('DELETE FROM recent_searches', [], this.qcb());
+		}));
 	}));
 }
 
@@ -142,19 +143,21 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		
 		var X = _.pluck(res.X, 0);
 		
-		for (var i = 0; i < n; ++i) {
-			_.bind(_.partial(function(i) {
-			assert.notStrictEqual(X[i], null);
-			this.db.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, users[i]], this.qcb(function() {
-				this.db.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
-					[users[i]], this.qcb(function(res) {
-					console.log(res, n, i, users[i], X[i]);
-					assert.equal(res.length, 1);
-					this.emit('stock-update', res[0]);
+		this.transaction(function() {
+			for (var i = 0; i < n; ++i) {
+				_.bind(_.partial(function(i) {
+				assert.notStrictEqual(X[i], null);
+				this.db.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, users[i]], this.qcb(function() {
+					this.db.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
+						[users[i]], this.qcb(function(res) {
+						console.log(res, n, i, users[i], X[i]);
+						assert.equal(res.length, 1);
+						this.emit('stock-update', res[0]);
+					}));
 				}));
-			}));
-			}, i), this)();
-		}
+				}, i), this)();
+			}
+		});
 	}));
 	}));
 	}));
@@ -167,31 +170,36 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 	if (query.leader != null)
 		query.stocks = '__LEADER_' + query.leader + '__';
 	
-	this.db.query('SELECT s.*, SUM(ds.amount) AS amount FROM stocks AS s LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], this.qcb(function(res) {
-		if (res.length == 0)
-			return cb('stock-buy-stock-not-found');
-		var r = res[0];
-		
-		var amount = parseInt(query.amount == null ? query.value / r.lastvalue : query.amount);
-		if (amount == 0) 
-			return cb('stock-buy-round-result-zero');
-		var price = amount * r.lastvalue;
-		if (price > user.freemoney)
-			return cb('stock-buy-out-of-money');
-		if (amount < -c.amount)
-			return cb('stock-buy-not-enough-stocks');
-		if (r.amount == null) {
-			this.db.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?)', 
-				[user.id, r.id, amount, query.comment], this.qcb(function() {
-				cb('stock-buy-success');
-			}));
-		} else {
-			this.db.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), comment = ? WHERE userid = ? AND stockid = ?', 
-				[amount, query.comment, user.id, r.id], this.qcb(function() {
-				cb('stock-buy-success');
-			}));
-		}
-	}));
+	this.transaction(function() {
+		this.db.query('SELECT s.*, SUM(ds.amount) AS amount FROM stocks AS s LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], this.qcb(function(res) {
+			if (res.length == 0)
+				return cb('stock-buy-stock-not-found');
+			var r = res[0];
+			
+			var amount = parseInt(query.amount == null ? query.value / r.lastvalue : query.amount);
+			if (amount == 0) 
+				return cb('stock-buy-round-result-zero');
+			var price = amount * r.lastvalue;
+			if (price > user.freemoney)
+				return cb('stock-buy-out-of-money');
+			if (amount < -c.amount)
+				return cb('stock-buy-not-enough-stocks');
+				
+			this.db.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price, user.id], this.qcb());
+			
+			if (r.amount == null) {
+				this.db.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?)', 
+					[user.id, r.id, amount, query.comment], this.qcb(function() {
+					cb('stock-buy-success');
+				}));
+			} else {
+				this.db.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), comment = ? WHERE userid = ? AND stockid = ?', 
+					[amount, query.comment, user.id, r.id], this.qcb(function() {
+					cb('stock-buy-success');
+				}));
+			}
+		}));
+	});
 }
 
 exports.StocksDB = StocksDB;

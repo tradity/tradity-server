@@ -27,6 +27,17 @@ ErrorHandler.prototype.err = function(e, noemail) {
 	fs.appendFile('errors.log', opt.text, function() {});
 }
 
+ErrorHandler.prototype.wrap = function(f) {
+	var eh = this;
+	return function() {
+		try {
+			f.apply(this, arguments);
+		} catch (e) {
+			eh.err(e);
+		}
+	}
+}
+
 exports.ErrorHandler = ErrorHandler;
 
 })();

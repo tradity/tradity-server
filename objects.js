@@ -13,24 +13,22 @@ DBSubsystemBase.prototype.dbevent = function(name, data, access) {
 	this.emit('dbevent', {name:name, data:data, access:access});
 }
 
-DBSubsystemBase.prototype.qcb =
-DBSubsystemBase.prototype.queryCallback = function(cb) {
+DBSubsystemBase.prototype.query = function(query, data, cb) {
+	data = data || [];
+	
+	this.db.query(query, data, this.queryCallback(cb, query));
+}
+
+DBSubsystemBase.prototype.queryCallback = function(cb, query) {
 	if (!cb)
 		return (function() {});
 	
 	return _.bind(function(err, res) {
-		if (err)
-			this.emit('error', new Error(err));
+		if (err) 
+			this.emit('error', query ? new Error(err + '\nCaused by <<' + query + '>>') : err);
 		else
 			_.bind(cb, this)(res);
 	}, this);
-}
-
-DBSubsystemBase.prototype.transaction = function(f) {
-	this.db.pushTransaction(this.qcb(function () {
-		_.bind(f,this)();
-		this.db.popTransaction(this.qcb());
-	}));
 }
 
 exports.DBSubsystemBase = DBSubsystemBase;

@@ -33,19 +33,19 @@ var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportDa
 var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
-var StocksDB = new stocks.StocksDB(db, yfql);
+var StocksDB = new stocks.StocksDB(db, cfg, yfql);
 
 yfql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
 UserDB.on('error', function(e) { eh.err(e); });
 StocksDB.on('error', function(e) { eh.err(e); });
 
-setInterval(function() {
+setInterval(eh.wrap(function() {
 	UserDB.regularCallback();
-}, 60 * 1000);
-setInterval(function() {
+}), 60 * 1000);
+setInterval(eh.wrap(function() {
 	StocksDB.regularCallback();
-}, 240 * 1000);
+}), 240 * 1000);
 
 function ConnectionData() {
 	this.user = null;
@@ -59,6 +59,13 @@ ConnectionData.prototype.client_insertPSEmail = function(query, cb) {
 		cb(code);
 	}, this));
 }
+
+function _login (f) { return function(query, cb) {
+	if (this.user === null)
+		cb('not-logged-in')
+	else
+		return _.bind(f,this)(query, cb);
+}}
 
 ConnectionData.prototype.client_list_schools = function(query, cb) {
 	UserDB.listSchools(query, this.user, this.access, _.bind(function(results) {
@@ -74,12 +81,15 @@ ConnectionData.prototype.client_register = function(query, cb) {
 	}, this));
 }
 
-function _login (f) { return function(query, cb) {
-	if (this.user === null)
-		cb('not-logged-in')
-	else
-		return _.bind(f,this)(query, cb);
-}}
+ConnectionData.prototype.client_prod = _login(function(query, cb) {
+	if (this.access.indexOf('*') == -1) {
+		cb('prod-not-allowed');
+	} else {
+		cb('prod-running');
+		UserDB.regularCallback();
+		StocksDB.regularCallback();
+	}
+})
 
 ConnectionData.prototype.client_get_own_options = _login(function(query, cb) {
 	cb('own-options-success', {'data': this.user});
@@ -129,6 +139,12 @@ ConnectionData.prototype.client_stock_buy = _login(function(query, cb) {
 	}, this));
 })
 
+ConnectionData.prototype.client_list_own_depot = _login(function(query, cb) {
+	StocksDB.stocksForUser(this.user, _.bind(function(results) {
+		cb('list-own-depot-success', {'results': results});
+	}, this));
+})
+
 ConnectionData.prototype.client_ping = function(query, cb) {
 	cb('pong');
 }
@@ -146,6 +162,7 @@ ConnectionData.prototype.query = function(query) {
 		this.access = _.union(access, this.access);
 			
 		if (query.authorizationKey == authorizationKey) {
+			console.log('Received query with master authorization of type', query.type);
 			this.access.push('*');
 			if (user == null && query.uid != null)
 				user = {uid: query.uid, id: query.uid};
@@ -162,7 +179,7 @@ ConnectionData.prototype.query = function(query) {
 			this.response(obj);
 		}, this);
 		
-		var t = query.type.replace(/-/, '_');
+		var t = query.type.replace(/-/g, '_');
 		if (('client_' + t) in this)
 			_.bind(this['client_' + t], this)(query, cb);
 		else
@@ -207,21 +224,14 @@ io.sockets.on('connection', function(socket) {
 		socket.emit('error', data);
 	});
 	
-	socket.on('query', function(query) {
-		try {
-			d.query(query);
-		} catch (e) {
-			eh.err(e);
-		}
-	});
+	socket.on('query', eh.wrap(function(query) {
+		d.query(query);
+	}));
 	
-	socket.on('disconnect', function() {
-		try {
-			d.disconnected();
-		} catch (e) {
-			eh.err(e);
-		}
-	});
+	socket.on('disconnect', eh.wrap(function() {
+		d.disconnected();
+		
+	}));
 });
 
 }, this));

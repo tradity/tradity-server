@@ -15,6 +15,7 @@ socket.on('connect', function() {
 	var t = new Date().getTime() * (process.id | 0x100);
 	var email = t + '@invalid.invalid';
 	var password = 'musterpw' + t;
+	var own_uid = null;
 	
 	var emit = function (e, d) { console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('response', function (data) {
@@ -115,6 +116,15 @@ socket.on('connect', function() {
 			case 'stock-search-2':
 				assert.equal(data.code, 'stock-search-success');
 				emit('query', {
+					type: 'get-own-options',
+					id: 'get-own-options',
+					key: key
+				});
+				break;
+			case 'get-own-options':
+				assert.equal(data.code, 'own-options-success');
+				own_uid = data.data.uid;
+				emit('query', {
 					type: 'delete-user',
 					id: 'delete-user',
 					key: key
@@ -132,6 +142,15 @@ socket.on('connect', function() {
 				break;
 			case 'login-3':
 				assert.equal(data.code, 'login-badname');
+				emit('query', {
+					type: 'prod',
+					id: 'prod',
+					authorizationKey: authorizationKey,
+					uid: own_uid
+				});
+				break;
+			case 'prod':
+				assert.equal(data.code, 'prod-running');
 				emit('query', {
 					type: 'ping',
 					id: 'ping',

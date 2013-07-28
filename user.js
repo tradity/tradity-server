@@ -129,7 +129,15 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 	var si = query.startindex, ei = query.endindex;
 	if (parseInt(si) != si || parseInt(ei) != ei)
 		cb('format-error');
-	this.query('SELECT rank, uid, name FROM ranking LEFT JOIN users ON ranking.uid = users.id WHERE `type` = ? AND rank >= ? AND rank < ?', 
+	var schools_join = '';
+	if (query.fromschool != null) 
+		schools_join = 'AND users.school = "' + parseInt(query.fromschool) + '"';
+	else if(query.studentonly)
+		schools_join = 'AND users.school IS NOT NULL';
+	
+	this.query('SELECT rank, uid, name FROM ranking ' +
+		'JOIN users ON ranking.uid = users.id ' +
+		schools_join + ' WHERE `type` = ? AND rank >= ? AND rank < ?', 
 		[query.rtype, si, ei], cb);
 }
 

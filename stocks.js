@@ -197,7 +197,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		var X = _.pluck(res.X, 0);
 		
 		var complete = 0;
-		for (var i = 0; i < n; ++i) {
+		if (n == 0)
+			cb(); // make sure the callback is active even if we have no active users…
+		else for (var i = 0; i < n; ++i) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i], null);
 			this.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, users[i]], function() {

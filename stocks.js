@@ -11,6 +11,7 @@ function StocksDB (db, cfg, quoteLoader) {
 	this.cfg = cfg;
 	this.leaderMatrix = null;
 	this.lastCallbackDay = null;
+	this.regularCallbackActive = false;
 	
 	this.regularCallback();
 	this.quoteLoader.on('record', _.bind(function(rec) {
@@ -19,16 +20,31 @@ function StocksDB (db, cfg, quoteLoader) {
 }
 util.inherits(StocksDB, require('./objects.js').DBSubsystemBase);
 
-StocksDB.prototype.regularCallback = function() {;
+StocksDB.prototype.regularCallback = function(cb) {
+	cb = cb || function() {};
+	if (this.regularCallbackActive) {
+		this.emit('error', 'Regular callback overlapping in StockDB – might be pretty serious!');
+		return cb();
+	}
+		
+	this.regularCallbackActive = true;
+	
 	this.cleanUpUnusedStocks(_.bind(function() {
 	this.updateStockValues(_.bind(function() {
 	this.updateLeaderMatrix(_.bind(function() {
-		this.updateRanking();
+	this.updateRanking(_.bind(function() {
 		var d = new Date();
 		if (d.getUTCDay() != this.lastCallbackDay && d.getUTCHours() >= this.cfg.dailyCallbackHour) {
 			this.lastCallbackDay = d.getUTCDay();
-			this.dailyCallback();
+			this.dailyCallback(_.bind(function() {
+				cb();
+				this.regularCallbackActive = false;
+			}, this));
+		} else {
+			cb();
+			this.regularCallbackActive = false;
 		}
+	}, this));
 	}, this));
 	}, this));
 	}, this));
@@ -37,7 +53,7 @@ StocksDB.prototype.regularCallback = function() {;
 StocksDB.prototype.updateRanking = function(cb) {
 	cb = cb || function() {};
 	
-	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general", id, @rank := @rank + 1 FROM users ORDER BY totalvalue DESC');
+	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general", id, @rank := @rank + 1 FROM users ORDER BY totalvalue DESC', [], cb);
 }
 
 StocksDB.prototype.dailyCallback = function(cb) {

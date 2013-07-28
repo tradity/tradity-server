@@ -125,12 +125,33 @@ UserDB.prototype.logout = function(query, user, access, cb) {
 	cb('logout-success');
 }
 
+UserDB.prototype.getRanking = function(query, user, access, cb) {
+	var si = query.startindex, ei = query.endindex;
+	if (parseInt(si) != si || parseInt(ei) != ei)
+		cb('format-error');
+	this.query('SELECT rank, uid, name FROM ranking LEFT JOIN users ON ranking.uid = users.id WHERE `type` = ? AND rank >= ? AND rank < ?', 
+		[query.rtype, si, ei], cb);
+}
+
+UserDB.prototype.getUserInfo = function(query, user, access, cb) {
+	var columns = (access.indexOf('*') != -1 ? ['*', 'users.id AS uid', 'schools.id AS schoolid', 'users.name AS name'] : [
+		'users.id AS uid', 'users.name AS name',
+		'IF(real_name_publish,giv_name,NULL) AS giv_name',
+		'IF(real_name_publish,fam_name,NULL) AS fam_name',
+		'birthday', 'gender', 'schools.id AS schoolid', 'schools.name AS schoolname',
+		'desc', 'provision', 'totalvalue', 'rank'
+		]).join(', ')
+	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], cb);
+}
+
 UserDB.prototype.listSchools = function(query, user, access, cb) {
 	this.query('SELECT id, name FROM schools', [], cb);
 }
 
-UserDB.prototype.regularCallback = function() {
-	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()');
+UserDB.prototype.regularCallback = function(cb) {
+	cb = cb || function() {};
+	
+	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', [], cb);
 }
 					
 UserDB.prototype.emailVerify = function(query, user, access, cb) {
@@ -221,7 +242,7 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 		return;
 	}
 	
-	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(data.name)) {
+	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(data.name) || parseInt(data.name) == data.name) {
 		cb('reg-name-invalid-char');
 		return;
 	}

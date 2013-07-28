@@ -67,6 +67,21 @@ function _login (f) { return function(query, cb) {
 		return _.bind(f,this)(query, cb);
 }}
 
+ConnectionData.prototype.client_get_ranking = _login(function(query, cb) {
+	UserDB.getRanking(query, this.user, this.access, _.bind(function(results) {
+		cb('get-ranking-success', {'result': results});
+	}, this));
+})
+
+ConnectionData.prototype.client_get_user_info = _login(function(query, cb) {
+	UserDB.getUserInfo(query, this.user, this.access, _.bind(function(results) {
+		if (results.length == 0)
+			cb('get-user-info-notfound');
+		else
+			cb('get-user-info-success', {'result': results[0]});
+	}, this));
+})
+
 ConnectionData.prototype.client_list_schools = function(query, cb) {
 	UserDB.listSchools(query, this.user, this.access, _.bind(function(results) {
 		cb('list-schools-success', {'result': results});
@@ -85,14 +100,21 @@ ConnectionData.prototype.client_prod = _login(function(query, cb) {
 	if (this.access.indexOf('*') == -1) {
 		cb('prod-not-allowed');
 	} else {
-		cb('prod-running');
-		UserDB.regularCallback();
-		StocksDB.regularCallback();
+		var starttime = new Date().getTime();
+		UserDB.regularCallback(function() {
+			var userdbtime = new Date().getTime();
+			StocksDB.regularCallback(function() {
+				cb('prod-ready', {'utime': userdbtime - starttime, 'stime': new Date().getTime() - userdbtime});
+			});
+		});
 	}
 })
 
 ConnectionData.prototype.client_get_own_options = _login(function(query, cb) {
-	cb('own-options-success', {'data': this.user});
+	var r = _.clone(this.user);
+	delete r.pwhash;
+	delete r.pwsalt;
+	cb('own-options-success', {'result': r});
 })
 
 ConnectionData.prototype.client_change_options = _login(function(query, cb) {
@@ -154,7 +176,7 @@ ConnectionData.prototype.response = function(data) {
 }
 
 ConnectionData.prototype.query = function(query) {
-	var fetchedUser = _.bind(function(user) {
+	UserDB.loadSessionUser(query.key, _.bind(function(user) {
 		var access = [];
 		if (user != null)
 			access = user.access.split(',');
@@ -166,11 +188,9 @@ ConnectionData.prototype.query = function(query) {
 			this.access.push('*');
 			if (user == null && query.uid != null)
 				user = {uid: query.uid, id: query.uid};
-			this.user = user;
-		} else {
-			if (user != null) 
-				this.user = user;
 		}
+		 
+		this.user = user;
 		
 		var cb = _.bind(function(code, obj) {
 			obj = obj || {};
@@ -184,12 +204,7 @@ ConnectionData.prototype.query = function(query) {
 			_.bind(this['client_' + t], this)(query, cb);
 		else
 			this.response('unknown-query-type');
-	}, this);
-	
-	if (query.key != null)
-		UserDB.loadSessionUser(query.key, fetchedUser);
-	else
-		fetchedUser(null);
+	}, this));
 }
 
 ConnectionData.prototype.regListenerBoundEx = function(obj, event, fn) {

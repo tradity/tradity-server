@@ -123,7 +123,43 @@ socket.on('connect', function() {
 				break;
 			case 'get-own-options':
 				assert.equal(data.code, 'own-options-success');
-				own_uid = data.data.uid;
+				assert.ok(!data.pwhash);
+				own_uid = data.result.uid;
+				emit('query', {
+					type: 'prod',
+					id: 'prod-1',
+					authorizationKey: authorizationKey,
+					key: key
+				});
+				break;
+			case 'prod-1':
+				assert.equal(data.code, 'prod-ready');
+				emit('query', {
+					type: 'get-user-info',
+					id: 'get-user-info',
+					lookfor: own_uid,
+					key: key
+				});
+				break;
+			case 'get-user-info':
+				assert.equal(data.code, 'get-user-info-success');
+				assert.equal(data.result.uid, own_uid);
+				assert.equal(data.result.schoolname, schoolid);
+				assert.ok(data.result.totalvalue);
+				assert.ok(data.result.rank);
+				emit('query', {
+					type: 'get-ranking',
+					id: 'get-ranking',
+					startindex: data.result.rank,
+					endindex: data.result.rank + 10,
+					rtype: 'general',
+					key: key
+				});
+				break;
+			case 'get-ranking':
+				assert.equal(data.code, 'get-ranking-success');
+				assert.ok(data.result.length > 0);
+				assert.equal(data.result[0].uid, own_uid);
 				emit('query', {
 					type: 'delete-user',
 					id: 'delete-user',
@@ -144,13 +180,13 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'login-badname');
 				emit('query', {
 					type: 'prod',
-					id: 'prod',
+					id: 'prod-2',
 					authorizationKey: authorizationKey,
 					uid: own_uid
 				});
 				break;
-			case 'prod':
-				assert.equal(data.code, 'prod-running');
+			case 'prod-2':
+				assert.equal(data.code, 'prod-ready');
 				emit('query', {
 					type: 'ping',
 					id: 'ping',

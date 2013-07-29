@@ -339,7 +339,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 		if (data.school !== null) {
 			this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [data.school], schoolLookupCB);
 		} else {
-			_.binid(schoolLookupCB,this)([{c:0}]);
+			_.bind(schoolLookupCB,this)([{c:0}]);
 		}
 	});
 }

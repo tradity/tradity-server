@@ -39,6 +39,7 @@ socket.on('connect', function() {
 					giv_name: 'Max',
 					fam_name: 'Mustermann der ' + (t % (1 << 17)) + '.',
 					realnamepublish: true,
+					delayorderhist: false,
 					password: password,
 					email: email,
 					gender: 'undisclosed',

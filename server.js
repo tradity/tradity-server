@@ -74,11 +74,11 @@ ConnectionData.prototype.client_get_ranking = _login(function(query, cb) {
 })
 
 ConnectionData.prototype.client_get_user_info = _login(function(query, cb) {
-	UserDB.getUserInfo(query, this.user, this.access, _.bind(function(results) {
-		if (results.length == 0)
+	UserDB.getUserInfo(query, this.user, this.access, _.bind(function(user, orders, values) {
+		if (!user)
 			cb('get-user-info-notfound');
 		else
-			cb('get-user-info-success', {'result': results[0]});
+			cb('get-user-info-success', {'result': user, 'orders': orders, 'values': values});
 	}, this));
 })
 

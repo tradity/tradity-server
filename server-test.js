@@ -140,6 +140,48 @@ socket.on('connect', function() {
 			case 'prod-1':
 				assert.equal(data.code, 'prod-ready');
 				emit('query', {
+					type: 'stock-buy',
+					id: 'stock-buy',
+					key: key,
+					amount: 5,
+					value: null,
+					stockid: '^GDAXI',
+					leader: null,
+					comment: 'There is no spoon',
+					xtype: 'market'
+				});
+				break;
+			case 'stock-buy':
+				assert.equal(data.code, 'stock-buy-success');
+				emit('query', {
+					type: 'stock-buy',
+					id: 'stock-sell-1',
+					key: key,
+					amount: -5,
+					value: null,
+					stockid: '^GDAXI',
+					leader: null,
+					comment: 'There is no spoon',
+					xtype: 'market'
+				});
+				break;
+			case 'stock-sell-1':
+				assert.equal(data.code, 'stock-buy-success');
+				emit('query', {
+					type: 'stock-buy',
+					id: 'stock-sell-2',
+					key: key,
+					amount: -5,
+					value: null,
+					stockid: '^GDAXI',
+					leader: null,
+					comment: 'There is no spoon',
+					xtype: 'market'
+				});
+				break;
+			case 'stock-sell-2':
+				assert.equal(data.code, 'stock-buy-not-enough-stocks');
+				emit('query', {
 					type: 'get-user-info',
 					id: 'get-user-info',
 					lookfor: own_uid,
@@ -164,7 +206,6 @@ socket.on('connect', function() {
 			case 'get-ranking':
 				assert.equal(data.code, 'get-ranking-success');
 				assert.ok(data.result.length > 0);
-				assert.equal(data.result[0].uid, own_uid);
 				emit('query', {
 					type: 'delete-user',
 					id: 'delete-user',

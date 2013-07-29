@@ -148,6 +148,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	var insvalues = [];
 	for (var i = 0; i < res.length && res[i].scound == 0; ++i) 
 		insvalues.push('("__LEADER_' + parseInt(res.uid) + '", ' + parseInt(res.uid) + ', "leader:' + this.db.escape(res.uname) + '")');
+
 	this.query(insvalues.length ? 'INSERT INTO stocks (stockid, leader, name) VALUES' + insvalues.join(',') : 'SELECT 709803442861291314641', [], function() {
 	
 	this.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
@@ -237,7 +238,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		query.stockid = '__LEADER_' + query.leader + '__';
 	
 	this.query('SELECT s.*, SUM(ds.amount) AS amount FROM stocks AS s LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
-		if (res.length == 0 || r.lastvalue == 0)
+		if (res.length == 0 || res[0].lastvalue == 0)
 			return cb('stock-buy-stock-not-found');
 		var r = res[0];
 		
@@ -247,18 +248,18 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		var price = amount * r.lastvalue;
 		if (price > user.freemoney)
 			return cb('stock-buy-out-of-money');
-		if (amount < -c.amount)
+		if (amount < -r.amount)
 			return cb('stock-buy-not-enough-stocks');
 			
 		this.query('INSERT INTO orderhistory (userid, stocktextid, money, comment, buytime) VALUES(?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, price, query.comment], function() {
 		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price, user.id], function() {
 		if (r.amount == null) {
-			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buyamount, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
+			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 				[user.id, r.id, amount, price, r.lastvalue, query.comment], function() {
 				cb('stock-buy-success');
 			});
 		} else {
-			this.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), buyamount = buyamount + ?, comment = ? WHERE userid = ? AND stockid = ?', 
+			this.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, comment = ? WHERE userid = ? AND stockid = ?', 
 				[amount, price, query.comment, user.id, r.id], function() {
 				cb('stock-buy-success');
 			});

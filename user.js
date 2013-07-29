@@ -135,7 +135,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 	else if(query.studentonly)
 		schools_join = 'AND users.school IS NOT NULL';
 	
-	this.query('SELECT rank, uid, name FROM ranking ' +
+	this.query('SELECT rank, uid, name, totalvalue FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id ' +
 		schools_join + ' WHERE `type` = ? AND rank >= ? AND rank < ?', 
 		[query.rtype, si, ei], cb);

@@ -295,8 +295,11 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 				var updateCB = function(res) {
 					if (uid === null)
 						uid = res.insertId;
-					
-					this.sendRegisterEmail(data, uid, cb);
+
+					if (data.email == user.email)
+						cb();
+					else
+						this.sendRegisterEmail(data, uid, cb);
 				};
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {

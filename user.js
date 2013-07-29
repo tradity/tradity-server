@@ -233,11 +233,11 @@ UserDB.prototype.loadSessionUser = function(key, cb) {
 
 UserDB.prototype.register = function(query, user, access, cb) {
 	assert.strictEqual(user, null);
-	this.updateUser(query, 'register', null, cb);
+	this.updateUser(query, 'register', null, access, cb);
 }
 
 UserDB.prototype.changeOptions = function(query, user, access, cb) {
-	this.updateUser(query, 'change', user, cb);
+	this.updateUser(query, 'change', user, access, cb);
 }
 
 UserDB.prototype.deleteUser = function(query, user, access, cb) {
@@ -249,7 +249,7 @@ UserDB.prototype.deleteUser = function(query, user, access, cb) {
 	});
 }
 
-UserDB.prototype.updateUser = function(data, type, user, cb) {
+UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 	var uid = user !== null ? user.id : null;
 	if ((data.gender != 'male' && data.gender != 'female' && data.gender != 'undisclosed') || !data.name) {
 		cb('format-error');
@@ -296,8 +296,8 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 					if (uid === null)
 						uid = res.insertId;
 
-					if (data.email == user.email || (access.indexOf('*') != -1 && data.nomail))
-						cb();
+					if ((user && data.email == user.email) || (access.indexOf('*') != -1 && data.nomail))
+						cb('reg-success', uid);
 					else
 						this.sendRegisterEmail(data, uid, cb);
 				};

@@ -21,6 +21,7 @@ socket.on('connect', function() {
 	socket.on('response', function (data) {
 		console.log('incoming', data);
 		
+		var handledRegister = false;
 		switch(data['is-reply-to']) {
 			case 'list-schools-1':
 				assert.equal(data.code, 'list-schools-success');
@@ -50,8 +51,9 @@ socket.on('connect', function() {
 				break;
 			case 'register':
 				assert(data.code == 'reg-email-sending' || data.code == 'reg-success', 'Register return code should be email-sending or success');
-				if (data.code != 'reg-email-sending') 
+				if (handledRegister) 
 					break;
+				handledRegister = true;
 				emit('query', {
 					type: 'emailverif',
 					id: 'emailverif',

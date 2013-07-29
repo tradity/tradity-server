@@ -144,8 +144,8 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 	var columns = (access.indexOf('*') != -1 ? ['*', 'users.id AS uid', 'schools.id AS schoolid', 'users.name AS name'] : [
 		'users.id AS uid', 'users.name AS name',
-		'IF(real_name_publish,giv_name,NULL) AS giv_name',
-		'IF(real_name_publish,fam_name,NULL) AS fam_name',
+		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
+		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
 		'birthday', 'gender', 'schools.id AS schoolid', 'schools.name AS schoolname',
 		'desc', 'provision', 'totalvalue', 'rank'
 		]).join(', ')
@@ -213,6 +213,7 @@ UserDB.prototype.loadSessionUser = function(key, cb) {
 			assert.equal(res.length, 1);
 			var user = res[0];
 			user.id = user.uid;
+			user.realnamepublish = !!user.realnamepublish;
 			
 			this.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.id]);
 			cb(user);
@@ -292,7 +293,7 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 					this.generatePWKey(data.password, _.bind(function(pwsalt, pwhash) {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, pwhash = ?, pwsalt = ?, gender = ?, school = ?, email = ?, email_verif = ?,' +
 						'birthday = ?, desc = ?, provision = ?, address = ? WHERE id = ?',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email, data.email == user.email,
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, pwhash, pwsalt, data.gender, data.school, data.email, data.email == user.email,
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);
 					}, this));
@@ -300,7 +301,7 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 					this.generatePWKey(data.password, _.bind(function(pwsalt, pwhash) {
 						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, pwhash, pwsalt, gender, school, email)' +
 						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish, pwhash, pwsalt, data.gender, data.school, data.email],
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, pwhash, pwsalt, data.gender, data.school, data.email],
 						updateCB);
 					}, this));
 				}

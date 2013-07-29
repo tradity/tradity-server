@@ -43,7 +43,9 @@ socket.on('connect', function() {
 					password: password,
 					email: email,
 					gender: 'undisclosed',
-					school: schoolid
+					school: schoolid,
+					authorizationKey: authorizationKey,
+					nomail: true
 				});
 				break;
 			case 'register':

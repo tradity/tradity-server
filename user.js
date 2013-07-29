@@ -256,7 +256,7 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 		return;
 	}
 	
-	if ((data.password || type != 'update') && (!data.password || data.password.length < 5)) {
+	if ((data.password || type != 'change') && (!data.password || data.password.length < 5)) {
 		cb('reg-too-short-pw');
 		return;
 	}
@@ -296,14 +296,14 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 					if (uid === null)
 						uid = res.insertId;
 
-					if (data.email == user.email)
+					if (data.email == user.email || (access.indexOf('*') != -1 && data.nomail))
 						cb();
 					else
 						this.sendRegisterEmail(data, uid, cb);
 				};
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
-					if (type == 'update') {
+					if (type == 'change') {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, gender = ?, school = ?, email = ?, email_verif = ?,' +
 						'birthday = ?, desc = ?, provision = ?, address = ? WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.gender, data.school, data.email, data.email == user.email,

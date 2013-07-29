@@ -307,8 +307,8 @@ UserDB.prototype.updateUser = function(data, type, user, cb) {
 			};
 			
 			assert.equal(res.length, 1);
-			if (res[0].c == 0) {
-				if (parseInt(data.school) == data.school) {
+			if (res[0].c == 0 && data.school !== null) {
+				if (parseInt(data.school) == data.school || !data.school) {
 					cb('reg-unknown-school');
 					return;
 				} else {

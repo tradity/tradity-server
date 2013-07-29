@@ -53,7 +53,9 @@ StocksDB.prototype.regularCallback = function(cb) {
 StocksDB.prototype.updateRanking = function(cb) {
 	cb = cb || function() {};
 	
-	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general", id, @rank := @rank + 1 FROM users ORDER BY totalvalue DESC', [], cb);
+	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general", id, @rank := @rank + 1 FROM users ORDER BY totalvalue DESC', [], function() {
+	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
+	});
 }
 
 StocksDB.prototype.dailyCallback = function(cb) {
@@ -248,8 +250,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		if (amount < -c.amount)
 			return cb('stock-buy-not-enough-stocks');
 			
-		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price, user.id]);
-		
+		this.query('INSERT INTO orderhistory (userid, stocktextid, money, comment, buytime) VALUES(?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, price, query.comment], function() {
+		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price, user.id], function() {
 		if (r.amount == null) {
 			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buyamount, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 				[user.id, r.id, amount, price, r.lastvalue, query.comment], function() {
@@ -261,6 +263,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 				cb('stock-buy-success');
 			});
 		}
+		})
+		})
 	});
 }
 

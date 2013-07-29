@@ -114,6 +114,7 @@ ConnectionData.prototype.client_get_own_options = _login(function(query, cb) {
 	var r = _.clone(this.user);
 	delete r.pwhash;
 	delete r.pwsalt;
+	r.realnamepublish = !!r.realnamepublish;
 	cb('own-options-success', {'result': r});
 })
 

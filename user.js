@@ -147,7 +147,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
 		'birthday', 'gender', 'schools.id AS schoolid', 'schools.name AS schoolname',
-		'desc', 'provision', 'totalvalue', 'rank', 'delayorderhist'
+		'`desc`', 'provision', 'totalvalue', 'rank', 'delayorderhist'
 		]).join(', ')
 	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
 		if (users.length == 0)
@@ -305,7 +305,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, gender = ?, school = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, desc = ?, provision = ?, address = ? WHERE id = ?',
+						'birthday = ?, `desc` = ?, provision = ?, address = ? WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.gender, data.school, data.email, data.email == user.email,
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);

@@ -270,7 +270,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, comment, s.stockid AS stockid, lastvalue, lastvalue * amount AS total, users.id AS leader, users.name AS leadername'+
+	this.query('SELECT amount, buytime, comment, s.stockid AS stockid, lastvalue, lastvalue * amount AS total, users.id AS leader, users.name AS leadername '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ?',
 		[user.id], cb);
 }

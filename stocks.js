@@ -250,18 +250,19 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 			return cb('stock-buy-out-of-money');
 		if (amount < -r.amount)
 			return cb('stock-buy-not-enough-stocks');
+		var fee = price > 0 ? Math.min(this.cfg['transaction-fee-perc'] * price, this.cfg['transaction-fee-max']) : 0;
 			
 		this.query('INSERT INTO orderhistory (userid, stocktextid, money, comment, buytime) VALUES(?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, price, query.comment], function() {
-		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price, user.id], function() {
+		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price+fee, user.id], function() {
 		if (r.amount == null) {
 			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 				[user.id, r.id, amount, price, r.lastvalue, query.comment], function() {
-				cb('stock-buy-success');
+				cb('stock-buy-success', fee);
 			});
 		} else {
 			this.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, comment = ? WHERE userid = ? AND stockid = ?', 
 				[amount, price, query.comment, user.id, r.id], function() {
-				cb('stock-buy-success');
+				cb('stock-buy-success', fee);
 			});
 		}
 		})

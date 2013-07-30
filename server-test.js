@@ -154,6 +154,15 @@ socket.on('connect', function() {
 			case 'stock-buy':
 				assert.equal(data.code, 'stock-buy-success');
 				emit('query', {
+					type: 'get-user-info',
+					id: 'get-user-info-1',
+					lookfor: own_uid,
+					key: key
+				});
+				break;
+			case 'get-user-info-1':
+				assert.equal(data.code, 'get-user-info-success');
+				emit('query', {
 					type: 'stock-buy',
 					id: 'stock-sell-1',
 					key: key,
@@ -183,12 +192,12 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'stock-buy-not-enough-stocks');
 				emit('query', {
 					type: 'get-user-info',
-					id: 'get-user-info',
+					id: 'get-user-info-2',
 					lookfor: own_uid,
 					key: key
 				});
 				break;
-			case 'get-user-info':
+			case 'get-user-info-2':
 				assert.equal(data.code, 'get-user-info-success');
 				assert.equal(data.result.uid, own_uid);
 				assert.equal(data.result.schoolname, schoolid);

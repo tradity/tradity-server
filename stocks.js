@@ -105,7 +105,7 @@ StocksDB.prototype.updateRecord = function(rec) {
 		'(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?) ON DUPLICATE KEY ' +
 		'UPDATE lastvalue = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) > LENGTH(?), name, ?)',
 		[rec.symbol, rec.lastTradePrice * 10000, rec.name, rec.lastTradePrice * 10000, rec.name, rec.name], function() {
-			this.emit('stock-update', {'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice * 10000, 'name': rec.name, 'leader': null, 'leadername': null});
+			this.emit('push', {'type': 'stock-update', 'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice * 10000, 'name': rec.name, 'leader': null, 'leadername': null});
 		}
 	);
 }
@@ -252,17 +252,19 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 			return cb('stock-buy-not-enough-stocks');
 		var fee = price > 0 ? Math.min(this.cfg['transaction-fee-perc'] * price, this.cfg['transaction-fee-max']) : 0;
 			
-		this.query('INSERT INTO orderhistory (userid, stocktextid, money, comment, buytime) VALUES(?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, price, query.comment], function() {
+		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime) VALUES(?,?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, r.leader, price, query.comment], function(oh_res) {
+		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id});
+		var tradeID = oh_res.insertId;
 		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price+fee, user.id], function() {
 		if (r.amount == null) {
 			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 				[user.id, r.id, amount, price, r.lastvalue, query.comment], function() {
-				cb('stock-buy-success', fee);
+				cb('stock-buy-success', fee, tradeID);
 			});
 		} else {
 			this.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, comment = ? WHERE userid = ? AND stockid = ?', 
 				[amount, price, query.comment, user.id, r.id], function() {
-				cb('stock-buy-success', fee);
+				cb('stock-buy-success', fee, tradeID);
 			});
 		}
 		})
@@ -270,10 +272,35 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 	});
 }
 
+StocksDB.prototype.commentTrade = function(query, user, access, cb) {
+	this.query('SELECT COUNT(*) AS c FROM orderhistory WHERE orderid=?', [query.tradeid], function(res) {
+		assert.equal(res.length, 0);
+		if (res[0].c == 0)
+			cb('trade-comment-notfound');
+		else this.query('INSERT INTO tcomments (tradeid, commenter, comment, time) VALUES(?, ?, ?, UNIX_TIMESTAMP())', 
+			[], function(res) {
+			this.feed({'type': 'trade','targetid':res.insertId,'srcuser':user.id});
+			cb('trade-comment-success');
+		});
+	});
+}
+
 StocksDB.prototype.stocksForUser = function(user, cb) {
 	this.query('SELECT amount, buytime, comment, s.stockid AS stockid, lastvalue, lastvalue * amount AS total, users.id AS leader, users.name AS leadername '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ?',
 		[user.id], cb);
+}
+
+StocksDB.prototype.getTradeInfo = function(query, user, access, cb) {
+	this.query('SELECT oh.*,s.*,u.name FROM orderhistory '+
+		'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
+		'LEFT JOIN users AS u ON u.id = oh.leader WHERE oh.id = ?', [query.tradeid], function(oh_res) {
+		if (oh_res.length == 0)
+			return cb('get-trade-info-notfound');
+		this.query('SELECT c.*,u.name FROM tcomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.tradeid = ?', [query.tradeid], function(comments) {
+			cb('get-trade-info-succes', oh_res[0], comments);
+		});
+	});
 }
 
 exports.StocksDB = StocksDB;

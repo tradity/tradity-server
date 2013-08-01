@@ -57,10 +57,18 @@ setInterval(eh.wrap(function() {
 	StocksDB.regularCallback();
 }), 240 * 1000);
 
+var subsystems = [StocksDB, UserDB];
+
 function ConnectionData() {
 	this.user = null;
 	this.access = [];
 	this.registeredEventHandlers = [];
+	this.pushEventsTimer = null;
+	
+	_.each(subsystems, function(sys) {
+		this.regListenerBoundEx(sys, 'push', this.push);
+		this.regListenerBoundEx(sys, 'push-events', this.pushEvents);
+	});
 }
 util.inherits(ConnectionData, events.EventEmitter);
 
@@ -166,9 +174,13 @@ ConnectionData.prototype.client_stock_search = _login(function(query, cb) {
 })
 
 ConnectionData.prototype.client_stock_buy = _login(function(query, cb) {
-	StocksDB.buyStock(query, this.user, this.access, _.bind(function(code, fee) {
-		cb(code, fee ? {'fee': fee} : null);
+	StocksDB.buyStock(query, this.user, this.access, _.bind(function(code, fee, tradeID) {
+		cb(code, fee ? {'fee': fee, 'tradeid': tradeID} : null);
 	}, this));
+})
+
+ConnectionData.prototype.client_trade_comment = _login(function(query, cb) {
+	StocksDB.commentTrade(query, this.user, this.access, cb);
 })
 
 ConnectionData.prototype.client_list_own_depot = _login(function(query, cb) {
@@ -177,8 +189,43 @@ ConnectionData.prototype.client_list_own_depot = _login(function(query, cb) {
 	}, this));
 })
 
+ConnectionData.prototype.client_mark_event_seen = _login(function(query, cb) {
+	StocksDB.markEventSeen(query, this.user, this.access, cb);
+})
+
+ConnectionData.prototype.client_get_trade_info = _login(function(query, cb) {
+	StocksDB.getTradeInfo(query, this.user, this.access, function(code, trade, comments) {
+		cb(code, trade ? {'trade': trade, 'comments': comments} : null);
+	});
+})
+
 ConnectionData.prototype.client_ping = function(query, cb) {
 	cb('pong');
+}
+
+ConnectionData.prototype.client_fetch_events = _login(function(query, cb) {
+	this.fetchEvents(query);
+})
+
+ConnectionData.prototype.fetchEvents = function(query) {
+	StocksDB.fetchEvents(query, this.user, this.access, _.bind(function(evlist) {
+		_.each(evlist, _.bind(function(ev) {
+			this.emit('push', ev);
+		}, this));
+	}, this));
+}
+
+ConnectionData.prototype.push = function(data) {
+	this.emit('push', data);
+}
+
+ConnectionData.prototype.pushEvents = function() {
+	if (this.pushEventsTimer || !this.user || !this.user.uid)
+		return;
+	this.pushEventsTimer = setTimeout(_.bind(function() {
+		this.pushEventsTimer = null;
+		this.fetchEvents(null);
+	}, this), 1000);;
 }
 
 ConnectionData.prototype.response = function(data) {

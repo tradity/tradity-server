@@ -153,7 +153,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		if (users.length == 0)
 			cb(null, null, null);
 		var user = users[0];
-		this.query('SELECT * FROM orderhistory WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?)', [user.uid, !!user.delayorderhist ? 2 * 86400 : 0], function(orders) {
+		this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?)', [user.uid, !!user.delayorderhist ? 2 * 86400 : 0], function(orders) {
 			this.query('SELECT * FROM valuehistory WHERE userid = ?', [user.uid], function(values) {
 				cb(user, orders, values);
 			});
@@ -323,8 +323,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 					onPWGenerated(user.pwsalt, user.pwhash);				
 			};
 			
-			assert.equal(res.length, 1);
-			if (res[0].c == 0 && data.school !== null) {
+			if (res.length == 0 && data.school !== null) {
 				if (parseInt(data.school) == data.school || !data.school) {
 					cb('reg-unknown-school');
 					return;
@@ -332,14 +331,16 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 					this.query('INSERT INTO schools (name) VALUES(?)', [data.school], schoolAddedCB);
 				}
 			} else {
+				assert.ok(parseInt(data.school) != data.school || data.school == res[0].id);
+				data.school = res[0].id;
 				_.bind(schoolAddedCB,this)([]);
 			}
 		};
 		
 		if (data.school !== null) {
-			this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [data.school], schoolLookupCB);
+			this.query('SELECT id FROM schools WHERE id = ? OR name = ?', [data.school, data.school], schoolLookupCB);
 		} else {
-			_.bind(schoolLookupCB,this)([{c:0}]);
+			_.bind(schoolLookupCB,this)([]);
 		}
 	});
 }

@@ -34,8 +34,14 @@ DBSubsystemBase.prototype.queryCallback = function(cb, query) {
 DBSubsystemBase.prototype.feed = function(data) {
 	var src = data.srcuser;
 	this.query('INSERT INTO events (`type`,targetid,time,user,srcuser,seen) '+
-		'SELECT ?,?,UNIX_TIMESTAMP(),userid,?,0 FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?',
-		[data.type, data.targetid, data.srcuser, data.srcuser], function() {
+		'SELECT ?,?,UNIX_TIMESTAMP(),userid,?,0 FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' +
+		'UNION ' +
+		'SELECT ?,?,UNIX_TIMESTAMP(),w.watcher,?,0 FROM watchlists AS w WHERE w.watched = ? ' +
+		'UNION ' +
+		'SELECT ?,?,UNIX_TIMESTAMP(),?,?,0',
+		[data.type, data.targetid, data.srcuser, data.srcuser,
+		 data.type, data.targetid, data.srcuser, data.srcuser,
+		 data.type, data.targetid, data.srcuser, data.srcuser], function() {
 		this.emit('push-events');
 	});
 }
@@ -44,7 +50,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 	this.query('SELECT * FROM events '+
 		'LEFT JOIN tcomments AS c ON c.commentid = events.targetid AND events.type="comment" '+
 		'JOIN orderhistory AS oh ON c.tradeid = oh.orderid OR (oh.orderid = events.targetid AND events.type="trade") '+
-		'WHERE user = ? AND time > ? AND NOT (seen*?)', [user.uid, query ? query.since : 0, query && query.all ? 0:1], cb);
+		'WHERE user = ? AND events.time > ? AND NOT (seen*?)', [user.uid, query ? query.since : 0, query && query.all ? 0:1], cb);
 }
 
 DBSubsystemBase.prototype.markEventSeen = function(query, user, access, cb) {

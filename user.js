@@ -345,6 +345,28 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 	});
 }
 
+UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
+	this.query('SELECT id,name FROM users WHERE id = ?', [query.userid], function(res) {
+		if (res.length == 0)
+			return cb('watchlist-add-notfound');
+		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.userid], function(r) {
+			cb('watchlist-add-success');
+		}); 
+	});
+}
+
+UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
+	this.query('DELETE FROM watchlists WHERE watcher=? AND watched=?', [user.id, query.userid], function() {
+		cb('watchlist-remove-success');
+	}); 
+}
+
+UserDB.prototype.watchlistShow = function(query, user, access, cb) {
+	this.query('SELECT users.name, users.id AS uid FROM watchlists AS w JOIN users ON users.id=w.watched WHERE w.watcher = ?', [user.id], function(res) {
+		cb(res);
+	});
+}
+
 exports.UserDB = UserDB;
 
 })();

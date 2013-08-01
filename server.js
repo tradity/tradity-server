@@ -199,6 +199,20 @@ ConnectionData.prototype.client_get_trade_info = _login(function(query, cb) {
 	});
 })
 
+ConnectionData.prototype.client_watchlist_add = _login(function(query, cb) {
+	UserDB.watchlistAdd(query, this.user, this.access, cb);
+})
+
+ConnectionData.prototype.client_watchlist_remove = _login(function(query, cb) {
+	UserDB.watchlistRemove(query, this.user, this.access, cb);
+})
+
+ConnectionData.prototype.client_watchlist_show = _login(function(query, cb) {
+	UserDB.watchlistShow(query, this.user, this.access, function(res) {
+		cb('watchlist-show-success', {results:res});
+	});
+})
+
 ConnectionData.prototype.client_ping = function(query, cb) {
 	cb('pong');
 }
@@ -301,6 +315,10 @@ io.sockets.on('connection', function(socket) {
 		socket.emit('response', data);
 	});
 	
+	d.on('push', function(data) {
+		socket.emit('push', data);
+	});
+	
 	d.on('error', function(data) {
 		socket.emit('error', data);
 	});
@@ -311,7 +329,6 @@ io.sockets.on('connection', function(socket) {
 	
 	socket.on('disconnect', eh.wrap(function() {
 		d.disconnected();
-		
 	}));
 });
 

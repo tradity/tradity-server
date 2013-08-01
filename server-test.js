@@ -18,6 +18,10 @@ socket.on('connect', function() {
 	var own_uid = null;
 	
 	var emit = function (e, d) { console.log('outgoing', e, d); socket.emit(e, d); }
+	socket.on('push', function (data) {
+		console.log('incoming/push', data);
+	});
+	
 	socket.on('response', function (data) {
 		console.log('incoming', data);
 		
@@ -215,11 +219,13 @@ socket.on('connect', function() {
 			case 'get-ranking':
 				assert.equal(data.code, 'get-ranking-success');
 				assert.ok(data.result.length > 0);
+				setTimeout(function() {
 				emit('query', {
 					type: 'delete-user',
 					id: 'delete-user',
 					key: key
 				});
+				}, 2000);
 				break;
 			case 'delete-user':
 				assert.equal(data.code, 'delete-user-success');

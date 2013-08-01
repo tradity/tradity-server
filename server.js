@@ -65,10 +65,10 @@ function ConnectionData() {
 	this.registeredEventHandlers = [];
 	this.pushEventsTimer = null;
 	
-	_.each(subsystems, function(sys) {
+	_.each(subsystems, _.bind(function(sys) {
 		this.regListenerBoundEx(sys, 'push', this.push);
 		this.regListenerBoundEx(sys, 'push-events', this.pushEvents);
-	});
+	}, this));
 }
 util.inherits(ConnectionData, events.EventEmitter);
 

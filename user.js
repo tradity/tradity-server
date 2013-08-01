@@ -57,9 +57,9 @@ UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 			opt.to = data.email;
 			opt.subject += ' (' + data.name + ')';
 			opt.generateTextFromHTML = true;
-			opt.html = '<p>For completion of the registration, please click the following link:\n' + 
+			opt.html = '<p>Um deine Registrierung zu vollenden, klicke bitte auf diesen Link:\n' + 
 			'<a href="' + url + '">' + url + '</a></p>\n' + 
-			'<p>If you received this email accidentally, you may simply ignore it.</p>';
+			'<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>';
 			
 			cb('reg-email-sending', uid);
 			

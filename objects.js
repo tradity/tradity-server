@@ -34,7 +34,8 @@ DBSubsystemBase.prototype.queryCallback = function(cb, query) {
 DBSubsystemBase.prototype.feed = function(data) {
 	var src = data.srcuser;
 	this.query('INSERT INTO events (`type`,targetid,time,user,srcuser,seen) '+
-		'SELECT ?,?,UNIX_TIMESTAMP(),userid,?,0 FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?', [], function() {
+		'SELECT ?,?,UNIX_TIMESTAMP(),userid,?,0 FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?',
+		[data.type, data.targetid, data.srcuser, data.srcuser], function() {
 		this.emit('push-events');
 	});
 }

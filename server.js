@@ -208,6 +208,8 @@ ConnectionData.prototype.client_fetch_events = _login(function(query, cb) {
 })
 
 ConnectionData.prototype.fetchEvents = function(query) {
+	if (!this.user)
+		return; // no user – no events.
 	StocksDB.fetchEvents(query, this.user, this.access, _.bind(function(evlist) {
 		_.each(evlist, _.bind(function(ev) {
 			this.emit('push', ev);
@@ -283,6 +285,13 @@ server.on('request', function (req, res) {
 });
 server.listen(cfg.wsport, 'localhost');
 var io = sio.listen(server);
+
+io.configure('production', function(){
+	io.enable('browser client minification');
+	io.enable('browser client etag');
+	io.enable('browser client gzip');
+	io.set('log level', 1);
+});
 
 io.sockets.on('connection', function(socket) {
 	var d = new ConnectionData();

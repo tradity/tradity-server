@@ -147,7 +147,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	this.query('SELECT users.id AS uid, users.name AS uname, COUNT(s.stockid) AS scount FROM users LEFT JOIN stocks AS s ON s.leader = users.id WHERE users.deletiontime IS NULL GROUP BY uid ORDER BY scount ASC', [], function(res) {
 	var insvalues = [];
 	for (var i = 0; i < res.length && res[i].scount == 0; ++i) 
-		insvalues.push('("__LEADER_' + parseInt(res.uid) + '__", ' + parseInt(res.uid) + ', "leader:' + this.db.escape(res.uname) + '")');
+		insvalues.push('("__LEADER_' + parseInt(res[i].uid) + '__", ' + parseInt(res[i].uid) + ', "leader:' + this.db.escape(res[i].uname) + '")');
 
 	this.query(insvalues.length ? 'INSERT INTO stocks (stockid, leader, name) VALUES' + insvalues.join(',') : 'SELECT 709803442861291314641', [], function() {
 	

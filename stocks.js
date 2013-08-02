@@ -80,7 +80,7 @@ StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 	
 	this.query('DELETE FROM depot_stocks WHERE amount = 0', [], function() {
 		this.query('DELETE FROM recent_searches', [], function() {
-		this.query('DELETE FROM stocks WHERE' +
+		this.query('DELETE FROM stocks WHERE ' +
 			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) = 0 AND UNIX_TIMESTAMP()-stocks.lrutime > ? AND leader IS NULL', [this.cfg.lrutimeLimit],
 			cb);
 		});
@@ -146,8 +146,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	
 	this.query('SELECT users.id AS uid, users.name AS uname, COUNT(s.stockid) AS scount FROM users LEFT JOIN stocks AS s ON s.leader = users.id WHERE users.deletiontime IS NULL GROUP BY uid ORDER BY scount ASC', [], function(res) {
 	var insvalues = [];
-	for (var i = 0; i < res.length && res[i].scound == 0; ++i) 
-		insvalues.push('("__LEADER_' + parseInt(res.uid) + '", ' + parseInt(res.uid) + ', "leader:' + this.db.escape(res.uname) + '")');
+	for (var i = 0; i < res.length && res[i].scount == 0; ++i) 
+		insvalues.push('("__LEADER_' + parseInt(res.uid) + '__", ' + parseInt(res.uid) + ', "leader:' + this.db.escape(res.uname) + '")');
 
 	this.query(insvalues.length ? 'INSERT INTO stocks (stockid, leader, name) VALUES' + insvalues.join(',') : 'SELECT 709803442861291314641', [], function() {
 	

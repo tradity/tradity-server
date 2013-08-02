@@ -149,7 +149,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: 5,
 					value: null,
-					stockid: '^GDAXI',
+					stockid: 'MCD',
 					leader: null,
 					comment: 'There is no spoon',
 					xtype: 'market'
@@ -172,7 +172,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: -5,
 					value: null,
-					stockid: '^GDAXI',
+					stockid: 'MCD',
 					leader: null,
 					comment: 'There is no spoon',
 					xtype: 'market'
@@ -186,7 +186,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: -5,
 					value: null,
-					stockid: '^GDAXI',
+					stockid: 'MCD',
 					leader: null,
 					comment: 'There is no spoon',
 					xtype: 'market'

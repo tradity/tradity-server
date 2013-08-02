@@ -16,24 +16,6 @@ var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 var yf = require('./yahoofinance.js');
 
-function deepupdate(orig, u) {
-	_.chain(u).keys().each(function(k) {
-		if (_.isObject(u[k]) && _.isObject(orig[k]))
-			orig[k] = deepupdate(orig[k], u[k]);
-		else
-			orig[k] = u[k];
-	});
-	
-	return orig;
-}
-
-if (!fs.existsSync('./config.local.js')) {
-	fs.writeFile('./config.local.js', 'exports.config={};\n', {mode: 432}, function() {});
-} else {
-	var cfgl = require('./config.local.js').config;
-	cfg = deepupdate(cfg, cfgl);
-}
-
 crypto.randomBytes(64, _.bind(function(ex, buf) {
 var authorizationKey = buf.toString('hex');
 fs.writeFileSync(cfg['auth-key-file'], authorizationKey, {mode: 432});

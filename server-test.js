@@ -50,7 +50,8 @@ socket.on('connect', function() {
 					gender: 'undisclosed',
 					school: schoolid,
 					authorizationKey: authorizationKey,
-					nomail: true
+					nomail: true,
+					betakey: '1-a.skidulaqrniucznl'
 				});
 				break;
 			case 'register':
@@ -151,8 +152,7 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'MCD',
 					leader: null,
-					comment: 'There is no spoon',
-					xtype: 'market'
+					comment: 'There is no spoon'
 				});
 				break;
 			case 'stock-buy':
@@ -182,8 +182,7 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'MCD',
 					leader: null,
-					comment: 'There is no spoon',
-					xtype: 'market'
+					comment: 'There is no spoon'
 				});
 				break;
 			case 'stock-sell-1':
@@ -196,8 +195,7 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'MCD',
 					leader: null,
-					comment: 'There is no spoon',
-					xtype: 'market'
+					comment: 'There is no spoon'
 				});
 				break;
 			case 'stock-sell-2':

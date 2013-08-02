@@ -275,8 +275,17 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 		return;
 	}
 	
+	var betakey = data.betakey ? data.betakey.toString().split('-') : [0,0];
+	
 	this.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[data.email, data.name, uid], function(res) {
+	this.query('SELECT `key` FROM betakeys WHERE `id`=?',
+		[betakey[0]], function(βkey) {
+		if (this.cfg['betakey-required'] && (βkey.length == 0 || βkey[0].key != betakey[1]) && type=='register' && access.indexOf('*') == -1) {
+			cb('reg-beta-necessary');
+			return;
+		}
+		
 		if (res.length > 0 && res[0].id !== uid) {
 			if (res[0].name == data.name)
 				cb('reg-name-already-present');
@@ -310,6 +319,8 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);
 					} else {
+						if (data.betakey)
+							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
 						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, gender, school, email)' +
 						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.gender, data.school, data.email],
@@ -342,6 +353,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 		} else {
 			_.bind(schoolLookupCB,this)([]);
 		}
+	});
 	});
 }
 

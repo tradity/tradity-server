@@ -158,6 +158,14 @@ socket.on('connect', function() {
 			case 'stock-buy':
 				assert.equal(data.code, 'stock-buy-success');
 				emit('query', {
+					type: 'list-own-depot',
+					id: 'list-own-depot',
+					key: key
+				});
+				break;
+			case 'list-own-depot':
+				assert.equal(data.code, 'list-own-depot-success');
+				emit('query', {
 					type: 'get-user-info',
 					id: 'get-user-info-1',
 					lookfor: own_uid,

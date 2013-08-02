@@ -191,12 +191,12 @@ ConnectionData.prototype.client_watchlist_remove = _login(function(query, cb) {
 
 ConnectionData.prototype.client_watchlist_show = _login(function(query, cb) {
 	UserDB.watchlistShow(query, this.user, this.access, function(res) {
-		cb('watchlist-show-success', {results:res});
+		cb('watchlist-show-success', {'results':res});
 	});
 })
 
 ConnectionData.prototype.client_ping = function(query, cb) {
-	cb('pong');
+	cb('pong', {'uid': this.user ? this.user.uid : null});
 }
 
 ConnectionData.prototype.client_fetch_events = _login(function(query, cb) {

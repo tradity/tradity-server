@@ -51,7 +51,7 @@ UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 		this.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
 			[uid, key], function(res) {
 			
-			var url = this.cfg.regurl.replace(/\{\$key\}/, key).replace(/\{\$uid\}/, uid).replace(/\{\$hostname\}/, cfg.hostname);
+			var url = this.cfg.regurl.replace(/\{\$key\}/, key).replace(/\{\$uid\}/, uid).replace(/\{\$hostname\}/, this.cfg.hostname);
 			
 			var opt = _.clone(this.cfg.mail['register-base']);
 			opt.to = data.email;

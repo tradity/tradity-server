@@ -172,7 +172,7 @@ UserDB.prototype.regularCallback = function(cb) {
 }
 					
 UserDB.prototype.emailVerify = function(query, user, access, cb) {
-	var uid = user.id;
+	var uid = parseInt(query.uid);
 	var key = query.key;
 	
 	this.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +

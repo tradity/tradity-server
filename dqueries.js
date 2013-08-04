@@ -52,6 +52,25 @@ DelayedQueriesDB.prototype.loadDelayedQueries = function() {
 	});
 }
 
+DelayedQueriesDB.prototype.listDelayQueries = function(query, user, access, cb) {
+	cb('dquery-list-success', {
+		'results': (_.chain(this.queries).values()
+			.filter(function(q) { return q.userinfo.id == user.id; })
+			.map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
+			.value())
+	});
+}
+
+DelayedQueriesDB.prototype.removeQueryUser = function(query, user, access, cb) {
+	var queryid = query.queryid;
+	if (this.queries[queryid] && this.queries[queryid].userinfo.id == user.id) {
+		this.removeQuery(this.queries[queryid]);
+		cb('dquery-remove-success');
+	} else {
+		cb('dquery-remove-notfound');
+	}
+}
+
 DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
 	var qstr = null;
 	try {
@@ -70,7 +89,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
 		query.queryid = r.insertId;
 		query.userinfo = user;
 		query.accessinfo = access;
-		cb('dquery-success');
+		cb('dquery-success', {'queryid': query.queryid});
 		this.addQuery(query);
 	});
 }

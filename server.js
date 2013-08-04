@@ -209,6 +209,14 @@ ConnectionData.prototype.client_dquery = _login(function(query, cb) {
 	dqDB.addDelayedQuery(query, this.user, this.access, cb);
 })
 
+ConnectionData.prototype.client_dquery_list = _login(function(query, cb) {
+	dqDB.listDelayQueries(query, this.user, this.access, cb);
+})
+
+ConnectionData.prototype.client_dquery_remove = _login(function(query, cb) {
+	dqDB.removeQueryUser(query, this.user, this.access, cb);
+})
+
 ConnectionData.prototype.fetchEvents = function(query) {
 	if (!this.user)
 		return; // no user – no events.

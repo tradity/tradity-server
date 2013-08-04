@@ -12,6 +12,7 @@ var crypto = require('crypto');
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
 var stocks = require('./stocks.js');
+var dqueries = require('./dqueries.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 var yf = require('./yahoofinance.js');
@@ -26,6 +27,7 @@ var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
 var StocksDB = new stocks.StocksDB(db, cfg, yfql);
+var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
 
 yfql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
@@ -201,6 +203,10 @@ ConnectionData.prototype.client_ping = function(query, cb) {
 
 ConnectionData.prototype.client_fetch_events = _login(function(query, cb) {
 	this.fetchEvents(query);
+})
+
+ConnectionData.prototype.client_dquery = _login(function(query, cb) {
+	dqDB.addDelayedQuery(query, this.user, this.access, cb);
 })
 
 ConnectionData.prototype.fetchEvents = function(query) {

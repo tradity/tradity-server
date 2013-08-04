@@ -69,6 +69,10 @@ DBSubsystemBase.prototype.markEventSeen = function(query, user, access, cb) {
 	});
 }
 
+DBSubsystemBase.prototype.getNeededStocks = function() {
+	return [];
+}
+
 exports.DBSubsystemBase = DBSubsystemBase;
 
 })();

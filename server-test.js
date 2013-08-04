@@ -225,6 +225,23 @@ socket.on('connect', function() {
 			case 'get-ranking':
 				assert.equal(data.code, 'get-ranking-success');
 				assert.ok(data.result.length > 0);
+				emit('query', {
+					'type': 'dquery',
+					'id': 'dquery',
+					'condition': 'stock::GE::lastvalue > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
+					'query': {
+						type: 'stock-buy',
+						id: 'stock-buy-delayed',
+						amount: 1,
+						value: null,
+						stockid: 'GE',
+						leader: null,
+						comment: 'There was no spoon'
+					},
+					key: key,
+				});
+				break;
+			case 'dquery':
 				setTimeout(function() {
 				emit('query', {
 					type: 'delete-user',

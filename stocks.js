@@ -12,6 +12,7 @@ function StocksDB (db, cfg, quoteLoader) {
 	this.leaderMatrix = null;
 	this.lastCallbackDay = null;
 	this.regularCallbackActive = false;
+	this.stockNeeders = [];
 	
 	this.regularCallback();
 	this.quoteLoader.on('record', _.bind(function(rec) {
@@ -90,6 +91,11 @@ StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 StocksDB.prototype.updateStockValues = function(cb) {
 	this.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ?', [this.cfg.refetchLimit], function(res) {
 		var stocklist = _.pluck(res, 'stockid');
+		
+		_.each(this.stockNeeders, function(needer) {
+			stocklist = _.union(stocklist, needer.getNeededStocks());
+		});
+		
 		if (stocklist.length > 0)
 			this.quoteLoader.loadQuotes(stocklist);	
 		cb();
@@ -98,7 +104,7 @@ StocksDB.prototype.updateStockValues = function(cb) {
 
 StocksDB.prototype.updateRecord = function(rec) {
 	assert.notStrictEqual(rec.lastTradePrice, null);
-	if (rec.lastTradePrice == 0) // happen with API sometimes.
+	if (rec.lastTradePrice == 0) // happens with API sometimes.
 		return;
 	
 	this.query('INSERT INTO stocks (stockid, lastvalue, lastchecktime, lrutime, leader, name) VALUES '+
@@ -210,7 +216,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 					[users[i]], function(res) {
 					console.log(res, n, i, users[i], X[i]);
 					assert.equal(res.length, 1);
-					this.emit('stock-update', res[0]);
+					res[0].type = 'stock-update';
+					this.emit('push', res[0]);
+					
 					if (++complete == n) {
 						var max = 'GREATEST(ds.provision_hwm, s.lastvalue)';
 						var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
@@ -287,7 +295,7 @@ StocksDB.prototype.commentTrade = function(query, user, access, cb) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, comment, s.stockid AS stockid, lastvalue, lastvalue * amount AS total, users.id AS leader, users.name AS leadername '+
+	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ?',
 		[user.id], cb);
 }

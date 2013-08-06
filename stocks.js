@@ -182,7 +182,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		for (var k = 0; k < res_static.length; ++k) {
 			var uid = res_static[k].uid;
 			if (typeof (users_inv[uid]) == 'undefined' || users_inv[uid] >= n) {
-				this.emit('error', 'unknown user ID in res_static: ' + uid);
+				this.emit('error', new Error('unknown user ID in res_static: ' + uid));
 				return;
 			}
 			
@@ -200,7 +200,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		console.log(A, B);
 		var res = lapack.sgesv(A, B);
 		if (!res) {
-			this.emit('error', 'SLE solution not found for\nA = ' + A + '\nB = ' + B);
+			this.emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
 			return;
 		}
 		

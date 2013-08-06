@@ -70,7 +70,7 @@ YahooFinanceQuoteLoader.prototype.loadQuotes = function(stocklist, callback) {
 	callback = callback || function() {};
 	
 	if (stocklist.length == 0) {
-		this.emit('error', 'Called with empty stocklist');
+		this.emit('error', new Error('Called with empty stocklist'));
 		return;
 	}
 	

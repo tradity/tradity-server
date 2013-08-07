@@ -296,7 +296,7 @@ StocksDB.prototype.commentTrade = function(query, user, access, cb) {
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
 	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername '+
-		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ?',
+		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
 		[user.id], cb);
 }
 

@@ -345,8 +345,11 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 					this.query('INSERT INTO schools (name) VALUES(?)', [data.school], schoolAddedCB);
 				}
 			} else {
-				assert.ok(parseInt(data.school) != data.school || data.school == res[0].id);
-				data.school = res[0].id;
+				if (data.school !== null) {
+					assert.ok(parseInt(data.school) != data.school || data.school == res[0].id);
+					data.school = res[0].id;
+				}
+				
 				_.bind(schoolAddedCB,this)([]);
 			}
 		};

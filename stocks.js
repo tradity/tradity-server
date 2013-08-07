@@ -301,7 +301,7 @@ StocksDB.prototype.stocksForUser = function(user, cb) {
 }
 
 StocksDB.prototype.getTradeInfo = function(query, user, access, cb) {
-	this.query('SELECT oh.*,s.*,u.name FROM orderhistory '+
+	this.query('SELECT oh.*,s.*,u.name FROM orderhistory AS oh '+
 		'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
 		'LEFT JOIN users AS u ON u.id = oh.leader WHERE oh.id = ?', [query.tradeid], function(oh_res) {
 		if (oh_res.length == 0)

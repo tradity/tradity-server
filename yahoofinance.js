@@ -22,6 +22,7 @@ function YahooFinanceQuoteEntry(id, format, record) {
 	this.symbol = this.s;
 	this.lastTradePrice = this.l1;
 	this.setName(this.n);
+	this.fetchTime = new Date().getTime();
 }
 
 YahooFinanceQuoteEntry.prototype.setName = function(n) {
@@ -114,7 +115,7 @@ YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, callback)
 			}
 			
 			if (stocklist.length == 0)
-				callback([]);
+				return callback([]);
 			
 			this.loadQuotes(stocklist, _.bind(function(record) {
 				var sym = record.symbol;

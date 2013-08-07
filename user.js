@@ -142,6 +142,9 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 }
 
 UserDB.prototype.getUserInfo = function(query, user, access, cb) {
+	if (query.lookfor == '$self')
+		query.lookfor = user.id;
+	
 	var columns = (access.indexOf('*') != -1 ? ['*', 'users.id AS uid', 'schools.id AS schoolid', 'users.name AS name'] : [
 		'users.id AS uid', 'users.name AS name',
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',

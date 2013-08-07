@@ -24,7 +24,7 @@ util.inherits(StocksDB, require('./objects.js').DBSubsystemBase);
 StocksDB.prototype.regularCallback = function(cb) {
 	cb = cb || function() {};
 	if (this.regularCallbackActive) {
-		this.emit('error', 'Regular callback overlapping in StockDB – might be pretty serious!');
+		this.emit('error', 'Regular callback overlapping in StockDB – might be pretty serious (please restart server)!');
 		return cb();
 	}
 		
@@ -210,6 +210,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		for (var i = 0; i < n; ++i) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i], null);
+			assert.equal(X[i], X[i]); // If you don't understand this, search the www for good JS books and buy one.
 			this.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, users[i]], function() {
 			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i], users[i]], function() {
 				this.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',

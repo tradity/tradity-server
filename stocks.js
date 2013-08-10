@@ -215,7 +215,6 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i], users[i]], function() {
 				this.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], function(res) {
-					console.log(res, n, i, users[i], X[i]);
 					assert.equal(res.length, 1);
 					res[0].type = 'stock-update';
 					this.emit('push', res[0]);

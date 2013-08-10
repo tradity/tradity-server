@@ -29,28 +29,56 @@ YahooFinanceQuoteEntry.prototype.setName = function(n) {
 	this.n = this.name = n;
 }
 
-function YahooFinanceQuoteLoader (infoLink, searchLink, format, maxlen, userAgent) {
+function YahooFinanceQuoteLoader (infoLink, searchLink, format, maxlen, userAgent, cacheTime) {
 	this.infoLink = infoLink || INFO_LINK_DEFAULT;
 	this.searchLink = searchLink || SEARCH_LINK_DEFAULT;
 	this.format = format || FORMAT_DEFAULT;
 	this.maxlen = maxlen || MAXLEN_DEFAULT;
 	this.userAgent = userAgent || USER_AGENT_DEFAULT;
+	this.cacheTime = cacheTime || 25000;
+	this.cache = {};
 }
 util.inherits(YahooFinanceQuoteLoader, events.EventEmitter);
 
-YahooFinanceQuoteLoader.prototype._handleRecord = function(record) {
-	if (!record.length || record.length - 1 != this.format.length)
-		this.emit('error', new Error('Record length (' + (record.length - 1) + ') does not fit format length (' + (this.format.length) + ')!'));
+YahooFinanceQuoteLoader.prototype._handleRecord = function(record, cached) {
+	var rec = null;
 	
-	this.emit('record', new YahooFinanceQuoteEntry(record.shift(), this.format, record));
+	if (!cached) {
+		if (!record.length || record.length - 1 != this.format.length)
+			this.emit('error', new Error('Record length (' + (record.length - 1) + ') does not fit format length (' + (this.format.length) + ')!'));
+		
+		rec = new YahooFinanceQuoteEntry(record.shift(), this.format, record, cached);
+	
+		this.cache['s-' + rec.symbol] = rec;
+	} else
+		rec = record;
+		
+	this.emit('record', rec);
 }
 
 YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
+	stocklist = _.filter(stocklist, _.bind(function(stockid) {
+		var cv = this.cache['s-' + stockid];
+		if (cv) {
+			if (cv.fetchTime > new Date().getTime() - this.cacheTime) {
+				this._handleRecord(cv, true);
+				return false;
+			} else {
+				delete this.cache['s-' + stockid];
+			}
+		} 
+		
+		return true;
+	}, this));
+	
 	if (stocklist.length > this.maxlen) {
 		this._makeQuoteRequest(stocklist.slice(this.maxlen));
 		this._makeQuoteRequest(stocklist.slice(0, this.maxlen));
 		return;
 	}
+	
+	if (stocklist.length == 0) // everything was cached
+		return;
 	
 	var fstring = 's' + this.format.join('');
 	var forwardError = _.bind(function(e) {this.emit('error', e)}, this);
@@ -59,7 +87,7 @@ YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
 	
 	var req = http.request(requrl, _.bind(function(res) {
 		csv().from.stream(res.on('error', forwardError)).on('record', _.bind(function(rec) {
-			this._handleRecord(rec);
+			this._handleRecord(rec, false);
 		}, this)).on('error', forwardError);
 	}, this));
 	
@@ -143,14 +171,19 @@ exports.YahooFinanceQuoteLoader = YahooFinanceQuoteLoader;
 
 function test() {
 	var ql = new YahooFinanceQuoteLoader();
-	ql.on('error', function(e) { console.log(e); });
+	ql.on('error', function(e) { console.log(e, e.stack + ''); });
 	ql.loadQuotes(['GOOG', '^GDAXI', 'KO', 'BA', 'INTC', 'MCD', 'IBM', 'MSFT', 'DIS'], function(rec) {
 		console.log('Name: ' + rec.name + ', LT Price: ' + rec.lastTradePrice);
 	});
 	
 	ql.searchAndFindQuotes('DONALD', function(rec) {
-		for (var i = 0; i < rec.length; ++i)
+		for (var i = 0; i < rec.length; ++i) 
 			console.log('Name: ' + rec[i].name + ', LT Price: ' + rec[i].lastTradePrice);
+			
+		ql.searchAndFindQuotes('Donaldson Burston', function(rec) {
+			for (var i = 0; i < rec.length; ++i)
+				console.log('Name: ' + rec[i].name + ', LT Price: ' + rec[i].lastTradePrice);
+		});
 	});
 }
 

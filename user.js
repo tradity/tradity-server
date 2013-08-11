@@ -112,7 +112,7 @@ UserDB.prototype.login = function(query, user, access, cb) {
 			
 			this.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 				'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-				[uid, key, stayloggedin ? 3628800 : 1800], function(res) {
+				[uid, key, stayloggedin ? this.cfg.stayloggedinTime : this.cfg.normalLoginTime], function(res) {
 					cb('login-success', key);
 				}
 			);
@@ -364,6 +364,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 }
 
 UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
+	if (query.userid == user.id)
+		return cb('watchlist-add-self');
+		
 	this.query('SELECT id,name FROM users WHERE id = ?', [query.userid], function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');

@@ -151,7 +151,8 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'MDO.F',
 					leader: null,
-					comment: 'There is no spoon'
+					comment: 'There is no spoon',
+					forceNow: true
 				});
 				break;
 			case 'stock-buy':
@@ -181,7 +182,8 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'MDO.F',
 					leader: null,
-					comment: 'There is no spoon'
+					comment: 'There is no spoon',
+					forceNow: true
 				});
 				break;
 			case 'stock-sell-1':
@@ -194,7 +196,8 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'MDO.F',
 					leader: null,
-					comment: 'There is no spoon'
+					comment: 'There is no spoon',
+					forceNow: true
 				});
 				break;
 			case 'stock-sell-2':

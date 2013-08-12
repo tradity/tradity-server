@@ -4,6 +4,7 @@ var _ = require('underscore');
 var util = require('util');
 var lapack = require('lapack');
 var assert = require('assert');
+require('datejs');
 
 function StocksDB (db, cfg, quoteLoader) {
 	this.db = db;
@@ -11,6 +12,7 @@ function StocksDB (db, cfg, quoteLoader) {
 	this.cfg = cfg;
 	this.leaderMatrix = null;
 	this.lastCallbackDay = null;
+	this.dqueries = null; // filled in by dqueries object when activated
 	this.regularCallbackActive = false;
 	this.stockNeeders = [];
 	
@@ -263,6 +265,17 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	});
 }
 
+StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
+	var sxdata = this.cfg.stockExchanges[sxname];
+	if (!sxdata)
+		return this.emit('error', 'Unknown SX: ', sxname);
+
+	var opentime = Date.parse(sxdata.open).getTime();
+	var closetime = Date.parse(sxdata.close).getTime();
+	var now = new Date().getTime();
+	return now >= opentime && now < closetime;
+}
+
 StocksDB.prototype.buyStock = function(query, user, access, cb) {
 	if ((!query.stockid && query.leader == null) || (query.stockid && query.leader)) 
 		return cb('format-error');
@@ -274,6 +287,14 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		if (res.length == 0 || res[0].lastvalue == 0)
 			return cb('stock-buy-stock-not-found');
 		var r = res[0];
+		if (!r.leader && !this.stockExchangeIsOpen(r.exchange) && !(access.indexOf('*') != -1 && query.forceNow)) {
+			this.dqueries.addDelayedQuery({
+				condition: 'stock::' + r.name + '::exchange-open',
+				query: query
+			}, user, access);
+			return cb('stock-buy-autodelay-sxnotopen');
+		}
+		
 		var ta_value = query.amount < 0 || query.value < 0 ? r.ask : r.bid;
 		
 		var amount = parseInt(query.amount == null ? query.value / ta_value : query.amount);

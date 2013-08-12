@@ -15,6 +15,9 @@ function DelayedQueriesDB (db, config, stocksdb) {
 		'stock-buy': _.bind(this.stocksdb.buyStock, this.stocksdb)
 	};
 	
+	assert.ok(!this.stocksdb.dqueries);
+	this.stocksdb.dqueries = this;
+	
 	this.stocksdb.on('push', _.bind(function(ev) {
 		if (ev.type == 'stock-update' && this.neededStocks['s-'+ev.stockid]) {
 			_.each(this.neededStocks['s-'+ev.stockid], _.bind(function(entryid) {
@@ -144,11 +147,26 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 					stocks.push(stockid);
 				if (!/^\w+$/.test(fieldname))
 					throw new Error('bad fieldname');
-				cchecks.push(_.bind(function(cb) {
-					this.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?', [stockid], function(r) {
-						cb(r.length > 0 && (lt ? r[0][fieldname] < value : r[0][fieldname] > value));
-					});
-				}, this));
+				switch(fieldname) {
+					case 'exchange-open':
+						cchecks.push(_.bind(function(cb) {
+							this.query('SELECT leader,exchange FROM stocks WHERE stockid = ?', [stockid], function(r) {
+								if (r.length == 0)
+									return false;
+								if (r.leader !== null)
+									return true;
+								return this.stocksdb.stockExchangeIsOpen(r[0].exchange);
+							});
+						}, this));
+						break;
+					default:
+						cchecks.push(_.bind(function(cb) {
+							this.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?', [stockid], function(r) {
+								cb(r.length > 0 && (lt ? r[0][fieldname] < value : r[0][fieldname] > value));
+							});
+						}, this));
+						break;
+				}
 				break;
 			default:
 				throw new Error('unknown variable type');

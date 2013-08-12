@@ -90,6 +90,14 @@ ConnectionData.prototype.client_list_schools = function(query, cb) {
 	}, this));
 }
 
+ConnectionData.prototype.client_password_reset = function(query, cb) {
+	if (this.user !== null)
+		cb('already-logged-in');
+	else UserDB.passwordReset(query, this.user, this.access, _.bind(function(code) {
+		cb(code);
+	}, this));
+}
+
 ConnectionData.prototype.client_register = function(query, cb) {
 	if (this.user !== null)
 		cb('already-logged-in');

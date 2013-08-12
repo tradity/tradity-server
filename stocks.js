@@ -107,11 +107,21 @@ StocksDB.prototype.updateRecord = function(rec) {
 	if (rec.lastTradePrice == 0) // happens with API sometimes.
 		return;
 	
-	this.query('INSERT INTO stocks (stockid, lastvalue, lastchecktime, lrutime, leader, name) VALUES '+
-		'(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?) ON DUPLICATE KEY ' +
-		'UPDATE lastvalue = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) > LENGTH(?), name, ?)',
-		[rec.symbol, rec.lastTradePrice * 10000, rec.name, rec.lastTradePrice * 10000, rec.name, rec.name], function() {
-			this.emit('push', {'type': 'stock-update', 'stockid': rec.symbol, 'lastvalue': rec.lastTradePrice * 10000, 'name': rec.name, 'leader': null, 'leadername': null});
+	this.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name) VALUES '+
+		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?) ON DUPLICATE KEY ' +
+		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) > LENGTH(?), name, ?)',
+		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name,
+		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name], function() {
+			this.emit('push', {
+				'type': 'stock-update',
+				'stockid': rec.symbol,
+				'lastvalue': rec.lastTradePrice * 10000,
+				'ask': rec.ask * 10000,
+				'bid': rec.bid * 10000,
+				'name': rec.name,
+				'leader': null,
+				'leadername': null
+			});
 		}
 	);
 }
@@ -127,13 +137,21 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	}, this);
 	
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
-	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.leader AS leader,users.name AS leadername FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ?', [xstr], function(res1) {
+	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ?', [xstr], function(res1) {
 	this.query('SELECT * FROM recent_searches WHERE string = ?', [str], function(rs_res) {
 	if (rs_res.length == 0) {
 		this.quoteLoader.searchAndFindQuotes(str, _.bind(function(res2) {
 			this.query('INSERT INTO recent_searches (string) VALUES(?)', [str], function() {
 				var results = _.union(res1, _.map(res2, function(r) {
-					return {'stockid': r.symbol, 'lastvalue': r.lastTradePrice * 10000, 'name': r.name, 'leader': null, 'leadername': null};
+					return {
+						'stockid': r.symbol,
+						'lastvalue': r.lastTradePrice * 10000,
+						'ask': r.ask * 10000,
+						'bid': r.bid * 10000,
+						'name': r.name,
+						'leader': null,
+						'leadername': null
+					};
 				}));
 				handleResults(results);
 			});
@@ -211,9 +229,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i], null);
 			assert.equal(X[i], X[i]); // If you don't understand this, search the www for good JS books and buy one.
-			this.query('UPDATE stocks SET lastvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, users[i]], function() {
+			this.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, X[i] / 100, X[i] / 100, users[i]], function() {
 			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i], users[i]], function() {
-				this.query('SELECT stockid, lastvalue, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
+				this.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], function(res) {
 					assert.equal(res.length, 1);
 					res[0].type = 'stock-update';
@@ -250,24 +268,25 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		if (res.length == 0 || res[0].lastvalue == 0)
 			return cb('stock-buy-stock-not-found');
 		var r = res[0];
+		var ta_value = query.amount < 0 || query.value < 0 ? r.ask : r.bid;
 		
-		var amount = parseInt(query.amount == null ? query.value / r.lastvalue : query.amount);
+		var amount = parseInt(query.amount == null ? query.value / ta_value : query.amount);
 		if (amount == 0) 
 			return cb('stock-buy-round-result-zero');
-		var price = amount * r.lastvalue;
+		var price = amount * ta_value;
 		if (price > user.freemoney)
 			return cb('stock-buy-out-of-money');
 		if (amount < -r.amount)
 			return cb('stock-buy-not-enough-stocks');
 		var fee = price > 0 ? Math.min(this.cfg['transaction-fee-perc'] * price, this.cfg['transaction-fee-max']) : 0;
-			
+
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime) VALUES(?,?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, r.leader, price, query.comment], function(oh_res) {
 		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id});
 		var tradeID = oh_res.insertId;
 		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price+fee, user.id], function() {
 		if (r.amount == null) {
 			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
-				[user.id, r.id, amount, price, r.lastvalue, query.comment], function() {
+				[user.id, r.id, amount, price, ta_value, query.comment], function() {
 				cb('stock-buy-success', fee, tradeID);
 			});
 		} else {
@@ -295,7 +314,7 @@ StocksDB.prototype.commentTrade = function(query, user, access, cb) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername '+
+	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
 		[user.id], cb);
 }

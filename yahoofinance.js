@@ -9,18 +9,21 @@ var _ = require('underscore');
 var FAKE_CALLBACK = 'YAHOO.util.UHScriptNodeDataSource.callbacks';
 var INFO_LINK_DEFAULT = 'http://download.finance.yahoo.com/d/quotes.csv?s=%{stocklist}&f=%{format}';
 var SEARCH_LINK_DEFAULT = 'http://d.yimg.com/aq/autoc?query=%{name}&region=DE&lang=de-DE&callback=%{fake-cb}&rnd=%{random}';
-var FORMAT_DEFAULT = ['s', 'n', 'l1'];
+var FORMAT_DEFAULT = ['s', 'n', 'l1', 'a', 'b', 'x'];
 var MAXLEN_DEFAULT = 196;
 var USER_AGENT_DEFAULT = 'Yahoo quotes.csv loader script (contact: sqrt@entless.org) (NodeJS ' + process.version + ' http)';
 
 function YahooFinanceQuoteEntry(id, format, record) {
 	this.id = id;
 	_.each(_.zip(format, record), _.bind(function(e) {
-		this[e[0]] = e[1];
+		this[e[0]] = (e[1] == 'N/A' ? null : e[1]);
 	}, this));
 	
 	this.symbol = this.s;
 	this.lastTradePrice = this.l1;
+	this.ask = this.a ? this.a : this.l1;
+	this.bid = this.b ? this.b : this.l1;
+	this.exchange = this.x;
 	this.setName(this.n);
 	this.fetchTime = new Date().getTime();
 }

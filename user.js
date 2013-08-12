@@ -149,7 +149,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'users.id AS uid', 'users.name AS name',
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
-		'birthday', 'gender', 'schools.id AS schoolid', 'schools.name AS schoolname',
+		'birthday', 'schools.id AS schoolid', 'schools.name AS schoolname',
 		'`desc`', 'provision', 'totalvalue', 'rank', 'delayorderhist'
 		]).join(', ')
 	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
@@ -245,16 +245,49 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 
 UserDB.prototype.deleteUser = function(query, user, access, cb) {
 	this.query('DELETE FROM sessions WHERE uid = ?', [user.id], function() {
-	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", gender="undisclosed", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, address=NULL, deletiontime = UNIX_TIMESTAMP()' +
+	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, address=NULL, deletiontime = UNIX_TIMESTAMP()' +
 	'WHERE id = ?', [user.id, user.id], function() {
 		cb('delete-user-success');
 	});
 	});
 }
 
+UserDB.prototype.passwordReset = function(data, user, access, cb) {
+	this.query('SELECT * FROM users WHERE name = ?', [data.name], function(res) {
+		if (res.length == 0)
+			cb('password-reset-notfound');
+		
+		var u = res[0];
+		
+		crypto.randomBytes(6, _.bind(function(ex, buf) {
+			var pw = buf.toString('hex');
+			this.generatePWKey(pw, _.bind(function(salt, hash) {
+				this.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
+					var opt = _.clone(this.cfg.mail['pwreset-base']);
+					opt.to = u.email;
+					opt.subject += ' (' + data.name + ')';
+					opt.generateTextFromHTML = true;
+					opt.html = '<p>Dein Passwort bei Tradity wurde zurückgesetzt. Du kannst dich jetzt mit „' + pw + '“ anmelden.</p>';
+					
+					cb('password-reset-sending', uid);
+					
+					this.emailsender.sendMail(opt, _.bind(function (error, resp) {
+						if (error) {
+							cb('password-reset-failed', uid);
+							this.emit('error', error);
+						} else {
+							cb('password-reset-success', uid);
+						}
+					}, this));
+				});
+			}, this));
+		}, this));
+	});
+}
+
 UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 	var uid = user !== null ? user.id : null;
-	if ((data.gender != 'male' && data.gender != 'female' && data.gender != 'undisclosed') || !data.name) {
+	if (!data.name) {
 		cb('format-error');
 		return;
 	}
@@ -316,17 +349,17 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
-						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, gender = ?, school = ?, email = ?, email_verif = ?,' +
+						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, school = ?, email = ?, email_verif = ?,' +
 						'birthday = ?, `desc` = ?, provision = ?, address = ? WHERE id = ?',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.gender, data.school, data.email, data.email == user.email,
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);
 					} else {
 						if (data.betakey)
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
-						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, gender, school, email)' +
-						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.gender, data.school, data.email],
+						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email)' +
+						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email],
 						updateCB);
 					}
 				}, this);

@@ -47,7 +47,6 @@ socket.on('connect', function() {
 					delayorderhist: false,
 					password: password,
 					email: email,
-					gender: 'undisclosed',
 					school: schoolid,
 					authorizationKey: authorizationKey,
 					nomail: true,
@@ -228,7 +227,7 @@ socket.on('connect', function() {
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',
-					'condition': 'stock::GE::lastvalue > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
+					'condition': 'stock::GE::ask > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
 					'query': {
 						type: 'stock-buy',
 						id: 'stock-buy-delayed',

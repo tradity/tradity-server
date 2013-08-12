@@ -155,7 +155,8 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 									return false;
 								if (r.leader !== null)
 									return true;
-								return this.stocksdb.stockExchangeIsOpen(r[0].exchange);
+								var v = this.stocksdb.stockExchangeIsOpen(r[0].exchange);
+								return lt ? v < value : v > value;
 							});
 						}, this));
 						break;

@@ -75,6 +75,8 @@ DelayedQueriesDB.prototype.removeQueryUser = function(query, user, access, cb) {
 }
 
 DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
+	cb = cb || function() {};
+	
 	var qstr = null;
 	try {
 		this.parseCondition(query.condition);
@@ -151,10 +153,10 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 							this.query('SELECT leader,exchange FROM stocks WHERE stockid = ?', [stockid], function(r) {
 								if (r.length == 0)
 									return false;
-								if (r.leader !== null)
+								if (r[0].leader !== null)
 									return true;
 								var v = this.stocksdb.stockExchangeIsOpen(r[0].exchange);
-								return lt ? v < value : v > value;
+								cb(lt ? v < value : v > value);
 							});
 						}, this));
 						break;

@@ -21,6 +21,10 @@ function StocksDB (db, cfg, quoteLoader) {
 }
 util.inherits(StocksDB, require('./objects.js').DBSubsystemBase);
 
+StocksDB.prototype.stocksFilter = function(rec) {
+	return _.chain(this.cfg.stockExchanges).keys().contains(rec.exchange).value();
+}
+
 StocksDB.prototype.regularCallback = function(cb) {
 	cb = cb || function() {};
 	if (this.regularCallbackActive) {
@@ -97,7 +101,7 @@ StocksDB.prototype.updateStockValues = function(cb) {
 		});
 		
 		if (stocklist.length > 0)
-			this.quoteLoader.loadQuotes(stocklist);	
+			this.quoteLoader.loadQuotes(stocklist, _.bind(this.stocksFilter, this));
 		cb();
 	});
 }
@@ -107,11 +111,11 @@ StocksDB.prototype.updateRecord = function(rec) {
 	if (rec.lastTradePrice == 0) // happens with API sometimes.
 		return;
 	
-	this.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name) VALUES '+
-		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?) ON DUPLICATE KEY ' +
-		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) > LENGTH(?), name, ?)',
-		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name,
-		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name], function() {
+	this.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange) VALUES '+
+		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?) ON DUPLICATE KEY ' +
+		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) > LENGTH(?), name, ?), exchange = ?',
+		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange,
+		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange], function() {
 			this.emit('push', {
 				'type': 'stock-update',
 				'stockid': rec.symbol,
@@ -120,7 +124,8 @@ StocksDB.prototype.updateRecord = function(rec) {
 				'bid': rec.bid * 10000,
 				'name': rec.name,
 				'leader': null,
-				'leadername': null
+				'leadername': null,
+				'exchange': rec.exchange
 			});
 		}
 	);
@@ -140,7 +145,7 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ?', [xstr], function(res1) {
 	this.query('SELECT * FROM recent_searches WHERE string = ?', [str], function(rs_res) {
 	if (rs_res.length == 0) {
-		this.quoteLoader.searchAndFindQuotes(str, _.bind(function(res2) {
+		this.quoteLoader.searchAndFindQuotes(str, _.bind(this.stocksFilter, this), _.bind(function(res2) {
 			this.query('INSERT INTO recent_searches (string) VALUES(?)', [str], function() {
 				var results = _.union(res1, _.map(res2, function(r) {
 					return {
@@ -149,6 +154,7 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 						'ask': r.ask * 10000,
 						'bid': r.bid * 10000,
 						'name': r.name,
+						'exchange': r.exchange,
 						'leader': null,
 						'leadername': null
 					};
@@ -314,7 +320,7 @@ StocksDB.prototype.commentTrade = function(query, user, access, cb) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername '+
+	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
 		[user.id], cb);
 }

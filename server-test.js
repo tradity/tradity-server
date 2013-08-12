@@ -149,7 +149,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: 5,
 					value: null,
-					stockid: 'MCD',
+					stockid: 'MDO.F',
 					leader: null,
 					comment: 'There is no spoon'
 				});
@@ -179,7 +179,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: -5,
 					value: null,
-					stockid: 'MCD',
+					stockid: 'MDO.F',
 					leader: null,
 					comment: 'There is no spoon'
 				});
@@ -192,7 +192,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: -5,
 					value: null,
-					stockid: 'MCD',
+					stockid: 'MDO.F',
 					leader: null,
 					comment: 'There is no spoon'
 				});

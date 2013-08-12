@@ -98,7 +98,8 @@ YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
 	req.end();
 }
 
-YahooFinanceQuoteLoader.prototype.loadQuotes = function(stocklist, callback) {
+YahooFinanceQuoteLoader.prototype.loadQuotes = function(stocklist, filter, callback) {
+	filter = filter || function() { return true; };
 	callback = callback || function() {};
 	
 	if (stocklist.length == 0) {
@@ -108,7 +109,7 @@ YahooFinanceQuoteLoader.prototype.loadQuotes = function(stocklist, callback) {
 	
 	_.each(stocklist, _.bind(function(e) {
 		var cb;
-		cb = _.bind(function(record) { if (record.id == e) {
+		cb = _.bind(function(record) { if (record.id == e && filter(record)) {
 			this.removeListener('record', cb);
 			callback(record);
 		}}, this);
@@ -119,7 +120,10 @@ YahooFinanceQuoteLoader.prototype.loadQuotes = function(stocklist, callback) {
 	this._makeQuoteRequest(stocklist);
 }
 
-YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, callback) {
+YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, filter, callback) {
+	filter = filter || function() { return true; }
+	callback = callback || function() {};
+	
 	var forwardError = _.bind(function(e) {this.emit('error', e)}, this);
 	
 	var requrl = this.searchLink.replace('%\{name\}', name).replace('%\{random\}', new Date().getTime()).replace('%\{fake-cb\}', FAKE_CALLBACK);
@@ -136,6 +140,10 @@ YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, callback)
 			var r = JSON.parse(resultstr.replace(FAKE_CALLBACK, '').replace(/[()]/g, ''));
 			var rset = r.ResultSet.Result;
 			
+			for (var i = 0; i < rset.length; ++i)
+				rset[i].exchange = rset[i].exchDisp;
+			rset = _.filter(rset, filter);
+			
 			var stocklist = [];
 							
 			var records = [];
@@ -148,7 +156,7 @@ YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, callback)
 			if (stocklist.length == 0)
 				return callback([]);
 			
-			this.loadQuotes(stocklist, _.bind(function(record) {
+			this.loadQuotes(stocklist, filter, _.bind(function(record) {
 				var sym = record.symbol;
 				for (var i = 0; i < rset.length; ++i) {
 					if (sym == rset[i].symbol) {
@@ -175,15 +183,15 @@ exports.YahooFinanceQuoteLoader = YahooFinanceQuoteLoader;
 function test() {
 	var ql = new YahooFinanceQuoteLoader();
 	ql.on('error', function(e) { console.log(e, e.stack + ''); });
-	ql.loadQuotes(['GOOG', '^GDAXI', 'KO', 'BA', 'INTC', 'MCD', 'IBM', 'MSFT', 'DIS'], function(rec) {
-		console.log('Name: ' + rec.name + ', LT Price: ' + rec.lastTradePrice);
+	ql.loadQuotes(['GOOG', '^GDAXI', 'KO', 'BA', 'INTC', 'MCD', 'IBM', 'MSFT', 'DIS', 'MDO.F'], null, function(rec) {
+		console.log('Name: ' + rec.name + ', LT Price: ' + rec.lastTradePrice, 'Exch:', rec.exchange);
 	});
 	
-	ql.searchAndFindQuotes('DONALD', function(rec) {
+	ql.searchAndFindQuotes('DONALD', null, function(rec) {
 		for (var i = 0; i < rec.length; ++i) 
 			console.log('Name: ' + rec[i].name + ', LT Price: ' + rec[i].lastTradePrice);
 			
-		ql.searchAndFindQuotes('Donaldson Burston', function(rec) {
+		ql.searchAndFindQuotes('Donaldson Burston', null, function(rec) {
 			for (var i = 0; i < rec.length; ++i)
 				console.log('Name: ' + rec[i].name + ', LT Price: ' + rec[i].lastTradePrice);
 		});

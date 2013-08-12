@@ -12,7 +12,8 @@
 		"socket.io": "*",
 		"socket.io-client": "*",
 		"underscore": "*",
-		"lapack": "*"
+		"lapack": "*",
+		"datejs": "*",
 	},
 	"preferGlobal": false,
 	"private": true

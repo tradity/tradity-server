@@ -145,8 +145,6 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 				var fieldname = variable[2];
 				if (_.indexOf(stocks, stockid) == -1)
 					stocks.push(stockid);
-				if (!/^\w+$/.test(fieldname))
-					throw new Error('bad fieldname');
 				switch(fieldname) {
 					case 'exchange-open':
 						cchecks.push(_.bind(function(cb) {
@@ -161,6 +159,8 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 						}, this));
 						break;
 					default:
+						if (!/^\w+$/.test(fieldname))
+							throw new Error('bad fieldname');
 						cchecks.push(_.bind(function(cb) {
 							this.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?', [stockid], function(r) {
 								cb(r.length > 0 && (lt ? r[0][fieldname] < value : r[0][fieldname] > value));

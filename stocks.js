@@ -212,6 +212,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 				return;
 			}
 			
+			if (res_static[k].valsum === null) // happens when one invests only in leaders
+				res_static[k].valsum = 0;
+			
 			B[users_inv[uid]] = [res_static[k].valsum];
 		}
 		

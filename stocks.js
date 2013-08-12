@@ -185,9 +185,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	
 	this.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	this.query(
-		'SELECT ds.userid AS uid, SUM(ds.amount * s.lastvalue) + freemoney AS valsum FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
+		'SELECT ds.userid AS uid, SUM(ds.amount * s.lastvalue) AS valsum, freemoney FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
 		'ON s.leader IS NULL AND s.id = ds.stockid LEFT JOIN users ON ds.userid = users.id GROUP BY uid ' +
-		'UNION SELECT id AS uid, freemoney AS valsum FROM users WHERE deletiontime IS NULL AND (SELECT COUNT(*) FROM depot_stocks WHERE userid=users.id)=0', [], function(res_static) {
+		'UNION SELECT id AS uid, 0 AS valsum, freemoney AS freemoney FROM users WHERE deletiontime IS NULL AND (SELECT COUNT(*) FROM depot_stocks WHERE userid=users.id)=0', [], function(res_static) {
 	this.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
@@ -215,7 +215,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			if (res_static[k].valsum === null) // happens when one invests only in leaders
 				res_static[k].valsum = 0;
 			
-			B[users_inv[uid]] = [res_static[k].valsum];
+			B[users_inv[uid]] = [res_static[k].valsum + res_static[k].freemoney];
 		}
 		
 		for (var k = 0; k < res_leader.length; ++k) {

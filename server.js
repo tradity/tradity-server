@@ -141,6 +141,7 @@ ConnectionData.prototype.client_emailverif = function(query, cb) {
 
 ConnectionData.prototype.client_login = function(query, cb) {
 	UserDB.login(query, this.user, this.access, _.bind(function(code, key) {
+		this.pushEvents();
 		cb(code, {key:key});
 	}, this));
 }
@@ -245,7 +246,7 @@ ConnectionData.prototype.pushEvents = function() {
 	this.pushEventsTimer = setTimeout(_.bind(function() {
 		this.pushEventsTimer = null;
 		this.fetchEvents(null);
-	}, this), 1000);;
+	}, this), 1000);
 }
 
 ConnectionData.prototype.response = function(data) {

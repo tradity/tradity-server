@@ -13,7 +13,7 @@
 		"socket.io-client": "*",
 		"underscore": "*",
 		"lapack": "*",
-		"datejs": "*",
+		"datejs": "*"
 	},
 	"preferGlobal": false,
 	"private": true

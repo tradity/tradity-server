@@ -229,7 +229,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			A[f][l] -= amount / this.cfg.leaderValueShare;
 		}
 		
-		console.log(A, B);
+		/*console.log(A, B);*/
 		var res = lapack.sgesv(A, B);
 		if (!res) {
 			this.emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));

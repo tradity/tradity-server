@@ -139,7 +139,8 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	var str = query.name;
 	
 	var handleResults = _.bind(function(results) {
-		var symbols = _.map(results, function(r) { return r.stockid; });
+		results = _.uniq(results, false, function(r) { return r.stockid; });
+		var symbols = _.pluck(results, 'stockid');
 		symbols = _.map(symbols, escape);
 		this.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE symbol IN ("' + _.map(symbols, _.bind(this.db.escape, this.db)).join('","') + '")');
 		cb('stock-search-success', results);

@@ -156,6 +156,8 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		if (users.length == 0)
 			return cb(null, null, null);
 		var user = users[0];
+		if (query.nohistory)
+			return cb(user, null, null);
 		this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?)', [user.uid, !!user.delayorderhist ? 2 * 86400 : 0], function(orders) {
 			this.query('SELECT * FROM valuehistory WHERE userid = ?', [user.uid], function(values) {
 				cb(user, orders, values);

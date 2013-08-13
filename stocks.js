@@ -61,7 +61,9 @@ StocksDB.prototype.updateRanking = function(cb) {
 	cb = cb || function() {};
 	
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general", id, @rank := @rank + 1 FROM users ORDER BY totalvalue DESC', [], function() {
+	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 3*86400', [], function() {
 	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
+	});
 	});
 }
 
@@ -275,8 +277,8 @@ StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
 
 	var opentime = Date.parse(sxdata.open).getTime();
 	var closetime = Date.parse(sxdata.close).getTime();
-	var now = new Date().getTime();
-	return now >= opentime && now < closetime;
+	var now = new Date();
+	return now.getTime() >= opentime && now.getTime() < closetime && _.indexOf(sxdata.days, now.getUTCDay()) != -1;
 }
 
 StocksDB.prototype.buyStock = function(query, user, access, cb) {

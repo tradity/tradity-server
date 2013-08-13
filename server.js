@@ -48,6 +48,7 @@ function ConnectionData() {
 	this.access = [];
 	this.registeredEventHandlers = [];
 	this.pushEventsTimer = null;
+	this.lastInfoPush = 0;
 	
 	_.each(subsystems, _.bind(function(sys) {
 		this.regListenerBoundEx(sys, 'push', this.push);
@@ -229,6 +230,20 @@ ConnectionData.prototype.client_dquery_remove = _login(function(query, cb) {
 ConnectionData.prototype.fetchEvents = function(query) {
 	if (!this.user)
 		return; // no user – no events.
+		
+	// possibly push info 
+	var curUnixTime = new Date().getTime();
+	if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
+		this.lastInfoPush = curUnixTime;
+		UserDB.getUserInfo({lookfor:'$self',nohistory:true}, this.user, this.access, _.bind(function(info) {
+			if (!info) // wtf?
+				return this.emit('error', new Error('no user on $self in info push handler'));
+			info.type = 'self-info';
+			this.push(info);
+		}, this));
+	}
+	
+	// fetch regular events
 	StocksDB.fetchEvents(query, this.user, this.access, _.bind(function(evlist) {
 		_.each(evlist, _.bind(function(ev) {
 			this.emit('push', ev);

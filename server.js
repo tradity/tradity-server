@@ -235,7 +235,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	var curUnixTime = new Date().getTime();
 	if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 		this.lastInfoPush = curUnixTime;
-		UserDB.getUserInfo({lookfor:'$self',nohistory:true}, this.user, this.access, _.bind(function(info) {
+		UserDB.getUserInfo({lookfor:'$self', nohistory:true}, this.user, this.access, _.bind(function(info) {
 			if (!info) // wtf?
 				return this.emit('error', new Error('no user on $self in info push handler'));
 			info.type = 'self-info';

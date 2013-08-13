@@ -192,7 +192,9 @@ DelayedQueriesDB.prototype.executeQuery = function(query) {
 	var e = this.queryTypes[query.query.type];
 	assert.ok(e);
 	e(query.query, query.userinfo, query.accessinfo, _.bind(function(code) {
-		this.feed({'type': 'dquery-exec', 'targetid':null, 'srcuser': query.userinfo.id, 'json': {'result': code}});
+		var json = query.query.dquerydata || {};
+		json.result = code;
+		this.feed({'type': 'dquery-exec', 'targetid':null, 'srcuser': query.userinfo.id, 'json': json});
 		this.removeQuery(query);
 	}, this));
 }

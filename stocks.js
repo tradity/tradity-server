@@ -308,11 +308,9 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 			return cb('stock-buy-autodelay-sxnotopen');
 		}
 		
-		var ta_value = query.amount < 0 || query.value < 0 ? r.ask : r.bid;
+		var ta_value = query.amount < 0 ? r.ask : r.bid;
 		
-		var amount = parseInt(query.amount == null ? query.value / ta_value : query.amount);
-		if (amount == 0) 
-			return cb('stock-buy-round-result-zero');
+		var amount = parseInt(query.amount);
 		if (amount < -r.amount)
 			return cb('stock-buy-not-enough-stocks');
 		// re-fetch freemoney because the 'user' object might come from dquery

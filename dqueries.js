@@ -203,9 +203,9 @@ DelayedQueriesDB.prototype.removeQuery = function(query) {
 	this.query('DELETE FROM dqueries WHERE queryid = ?', [query.queryid], function() {
 		delete this.queries[query.queryid];
 		_.each(query.neededStocks, _.bind(function(stock) {
-			this.neededStocks[stock] = _.without(this.neededStocks[stock], stock);
-			if (this.neededStocks[stock].length == 0)
-				delete this.neededStocks[stock];
+			this.neededStocks['s-'+stock] = _.without(this.neededStocks['s-'+stock], query.queryid);
+			if (this.neededStocks['s-'+stock].length == 0)
+				delete this.neededStocks['s-'+stock];
 		}, this));
 	});
 }

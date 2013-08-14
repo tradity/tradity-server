@@ -308,11 +308,14 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		var amount = parseInt(query.amount == null ? query.value / ta_value : query.amount);
 		if (amount == 0) 
 			return cb('stock-buy-round-result-zero');
-		var price = amount * ta_value;
-		if (price > user.freemoney)
-			return cb('stock-buy-out-of-money');
 		if (amount < -r.amount)
 			return cb('stock-buy-not-enough-stocks');
+		// re-fetch freemoney because the 'user' object might come from dquery
+		this.query('SELECT freemoney FROM users WHERE id = ?', [user.id], function(ures) {
+		assert.equal(ures.length, 1);
+		var price = amount * ta_value;
+		if (price > ures[0].freemoney)
+			return cb('stock-buy-out-of-money');
 		var fee = price > 0 ? Math.min(this.cfg['transaction-fee-perc'] * price, this.cfg['transaction-fee-max']) : 0;
 
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime) VALUES(?,?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, r.leader, price, query.comment], function(oh_res) {
@@ -330,8 +333,9 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 				cb('stock-buy-success', fee, tradeID);
 			});
 		}
-		})
-		})
+		});
+		});
+		});
 	});
 }
 

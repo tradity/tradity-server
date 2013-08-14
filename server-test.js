@@ -230,13 +230,13 @@ socket.on('connect', function() {
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',
-					'condition': 'stock::GE::ask > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
+					'condition': 'stock::GEC.F::ask > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
 					'query': {
 						type: 'stock-buy',
 						id: 'stock-buy-delayed',
 						amount: 1,
 						value: null,
-						stockid: 'GE',
+						stockid: 'GEC.F',
 						leader: null,
 						comment: 'There was no spoon'
 					},

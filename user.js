@@ -230,7 +230,7 @@ UserDB.prototype.loadSessionUser = function(key, cb) {
 			user.realnamepublish = !!user.realnamepublish;
 			user.delayorderhist = !!user.delayorderhist;
 			
-			this.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.id]);
+			this.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE uid = ?', [user.id]);
 			cb(user);
 		}
 	});

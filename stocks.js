@@ -149,10 +149,11 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
 	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ?', [xstr], function(res1) {
 	this.query('SELECT * FROM recent_searches WHERE string = ?', [str], function(rs_res) {
+	this.query('SELECT * FROM stocks WHERE name LIKE ? OR stockid LIKE ?', [xstr, xstr], function(res2) {
 	if (rs_res.length == 0) {
-		this.quoteLoader.searchAndFindQuotes(str, _.bind(this.stocksFilter, this), _.bind(function(res2) {
+		this.quoteLoader.searchAndFindQuotes(str, _.bind(this.stocksFilter, this), _.bind(function(res3) {
 			this.query('INSERT INTO recent_searches (string) VALUES(?)', [str], function() {
-				var results = _.union(res1, _.map(res2, function(r) {
+				var results = _.union(res1, res2, _.map(res3, function(r) {
 					return {
 						'stockid': r.symbol,
 						'lastvalue': r.lastTradePrice * 10000,
@@ -168,10 +169,9 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 			});
 		}, this));
 	} else {
-		this.query('SELECT * FROM stocks WHERE name LIKE ? OR stockid LIKE ?', [xstr, xstr], function(res2) {
-			handleResults(_.union(res1, res2));
-		});
+		handleResults(_.union(res1, res2));
 	}
+	});
 	});
 	});
 }
@@ -347,7 +347,7 @@ StocksDB.prototype.commentTrade = function(query, user, access, cb) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange '+
+	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
 		[user.id], cb);
 }

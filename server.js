@@ -41,7 +41,7 @@ setInterval(eh.wrap(function() {
 	StocksDB.regularCallback();
 }), 240 * 1000);
 
-var subsystems = [StocksDB, UserDB];
+var subsystems = [StocksDB, UserDB, dqDB];
 
 function ConnectionData() {
 	this.user = null;

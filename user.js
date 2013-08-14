@@ -356,6 +356,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);
+						this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['leader:\'' + res[i].uname + '\'', uid]);
 					} else {
 						if (data.betakey)
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);

@@ -253,7 +253,6 @@ ConnectionData.prototype.fetchEvents = function(query) {
 
 ConnectionData.prototype.push = function(data) {
 	this.emit('push', data);
-	this.fetchEvents(null);
 }
 
 ConnectionData.prototype.pushEvents = function() {

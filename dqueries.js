@@ -201,7 +201,7 @@ DelayedQueriesDB.prototype.executeQuery = function(query) {
 
 DelayedQueriesDB.prototype.removeQuery = function(query) {
 	this.query('DELETE FROM dqueries WHERE queryid = ?', [query.queryid], function() {
-		delete this.queries[query.id];
+		delete this.queries[query.queryid];
 		_.each(query.neededStocks, _.bind(function(stock) {
 			this.neededStocks[stock] = _.without(this.neededStocks[stock], stock);
 			if (this.neededStocks[stock].length == 0)

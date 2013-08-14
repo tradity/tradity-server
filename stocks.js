@@ -273,8 +273,10 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 
 StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
 	var sxdata = this.cfg.stockExchanges[sxname];
-	if (!sxdata)
-		return this.emit('error', 'Unknown SX: ', sxname);
+	if (!sxdata) {
+		this.emit('error', new Error('Unknown SX: ' + sxname));
+		return false;
+	}
 
 	var opentime = Date.parse(sxdata.open).getTime();
 	var closetime = Date.parse(sxdata.close).getTime();

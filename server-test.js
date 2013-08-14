@@ -280,6 +280,15 @@ socket.on('connect', function() {
 				break;
 			case 'ping':
 				assert.equal(data.code, 'pong');
+				emit('query', {
+					type: 'get-config',
+					id: 'get-config'
+				});
+				break;
+			case 'get-config':
+				assert.equal(data.code, 'get-config-success');
+				assert.ok(data.config);
+				assert.ok(data.config.normalLoginTime);
 				console.log('Thank you for watching, please subscribe to my channel to view other tests');
 				process.exit(0);
 		}

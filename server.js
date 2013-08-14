@@ -227,6 +227,10 @@ ConnectionData.prototype.client_dquery_remove = _login(function(query, cb) {
 	dqDB.removeQueryUser(query, this.user, this.access, cb);
 })
 
+ConnectionData.prototype.client_get_config = function(query, cb) {
+	cb('get-config-success', {'config':_.pick(cfg, cfg.clientconfig)});
+}
+
 ConnectionData.prototype.fetchEvents = function(query) {
 	if (!this.user)
 		return; // no user – no events.

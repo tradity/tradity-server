@@ -153,7 +153,7 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
 	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
-	this.query('SELECT * FROM stocks WHERE name LIKE ? OR stockid LIKE ? AND leader IS NULL', [xstr, xstr], function(res2) {
+	this.query('SELECT * FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
 	this.query('SELECT * FROM recent_searches WHERE string = ?', [str], function(rs_res) {
 	if (rs_res.length == 0) {
 		this.quoteLoader.searchAndFindQuotes(str, _.bind(this.stocksFilter, this), _.bind(function(res3) {

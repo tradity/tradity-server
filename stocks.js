@@ -324,7 +324,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime) VALUES(?,?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, r.leader, price, query.comment], function(oh_res) {
 		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id});
 		var tradeID = oh_res.insertId;
-		this.query('UPDATE users SET freemoney = freemoney-(?) WHERE id = ?', [price+fee, user.id], function() {
+		this.query('UPDATE users SET freemoney = freemoney-(?),totalvalue = totalvalue-(?) WHERE id = ?', [price+fee, fee, user.id], function() {
 		if (r.amount == null) {
 			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 				[user.id, r.id, amount, price, ta_value, query.comment], function() {

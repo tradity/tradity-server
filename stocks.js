@@ -317,7 +317,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		this.query('SELECT freemoney FROM users WHERE id = ?', [user.id], function(ures) {
 		assert.equal(ures.length, 1);
 		var price = amount * ta_value;
-		if (price > ures[0].freemoney)
+		if (price > ures[0].freemoney && price >= 0)
 			return cb('stock-buy-out-of-money');
 		var fee = Math.min(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-max']);
 

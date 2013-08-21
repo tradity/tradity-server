@@ -84,7 +84,9 @@ YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
 		return;
 	
 	var fstring = 's' + this.format.join('');
-	var forwardError = _.bind(function(e) {this.emit('error', e)}, this);
+	var forwardError = _.bind(function(e) {
+		this.emit('error', e);
+	}, this);
 	var sl = _.reduce(stocklist, function(memo, code) { return memo + '+' + code; }, '');
 	var requrl = this.infoLink.replace('%\{stocklist\}', sl).replace('%\{format\}', fstring);
 	
@@ -94,6 +96,7 @@ YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
 		}, this)).on('error', forwardError);
 	}, this));
 	
+	req.on('error', forwardError);
 	req.setHeader('User-Agent', this.userAgent);
 	req.end();
 }

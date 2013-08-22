@@ -319,7 +319,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0)
 			return cb('stock-buy-out-of-money');
-		var fee = Math.min(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-max']);
+		var fee = Math.Max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime) VALUES(?,?,?,?,?,UNIX_TIMESTAMP())', [user.id, r.stockid, r.leader, price, query.comment], function(oh_res) {
 		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id});

@@ -167,7 +167,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 }
 
 UserDB.prototype.listSchools = function(query, user, access, cb) {
-	this.query('SELECT id, name FROM schools', [], cb);
+	this.query('SELECT schools.id, schools.name, COUNT(users.id) AS usercount FROM schools LEFT JOIN users ON users.school=schools.id GROUP BY schools.id', [], cb);
 }
 
 UserDB.prototype.regularCallback = function(cb) {
@@ -220,7 +220,7 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 }
 
 UserDB.prototype.loadSessionUser = function(key, cb) {
-	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP()', [key], function(res) {
+	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, schools.name AS schoolname FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id LEFT JOIN schools ON schools.id=users.school WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP()', [key], function(res) {
 		if (res.length == 0) {
 			cb(null);
 		} else {
@@ -289,7 +289,7 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 
 UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 	var uid = user !== null ? user.id : null;
-	if (!data.name || !data.email) {
+	if (!data.name || !data.email || !data.giv_name || !data.fam_name) {
 		cb('format-error');
 		return;
 	}
@@ -312,6 +312,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 		cb('format-error');
 		return;
 	}
+	
+	if (!data.school) // e. g., empty string
+		data.school = null;
 	
 	var betakey = data.betakey ? data.betakey.toString().split('-') : [0,0];
 	

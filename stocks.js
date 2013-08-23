@@ -181,9 +181,9 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	});
 }
 
-StocksDB.prototype.updateLeaderMatrix = function(cb) {
-	cb = cb || function() {};
-	
+StocksDB.prototype.updateLeaderMatrix = function(cb_) {
+	this.locked(['depotstocks'], cb_, function(cb) {
+		
 	this.query('SELECT users.id AS uid, users.name AS uname, COUNT(s.stockid) AS scount FROM users LEFT JOIN stocks AS s ON s.leader = users.id WHERE users.deletiontime IS NULL GROUP BY uid ORDER BY scount ASC', [], function(res) {
 	var insvalues = [];
 	for (var i = 0; i < res.length && res[i].scount == 0; ++i) 
@@ -274,6 +274,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	});
 	});
 	});
+	});
 }
 
 StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
@@ -289,7 +290,8 @@ StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
 	return now.getTime() >= opentime && now.getTime() < closetime && _.indexOf(sxdata.days, now.getUTCDay()) != -1;
 }
 
-StocksDB.prototype.buyStock = function(query, user, access, cb) {
+StocksDB.prototype.buyStock = function(query, user, access, cb_) {
+	this.locked(['depotstocks'], cb_, function(cb) {
 	if ((!query.stockid && query.leader == null) || (query.stockid && query.leader)) 
 		return cb('format-error');
 	
@@ -339,6 +341,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb) {
 		});
 		});
 		});
+	});
 	});
 }
 

@@ -16,6 +16,7 @@ var dqueries = require('./dqueries.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 var yf = require('./yahoofinance.js');
+var locking = require('./locking.js');
 
 crypto.randomBytes(64, _.bind(function(ex, buf) {
 var authorizationKey = buf.toString('hex');
@@ -33,6 +34,7 @@ yfql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
 UserDB.on('error', function(e) { eh.err(e); });
 StocksDB.on('error', function(e) { eh.err(e); });
+locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 
 setInterval(eh.wrap(function() {
 	UserDB.regularCallback();

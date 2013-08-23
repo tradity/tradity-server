@@ -2,10 +2,12 @@
 
 var util = require('util');
 var events = require('events');
+var locking = require('./locking.js');
 var _ = require('underscore');
 
 function DBSubsystemBase () {
 	this.db = null;
+	this.lockAuthority = null;
 }
 util.inherits(DBSubsystemBase, events.EventEmitter);
 
@@ -72,6 +74,13 @@ DBSubsystemBase.prototype.markEventSeen = function(query, user, access, cb) {
 
 DBSubsystemBase.prototype.getNeededStocks = function() {
 	return [];
+}
+
+DBSubsystemBase.prototype.locked = function(locks, origCB, fn) {
+	if (!this.lockAuthority)
+		this.lockAuthority = locking.Lock.globalLockAuthority;
+	
+	this.lockAuthority.locked(locks, origCB, _.bind(fn, this));
 }
 
 exports.DBSubsystemBase = DBSubsystemBase;

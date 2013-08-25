@@ -271,14 +271,14 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 					opt.generateTextFromHTML = true;
 					opt.html = '<p>Dein Passwort bei Tradity wurde zurückgesetzt. Du kannst dich jetzt mit „' + pw + '“ anmelden.</p>';
 					
-					cb('password-reset-sending', uid);
+					cb('password-reset-sending', u.id);
 					
 					this.emailsender.sendMail(opt, _.bind(function (error, resp) {
 						if (error) {
-							cb('password-reset-failed', uid);
+							cb('password-reset-failed', u.id);
 							this.emit('error', error);
 						} else {
-							cb('password-reset-success', uid);
+							cb('password-reset-success', u.id);
 						}
 					}, this));
 				});

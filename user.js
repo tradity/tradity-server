@@ -410,7 +410,7 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
 		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.userid], function(r) {
-			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched':query.userid}});
+			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched':query.userid,'watchedname':res[0].name}});
 			cb('watchlist-add-success');
 		}); 
 	});
@@ -418,7 +418,7 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 
 UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
 	this.query('DELETE FROM watchlists WHERE watcher=? AND watched=?', [user.id, query.userid], function() {
-		this.feed({'type': 'watch-remove','targetid':null,'srcuser':user.id,'json':{'watched':query.userid}});
+		this.feed({'type': 'watch-remove','targetid':null,'srcuser':user.id,'json':{'watched':query.userid,'watchedname':res[0].name}});
 		cb('watchlist-remove-success');
 	}); 
 }

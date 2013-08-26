@@ -50,9 +50,10 @@ DBSubsystemBase.prototype.feed = function(data) {
 }
 
 DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
-	this.query('SELECT * FROM events '+
+	this.query('SELECT events.*, c.*, oh.*, w.*, su.name,events.time AS eventtime AS srcusername FROM events '+
 		'LEFT JOIN tcomments AS c ON c.commentid = events.targetid AND events.type="comment" '+
 		'LEFT JOIN orderhistory AS oh ON c.tradeid = oh.orderid OR (oh.orderid = events.targetid AND events.type="trade") '+
+		'LEFT JOIN users AS su ON su.srcuser = su.id '+
 		'WHERE user = ? AND events.time > ? AND NOT (seen*?) ORDER BY events.time DESC LIMIT ?',
 		[user.uid, query ? query.since : 0, query && query.all ? 0:1, query && query.count !== null ? query.count : 100000], function(r) {
 		cb(_.map(r, function(ev) {

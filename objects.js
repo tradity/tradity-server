@@ -36,15 +36,27 @@ DBSubsystemBase.prototype.queryCallback = function(cb, query) {
 DBSubsystemBase.prototype.feed = function(data) {
 	var src = data.srcuser;
 	var json = JSON.stringify(data.json ? data.json : {});
-	this.query('INSERT INTO events (`type`,targetid,time,user,srcuser,seen,json) '+
-		'SELECT ?,?,UNIX_TIMESTAMP(),userid,?,0,? FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' +
+	
+	var additional = data.feedusers && data.feedusers.slice(0) || [];
+	if (additional.indexOf(data.srcuser) == -1)
+		additional.push(data.srcuser);
+	
+	var query = 'INSERT INTO events (`type`,targetid,time,user,srcuser,seen,json) '+
+		'SELECT ?,?,UNIX_TIMESTAMP(),userid,?,0,? FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' + // all followers
 		'UNION ' +
-		'SELECT ?,?,UNIX_TIMESTAMP(),w.watcher,?,0,? FROM watchlists AS w WHERE w.watched = ? ' +
-		'UNION ' +
-		'SELECT ?,?,UNIX_TIMESTAMP(),?,?,0,?',
-		[data.type, data.targetid, data.srcuser, json, data.srcuser,
-		 data.type, data.targetid, data.srcuser, json, data.srcuser,
-		 data.type, data.targetid, data.srcuser, data.srcuser, json], function() {
+		'SELECT ?,?,UNIX_TIMESTAMP(),w.watcher,?,0,? FROM watchlists AS w WHERE w.watched = ? '; // all users in watchlist
+	var params = [data.type, data.targetid, data.srcuser, json, data.srcuser,
+		 data.type, data.targetid, data.srcuser, json, data.srcuser];
+		 
+	for (var i = 0; i < additional.length; ++i) {
+		if (parseInt(additional[i]) != additional[i])
+			return this.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
+		
+		query += 'UNION SELECT ?,?,UNIX_TIMESTAMP(),?,?,0,? ';
+		params = params.concat([data.type, data.targetid, additional[i], data.srcuser, json]);
+	}
+	
+	this.query(query, params, function() {
 		this.emit('push-events');
 	});
 }

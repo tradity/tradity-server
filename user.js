@@ -410,7 +410,7 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
 		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.userid], function(r) {
-			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched':query.userid,'watchedname':res[0].name}});
+			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched':query.userid,'watchedname':res[0].name},'feedusers':[query.userid]});
 			cb('watchlist-add-success');
 		}); 
 	});

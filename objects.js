@@ -18,16 +18,16 @@ DBSubsystemBase.prototype.dbevent = function(name, data, access) {
 DBSubsystemBase.prototype.query = function(query, data, cb) {
 	data = data || [];
 	
-	this.db.query(query, data, this.queryCallback(cb, query));
+	this.db.query(query, data, this.queryCallback(cb, query, data));
 }
 
-DBSubsystemBase.prototype.queryCallback = function(cb, query) {
+DBSubsystemBase.prototype.queryCallback = function(cb, query, data) {
 	if (!cb)
 		return (function() {});
 	
 	return _.bind(function(err, res) {
 		if (err) 
-			this.emit('error', query ? new Error(err + '\nCaused by <<' + query + '>>') : err);
+			this.emit('error', query ? new Error(err + '\nCaused by <<' + query + '>> with arguments [' + new Buffer(data.toString()).toString('base64') + ']') : err);
 		else
 			_.bind(cb, this)(res);
 	}, this);

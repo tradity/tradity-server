@@ -155,12 +155,13 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb(null, null, null);
-		var user = users[0];
+		var xuser = users[0];
+		xuser.isSelf = (xuser.uid == user.uid);
 		if (query.nohistory)
-			return cb(user, null, null);
-		this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [user.uid, !!user.delayorderhist ? 2 * 86400 : 0], function(orders) {
+			return cb(xuser, null, null);
+		this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, !!xuser.delayorderhist ? 2 * 86400 : 0], function(orders) {
 			this.query('SELECT * FROM valuehistory WHERE userid = ?', [user.uid], function(values) {
-				cb(user, orders, values);
+				cb(xuser, orders, values);
 			});
 		});
 	});

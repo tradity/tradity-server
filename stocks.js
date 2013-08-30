@@ -310,11 +310,12 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			return cb('stock-buy-autodelay-sxnotopen');
 		}
 		
-		var ta_value = query.amount > 0 ? r.ask : r.bid;
-		
 		var amount = parseInt(query.amount);
-		if (amount < -r.amount)
+		if (amount < -r.amount || amount != amount)
 			return cb('stock-buy-not-enough-stocks');
+		
+		var ta_value = amount > 0 ? r.ask : r.bid;
+		
 		// re-fetch freemoney because the 'user' object might come from dquery
 		this.query('SELECT freemoney FROM users WHERE id = ?', [user.id], function(ures) {
 		assert.equal(ures.length, 1);

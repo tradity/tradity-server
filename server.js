@@ -238,16 +238,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
 		return; // no user – no events.
 		
 	// possibly push info 
-	var curUnixTime = new Date().getTime();
-	if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
-		this.lastInfoPush = curUnixTime;
-		UserDB.getUserInfo({lookfor:'$self', nohistory:true}, this.user, this.access, _.bind(function(info) {
-			if (!info) // wtf?
-				return this.emit('error', new Error('no user on $self in info push handler'));
-			info.type = 'self-info';
-			this.push(info);
-		}, this));
-	}
+	this.pushSelfInfo();
 	
 	// fetch regular events
 	StocksDB.fetchEvents(query, this.user, this.access, _.bind(function(evlist) {
@@ -259,6 +250,20 @@ ConnectionData.prototype.fetchEvents = function(query) {
 
 ConnectionData.prototype.push = function(data) {
 	this.emit('push', data);
+	this.pushSelfInfo();
+}
+
+ConnectionData.prototype.pushSelfInfo = function() {
+	var curUnixTime = new Date().getTime();
+	if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
+		this.lastInfoPush = curUnixTime;
+		UserDB.getUserInfo({lookfor:'$self', nohistory:true}, this.user, this.access, _.bind(function(info) {
+			if (!info) // wtf?
+				return this.emit('error', new Error('no user on $self in info push handler'));
+			info.type = 'self-info';
+			this.push(info);
+		}, this));
+	}
 }
 
 ConnectionData.prototype.pushEvents = function() {

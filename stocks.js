@@ -11,10 +11,12 @@ function StocksDB (db, cfg, quoteLoader) {
 	this.quoteLoader = quoteLoader;
 	this.cfg = cfg;
 	this.leaderMatrix = null;
-	this.lastCallbackDay = null;
 	this.dqueries = null; // filled in by dqueries object when activated
 	this.regularCallbackActive = false;
 	this.stockNeeders = [];
+	
+	var d = new Date();
+	this.lastCallbackDay = d.getUTCHours() >= this.cfg.dailyCallbackHour ? d.getUTCDay() : d.getUTCDay() - 1;
 	
 	this.regularCallback();
 	this.quoteLoader.on('record', _.bind(function(rec) {
@@ -69,8 +71,8 @@ StocksDB.prototype.updateRanking = function(cb) {
 
 StocksDB.prototype.dailyCallback = function(cb) {
 	cb = cb || function() {};
-	
-	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.lastvalue WHERE ds.stockid = s.id', [], function() {
+
+	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.lastvalue WHERE ds.stockid = s.id', [], function() {	
 	this.query('UPDATE stocks AS s SET s.daystartvalue = s.lastvalue', [], function() {
 	if (new Date().getUTCDay() == this.cfg.weeklyCallbackDay)
 		this.weeklyCallback(cb);

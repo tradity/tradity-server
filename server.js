@@ -109,8 +109,8 @@ ConnectionData.prototype.client_register = function(query, cb) {
 	}, this));
 }
 
-ConnectionData.prototype.client_prod = _login(function(query, cb) {
-	if (this.access.indexOf('*') == -1) {
+ConnectionData.prototype.client_prod = function(query, cb) {
+	if (!this.access || this.access.indexOf('*') == -1) {
 		cb('prod-not-allowed');
 	} else {
 		var starttime = new Date().getTime();
@@ -121,7 +121,7 @@ ConnectionData.prototype.client_prod = _login(function(query, cb) {
 			});
 		});
 	}
-})
+}
 
 ConnectionData.prototype.client_get_own_options = _login(function(query, cb) {
 	var r = _.clone(this.user);
@@ -254,6 +254,9 @@ ConnectionData.prototype.push = function(data) {
 }
 
 ConnectionData.prototype.pushSelfInfo = function() {
+	if (!this.user)
+		return;
+	
 	var curUnixTime = new Date().getTime();
 	if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 		this.lastInfoPush = curUnixTime;

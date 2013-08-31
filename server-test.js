@@ -115,6 +115,25 @@ socket.on('connect', function() {
 			case 'login-2':
 				assert.equal(data.code, 'login-success');
 				key = data.key;
+				
+				fs.readFile('bob.jpg', function(err, data) {
+					if (err) throw err;
+					
+					console.log('outgoing: publish');
+					socket.emit('query', {
+						type: 'publish',
+						id: 'publish',
+						base64: true,
+						content: data.toString('base64'),
+						role: 'profile.image',
+						mime: 'image/jpeg',
+						key: key,
+						name: 'bob.jpg'
+					});
+				});
+				break;
+			case 'publish':
+				assert.equal(data.code, 'publish-success');
 				emit('query', {
 					type: 'stock-search',
 					id: 'stock-search-2',

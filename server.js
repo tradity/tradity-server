@@ -12,6 +12,7 @@ var crypto = require('crypto');
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
 var stocks = require('./stocks.js');
+var fsdb = require('./fsdb.js');
 var dqueries = require('./dqueries.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
@@ -28,12 +29,14 @@ var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
 var StocksDB = new stocks.StocksDB(db, cfg, yfql);
+var FileStorageDB = new fsdb.FileStorageDB(db, cfg, yfql);
 var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
+
+var subsystems = [StocksDB, UserDB, dqDB, FileStorageDB];
+_.each(subsystems, _.bind(function(sys) { sys.on('error', function(e) { eh.err(e); }); }));
 
 yfql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
-UserDB.on('error', function(e) { eh.err(e); });
-StocksDB.on('error', function(e) { eh.err(e); });
 locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 
 setInterval(eh.wrap(function() {
@@ -42,8 +45,6 @@ setInterval(eh.wrap(function() {
 setInterval(eh.wrap(function() {
 	StocksDB.regularCallback();
 }), 240 * 1000);
-
-var subsystems = [StocksDB, UserDB, dqDB];
 
 function ConnectionData() {
 	this.user = null;
@@ -229,6 +230,10 @@ ConnectionData.prototype.client_dquery_remove = _login(function(query, cb) {
 	dqDB.removeQueryUser(query, this.user, this.access, cb);
 })
 
+ConnectionData.prototype.client_publish = _login(function(query, cb) {
+	FileStorageDB.publish(query, this.user, this.access, cb);
+})
+
 ConnectionData.prototype.client_get_config = function(query, cb) {
 	cb('get-config-success', {'config':_.pick(cfg, cfg.clientconfig)});
 }
@@ -328,8 +333,10 @@ ConnectionData.prototype.disconnected = function() {
 
 var server = require('http').createServer();
 server.on('request', function (req, res) {
-	res.writeHead(200);
-	res.end('Hi!');
+	if (!FileStorageDB.handle(req, res)) {
+		res.writeHead(200);
+		res.end('Hi (not really found)!');
+	}
 });
 server.listen(cfg.wsport, 'localhost');
 var io = sio.listen(server);

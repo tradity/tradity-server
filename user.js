@@ -151,9 +151,10 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
 		'birthday', 'schools.id AS schoolid', 'schools.name AS schoolname',
 		'`desc`', 'provision', 'totalvalue', 'rank', 'delayorderhist',
-		'lastvalue', 'daystartvalue', 'weekstartvalue'
+		'lastvalue', 'daystartvalue', 'weekstartvalue',
+		'url AS profilepic'
 		]).join(', ')
-	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid LEFT JOIN stocks ON users.id = stocks.leader WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
+	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid LEFT JOIN stocks ON users.id = stocks.leader LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb(null, null, null);
 		var xuser = users[0];

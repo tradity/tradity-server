@@ -54,10 +54,12 @@ FileStorageDB.prototype.handle = function(req, res) {
 
 FileStorageDB.prototype.publish = function(query, user, access, cb) {
 	var content = query.content;
+	var uniqrole = this.cfg.fsdb.uniqroles.indexOf(query.role) != -1;
+	
 	if (query.base64)
 		content = new Buffer(query.content, 'base64');
 	this.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [user ? user.id : null], function(res) {
-		var total = res[0].total;
+		var total = uniqrole ? 0 : res[0].total;
 		if (content.length + total > this.cfg.fsdb.userquota && access.indexOf('*') == -1)
 			return cb('publish-quota-exceed');
 		if (this.cfg.fsdb.allowroles.indexOf(query.role) == -1 && access.indexOf('*') == -1)
@@ -78,7 +80,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 			});
 		}, this);
 		
-		if (this.cfg.fsdb.uniqroles.indexOf(query.role) != -1 && user && access.indexOf('*') == -1) {
+		if (uniqrole && user && access.indexOf('*') == -1) {
 			this.query('DELETE FROM httpresources WHERE user = ? AND role = ?', [user.id, query.role], continueAfterDelPrevious);
 		} else {
 			continueAfterDelPrevious();

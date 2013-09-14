@@ -256,7 +256,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 		
 		var X = _.pluck(res.X, 0);
 		
-		var complete = 0;
+		var complete1 = 0, complete2 = 0;
 		for (var i = 0; i < n; ++i) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i], null);
@@ -269,14 +269,24 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 					res[0].type = 'stock-update';
 					this.emit('push', res[0]);
 					
-					if (++complete == n) {
-						var max = 'GREATEST(ds.provision_hwm, s.lastvalue)';
-						var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
-						var fees = '(('+Δ+' * f.provision) / 100)';
-						this.query('UPDATE stocks AS s,depot_stocks AS ds,users AS f, users AS l ' +
-						'SET ds.provision_hwm = '+max+', f.freemoney = f.freemoney - '+fees+', l.freemoney = l.freemoney + '+fees+', '+
-						'ds.prov_paid = ds.prov_paid + '+fees+', l.prov_recvd = l.prov_recvd + '+fees+' '+
-						'WHERE ds.userid = f.id AND ds.stockid = s.id AND s.leader = l.id AND f.id != l.id', [], cb);
+					if (++complete1 == n) {
+						this.query('SELECT ds.depotentryid FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [],
+						function(dsr) {
+							if (!dsr.length) return cb();
+							for (var j = 0; j < dsr.length; ++j) {
+								var dsid = dsr[j].depotentryid;
+								var max = 'GREATEST(ds.provision_hwm, s.lastvalue)';
+								var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
+								var fees = '(('+Δ+' * l.provision) / 100)';
+								this.query('UPDATE stocks AS s,depot_stocks AS ds,users AS f, users AS l ' +
+								'SET ds.provision_hwm = '+max+', f.freemoney = f.freemoney - '+fees+', l.freemoney = l.freemoney + '+fees+', '+
+								'ds.prov_paid = ds.prov_paid + '+fees+', l.prov_recvd = l.prov_recvd + '+fees+' '+
+								'WHERE ds.depotentryid = ? AND ds.userid = f.id AND ds.stockid = s.id AND s.leader = l.id AND f.id != l.id', [dsid], function() {
+									if (++complete2 == dsr.length)
+										return cb();
+								});
+							}
+						});
 					}
 				});
 			});

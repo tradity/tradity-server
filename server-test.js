@@ -10,6 +10,8 @@ var cfg = require('./config.js').config;
 var socket = sio.connect('http://localhost:' + cfg.wsport);
 var authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString();
 var key = '';
+var schoolid = 'Musterschule';
+var schoolname = schoolid;
 
 socket.on('connect', function() {
 	var t = new Date().getTime() * (process.id | 0x100);
@@ -29,7 +31,6 @@ socket.on('connect', function() {
 		switch(data['is-reply-to']) {
 			case 'list-schools-1':
 				assert.equal(data.code, 'list-schools-success');
-				var schoolid = 'Musterschule';
 				for (var i = 0; i < data.result.length; ++i) {
 					if (data.result[i].name == schoolid) {
 						schoolid = data.result[i].id;
@@ -231,7 +232,8 @@ socket.on('connect', function() {
 			case 'get-user-info-2':
 				assert.equal(data.code, 'get-user-info-success');
 				assert.equal(data.result.uid, own_uid);
-				assert.equal(data.result.schoolname, schoolid);
+				assert.equal(data.result.schoolname, schoolname);
+				assert.equal(data.result.schoolid, schoolid);
 				assert.ok(data.result.totalvalue);
 				assert.ok(data.result.rank);
 				emit('query', {

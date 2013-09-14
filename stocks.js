@@ -62,28 +62,38 @@ StocksDB.prototype.regularCallback = function(cb) {
 StocksDB.prototype.updateRanking = function(cb) {
 	cb = cb || function() {};
 	
+	this.query('UPDATE users SET '+
+		'dayfperfcur = (SELECT SUM(ds.amount * s.lastvalue) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
+		'dayoperfcur = (SELECT SUM(ds.amount * s.lastvalue) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
+			
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general", id, @rank := @rank + 1 FROM users ORDER BY totalvalue DESC', [], function() {
 	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 3*86400', [], function() {
 	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
 	});
 	});
+	
+	});	
 }
 
 StocksDB.prototype.dailyCallback = function(cb) {
 	cb = cb || function() {};
 
 	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.lastvalue WHERE ds.stockid = s.id', [], function() {	
-	this.query('UPDATE stocks AS s SET s.daystartvalue = s.lastvalue', [], function() {
+	this.query('UPDATE stocks SET daystartvalue = lastvalue', [], function() {
+	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0', [], function() {
 	if (new Date().getUTCDay() == this.cfg.weeklyCallbackDay)
 		this.weeklyCallback(cb);
 	else
 		cb();
 	});
 	});
+	});
 }
 
 StocksDB.prototype.weeklyCallback = function(cb) {
-	this.query('UPDATE stocks AS s SET s.weekstartvalue = s.lastvalue', [], cb);
+	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0', [], function() {
+	this.query('UPDATE stocks SET weekstartvalue = lastvalue', [], cb);
+	});
 }
 
 StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
@@ -154,8 +164,8 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 		lid = leadertest[1];
 	
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
-	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
-	this.query('SELECT * FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
+	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername,provision FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
+	this.query('SELECT *, 0 AS provision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
 	this.query('SELECT * FROM recent_searches WHERE string = ?', [str], function(rs_res) {
 	if (rs_res.length == 0) {
 		this.quoteLoader.searchAndFindQuotes(str, _.bind(this.stocksFilter, this), _.bind(function(res3) {
@@ -169,7 +179,8 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 						'name': r.name,
 						'exchange': r.exchange,
 						'leader': null,
-						'leadername': null
+						'leadername': null,
+						'provision': 0,
 					};
 				}));
 				handleResults(results);
@@ -263,7 +274,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 						var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
 						var fees = '(('+Δ+' * f.provision) / 100)';
 						this.query('UPDATE stocks AS s,depot_stocks AS ds,users AS f, users AS l ' +
-						'SET ds.provision_hwm = '+max+', f.freemoney = f.freemoney - '+fees+', l.freemoney = l.freemoney + '+fees+' '+
+						'SET ds.provision_hwm = '+max+', f.freemoney = f.freemoney - '+fees+', l.freemoney = l.freemoney + '+fees+', '+
+						'ds.prov_paid = ds.prov_paid + '+fees+', l.prov_recvd = l.prov_recvd + '+fees+' '+
 						'WHERE ds.userid = f.id AND ds.stockid = s.id AND s.leader = l.id AND f.id != l.id', [], cb);
 					}
 				});
@@ -329,7 +341,18 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)', [user.id, r.stockid, r.leader, price, query.comment, amount, fee, r.name], function(oh_res) {
 		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id});
 		var tradeID = oh_res.insertId;
-		this.query('UPDATE users SET freemoney = freemoney-(?),totalvalue = totalvalue-(?) WHERE id = ?', [price+fee, fee, user.id], function() {
+		
+		var perfn = r.leader ? 'fperf' : 'operf';
+		var perfv = price >= 0 ? 'base' : 'sold';
+		var perfdf = 'day' + perfn + perfv;
+		var perfwf = 'week' + perfn + perfv;
+		var perftf = 'total' + perfn + perfv;
+		
+		this.query('UPDATE users SET freemoney = freemoney-(?),totalvalue = totalvalue-(?), '+
+			perfdf + '=' + perfdf + ' + ABS(?), ' +
+			perfwf + '=' + perfwf + ' + ABS(?), ' +
+			perftf + '=' + perftf + ' + ABS(?) ' +
+			' WHERE id = ?', [price+fee, fee, price, price, price, user.id], function() {
 		if (r.amount == null) {
 			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 				[user.id, r.id, amount, price, ta_value, query.comment], function() {
@@ -362,7 +385,7 @@ StocksDB.prototype.commentTrade = function(query, user, access, cb) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, buymoney, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
+	this.query('SELECT amount, buytime, buymoney, prov_paid, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
 		[user.id], cb);
 }

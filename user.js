@@ -145,15 +145,18 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 	if (query.lookfor == '$self')
 		query.lookfor = user.id;
 	
-	var columns = (access.indexOf('*') != -1 ? ['*', 'users.id AS uid', 'schools.id AS schoolid', 'users.name AS name'] : [
+	var columns = [
 		'users.id AS uid', 'users.name AS name',
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
 		'birthday', 'schools.id AS schoolid', 'schools.name AS schoolname',
 		'`desc`', 'provision', 'totalvalue', 'rank', 'delayorderhist',
 		'lastvalue', 'daystartvalue', 'weekstartvalue',
-		'url AS profilepic'
-		]).join(', ')
+		'url AS profilepic', 
+		'(dayfperfcur+dayfperfsold) / dayfperfbase AS dayfperf', '(dayoperfcur+dayoperfsold) / dayoperfbase AS dayoperf',
+		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf', '(dayoperfcur+weekoperfsold) / weekoperfbase AS weekoperf',
+		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf'
+	].join(', ')
 	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid LEFT JOIN stocks ON users.id = stocks.leader LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb(null, null, null);

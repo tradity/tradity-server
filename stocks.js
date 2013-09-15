@@ -285,8 +285,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 								_.bind(_.partial(function(j) {
 									var dsid = dsr[j].dsid;
 									this.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
-									this.query('UPDATE users SET freemoney = freemoney - ? WHERE id = ?', [dsr[j].fees, dsr[j].fid], function() {
-									this.query('UPDATE users SET freemoney = freemoney + ?,prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
+									this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fid], function() {
+									this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
 										if (++complete2 == dsr.length)
 											return cb();
 									});

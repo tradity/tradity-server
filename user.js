@@ -130,15 +130,15 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 	if (parseInt(si) != si || parseInt(ei) != ei)
 		cb('format-error');
 	var schools_join = '';
-	if (query.fromschool != null) 
+	if (query.fromschool != null) {
 		schools_join = 'AND users.school = "' + parseInt(query.fromschool) + '"';
-	else if(query.studentonly)
-		schools_join = 'AND users.school IS NOT NULL';
+		query.studentonly = true;
+	}
 	
-	this.query('SELECT rank, uid, name, totalvalue FROM ranking ' +
+	this.query('SELECT rank, uid, name, totalvalue, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id ' +
-		schools_join + ' WHERE `type` = ? AND rank >= ? AND rank < ?', 
-		[query.rtype, si, ei], cb);
+		schools_join + ' WHERE `type` = ? AND `group` = ? AND rank >= ? AND rank < ?', 
+		[query.rtype, query.studentonly ? 'students' : 'all', si, ei], cb);
 }
 
 UserDB.prototype.getUserInfo = function(query, user, access, cb) {
@@ -226,7 +226,7 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 }
 
 UserDB.prototype.loadSessionUser = function(key, cb) {
-	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, schools.name AS schoolname FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id LEFT JOIN schools ON schools.id=users.school WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP()', [key], function(res) {
+	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, schools.name AS schoolname FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.`group`="all" AND ranking.uid = users.id LEFT JOIN schools ON schools.id=users.school WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP()', [key], function(res) {
 		if (res.length == 0) {
 			cb(null);
 		} else {

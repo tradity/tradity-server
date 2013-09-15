@@ -270,20 +270,26 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 					this.emit('push', res[0]);
 					
 					if (++complete1 == n) {
-						this.query('SELECT ds.depotentryid FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [],
+						var max = 'GREATEST(ds.provision_hwm, s.lastvalue)';
+						var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
+						var fees = '(('+Δ+' * l.provision) / 100)';
+						
+						this.query('SELECT ' +
+							'ds.depotentryid AS dsid, '+fees+' AS fees, '+max+' AS max, '+
+							'f.id AS fid, l.id AS lid '+
+							'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
+							'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
 						function(dsr) {
 							if (!dsr.length) return cb();
 							for (var j = 0; j < dsr.length; ++j) {
-								var dsid = dsr[j].depotentryid;
-								var max = 'GREATEST(ds.provision_hwm, s.lastvalue)';
-								var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
-								var fees = '(('+Δ+' * l.provision) / 100)';
-								this.query('UPDATE stocks AS s,depot_stocks AS ds,users AS f, users AS l ' +
-								'SET ds.provision_hwm = '+max+', f.freemoney = f.freemoney - '+fees+', l.freemoney = l.freemoney + '+fees+', '+
-								'ds.prov_paid = ds.prov_paid + '+fees+', l.prov_recvd = l.prov_recvd + '+fees+' '+
-								'WHERE ds.depotentryid = ? AND ds.userid = f.id AND ds.stockid = s.id AND s.leader = l.id AND f.id != l.id', [dsid], function() {
+								var dsid = dsr[j].dsid;
+								this.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
+								this.query('UPDATE users SET freemoney = freemoney - ? WHERE id = ?', [dsr[j].fees, dsr[j].fid], function() {
+								this.query('UPDATE users SET freemoney = freemoney + ?,prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
 									if (++complete2 == dsr.length)
 										return cb();
+								});
+								});
 								});
 							}
 						});

@@ -357,6 +357,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0)
 			return cb('stock-buy-out-of-money');
+		if ((r.amount + amount) * r.lastvalue >= ures[0].totalvalue * this.cfg['maxSinglePaperShare'] && price >= 0)
+			return cb('stock-buy-single-paper-share-exceed');
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)', [user.id, r.stockid, r.leader, price, query.comment, amount, fee, r.name], function(oh_res) {

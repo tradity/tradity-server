@@ -180,6 +180,7 @@ UserDB.prototype.regularCallback = function(cb) {
 	cb = cb || function() {};
 	
 	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', [], cb);
+	this.query('DELETE FROM schools WHERE (SELECT COUNT(id) FROM users WHERE users.school = schools.id) = 0', [], cb);
 }
 					
 UserDB.prototype.emailVerify = function(query, user, access, cb) {

@@ -352,7 +352,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var ta_value = amount > 0 ? r.ask : r.bid;
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
-		this.query('SELECT freemoney FROM users WHERE id = ?', [user.id], function(ures) {
+		this.query('SELECT freemoney, totalvalue FROM users WHERE id = ?', [user.id], function(ures) {
 		assert.equal(ures.length, 1);
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0)

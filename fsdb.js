@@ -60,11 +60,11 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 		content = new Buffer(query.content, 'base64');
 	this.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [user ? user.id : null], function(res) {
 		var total = uniqrole ? 0 : res[0].total;
-		if (content.length + total > this.cfg.fsdb.userquota && access.indexOf('*') == -1)
+		if (content.length + total > this.cfg.fsdb.userquota && !access.has('filesystem'))
 			return cb('publish-quota-exceed');
-		if (this.cfg.fsdb.allowroles.indexOf(query.role) == -1 && access.indexOf('*') == -1)
+		if (this.cfg.fsdb.allowroles.indexOf(query.role) == -1 && !access.has('filesystem'))
 			return cb('publish-inacceptable-role');
-		if (this.cfg.fsdb.allowmime.indexOf(query.mime) == -1 && access.indexOf('*') == -1)
+		if (this.cfg.fsdb.allowmime.indexOf(query.mime) == -1 && !access.has('filesystem'))
 			return cb('publish-inacceptable-mime');
 			
 		var filehash = hash('md5', content);
@@ -80,7 +80,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 			});
 		}, this);
 		
-		if (uniqrole && user && access.indexOf('*') == -1) {
+		if (uniqrole && user && !access.has('filesystem')) {
 			this.query('DELETE FROM httpresources WHERE user = ? AND role = ?', [user.id, query.role], continueAfterDelPrevious);
 		} else {
 			continueAfterDelPrevious();

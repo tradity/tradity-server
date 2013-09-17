@@ -189,7 +189,7 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 	
 	this.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
 	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], function(res) {		
-		if (access.indexOf('*') == -1) {
+		if (!access.has('userdb')) {
 			if (res.length != 2) {
 				console.warn('strange email-verif stuff', res);
 				cb('email-verify-failure');
@@ -329,7 +329,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 		[data.email, data.name, uid], function(res) {
 	this.query('SELECT `key` FROM betakeys WHERE `id`=?',
 		[betakey[0]], function(βkey) {
-		if (this.cfg['betakey-required'] && (βkey.length == 0 || βkey[0].key != betakey[1]) && type=='register' && access.indexOf('*') == -1) {
+		if (this.cfg['betakey-required'] && (βkey.length == 0 || βkey[0].key != betakey[1]) && type=='register' && !access.has('userdb')) {
 			cb('reg-beta-necessary');
 			return;
 		}
@@ -353,7 +353,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 					if (uid === null)
 						uid = res.insertId;
 
-					if ((user && data.email == user.email) || (access.indexOf('*') != -1 && data.nomail))
+					if ((user && data.email == user.email) || (access.has('userdb') && data.nomail))
 						cb('reg-success', uid);
 					else
 						this.sendRegisterEmail(data, uid, cb);

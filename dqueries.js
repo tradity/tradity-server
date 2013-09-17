@@ -3,6 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var Access = require('./access.js').Access;
 
 function DelayedQueriesDB (db, config, stocksdb) {
 	this.db = db;
@@ -49,7 +50,7 @@ DelayedQueriesDB.prototype.loadDelayedQueries = function() {
 		_.each(r, _.bind(function(res) {
 			res.query = JSON.parse(res.query);
 			res.userinfo = JSON.parse(res.userinfo);
-			res.accessinfo = JSON.parse(res.accessinfo);
+			res.accessinfo = Access.fromJSON(res.accessinfo);
 			this.addQuery(res);
 		},this));
 	});
@@ -90,7 +91,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
 		cb('unknown-query-type');
 	
 	this.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
-		[query.condition, qstr, JSON.stringify(user), JSON.stringify(access)], function(r) {
+		[query.condition, qstr, JSON.stringify(user), access.toJSON()], function(r) {
 		query.queryid = r.insertId;
 		query.userinfo = user;
 		query.accessinfo = access;

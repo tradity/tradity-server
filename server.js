@@ -18,6 +18,7 @@ var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 var yf = require('./yahoofinance.js');
 var locking = require('./locking.js');
+var Access = require('./access.js').Access;
 
 crypto.randomBytes(64, _.bind(function(ex, buf) {
 var authorizationKey = buf.toString('hex');
@@ -48,7 +49,7 @@ setInterval(eh.wrap(function() {
 
 function ConnectionData() {
 	this.user = null;
-	this.access = [];
+	this.access = new Access();
 	this.registeredEventHandlers = [];
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
@@ -111,7 +112,7 @@ ConnectionData.prototype.client_register = function(query, cb) {
 }
 
 ConnectionData.prototype.client_prod = function(query, cb) {
-	if (!this.access || this.access.indexOf('*') == -1) {
+	if (!this.access || this.access.has('server') == -1) {
 		cb('prod-not-allowed');
 	} else {
 		var starttime = new Date().getTime();
@@ -154,7 +155,7 @@ ConnectionData.prototype.client_logout = _login(function(query, cb) {
 	UserDB.logout(query, this.user, this.access, _.bind(function(code, key) {
 		cb('logout-success');
 		this.user = null;
-		this.access = [];
+		this.access = new Access();
 	}, this));
 })
 
@@ -289,15 +290,15 @@ ConnectionData.prototype.response = function(data) {
 
 ConnectionData.prototype.query = function(query) {
 	UserDB.loadSessionUser(query.key, _.bind(function(user) {
-		var access = [];
+		var access = new Access();
 		if (user != null)
-			access = user.access.split(',');
+			access.update(Access.fromJSON(user.access));
 		
-		this.access = _.union(access, this.access);
+		this.access.update(access);
 			
 		if (query.authorizationKey == authorizationKey) {
 			console.log('Received query with master authorization of type', query.type);
-			this.access.push('*');
+			this.access.grantAny();
 			if (user == null && query.uid != null)
 				user = {uid: query.uid, id: query.uid};
 		}

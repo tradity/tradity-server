@@ -151,7 +151,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
 		'birthday', 'schools.id AS schoolid', 'schools.name AS schoolname',
 		'`desc`', 'provision', 'totalvalue', 'rank', 'delayorderhist',
-		'lastvalue', 'daystartvalue', 'weekstartvalue',
+		'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
 		'url AS profilepic', 
 		'(dayfperfcur+dayfperfsold) / dayfperfbase AS dayfperf', '(dayoperfcur+dayoperfsold) / dayoperfbase AS dayoperf',
 		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf', '(dayoperfcur+weekoperfsold) / weekoperfbase AS weekoperf',

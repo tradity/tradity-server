@@ -421,7 +421,7 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 			return cb('watchlist-add-self');
 		
 		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.stockid], function(r) {
-			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched':uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
+			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched': query.stockid, 'watcheduser':res[0].uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
 			cb('watchlist-add-success');
 		}); 
 	});

@@ -105,7 +105,9 @@ StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 	this.query('DELETE FROM depot_stocks WHERE amount = 0', [], function() {
 		this.query('DELETE FROM recent_searches', [], function() {
 		this.query('DELETE FROM stocks WHERE ' +
-			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) = 0 AND UNIX_TIMESTAMP()-stocks.lrutime > ? AND leader IS NULL', [this.cfg.lrutimeLimit],
+			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) = 0 AND ' +
+			'(SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) = 0 AND ' +
+			'UNIX_TIMESTAMP()-stocks.lrutime > ? AND leader IS NULL', [this.cfg.lrutimeLimit],
 			cb);
 		});
 	});
@@ -200,13 +202,6 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 	this.locked(['depotstocks'], cb_, function(cb) {
 		
-	this.query('SELECT users.id AS uid, users.name AS uname, COUNT(s.stockid) AS scount FROM users LEFT JOIN stocks AS s ON s.leader = users.id WHERE users.deletiontime IS NULL GROUP BY uid ORDER BY scount ASC', [], function(res) {
-	var insvalues = [];
-	for (var i = 0; i < res.length && res[i].scount == 0; ++i) 
-		insvalues.push('("__LEADER_' + parseInt(res[i].uid) + '__", ' + parseInt(res[i].uid) + ', "leader:' + this.db.escape(res[i].uname) + '")');
-
-	this.query(insvalues.length ? 'INSERT INTO stocks (stockid, leader, name) VALUES' + insvalues.join(',') : 'SELECT 709803442861291314641', [], function() {
-	
 	this.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	this.query(
 		'SELECT ds.userid AS uid, SUM(ds.amount * s.lastvalue) AS valsum, freemoney FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
@@ -308,8 +303,6 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 	});
 	});
 	});
-	});
-	});
 }
 
 StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
@@ -394,19 +387,6 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 	});
 }
 
-StocksDB.prototype.commentTrade = function(query, user, access, cb) {
-	this.query('SELECT COUNT(*) AS c FROM orderhistory WHERE orderid=?', [query.tradeid], function(res) {
-		assert.equal(res.length, 0);
-		if (res[0].c == 0)
-			cb('trade-comment-notfound');
-		else this.query('INSERT INTO tcomments (tradeid, commenter, comment, time) VALUES(?, ?, ?, UNIX_TIMESTAMP())', 
-			[], function(res) {
-			this.feed({'type': 'trade','targetid':res.insertId,'srcuser':user.id});
-			cb('trade-comment-success');
-		});
-	});
-}
-
 StocksDB.prototype.stocksForUser = function(user, cb) {
 	this.query('SELECT amount, buytime, buymoney, prov_paid, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
@@ -414,12 +394,13 @@ StocksDB.prototype.stocksForUser = function(user, cb) {
 }
 
 StocksDB.prototype.getTradeInfo = function(query, user, access, cb) {
-	this.query('SELECT oh.*,s.*,u.name FROM orderhistory AS oh '+
+	this.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid FROM orderhistory AS oh '+
 		'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
+		'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid '+
 		'LEFT JOIN users AS u ON u.id = oh.leader WHERE oh.orderid = ?', [query.tradeid], function(oh_res) {
 		if (oh_res.length == 0)
 			return cb('get-trade-info-notfound');
-		this.query('SELECT c.*,u.name FROM tcomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.tradeid = ?', [query.tradeid], function(comments) {
+		this.query('SELECT c.*,u.name FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [query.tradeid, oh_res[0].eventid], function(comments) {
 			cb('get-trade-info-succes', oh_res[0], comments);
 		});
 	});

@@ -233,7 +233,6 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'get-user-info-success');
 				assert.equal(data.result.uid, own_uid);
 				assert.equal(data.result.schoolname, schoolname);
-				assert.equal(data.result.schoolid, schoolid);
 				assert.ok(data.result.totalvalue);
 				assert.ok(data.result.rank);
 				emit('query', {

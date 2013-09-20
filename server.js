@@ -177,8 +177,8 @@ ConnectionData.prototype.client_stock_buy = _login(function(query, cb) {
 	}, this));
 })
 
-ConnectionData.prototype.client_trade_comment = _login(function(query, cb) {
-	StocksDB.commentTrade(query, this.user, this.access, cb);
+ConnectionData.prototype.client_comment = _login(function(query, cb) {
+	StocksDB.commentEvent(query, this.user, this.access, cb);
 })
 
 ConnectionData.prototype.client_list_own_depot = _login(function(query, cb) {

@@ -92,7 +92,7 @@ UserDB.prototype.login = function(query, user, access, cb) {
 			return;
 		}
 		
-		if (res[0].email_verif == 0) {
+		if (res[0].email_verif == 0 && !access.has('userdb')) {
 			cb('login-email-not-verified');
 			return;
 		}
@@ -366,6 +366,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);
+						
 						this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['leader:\'' + data.name + '\'', uid]);
 					} else {
 						if (data.betakey)
@@ -373,7 +374,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email)' +
 						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email],
-						updateCB);
+						function(res) {
+							uid = res.insertId;
+							this.query('INSERT INTO stocks (stockid, leader, name) VALUES(?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'leader:' + this.db.escape(data.name)], _.bind(updateCB, this, res));
+						});
 					}
 				}, this);
 				
@@ -410,28 +414,29 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 }
 
 UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
-	if (query.userid == user.id)
-		return cb('watchlist-add-self');
-		
-	this.query('SELECT id,name FROM users WHERE id = ?', [query.userid], function(res) {
+	this.query('SELECT stockid,users.id AS uid,users.name FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE id = ?', [query.stockid], function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
-		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.userid], function(r) {
-			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched':query.userid,'watchedname':res[0].name},'feedusers':[query.userid]});
+		if (res[0].uid == user.id)
+			return cb('watchlist-add-self');
+		
+		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.stockid], function(r) {
+			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched':uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
 			cb('watchlist-add-success');
 		}); 
 	});
 }
 
 UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
-	this.query('DELETE FROM watchlists WHERE watcher=? AND watched=?', [user.id, query.userid], function() {
-		this.feed({'type': 'watch-remove','targetid':null,'srcuser':user.id,'json':{'watched':query.userid,'watchedname':res[0].name}});
+	this.query('DELETE FROM watchlists WHERE watcher=? AND watched=?', [user.id, query.stockid], function() {
+		this.feed({'type': 'watch-remove','targetid':null,'srcuser':user.id,'json':{'watched':query.stockid}});
 		cb('watchlist-remove-success');
 	}); 
 }
 
 UserDB.prototype.watchlistShow = function(query, user, access, cb) {
-	this.query('SELECT users.name, users.id AS uid FROM watchlists AS w JOIN users ON users.id=w.watched WHERE w.watcher = ?', [user.id], function(res) {
+	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid FROM watchlists AS w '+
+		'JOIN stocks ON w.watched=stocks.id LEFT JOIN users ON users.id=stocks.leader WHERE w.watcher = ?', [user.id], function(res) {
 		cb(res);
 	});
 }

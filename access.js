@@ -16,6 +16,7 @@ Access.fromJSON = function(j) {
 		a.grant(p[i]);
 }
 
+Access.prototype.toString =
 Access.prototype.toJSON = function() {
 	if (this.hasAnyAccess)
 		return '["*"]';

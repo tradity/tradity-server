@@ -414,7 +414,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 }
 
 UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
-	this.query('SELECT stockid,users.id AS uid,users.name FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE id = ?', [query.stockid], function(res) {
+	this.query('SELECT stockid,users.id AS uid,users.name FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?', [query.stockid], function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
 		if (res[0].uid == user.id)

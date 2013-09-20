@@ -417,11 +417,12 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 	this.query('SELECT stockid,users.id AS uid,users.name FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?', [query.stockid], function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
-		if (res[0].uid == user.id)
+		var uid = res[0].uid;
+		if (uid == user.id)
 			return cb('watchlist-add-self');
 		
 		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.stockid], function(r) {
-			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched': query.stockid, 'watcheduser':res[0].uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
+			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched': query.stockid, 'watcheduser':uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
 			cb('watchlist-add-success');
 		}); 
 	});

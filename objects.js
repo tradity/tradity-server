@@ -49,7 +49,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 		var query = 'INSERT INTO events_users (eventid,userid,seen) '+
 			'SELECT ?,userid,0 FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' + // all followers
 			'UNION ' +
-			'SELECT ?,w.watcher,0 FROM stocks AS s JOIN watchlists AS w ON s.stockid = w.watched WHERE s.leader = ? '; // all users in watchlist
+			'SELECT ?,w.watcher,0 FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ? '; // all users in watchlist
 		var params = [eventid, data.srcuser, eventid, data.srcuser];
 			 
 		for (var i = 0; i < additional.length; ++i) {

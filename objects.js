@@ -3,6 +3,7 @@
 var util = require('util');
 var events = require('events');
 var locking = require('./locking.js');
+var assert = require('assert');
 var _ = require('underscore');
 
 function DBSubsystemBase () {

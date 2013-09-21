@@ -94,7 +94,7 @@ DBSubsystemBase.prototype.markEventSeen = function(query, user, access, cb) {
 
 DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 	this.query('SELECT COUNT(*) AS c FROM events WHERE eventid=?', [query.eventid], function(res) {
-		assert.equal(res.length, 0);
+		assert.equal(res.length, 1);
 		if (res[0].c == 0)
 			cb('comment-notfound');
 		else this.query('INSERT INTO ecomments (eventid, commenter, comment, time) VALUES(?, ?, ?, UNIX_TIMESTAMP())', 

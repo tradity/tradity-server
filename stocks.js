@@ -400,7 +400,7 @@ StocksDB.prototype.getTradeInfo = function(query, user, access, cb) {
 		'LEFT JOIN users AS u ON u.id = oh.leader WHERE oh.orderid = ?', [query.tradeid], function(oh_res) {
 		if (oh_res.length == 0)
 			return cb('get-trade-info-notfound');
-		this.query('SELECT c.*,u.name FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [query.tradeid, oh_res[0].eventid], function(comments) {
+		this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [oh_res[0].eventid], function(comments) {
 			cb('get-trade-info-succes', oh_res[0], comments);
 		});
 	});

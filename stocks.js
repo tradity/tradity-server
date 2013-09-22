@@ -355,7 +355,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)', [user.id, r.stockid, r.leader, price, query.comment, amount, fee, r.name], function(oh_res) {
-		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id});
+		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id,'json':{'__delay__': !!ures[0].delayorderhist ? this.cfg.delayOrderHistTime : 0}});
 		var tradeID = oh_res.insertId;
 		
 		var perfn = r.leader ? 'fperf' : 'operf';
@@ -394,14 +394,18 @@ StocksDB.prototype.stocksForUser = function(user, cb) {
 }
 
 StocksDB.prototype.getTradeInfo = function(query, user, access, cb) {
-	this.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid FROM orderhistory AS oh '+
+	this.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh '+
 		'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
 		'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid '+
-		'LEFT JOIN users AS u ON u.id = oh.leader WHERE oh.orderid = ?', [query.tradeid], function(oh_res) {
+		'LEFT JOIN users AS u ON u.id = oh.leader '+
+		'LEFT JOIN users AS trader ON trader.id = oh.userid WHERE oh.orderid = ?', [query.tradeid], function(oh_res) {
 		if (oh_res.length == 0)
 			return cb('get-trade-info-notfound');
-		this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [oh_res[0].eventid], function(comments) {
-			cb('get-trade-info-succes', oh_res[0], comments);
+		var r = oh_res[0];
+		if (r.uid != user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < this.cfg.delayOrderHistTime))
+			return cb('get-trade-delayed-history');
+		this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [r.eventid], function(comments) {
+			cb('get-trade-info-succes', r, comments);
 		});
 	});
 }

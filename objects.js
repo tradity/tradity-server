@@ -67,22 +67,25 @@ DBSubsystemBase.prototype.feed = function(data) {
 }
 
 DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
-	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, su.name AS srcusername FROM events_users '+
+	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, su.name, trader.id AS traderid, trader.name AS tradername AS srcusername FROM events_users '+
 		'JOIN events ON events_users.eventid = events.eventid '+
 		'LEFT JOIN ecomments AS c ON c.commentid = events.targetid AND events.type="comment" '+
 		'LEFT JOIN events AS e2 ON c.eventid=e2.eventid AND e2.type="trade" '+
 		'LEFT JOIN orderhistory AS oh ON (e2.targetid = oh.orderid AND events.type="comment") OR (oh.orderid = events.targetid AND events.type="trade") '+
 		'LEFT JOIN users AS su ON su.id = events.srcuser '+
+		'LEFT JOIN users AS trader ON trader.id = oh.userid '+
 		'WHERE events_users.userid = ? AND events.time > ? AND NOT (seen*?) ORDER BY events.time DESC LIMIT ?',
 		[user.uid, query ? query.since : 0, query && query.all ? 0:1, query && query.count !== null ? query.count : 100000], function(r) {
 		cb(_.map(r, function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
+				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__))
+					return null;
 				_.chain(json).keys().each(function(k) { ev[k] = json[k]; });
 			}
 			delete ev.json;
 			return ev;
-		}));
+		}).reject(function(ev) { return !ev; }));
 	});
 }
 

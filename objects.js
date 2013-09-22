@@ -85,7 +85,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 			}
 			delete ev.json;
 			return ev;
-		}).reject(function(ev) { return !ev; }).values());
+		}).reject(function(ev) { return !ev; }).value());
 	});
 }
 

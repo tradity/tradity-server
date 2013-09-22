@@ -76,7 +76,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 		'LEFT JOIN users AS trader ON trader.id = oh.userid '+
 		'WHERE events_users.userid = ? AND events.time > ? AND NOT (seen*?) ORDER BY events.time DESC LIMIT ?',
 		[user.uid, query ? query.since : 0, query && query.all ? 0:1, query && query.count !== null ? query.count : 100000], function(r) {
-		cb(_.map(r, function(ev) {
+		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
 				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__))
@@ -85,7 +85,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 			}
 			delete ev.json;
 			return ev;
-		}).reject(function(ev) { return !ev; }));
+		}).reject(function(ev) { return !ev; }).values());
 	});
 }
 

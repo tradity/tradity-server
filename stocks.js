@@ -204,9 +204,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 		
 	this.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	this.query(
-		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, freemoney FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
+		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, freemoney, prov_recvd FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
 		'ON s.leader IS NULL AND s.id = ds.stockid LEFT JOIN users ON ds.userid = users.id GROUP BY uid ' +
-		'UNION SELECT id AS uid, 0 AS valsum, freemoney AS freemoney FROM users WHERE deletiontime IS NULL AND (SELECT COUNT(*) FROM depot_stocks WHERE userid=users.id)=0', [], function(res_static) {
+		'UNION SELECT id AS uid, 0 AS valsum, freemoney, prov_recvd FROM users WHERE deletiontime IS NULL AND (SELECT COUNT(*) FROM depot_stocks WHERE userid=users.id)=0', [], function(res_static) {
 	this.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
@@ -223,6 +223,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 		});
 		
 		var B = _.map(_.range(n), function() { return [0.0]; });
+		var prov_recvd = _.map(_.range(n), function() { return [0.0]; });
 		
 		for (var k = 0; k < res_static.length; ++k) {
 			var uid = res_static[k].uid;
@@ -235,6 +236,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 				res_static[k].valsum = 0;
 			
 			B[users_inv[uid]] = [res_static[k].valsum + res_static[k].freemoney];
+			prov_recvd[users_inv[uid]] = res_static[k].prov_recvd;
 		}
 		
 		for (var k = 0; k < res_leader.length; ++k) {
@@ -260,8 +262,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			assert.notStrictEqual(X[i], null);
 			assert.equal(X[i], X[i]); // If you don't understand this, search the www for good JS books and buy one.
 			
-			var leaderval = 'GREATEST((? - prov_recvd) / 100, 10000)';
-			this.query('UPDATE stocks SET lastvalue = '+leaderval+', ask = '+leaderval+', bid = '+leaderval+', lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i], X[i], X[i], users[i]], function() {
+			var lv = Math.max((X[i] - prov_recvd[i]) / 100, 10000);
+			this.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [lv, lv, lv, users[i]], function() {
 			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i], users[i]], function() {
 				this.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], function(res) {

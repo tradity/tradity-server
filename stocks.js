@@ -259,7 +259,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i], null);
 			assert.equal(X[i], X[i]); // If you don't understand this, search the www for good JS books and buy one.
-			this.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i] / 100, X[i] / 100, X[i] / 100, users[i]], function() {
+			
+			var leaderval = 'MAX((? - prov_recvd) / 100, 10000)';
+			this.query('UPDATE stocks SET lastvalue = '+leaderval+', ask = '+leaderval+', bid = '+leaderval+', lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [X[i], X[i], X[i], users[i]], function() {
 			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i], users[i]], function() {
 				this.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], function(res) {

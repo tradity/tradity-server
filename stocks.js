@@ -397,7 +397,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, buymoney, prov_paid, comment, s.stockid AS stockid, lastvalue, ask, bid, lastvalue * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
+	this.query('SELECT amount, buytime, buymoney, prov_paid, comment, s.stockid AS stockid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
 		[user.id], cb);
 }

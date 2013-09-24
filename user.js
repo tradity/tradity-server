@@ -21,13 +21,6 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 	}, this));
 }
 
-UserDB.prototype.listStocks = function(user, cb) {
-	this.query(
-	'SELECT d.*, s.* FROM depot_stocks AS d WHERE userid = ? JOIN stocks AS s ON d.stockid = s.id', [user.id], function(res) {
-		cb(_.map(res, function(row) { return new DepotStock(row); }));
-	});
-}
-
 UserDB.prototype.insertPSEmail = function(query, user, access, cb) {
 	this.query('SELECT COUNT(*) AS c FROM ps_emails WHERE email = ?', [query.email], function(res) {		
 		assert.equal(res.length, 1);

@@ -46,17 +46,17 @@ DBSubsystemBase.prototype.feed = function(data) {
 		if (additional.indexOf(data.srcuser) == -1)
 			additional.push(data.srcuser);
 		
-		var query = 'INSERT INTO events_users (eventid,userid,seen) '+
-			'SELECT ?,userid,0 FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' + // all followers
+		var query = 'INSERT INTO events_users (eventid,userid) '+
+			'SELECT ?,userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' + // all followers
 			'UNION ' +
-			'SELECT ?,w.watcher,0 FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ? '; // all users in watchlist
+			'SELECT ?,w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ? '; // all users in watchlist
 		var params = [eventid, data.srcuser, eventid, data.srcuser];
 			 
 		for (var i = 0; i < additional.length; ++i) {
 			if (parseInt(additional[i]) != additional[i])
 				return this.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
 			
-			query += 'UNION SELECT ?,?,0 ';
+			query += 'UNION SELECT ?,? ';
 			params = params.concat([eventid, additional[i]]);
 		}
 		
@@ -74,8 +74,8 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 		'LEFT JOIN orderhistory AS oh ON (e2.targetid = oh.orderid AND events.type="comment") OR (oh.orderid = events.targetid AND events.type="trade") '+
 		'LEFT JOIN users AS su ON su.id = events.srcuser '+
 		'LEFT JOIN users AS trader ON trader.id = oh.userid '+
-		'WHERE events_users.userid = ? AND events.time > ? AND NOT (seen*?) ORDER BY events.time DESC LIMIT ?',
-		[user.uid, query ? query.since : 0, query && query.all ? 0:1, query && query.count !== null ? query.count : 100000], function(r) {
+		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
+		[user.uid, query ? query.since : 0, query && query.count !== null ? query.count : 100000], function(r) {
 		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
@@ -86,12 +86,6 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 			delete ev.json;
 			return ev;
 		}).reject(function(ev) { return !ev; }).value());
-	});
-}
-
-DBSubsystemBase.prototype.markEventSeen = function(query, user, access, cb) {
-	this.query('UPDATE events_users SET seen = 1 WHERE user = ? AND eventid = ?', [user.id, query.eventid], function() {
-		cb('mark-event-seen-success');
 	});
 }
 

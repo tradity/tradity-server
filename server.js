@@ -53,6 +53,7 @@ function ConnectionData() {
 	this.registeredEventHandlers = [];
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
+	this.mostRecentEventTime = 0;
 	
 	_.each(subsystems, _.bind(function(sys) {
 		this.regListenerBoundEx(sys, 'push', this.push);
@@ -187,10 +188,6 @@ ConnectionData.prototype.client_list_own_depot = _login(function(query, cb) {
 	}, this));
 })
 
-ConnectionData.prototype.client_mark_event_seen = _login(function(query, cb) {
-	StocksDB.markEventSeen(query, this.user, this.access, cb);
-})
-
 ConnectionData.prototype.client_get_trade_info = _login(function(query, cb) {
 	StocksDB.getTradeInfo(query, this.user, this.access, function(code, trade, comments) {
 		cb(code, trade ? {'trade': trade, 'comments': comments} : null);
@@ -249,13 +246,15 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	// fetch regular events
 	StocksDB.fetchEvents(query, this.user, this.access, _.bind(function(evlist) {
 		_.each(evlist, _.bind(function(ev) {
+			this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
 			this.emit('push', ev);
 		}, this));
 	}, this));
 }
 
 ConnectionData.prototype.push = function(data) {
-	this.emit('push', data);
+	if (data.type != 'stock-update')
+		this.emit('push', data);
 	this.pushSelfInfo();
 }
 
@@ -280,7 +279,7 @@ ConnectionData.prototype.pushEvents = function() {
 		return;
 	this.pushEventsTimer = setTimeout(_.bind(function() {
 		this.pushEventsTimer = null;
-		this.fetchEvents(null);
+		this.fetchEvents({since: this.mostRecentEventTime, count: null});
 	}, this), 1000);
 }
 

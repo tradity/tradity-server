@@ -207,6 +207,7 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 	this.locked(['depotstocks'], cb_, function(cb) {
 		
+	this.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function(users) {
 	this.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	this.query(
 		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, freemoney, prov_recvd FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
@@ -299,8 +300,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 									this.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
 									this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fid], function() {
 									this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
-										if (++complete2 == dsr.length)
-											return cb();
+										if (++complete2 == dsr.length) 
+											this.query('COMMIT', [], cb);
 									});
 									});
 									});
@@ -313,6 +314,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			});
 			}, i), this)();
 		}
+	});
 	});
 	});
 	});

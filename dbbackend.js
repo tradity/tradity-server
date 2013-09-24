@@ -30,13 +30,13 @@ Database.prototype._init = function(options) {
 }
 
 Database.prototype.query = function(query, args, cb) {
-	var qST = new Date().getTime();
+	/*var qST = new Date().getTime();
 	var xcb = function() {
 		var qET = new Date().getTime();
 		console.log('Query ' + query.substr(0,50) + '... in ' + (qET - qST) + ' ms (' + (qST % 3600000) + ' to ' + (qET % 3600000) + ')');
 		cb.apply(this, arguments);
-	};
-	this.connection.query(query, args, xcb);
+	};*/
+	this.connection.query(query, args, cb);
 }
 
 Database.prototype.escape = function(str) {

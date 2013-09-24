@@ -253,6 +253,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			A[f][l] -= amount / this.cfg.leaderValueShare;
 		}
 		
+		console.log(JSON.stringify(A),JSON.stringify(B));
 		var sgesvST = new Date().getTime();
 		var res = lapack.sgesv(A, B);
 		if (!res) {

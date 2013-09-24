@@ -172,7 +172,7 @@ UserDB.prototype.listSchools = function(query, user, access, cb) {
 UserDB.prototype.regularCallback = function(cb) {
 	cb = cb || function() {};
 	
-	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', [], cb);
+	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []);
 	this.query('DELETE FROM schools WHERE (SELECT COUNT(id) FROM users WHERE users.school = schools.id) = 0', [], cb);
 }
 					

@@ -263,6 +263,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			assert.equal(X[i], X[i]); // If you don't understand this, search the www for good JS books and buy one.
 			
 			var lv = Math.max((X[i] - prov_recvd[i]) / 100, 10000);
+			console.log('set lv: User ' + users[i] + ' (' + i + '): X[i] = ' + X[i] + ', pr[i] = ' + prov_recvd[i] + ', lv = ' + lv);
 			this.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [lv, lv, lv, users[i]], function() {
 			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i], users[i]], function() {
 				this.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
@@ -271,6 +272,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 					res[0].type = 'stock-update';
 					this.emit('push', res[0]);
 					
+					console.log(complete1 + ' of ' + n);
 					if (++complete1 == n) {
 						var max = 'GREATEST(ds.provision_hwm, s.lastvalue)';
 						var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
@@ -286,6 +288,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 							for (var j = 0; j < dsr.length; ++j) {
 								_.bind(_.partial(function(j) {
 									var dsid = dsr[j].dsid;
+									console.log('set phwm: ' + dsr[j].max + ', prov: ' + dsr[j].fees + ' for ' + dsid);
 									this.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
 									this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fid], function() {
 									this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
@@ -323,6 +326,8 @@ StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
 }
 
 StocksDB.prototype.buyStock = function(query, user, access, cb_) {
+	assert.ok(user);
+	assert.ok(access);
 	this.locked(['depotstocks'], cb_, function(cb) {
 	if ((!query.stockid && query.leader == null) || (query.stockid && query.leader)) 
 		return cb('format-error');

@@ -14,6 +14,7 @@ Access.fromJSON = function(j) {
 	
 	for (var i = 0; i < p.length; ++i) 
 		a.grant(p[i]);
+	return a;
 }
 
 Access.prototype.toString =

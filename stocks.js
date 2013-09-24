@@ -37,6 +37,15 @@ StocksDB.prototype.regularCallback = function(cb) {
 	}
 		
 	this.regularCallbackActive = true;
+	var rcbST = new Date().getTime();
+	
+	var xcb = _.bind(function() { 
+		this.regularCallbackActive = false;
+		
+		var rcbET = new Date().getTime();
+		console.log('StocksDB rcb in ' + (rcbET - rcbST) + ' ms');
+		cb();
+	}, this);
 	
 	this.cleanUpUnusedStocks(_.bind(function() {
 	this.updateStockValues(_.bind(function() {
@@ -45,13 +54,9 @@ StocksDB.prototype.regularCallback = function(cb) {
 		var d = new Date();
 		if (d.getUTCDay() != this.lastCallbackDay && d.getUTCHours() >= this.cfg.dailyCallbackHour) {
 			this.lastCallbackDay = d.getUTCDay();
-			this.dailyCallback(_.bind(function() {
-				cb();
-				this.regularCallbackActive = false;
-			}, this));
+			this.dailyCallback(xcb);
 		} else {
-			cb();
-			this.regularCallbackActive = false;
+			xcb();
 		}
 	}, this));
 	}, this));
@@ -247,12 +252,14 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			A[f][l] -= amount / this.cfg.leaderValueShare;
 		}
 		
-		/*console.log(A, B);*/
+		var sgesvST = new Date().getTime();
 		var res = lapack.sgesv(A, B);
 		if (!res) {
 			this.emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
 			return;
 		}
+		var sgesvET = new Date().getTime();
+		console.log('sgesv in ' + (sgesvET - sgesvST) + ' ms');
 		
 		var X = _.pluck(res.X, 0);
 		

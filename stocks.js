@@ -253,7 +253,6 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			A[f][l] -= amount / this.cfg.leaderValueShare;
 		}
 		
-		//console.log(JSON.stringify(A),JSON.stringify(B));
 		var sgesvST = new Date().getTime();
 		var res = lapack.sgesv(A, B);
 		if (!res) {
@@ -264,7 +263,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 		console.log('sgesv in ' + (sgesvET - sgesvST) + ' ms');
 		
 		var X = _.pluck(res.X, 0);
-		
+		//console.log(JSON.stringify(A),JSON.stringify(B),JSON.stringify(users_inv),JSON.stringify(X));
+
 		var complete1 = 0, complete2 = 0;
 		for (var i = 0; i < n; ++i) {
 			_.bind(_.partial(function(i) {

@@ -260,6 +260,7 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 			cb('password-reset-notfound');
 		
 		var u = res[0];
+		assert.ok(u);
 		
 		crypto.randomBytes(6, _.bind(function(ex, buf) {
 			var pw = buf.toString('hex');

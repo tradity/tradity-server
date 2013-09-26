@@ -241,7 +241,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			if (res_static[k].valsum === null) // happens when one invests only in leaders
 				res_static[k].valsum = 0;
 			
-			B[users_inv[uid]] = [res_static[k].valsum + res_static[k].freemoney];
+			B[users_inv[uid]] = [res_static[k].valsum + res_static[k].freemoney - res_static[k].prov_recvd];
 			prov_recvd[users_inv[uid]] = res_static[k].prov_recvd;
 		}
 		
@@ -271,10 +271,10 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			assert.notStrictEqual(X[i], null);
 			assert.equal(X[i], X[i]); // If you don't understand this, search the www for good JS books and buy one.
 			
-			var lv = Math.max((X[i] - prov_recvd[i]) / 100, 10000);
+			var lv = Math.max(X[i] / 100, 10000);
 			//console.log('set lv: User ' + users[i] + ' (' + i + '): X[i] = ' + X[i] + ', pr[i] = ' + prov_recvd[i] + ', lv = ' + lv);
 			this.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [lv, lv, lv, users[i]], function() {
-			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i], users[i]], function() {
+			this.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_recvd[i], users[i]], function() {
 				this.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], function(res) {
 					assert.equal(res.length, 1);

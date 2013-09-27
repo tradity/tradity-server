@@ -363,7 +363,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);
 						
-						this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['leader:\'' + data.name + '\'', uid]);
+						this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
 					} else {
 						if (data.betakey)
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
@@ -372,7 +372,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email],
 						function(res) {
 							uid = res.insertId;
-							this.query('INSERT INTO stocks (stockid, leader, name) VALUES(?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'leader:' + this.db.escape(data.name)], _.bind(updateCB, this, res));
+							this.query('INSERT INTO stocks (stockid, leader, name) VALUES(?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name], _.bind(updateCB, this, res));
 						});
 					}
 				}, this);

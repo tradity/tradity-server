@@ -145,21 +145,23 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'birthday', 'schools.id AS schoolid', 'schools.name AS schoolname',
 		'`desc`', 'provision', 'totalvalue', 'rank', 'delayorderhist',
 		'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
-		'url AS profilepic', 
+		'url AS profilepic', 'eventid AS registerevent',
 		'(dayfperfcur+dayfperfsold) / dayfperfbase AS dayfperf', '(dayoperfcur+dayoperfsold) / dayoperfbase AS dayoperf',
 		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf', '(dayoperfcur+weekoperfsold) / weekoperfbase AS weekoperf',
 		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf'
-	].join(', ')
-	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid LEFT JOIN stocks ON users.id = stocks.leader LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
+	].join(', ');
+	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid LEFT JOIN stocks ON users.id = stocks.leader LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb(null, null, null);
 		var xuser = users[0];
 		xuser.isSelf = (xuser.uid == user.uid);
 		if (query.nohistory)
-			return cb(xuser, null, null);
+			return cb(xuser, null, null, null);
 		this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, !!xuser.delayorderhist ? this.cfg.delayOrderHistTime : 0], function(orders) {
 			this.query('SELECT * FROM valuehistory WHERE userid = ?', [user.uid], function(values) {
-				cb(xuser, orders, values);
+				this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+					cb(xuser, orders, values, comments);
+				});
 			});
 		});
 	});
@@ -290,7 +292,9 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 	});
 }
 
-UserDB.prototype.updateUser = function(data, type, user, access, cb) {
+UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
+	this.locked(['userdb'], cb_, function(cb) {
+		
 	var uid = user !== null ? user.id : null;
 	if (!data.name || !data.email || !data.giv_name || !data.fam_name) {
 		cb('format-error');
@@ -363,7 +367,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						data.birthday, data.desc, data.provision, data.address, uid],
 						updateCB);
 						
-						this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
+						if (data.name != user.name) {
+							this.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': user.name, 'newname': data.name}});
+							this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
+						}
 					} else {
 						if (data.betakey)
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
@@ -372,6 +379,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email],
 						function(res) {
 							uid = res.insertId;
+							this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 							this.query('INSERT INTO stocks (stockid, leader, name) VALUES(?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name], _.bind(updateCB, this, res));
 						});
 					}
@@ -405,6 +413,8 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb) {
 		} else {
 			_.bind(schoolLookupCB,this)([]);
 		}
+	
+	});
 	});
 	});
 }

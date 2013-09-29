@@ -380,7 +380,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 						function(res) {
 							uid = res.insertId;
 							this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
-							this.query('INSERT INTO stocks (stockid, leader, name) VALUES(?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name], _.bind(updateCB, this, res));
+							this.query('INSERT INTO stocks (stockid, leader, name, exchange) VALUES(?, ?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(updateCB, this, res));
 						});
 					}
 				}, this);

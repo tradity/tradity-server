@@ -371,6 +371,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 							this.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': user.name, 'newname': data.name}});
 							this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
 						}
+
+						if (data.provision != user.provision) 
+							this.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json: {'oldprov': user.provision, 'newprov': data.provision}});
 					} else {
 						if (data.betakey)
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);

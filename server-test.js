@@ -238,8 +238,6 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'get-ranking',
 					id: 'get-ranking',
-					startindex: data.result.rank,
-					endindex: data.result.rank + 10,
 					rtype: 'general',
 					key: key
 				});

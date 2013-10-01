@@ -119,9 +119,6 @@ UserDB.prototype.logout = function(query, user, access, cb) {
 }
 
 UserDB.prototype.getRanking = function(query, user, access, cb) {
-	var si = query.startindex, ei = query.endindex;
-	if (parseInt(si) != si || parseInt(ei) != ei)
-		cb('format-error');
 	var schools_join = '';
 	if (query.fromschool != null) {
 		schools_join = 'AND users.school = "' + parseInt(query.fromschool) + '"';
@@ -130,8 +127,8 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 	
 	this.query('SELECT rank, uid, name, totalvalue, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id ' +
-		schools_join + ' WHERE `type` = ? AND `group` = ? AND rank >= ? AND rank < ?', 
-		[query.rtype, query.studentonly ? 'students' : 'all', si, ei], cb);
+		schools_join + ' WHERE `type` = ? AND `group` = ?', 
+		[query.rtype, query.studentonly ? 'students' : 'all'], cb);
 }
 
 UserDB.prototype.getUserInfo = function(query, user, access, cb) {

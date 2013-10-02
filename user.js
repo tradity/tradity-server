@@ -68,7 +68,7 @@ UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 	}, this));
 }
 
-UserDB.prototype.login = function(query, user, access, cb) {
+UserDB.prototype.login = function(query, user, access, xdata, cb) {
 	var name = query.name;
 	var pw = query.pw;
 	var stayloggedin = query.stayloggedin;
@@ -103,12 +103,14 @@ UserDB.prototype.login = function(query, user, access, cb) {
 			
 			this.regularCallback();
 			
+			this.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
+				[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
 			this.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 				'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
 				[uid, key, stayloggedin ? this.cfg.stayloggedinTime : this.cfg.normalLoginTime], function(res) {
 					cb('login-success', key);
-				}
-			);
+			});
+			});
 		}, this));
 	});
 }

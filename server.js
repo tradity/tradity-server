@@ -47,8 +47,11 @@ setInterval(eh.wrap(function() {
 	StocksDB.regularCallback();
 }), 240 * 1000);
 
-function ConnectionData() {
+function ConnectionData(socket) {
 	this.user = null;
+	this.remoteip = socket.handshake.address.address;
+	this.hsheaders = socket.handshake.headers;
+	this.cdid = new Date().getTime() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
 	this.access = new Access();
 	this.registeredEventHandlers = [];
 	this.pushEventsTimer = null;
@@ -61,6 +64,8 @@ function ConnectionData() {
 	}, this));
 }
 util.inherits(ConnectionData, events.EventEmitter);
+
+ConnectionData.uniqueCount = 0;
 
 ConnectionData.prototype.client_insertPSEmail = function(query, cb) {
 	UserDB.insertPSEmail(query, this.user, this.access, _.bind(function(code) {
@@ -146,7 +151,7 @@ ConnectionData.prototype.client_emailverif = function(query, cb) {
 }
 
 ConnectionData.prototype.client_login = function(query, cb) {
-	UserDB.login(query, this.user, this.access, _.bind(function(code, key) {
+	UserDB.login(query, this.user, this.access, this, _.bind(function(code, key) {
 		this.pushEvents();
 		cb(code, {key:key});
 	}, this));
@@ -349,7 +354,7 @@ io.configure('production', function(){
 });
 
 io.sockets.on('connection', function(socket) {
-	var d = new ConnectionData();
+	var d = new ConnectionData(socket);
 	d.on('error', function(e) { eh.err(e); });
 	
 	d.on('response', function(data) {

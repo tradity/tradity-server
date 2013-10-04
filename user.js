@@ -147,7 +147,8 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'url AS profilepic', 'eventid AS registerevent',
 		'(dayfperfcur+dayfperfsold) / dayfperfbase AS dayfperf', '(dayoperfcur+dayoperfsold) / dayoperfbase AS dayoperf',
 		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf', '(dayoperfcur+weekoperfsold) / weekoperfbase AS weekoperf',
-		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf'
+		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf',
+		'freemoney'
 	].join(', ');
 	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid LEFT JOIN stocks ON users.id = stocks.leader LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
 		if (users.length == 0)

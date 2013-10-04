@@ -73,7 +73,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 		'LEFT JOIN events AS e2 ON c.eventid=e2.eventid '+
 		'LEFT JOIN orderhistory AS oh ON (e2.targetid = oh.orderid AND events.type="comment") OR (oh.orderid = events.targetid AND events.type="trade") '+
 		'LEFT JOIN users AS su ON su.id = events.srcuser '+
-		'LEFT JOIN users AS trader ON (trader.id = oh.userid AND events.type="trade") OR (trader.id = e2.targetid AND e2.type="user-register") '+
+		'LEFT JOIN users AS trader ON trader.id = oh.userid AND e2.type="trade" '+
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
 		[user.uid, query ? query.since : 0, query && query.count !== null ? query.count : 100000], function(r) {
 		cb(_.chain(r).map(function(ev) {

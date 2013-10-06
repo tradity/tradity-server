@@ -423,14 +423,14 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 }
 
 UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
-	this.query('SELECT stockid,users.id AS uid,users.name FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?', [query.stockid], function(res) {
+	this.query('SELECT stockid,users.id AS uid,users.name, lastvalue FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?', [query.stockid], function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
 		var uid = res[0].uid;
 		if (uid == user.id)
 			return cb('watchlist-add-self');
 		
-		this.query('REPLACE INTO watchlists (watcher, watched) VALUES(?,?)', [user.id, query.stockid], function(r) {
+		this.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)', [user.id, res[0].lastvalue, query.stockid], function(r) {
 			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched': query.stockid, 'watcheduser':uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
 			cb('watchlist-add-success');
 		}); 
@@ -445,7 +445,7 @@ UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
 }
 
 UserDB.prototype.watchlistShow = function(query, user, access, cb) {
-	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid FROM watchlists AS w '+
+	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, watchstartvalue, watchstarttime FROM watchlists AS w '+
 		'JOIN stocks ON w.watched=stocks.id LEFT JOIN users ON users.id=stocks.leader WHERE w.watcher = ?', [user.id], function(res) {
 		cb(res);
 	});

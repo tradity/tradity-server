@@ -88,7 +88,7 @@ StocksDB.prototype.dailyCallback = function(cb) {
 
 	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.lastvalue WHERE ds.stockid = s.id', [], function() {	
 	this.query('UPDATE stocks SET daystartvalue = lastvalue', [], function() {
-	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0', [], function() {
+	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0, daystarttotalvalue = totalvalue', [], function() {
 	if (new Date().getUTCDay() == this.cfg.weeklyCallbackDay)
 		this.weeklyCallback(cb);
 	else
@@ -99,7 +99,7 @@ StocksDB.prototype.dailyCallback = function(cb) {
 }
 
 StocksDB.prototype.weeklyCallback = function(cb) {
-	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0', [], function() {
+	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0, weekstarttotalvalue = totalvalue', [], function() {
 	this.query('UPDATE stocks SET weekstartvalue = lastvalue', [], cb);
 	});
 }

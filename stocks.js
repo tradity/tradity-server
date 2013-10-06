@@ -383,7 +383,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var perfwf = 'week' + perfn + perfv;
 		var perftf = 'total' + perfn + perfv;
 		
-		this.query('UPDATE users SET freemoney = freemoney-(?),totalvalue = totalvalue-(?), '+
+		this.query('UPDATE users SET tradecount = tradecount+1, freemoney = freemoney-(?),totalvalue = totalvalue-(?), '+
 			perfdf + '=' + perfdf + ' + ABS(?), ' +
 			perfwf + '=' + perfwf + ' + ABS(?), ' +
 			perftf + '=' + perftf + ' + ABS(?) ' +

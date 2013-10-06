@@ -71,6 +71,7 @@ StocksDB.prototype.updateRanking = function(cb) {
 		'dayfperfcur = (SELECT SUM(ds.amount * s.lastvalue) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
 		'dayoperfcur = (SELECT SUM(ds.amount * s.lastvalue) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
 			
+	this.query('TRUNCATE TABLE ranking', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,`group`,uid,rank) SELECT "general",   "all",      id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL ORDER BY totalvalue DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,`group`,uid,rank) SELECT "general",   "students", id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND school IS NOT NULL ORDER BY totalvalue DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,`group`,uid,rank) SELECT "following", "all",      id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY (dayfperfcur+totalfperfsold) / totalfperfbase DESC', [], function() {
@@ -78,7 +79,7 @@ StocksDB.prototype.updateRanking = function(cb) {
 	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 3*86400', [], function() {
 	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
 	});
-	});});});});
+	});});});});});
 	
 	});	
 }

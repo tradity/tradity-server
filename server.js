@@ -293,6 +293,8 @@ ConnectionData.prototype.response = function(data) {
 }
 
 ConnectionData.prototype.query = function(query) {
+	var recvTime = new Date().getTime();
+	
 	UserDB.loadSessionUser(query.key, _.bind(function(user) {
 		var access = new Access();
 		if (user != null)
@@ -310,9 +312,13 @@ ConnectionData.prototype.query = function(query) {
 		this.user = user;
 		
 		var cb = _.bind(function(code, obj) {
+			var now = new Date().getTime();
 			obj = obj || {};
 			obj['code'] = code;
 			obj['is-reply-to'] = query.id;
+			obj['_t_sresp'] = now;
+			obj['_t_srecv'] = recvTime;
+			obj['_t_sdelta'] = now - recvTime;
 			this.response(obj);
 		}, this);
 		

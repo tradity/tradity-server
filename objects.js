@@ -41,23 +41,30 @@ DBSubsystemBase.prototype.feed = function(data) {
 	this.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
 		[data.type, data.targetid, data.srcuser, json], function(r) {
 		var eventid = r.insertId;
-	
-		var additional = data.feedusers && data.feedusers.slice(0) || [];
-		if (additional.indexOf(data.srcuser) == -1)
-			additional.push(data.srcuser);
 		
-		var query = 'INSERT INTO events_users (eventid,userid) '+
-			'SELECT ?,userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' + // all followers
-			'UNION ' +
-			'SELECT ?,w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ? '; // all users in watchlist
-		var params = [eventid, data.srcuser, eventid, data.srcuser];
-			 
-		for (var i = 0; i < additional.length; ++i) {
-			if (parseInt(additional[i]) != additional[i])
-				return this.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
+		var query, params;
+		
+		if (!data.private) {
+			var additional = data.feedusers && data.feedusers.slice(0) || [];
+			if (additional.indexOf(data.srcuser) == -1)
+				additional.push(data.srcuser);
 			
-			query += 'UNION SELECT ?,? ';
-			params = params.concat([eventid, additional[i]]);
+			query = 'INSERT INTO events_users (eventid,userid) '+
+				'SELECT ?,userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ? ' + // all followers
+				'UNION ' +
+				'SELECT ?,w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ? '; // all users in watchlist
+			params = [eventid, data.srcuser, eventid, data.srcuser];
+				 
+			for (var i = 0; i < additional.length; ++i) {
+				if (parseInt(additional[i]) != additional[i])
+					return this.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
+				
+				query += 'UNION SELECT ?,? ';
+				params = params.concat([eventid, additional[i]]);
+			}
+		} else {
+			query = 'INSERT INTO events (eventid, userid) VALUES (?,?)';
+			params = [eventid, data.srcuser];
 		}
 		
 		this.query(query, params, function() {

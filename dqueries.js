@@ -151,11 +151,9 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 				switch(fieldname) {
 					case 'exchange-open':
 						cchecks.push(_.bind(function(cb) {
-							this.query('SELECT leader,exchange FROM stocks WHERE stockid = ?', [stockid], function(r) {
+							this.query('SELECT exchange FROM stocks WHERE stockid = ?', [stockid], function(r) {
 								if (r.length == 0)
-									return false;
-								if (r[0].leader !== null)
-									return true;
+									return cb(false);
 								var v = this.stocksdb.stockExchangeIsOpen(r[0].exchange);
 								cb(lt ? v < value : v > value);
 							});

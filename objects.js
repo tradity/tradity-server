@@ -63,7 +63,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 				params = params.concat([eventid, additional[i]]);
 			}
 		} else {
-			query = 'INSERT INTO events (eventid, userid) VALUES (?,?)';
+			query = 'INSERT INTO events_users (eventid, userid) VALUES (?,?)';
 			params = [eventid, data.srcuser];
 		}
 		

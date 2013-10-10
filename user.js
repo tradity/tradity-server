@@ -327,7 +327,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 	
 	var betakey = data.betakey ? data.betakey.toString().split('-') : [0,0];
 	
-	this.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
+	this.query('SELECT email,name,id FROM users WHERE email = ? OR (name = ?) ORDER BY NOT(id != ?)',
 		[data.email, data.name, uid], function(res) {
 	this.query('SELECT `key` FROM betakeys WHERE `id`=?',
 		[betakey[0]], function(βkey) {

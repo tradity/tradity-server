@@ -339,10 +339,7 @@ StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
 StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 	assert.ok(user);
 	assert.ok(access);
-	this.locked(['depotstocks'], cb_, function(cb) {
-	if ((!query.stockid && query.leader == null) || (query.stockid && query.leader)) 
-		return cb('format-error');
-	
+	this.locked(['depotstocks'], cb_, function(cb) {	
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	

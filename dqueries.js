@@ -13,7 +13,8 @@ function DelayedQueriesDB (db, config, stocksdb) {
 	this.queries = {};
 	this.neededStocks = {};
 	this.queryTypes = {
-		'stock-buy': _.bind(this.stocksdb.buyStock, this.stocksdb)
+		'stock-buy': _.bind(this.stocksdb.buyStock, this.stocksdb),
+		'dquery-remove': _.bind(this.removeQuery, this)
 	};
 	
 	assert.ok(!this.stocksdb.dqueries);

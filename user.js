@@ -432,7 +432,7 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 		if (uid == user.id)
 			return cb('watchlist-add-self');
 		
-		this.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)', [user.id, res[0].lastvalue, query.stockid], function(r) {
+		this.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)', [user.id, res[0].bid, query.stockid], function(r) {
 			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched': query.stockid, 'watcheduser':uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
 			cb('watchlist-add-success');
 		}); 

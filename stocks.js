@@ -68,8 +68,8 @@ StocksDB.prototype.updateRanking = function(cb) {
 	cb = cb || function() {};
 	
 	this.query('UPDATE users SET '+
-		'dayfperfcur = (SELECT SUM(ds.amount * s.lastvalue) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
-		'dayoperfcur = (SELECT SUM(ds.amount * s.lastvalue) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
+		'dayfperfcur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
+		'dayoperfcur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
 			
 	this.query('TRUNCATE TABLE ranking', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,`group`,uid,rank) SELECT "general",   "all",      id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
@@ -87,8 +87,8 @@ StocksDB.prototype.updateRanking = function(cb) {
 StocksDB.prototype.dailyCallback = function(cb) {
 	cb = cb || function() {};
 
-	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.lastvalue WHERE ds.stockid = s.id', [], function() {	
-	this.query('UPDATE stocks SET daystartvalue = lastvalue', [], function() {
+	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.bid WHERE ds.stockid = s.id', [], function() {	
+	this.query('UPDATE stocks SET daystartvalue = bid', [], function() {
 	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0, daystarttotalvalue = totalvalue', [], function() {
 	if (new Date().getUTCDay() == this.cfg.weeklyCallbackDay)
 		this.weeklyCallback(cb);
@@ -101,7 +101,7 @@ StocksDB.prototype.dailyCallback = function(cb) {
 
 StocksDB.prototype.weeklyCallback = function(cb) {
 	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0, weekstarttotalvalue = totalvalue', [], function() {
-	this.query('UPDATE stocks SET weekstartvalue = lastvalue', [], cb);
+	this.query('UPDATE stocks SET weekstartvalue = bid', [], cb);
 	});
 }
 
@@ -284,7 +284,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 					
 					//console.log(complete1 + ' of ' + n);
 					if (++complete1 == n) {
-						var max = 'GREATEST(ds.provision_hwm, s.lastvalue)';
+						var max = 'GREATEST(ds.provision_hwm, s.bid)';
 						var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
 						var fees = '(('+Δ+' * l.provision) / 100)';
 						
@@ -367,7 +367,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0)
 			return cb('stock-buy-out-of-money');
-		if ((r.amount + amount) * r.lastvalue >= ures[0].totalvalue * this.cfg['maxSinglePaperShare'] && price >= 0)
+		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * this.cfg['maxSinglePaperShare'] && price >= 0)
 			return cb('stock-buy-single-paper-share-exceed');
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 

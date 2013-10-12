@@ -160,7 +160,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		if (query.nohistory)
 			return cb(xuser, null, null, null);
 		this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, !!xuser.delayorderhist ? this.cfg.delayOrderHistTime : 0], function(orders) {
-			this.query('SELECT * FROM valuehistory WHERE userid = ?', [user.uid], function(values) {
+			this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
 				this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
 					cb(xuser, orders, values, comments);
 				});

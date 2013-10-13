@@ -127,7 +127,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 		query.studentonly = true;
 	}
 	
-	this.query('SELECT rank, uid, name, totalvalue, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, '+
+	this.query('SELECT rank, uid, name, totalvalue, prov_recvd, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, '+
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id ' +

@@ -152,17 +152,29 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf',
 		'freemoney', 'prov_recvd', 'weekstarttotalvalue', 'daystarttotalvalue'
 	].join(', ');
-	this.query('SELECT ' + columns + ' FROM users LEFT JOIN schools ON users.school = schools.id LEFT JOIN ranking ON users.id = ranking.uid LEFT JOIN stocks ON users.id = stocks.leader LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
+	
+	this.query('SELECT ' + columns + ' FROM users '+
+		'LEFT JOIN schools ON users.school = schools.id '+
+		'LEFT JOIN ranking ON users.id = ranking.uid '+
+		'LEFT JOIN stocks ON users.id = stocks.leader '+
+		'LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" '+
+		'LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" '+
+		'WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb(null, null, null);
 		var xuser = users[0];
 		xuser.isSelf = (xuser.uid == user.uid);
 		if (query.nohistory)
 			return cb(xuser, null, null, null);
-		this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, !!xuser.delayorderhist ? this.cfg.delayOrderHistTime : 0], function(orders) {
-			this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
-				this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
-					cb(xuser, orders, values, comments);
+		
+		this.query('SELECT SUM(amount) AS samount, SUM(1) AS sone FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid], function(followers) {
+			xuser.f_amount = followers.samount || 0;
+			xuser.f_count = followers.sone || 0;
+			this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, !!xuser.delayorderhist ? this.cfg.delayOrderHistTime : 0], function(orders) {
+				this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
+					this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+						cb(xuser, orders, values, comments);
+					});
 				});
 			});
 		});

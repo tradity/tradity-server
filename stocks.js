@@ -372,7 +372,13 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 
 		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)', [user.id, r.stockid, r.leader, price, query.comment, amount, fee, r.name], function(oh_res) {
-		this.feed({'type': 'trade','targetid':oh_res.insertId,'srcuser':user.id,'json':{'__delay__': !!ures[0].delayorderhist ? this.cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null}});
+		this.feed({
+			'type': 'trade',
+			'targetid':oh_res.insertId,
+			'srcuser':user.id,
+			'json':{'__delay__': !!ures[0].delayorderhist ? this.cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
+			'feedusers': r.leader ? [r.leader] : []
+		});
 		var tradeID = oh_res.insertId;
 		
 		var perfn = r.leader ? 'fperf' : 'operf';

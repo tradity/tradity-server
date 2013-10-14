@@ -264,7 +264,7 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 UserDB.prototype.deleteUser = function(query, user, access, cb) {
 	this.query('DELETE FROM sessions WHERE uid = ?', [user.id], function() {
 	this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [user.id, user.id], function() {
-	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, address=NULL, deletiontime = UNIX_TIMESTAMP()' +
+	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", deletiontime = UNIX_TIMESTAMP()' +
 	'WHERE id = ?', [user.id, user.id], function() {
 		cb('delete-user-success');
 	});
@@ -376,9 +376,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, school = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, `desc` = ?, provision = ?, address = ? WHERE id = ?',
+						'birthday = ?, `desc` = ?, provision = ?, street = ?, zipcode = ?, town = ? WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
-						data.birthday, data.desc, data.provision, data.address, uid],
+						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, uid],
 						updateCB);
 						
 						if (data.name != user.name) {

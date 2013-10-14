@@ -100,7 +100,7 @@ DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 	this.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
 	'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid=?', [query.eventid], function(res) {
 		if (res.length == 0)
-			cb('comment-notfound');
+			return cb('comment-notfound');
 			
 		var feedusers = [];
 		var r = res[0];
@@ -113,7 +113,7 @@ DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 			feedusers.push(r.trader);
 		}
 		
-		else this.query('INSERT INTO ecomments (eventid, commenter, comment, time) VALUES(?, ?, ?, UNIX_TIMESTAMP())', 
+		this.query('INSERT INTO ecomments (eventid, commenter, comment, time) VALUES(?, ?, ?, UNIX_TIMESTAMP())', 
 			[query.eventid, user.id, query.comment], function(res) {
 			this.feed({'type': 'comment','targetid':res.insertId,'srcuser':user.id,'feedusers':feedusers});
 			cb('comment-success');

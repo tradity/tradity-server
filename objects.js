@@ -97,13 +97,25 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 }
 
 DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
-	this.query('SELECT COUNT(*) AS c FROM events WHERE eventid=?', [query.eventid], function(res) {
-		assert.equal(res.length, 1);
-		if (res[0].c == 0)
+	this.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
+	'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid=?', [query.eventid], function(res) {
+		if (res.length == 0)
 			cb('comment-notfound');
+			
+		var feedusers = [];
+		var r = res[0];
+		if (r.type == 'user-register') {
+			assert.ok(r.targetid !== null);
+			feedusers.push(r.targetid);
+		}
+		if (r.type == 'trade') {
+			assert.ok(r.trader !== null);
+			feedusers.push(r.trader);
+		}
+		
 		else this.query('INSERT INTO ecomments (eventid, commenter, comment, time) VALUES(?, ?, ?, UNIX_TIMESTAMP())', 
 			[query.eventid, user.id, query.comment], function(res) {
-			this.feed({'type': 'comment','targetid':res.insertId,'srcuser':user.id});
+			this.feed({'type': 'comment','targetid':res.insertId,'srcuser':user.id,'feedusers':feedusers});
 			cb('comment-success');
 		});
 	});

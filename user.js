@@ -171,7 +171,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 			if (query.nohistory)
 				return cb(xuser, null, null, null);
 			
-			this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, !!xuser.delayorderhist ? this.cfg.delayOrderHistTime : 0], function(orders) {
+			this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
 				this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
 					this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
 						cb(xuser, orders, values, comments);
@@ -265,7 +265,7 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 UserDB.prototype.deleteUser = function(query, user, access, cb) {
 	this.query('DELETE FROM sessions WHERE uid = ?', [user.id], function() {
 	this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [user.id, user.id], function() {
-	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", traderse=0, tradersp=0, deletiontime = UNIX_TIMESTAMP()' +
+	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", traderse=0, tradersp=0, wot=0, deletiontime = UNIX_TIMESTAMP()' +
 	'WHERE id = ?', [user.id, user.id], function() {
 		cb('delete-user-success');
 	});
@@ -377,9 +377,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, school = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, `desc` = ?, provision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ? WHERE id = ?',
+						'birthday = ?, `desc` = ?, provision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, wot = ? WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
-						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, data.traderse, data.tradersp, uid],
+						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, data.traderse, data.tradersp, data.wot, uid],
 						updateCB);
 						
 						if (data.name != user.name) {

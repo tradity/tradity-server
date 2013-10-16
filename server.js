@@ -30,7 +30,7 @@ var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
 var StocksDB = new stocks.StocksDB(db, cfg, yfql);
-var FileStorageDB = new fsdb.FileStorageDB(db, cfg, yfql);
+var FileStorageDB = new fsdb.FileStorageDB(db, cfg);
 var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
 
 var subsystems = [StocksDB, UserDB, dqDB, FileStorageDB];

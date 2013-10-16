@@ -164,12 +164,13 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 			return cb(null, null, null);
 		var xuser = users[0];
 		xuser.isSelf = (xuser.uid == user.uid);
-		if (query.nohistory)
-			return cb(xuser, null, null, null);
 		
 		this.query('SELECT SUM(amount) AS samount, SUM(1) AS sone FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid], function(followers) {
 			xuser.f_amount = followers.samount || 0;
 			xuser.f_count = followers.sone || 0;
+			if (query.nohistory)
+				return cb(xuser, null, null, null);
+			
 			this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, !!xuser.delayorderhist ? this.cfg.delayOrderHistTime : 0], function(orders) {
 				this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
 					this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {

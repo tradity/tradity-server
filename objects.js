@@ -86,7 +86,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
-				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__))
+				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__) && user.uid != ev.srcuser)
 					return null;
 				_.chain(json).keys().each(function(k) { ev[k] = json[k]; });
 			}

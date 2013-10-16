@@ -51,7 +51,13 @@ socket.on('connect', function() {
 					school: schoolid,
 					authorizationKey: authorizationKey,
 					nomail: true,
-					betakey: '1-a.skidulaqrniucznl'
+					betakey: '1-a.skidulaqrniucznl',
+					street: '',
+					town: '',
+					zipcode: '',
+					wot: false,
+					tradersp: false,
+					traderse: false
 				});
 				break;
 			case 'register':

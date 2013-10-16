@@ -392,9 +392,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 					} else {
 						if (data.betakey)
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
-						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email)' +
-						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email],
+						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email, traderse, tradersp, wot, street, zipcode, town)' +
+						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse, data.tradersp, data.wot, data.street, data.zipcode, data.town],
 						function(res) {
 							uid = res.insertId;
 							this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});

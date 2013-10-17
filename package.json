@@ -5,7 +5,7 @@
 	"homepage": "http://tradity.de",
 	"bugs" : { "email": "tradity-dev@entless.org" },
 	"dependencies": {
-		"csv": "*",
+		"xml2js": "*",
 		"mhash": "*",
 		"mysql": "*",
 		"nodemailer": "*",

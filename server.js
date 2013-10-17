@@ -16,7 +16,7 @@ var fsdb = require('./fsdb.js');
 var dqueries = require('./dqueries.js');
 var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
-var yf = require('./yahoofinance.js');
+var af = require('./arivafinance.js');
 var locking = require('./locking.js');
 var Access = require('./access.js').Access;
 
@@ -24,19 +24,19 @@ crypto.randomBytes(64, _.bind(function(ex, buf) {
 var authorizationKey = buf.toString('hex');
 fs.writeFileSync(cfg['auth-key-file'], authorizationKey, {mode: 432});
 
-var yfql = new yf.YahooFinanceQuoteLoader();
+var afql = new af.ArivaFinanceQuoteLoader();
 var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
 var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
-var StocksDB = new stocks.StocksDB(db, cfg, yfql);
+var StocksDB = new stocks.StocksDB(db, cfg, afql);
 var FileStorageDB = new fsdb.FileStorageDB(db, cfg);
 var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
 
 var subsystems = [StocksDB, UserDB, dqDB, FileStorageDB];
 _.each(subsystems, _.bind(function(sys) { sys.on('error', function(e) { eh.err(e); }); }));
 
-yfql.on('error', function(e) { eh.err(e); });
+afql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
 locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 
@@ -74,7 +74,7 @@ ConnectionData.prototype.client_insertPSEmail = function(query, cb) {
 }
 
 function _login (f) { return function(query, cb) {
-	if (this.user === null)
+	if (this.user === null && !this.access.has('login-override'))
 		cb('not-logged-in')
 	else
 		return _.bind(f,this)(query, cb);

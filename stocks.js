@@ -26,7 +26,7 @@ function StocksDB (db, cfg, quoteLoader) {
 util.inherits(StocksDB, require('./objects.js').DBSubsystemBase);
 
 StocksDB.prototype.stocksFilter = function(rec) {
-	return _.chain(this.cfg.stockExchanges).keys().contains(rec.exchange).value();
+	return _.chain(this.cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == 'EUR';
 }
 
 StocksDB.prototype.regularCallback = function(cb) {
@@ -109,18 +109,17 @@ StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 	cb = cb || function() {};
 	
 	this.query('DELETE FROM depot_stocks WHERE amount = 0', [], function() {
-		this.query('DELETE FROM recent_searches', [], function() {
-		this.query('DELETE FROM stocks WHERE ' +
-			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) = 0 AND ' +
-			'(SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) = 0 AND ' +
-			'UNIX_TIMESTAMP()-stocks.lrutime > ? AND leader IS NULL', [this.cfg.lrutimeLimit],
+		this.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
+			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 OR ' +
+			'(SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 OR ' +
+			'leader IS NOT NULL', [this.cfg.lrutimeLimit],
 			cb);
-		});
 	});
 }
 
 StocksDB.prototype.updateStockValues = function(cb) {
-	this.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ?', [this.cfg.refetchLimit], function(res) {
+	this.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
+		[this.cfg.lrutimeLimit, this.cfg.refetchLimit], function(res) {
 		var stocklist = _.pluck(res, 'stockid');
 		
 		_.each(this.stockNeeders, function(needer) {
@@ -134,7 +133,10 @@ StocksDB.prototype.updateStockValues = function(cb) {
 }
 
 StocksDB.prototype.updateRecord = function(rec) {
-	assert.notStrictEqual(rec.lastTradePrice, null);
+	if (rec.failure)
+		return;
+	
+	assert.notEqual(rec.lastTradePrice, null);
 	if (rec.lastTradePrice == 0) // happens with API sometimes.
 		return;
 	
@@ -177,30 +179,27 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
 	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername,provision FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
 	this.query('SELECT *, 0 AS provision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
-	this.query('SELECT * FROM recent_searches WHERE string = ?', [str], function(rs_res) {
-	if (rs_res.length == 0) {
-		this.quoteLoader.searchAndFindQuotes(str, _.bind(this.stocksFilter, this), _.bind(function(res3) {
-			this.query('INSERT INTO recent_searches (string) VALUES(?)', [str], function() {
-				var results = _.union(res1, res2, _.map(res3, function(r) {
-					return {
-						'stockid': r.symbol,
-						'lastvalue': r.lastTradePrice * 10000,
-						'ask': r.ask * 10000,
-						'bid': r.bid * 10000,
-						'name': r.name,
-						'exchange': r.exchange,
-						'leader': null,
-						'leadername': null,
-						'provision': 0,
-					};
-				}));
-				handleResults(results);
-			});
-		}, this));
-	} else {
-		handleResults(_.union(res1, res2));
-	}
-	});
+	var externalSearchResultHandler = _.bind(function(res3) {
+		var results = _.union(res1, res2, _.map(res3, function(r) {
+			return {
+				'stockid': r.symbol,
+				'lastvalue': r.lastTradePrice * 10000,
+				'ask': r.ask * 10000,
+				'bid': r.bid * 10000,
+				'name': r.name,
+				'exchange': r.exchange,
+				'leader': null,
+				'leadername': null,
+				'provision': 0,
+			};
+		}));
+		handleResults(results);
+	}, this);
+
+	if ([12,6].indexOf(str.length) == -1)
+		externalSearchResultHandler([]);
+	else
+		this.quoteLoader.loadQuotesList([str.toUpperCase()], _.bind(this.stocksFilter, this), externalSearchResultHandler);
 	});
 	});
 }

@@ -166,8 +166,8 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		xuser.isSelf = (xuser.uid == user.uid);
 		
 		this.query('SELECT SUM(amount) AS samount, SUM(1) AS sone FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid], function(followers) {
-			xuser.f_amount = followers.samount || 0;
-			xuser.f_count = followers.sone || 0;
+			xuser.f_amount = followers[0].samount || 0;
+			xuser.f_count = followers[0].sone || 0;
 			if (query.nohistory)
 				return cb(xuser, null, null, null);
 			

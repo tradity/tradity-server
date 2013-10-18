@@ -127,6 +127,9 @@ StocksDB.prototype.updateStockValues = function(cb) {
 		_.each(this.stockNeeders, function(needer) {
 			stocklist = _.union(stocklist, needer.getNeededStocks());
 		});
+		stocklist = _.filter(stocklist, function(s) {
+			return !/__LEADER_(\d+)__/.test(s);
+		});
 		
 		if (stocklist.length > 0)
 			this.quoteLoader.loadQuotes(stocklist, _.bind(this.stocksFilter, this));

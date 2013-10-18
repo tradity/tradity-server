@@ -76,9 +76,11 @@ StocksDB.prototype.updateRanking = function(cb) {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,`group`,uid,rank) SELECT "general",   "students", id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND school IS NOT NULL ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,`group`,uid,rank) SELECT "following", "all",      id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold) / totalfperfbase DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,`group`,uid,rank) SELECT "following", "students", id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND school IS NOT NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold) / totalfperfbase DESC', [], function() {
-	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 3*86400', [], function() {
+	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 14*86400', [], function() {
+	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  6*86400', [], function() {
+	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  1*86400', [], function() {
 	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
-	});
+	});});});
 	});});});});});
 	
 	});	

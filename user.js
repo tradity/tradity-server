@@ -379,7 +379,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, school = ?, email = ?, email_verif = ?,' +
 						'birthday = ?, `desc` = ?, provision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, traditye = ?, wot = ? WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
-						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, data.traderse, data.tradersp, data.traditye, data.wot, uid],
+						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, uid],
 						updateCB);
 						
 						if (data.name != user.name) {
@@ -394,7 +394,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
 						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email, traderse, tradersp, traditye, wot, street, zipcode, town)' +
 						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse, data.tradersp, data.traditye, data.wot, data.street, data.zipcode, data.town],
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
 						function(res) {
 							uid = res.insertId;
 							this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});

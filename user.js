@@ -265,7 +265,7 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 UserDB.prototype.deleteUser = function(query, user, access, cb) {
 	this.query('DELETE FROM sessions WHERE uid = ?', [user.id], function() {
 	this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [user.id, user.id], function() {
-	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", traderse=0, tradersp=0, wot=0, deletiontime = UNIX_TIMESTAMP()' +
+	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", traderse=0, tradersp=0, traditye=0, wot=0, deletiontime = UNIX_TIMESTAMP()' +
 	'WHERE id = ?', [user.id, user.id], function() {
 		cb('delete-user-success');
 	});
@@ -377,9 +377,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, school = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, `desc` = ?, provision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, wot = ? WHERE id = ?',
+						'birthday = ?, `desc` = ?, provision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, traditye = ?, wot = ? WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
-						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, data.traderse, data.tradersp, data.wot, uid],
+						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, data.traderse, data.tradersp, data.traditye, data.wot, uid],
 						updateCB);
 						
 						if (data.name != user.name) {
@@ -392,9 +392,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 					} else {
 						if (data.betakey)
 							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
-						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email, traderse, tradersp, wot, street, zipcode, town)' +
-						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse, data.tradersp, data.wot, data.street, data.zipcode, data.town],
+						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email, traderse, tradersp, traditye, wot, street, zipcode, town)' +
+						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse, data.tradersp, data.traditye, data.wot, data.street, data.zipcode, data.town],
 						function(res) {
 							uid = res.insertId;
 							this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});

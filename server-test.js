@@ -58,6 +58,7 @@ socket.on('connect', function() {
 					wot: false,
 					tradersp: false,
 					traderse: false
+					traditye: false
 				});
 				break;
 			case 'register':

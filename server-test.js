@@ -124,7 +124,7 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'login-success');
 				key = data.key;
 				
-				fs.readFile('bob.jpg', function(err, data) {
+				fs.readFile('res/bob.jpg', function(err, data) {
 					if (err) throw err;
 					
 					console.log('outgoing: publish');

@@ -50,7 +50,7 @@ StocksDB.prototype.regularCallback = function(cb) {
 	this.cleanUpUnusedStocks(_.bind(function() {
 	this.updateStockValues(_.bind(function() {
 	this.updateLeaderMatrix(_.bind(function() {
-	this.updateRanking(_.bind(function() {
+		this.updateRanking();
 		var d = new Date();
 		if (d.getUTCDay() != this.lastCallbackDay && d.getUTCHours() >= this.cfg.dailyCallbackHour) {
 			this.lastCallbackDay = d.getUTCDay();
@@ -58,7 +58,6 @@ StocksDB.prototype.regularCallback = function(cb) {
 		} else {
 			xcb();
 		}
-	}, this));
 	}, this));
 	}, this));
 	}, this));

@@ -203,7 +203,10 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 		if ([12,6].indexOf(str.length) != -1)
 			externalStocks.push(str.toUpperCase());
 		
-		this.quoteLoader.loadQuotesList(externalStocks, _.bind(this.stocksFilter, this), externalSearchResultHandler);
+		if (externalStocks.length == 0)
+			externalSearchResultHandler([]);
+		else
+			this.quoteLoader.loadQuotesList(externalStocks, _.bind(this.stocksFilter, this), externalSearchResultHandler);
 	});
 	});
 }

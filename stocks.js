@@ -181,27 +181,29 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
 	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername,provision FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
 	this.query('SELECT *, 0 AS provision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
-	var externalSearchResultHandler = _.bind(function(res3) {
-		var results = _.union(res1, res2, _.map(res3, function(r) {
-			return {
-				'stockid': r.symbol,
-				'lastvalue': r.lastTradePrice * 10000,
-				'ask': r.ask * 10000,
-				'bid': r.bid * 10000,
-				'name': r.name,
-				'exchange': r.exchange,
-				'leader': null,
-				'leadername': null,
-				'provision': 0,
-			};
-		}));
-		handleResults(results);
-	}, this);
+		var externalSearchResultHandler = _.bind(function(res3) {
+			var results = _.union(res1, _.map(res3, function(r) {
+				return {
+					'stockid': r.symbol,
+					'lastvalue': r.lastTradePrice * 10000,
+					'ask': r.ask * 10000,
+					'bid': r.bid * 10000,
+					'name': r.name,
+					'exchange': r.exchange,
+					'leader': null,
+					'leadername': null,
+					'provision': 0,
+				};
+			}));
+			handleResults(results);
+		}, this);
+		
+		var externalStocks = _.pluck(res2, 'stockid');
 
-	if ([12,6].indexOf(str.length) == -1)
-		externalSearchResultHandler([]);
-	else
-		this.quoteLoader.loadQuotesList([str.toUpperCase()], _.bind(this.stocksFilter, this), externalSearchResultHandler);
+		if ([12,6].indexOf(str.length) != -1)
+			externalStocks.push(str.toUpperCase());
+		
+		this.quoteLoader.loadQuotesList(externalStocks, _.bind(this.stocksFilter, this), externalSearchResultHandler);
 	});
 	});
 }

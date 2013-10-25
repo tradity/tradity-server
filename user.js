@@ -153,7 +153,8 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'LEFT JOIN stocks ON users.id = stocks.leader '+
 		'LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" '+
 		'LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" '+
-		'WHERE users.id = ? OR users.name = ?', [query.lookfor, query.lookfor], function(users) {
+		'WHERE users.id = ? OR users.name = ?', 
+		[parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb(null, null, null);
 		var xuser = users[0];
@@ -259,7 +260,7 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 UserDB.prototype.deleteUser = function(query, user, access, cb) {
 	this.query('DELETE FROM sessions WHERE uid = ?', [user.id], function() {
 	this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [user.id, user.id], function() {
-	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", traderse=0, tradersp=0, traditye=0, wot=0, deletiontime = UNIX_TIMESTAMP()' +
+	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", traderse=0, tradersp=0, traditye=0, wot=0, deletiontime = UNIX_TIMESTAMP()' +
 	'WHERE id = ?', [user.id, user.id], function() {
 		cb('delete-user-success');
 	});
@@ -384,15 +385,17 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 						if (data.provision != user.provision) 
 							this.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json: {'oldprov': user.provision, 'newprov': data.provision}});
 					} else {
-						if (data.betakey)
-							this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
-						this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email, traderse, tradersp, traditye, wot, street, zipcode, town)' +
-						'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
-						function(res) {
-							uid = res.insertId;
-							this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
-							this.query('INSERT INTO stocks (stockid, leader, name, exchange) VALUES(?, ?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(updateCB, this, res));
+						this.locked(['depotstocks'], updateCB, function(cb) {
+							if (data.betakey)
+								this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
+							this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email, traderse, tradersp, traditye, wot, street, zipcode, town)' +
+							'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+							[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
+							function(res) {
+								uid = res.insertId;
+								this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
+								this.query('INSERT INTO stocks (stockid, leader, name, exchange) VALUES(?, ?, ?, ?)', ['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(cb, this, res));
+							});
 						});
 					}
 				}, this);

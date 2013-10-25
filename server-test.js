@@ -176,7 +176,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: 5,
 					value: null,
-					stockid: 'MDO.F',
+					stockid: 'CA7500801039',
 					leader: null,
 					comment: 'There is no spoon',
 					forceNow: true
@@ -207,7 +207,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: -5,
 					value: null,
-					stockid: 'MDO.F',
+					stockid: 'CA7500801039',
 					leader: null,
 					comment: 'There is no spoon',
 					forceNow: true
@@ -221,7 +221,7 @@ socket.on('connect', function() {
 					key: key,
 					amount: -5,
 					value: null,
-					stockid: 'MDO.F',
+					stockid: 'CA7500801039',
 					leader: null,
 					comment: 'There is no spoon',
 					forceNow: true
@@ -255,13 +255,13 @@ socket.on('connect', function() {
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',
-					'condition': 'stock::GEC.F::ask > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
+					'condition': 'stock::DE000A1EWWW0::ask > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
 					'query': {
 						type: 'stock-buy',
 						id: 'stock-buy-delayed',
 						amount: 1,
 						value: null,
-						stockid: 'GEC.F',
+						stockid: 'DE000A1EWWW0',
 						leader: null,
 						comment: 'There was no spoon'
 					},

@@ -363,9 +363,10 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			return cb('stock-buy-stock-not-found');
 		var r = res[0];
 		if (!this.stockExchangeIsOpen(r.exchange) && !(access.has('stocks') && query.forceNow)) {
+			query.retainUntilCode = 'stock-buy-success';
 			this.dqueries.addDelayedQuery({
 				condition: 'stock::' + r.stockid + '::exchange-open > 0',
-				query: query
+				query: query,
 			}, user, access);
 			return cb('stock-buy-autodelay-sxnotopen');
 		}

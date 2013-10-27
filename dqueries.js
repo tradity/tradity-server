@@ -195,7 +195,8 @@ DelayedQueriesDB.prototype.executeQuery = function(query) {
 		var json = query.query.dquerydata || {};
 		json.result = code;
 		this.feed({'type': 'dquery-exec', 'targetid':null, 'srcuser': query.userinfo.id, 'json': json, 'private': true});
-		this.removeQuery(query);
+		if (!query.query.retainUntilCode || query.query.retainUntilCode == code)
+			this.removeQuery(query);
 	}, this));
 }
 

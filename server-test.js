@@ -145,7 +145,7 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'stock-search',
 					id: 'stock-search-2',
-					name: 'MCD',
+					name: 'DE0005658009',
 					key: key
 				});
 				break;
@@ -183,7 +183,7 @@ socket.on('connect', function() {
 				});
 				break;
 			case 'stock-buy':
-				assert.equal(data.code, 'stock-buy-success');
+				assert.ok(data.code == 'stock-buy-success' || data.code == 'stock-buy-over-pieces-limit');
 				emit('query', {
 					type: 'list-own-depot',
 					id: 'list-own-depot',
@@ -214,7 +214,7 @@ socket.on('connect', function() {
 				});
 				break;
 			case 'stock-sell-1':
-				assert.equal(data.code, 'stock-buy-success');
+				assert.ok(data.code == 'stock-buy-success' || data.code == 'stock-buy-over-pieces-limit' || data.code == 'stock-buy-not-enough-stocks');
 				emit('query', {
 					type: 'stock-buy',
 					id: 'stock-sell-2',

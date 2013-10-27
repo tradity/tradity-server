@@ -142,11 +142,9 @@ StocksDB.prototype.updateRecord = function(rec) {
 	if (rec.lastTradePrice == 0) // happens with API sometimes.
 		return;
 	
-	this.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange) VALUES '+
-		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?) ON DUPLICATE KEY ' +
-		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) > LENGTH(?), name, ?), exchange = ?',
-		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange,
-		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange], function() {
+	this.query('REPLACE INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange, ask_pieces, bid_pieces) VALUES '+
+		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?, ?)'
+		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.ask_pieces, rec.bid_pieces], function() {
 			this.emit('push', {
 				'type': 'stock-update',
 				'stockid': rec.symbol,
@@ -156,7 +154,9 @@ StocksDB.prototype.updateRecord = function(rec) {
 				'name': rec.name,
 				'leader': null,
 				'leadername': null,
-				'exchange': rec.exchange
+				'exchange': rec.exchange,
+				'ask_pieces': rec.ask_pieces,
+				'bid_pieces': rec.bid_pieces
 			});
 		}
 	);
@@ -193,6 +193,8 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 					'leader': null,
 					'leadername': null,
 					'provision': 0,
+					'ask_pieces': r.ask_pieces,
+					'bid_pieces': r.bid_pieces
 				};
 			}));
 			handleResults(results);
@@ -380,11 +382,19 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0)
 			return cb('stock-buy-out-of-money');
+		this.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
+			[r.name, user.id, r.amount], function(ohr) {
+		var tradedToday = ohr[0].amount || 0;
+		
 		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * this.cfg['maxSinglePaperShare'] && price >= 0)
 			return cb('stock-buy-single-paper-share-exceed');
+		if (Math.abs(amount) + tradedToday > (price >= 0 ? r.ask_pieces : r.bid_pieces))
+			return cb('stock-buy-over-pieces-limit');
+		
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
-
-		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)', [user.id, r.stockid, r.leader, price, query.comment, amount, fee, r.name], function(oh_res) {
+		
+		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)',
+			[user.id, r.stockid, r.leader, price, query.comment, amount, fee, r.name], function(oh_res) {
 		this.feed({
 			'type': 'trade',
 			'targetid':oh_res.insertId,
@@ -416,6 +426,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 				cb('stock-buy-success', fee, tradeID);
 			});
 		}
+		});
 		});
 		});
 		});

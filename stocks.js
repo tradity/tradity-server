@@ -142,9 +142,9 @@ StocksDB.prototype.updateRecord = function(rec) {
 	if (rec.lastTradePrice == 0) // happens with API sometimes.
 		return;
 	
-	this.query('REPLACE INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange, ask_pieces, bid_pieces) VALUES '+
+	this.query('REPLACE INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange, pieces) VALUES '+
 		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?, ?)'
-		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.ask_pieces, rec.bid_pieces], function() {
+		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.pieces], function() {
 			this.emit('push', {
 				'type': 'stock-update',
 				'stockid': rec.symbol,
@@ -155,8 +155,7 @@ StocksDB.prototype.updateRecord = function(rec) {
 				'leader': null,
 				'leadername': null,
 				'exchange': rec.exchange,
-				'ask_pieces': rec.ask_pieces,
-				'bid_pieces': rec.bid_pieces
+				'pieces': rec.pieces
 			});
 		}
 	);
@@ -193,8 +192,7 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 					'leader': null,
 					'leadername': null,
 					'provision': 0,
-					'ask_pieces': r.ask_pieces,
-					'bid_pieces': r.bid_pieces
+					'pieces': r.pieces
 				};
 			}));
 			handleResults(results);
@@ -389,7 +387,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		
 		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * this.cfg['maxSinglePaperShare'] && price >= 0)
 			return cb('stock-buy-single-paper-share-exceed');
-		if (Math.abs(amount) + tradedToday > (price >= 0 ? r.ask_pieces : r.bid_pieces))
+		if (Math.abs(amount) + tradedToday > r.pieces)
 			return cb('stock-buy-over-pieces-limit');
 		
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);

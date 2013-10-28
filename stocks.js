@@ -75,11 +75,7 @@ StocksDB.prototype.updateRanking = function(cb) {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following", id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/(totalvalue) DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue - weekstarttotalvalue DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/(weekstarttotalvalue) DESC', [], function() {
-	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 14*86400', [], function() {
-	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  6*86400', [], function() {
-	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  1*86400', [], function() {
 	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
-	});});});
 	});});});});});
 	
 	});	
@@ -88,6 +84,9 @@ StocksDB.prototype.updateRanking = function(cb) {
 StocksDB.prototype.dailyCallback = function(cb) {
 	cb = cb || function() {};
 
+	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 14*86400', [], function() {
+	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  6*86400', [], function() {
+	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  1*86400', [], function() {
 	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.bid WHERE ds.stockid = s.id', [], function() {	
 	this.query('UPDATE stocks SET daystartvalue = bid', [], function() {
 	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0, daystarttotalvalue = totalvalue', [], function() {
@@ -98,6 +97,7 @@ StocksDB.prototype.dailyCallback = function(cb) {
 	});
 	});
 	});
+	});});});
 }
 
 StocksDB.prototype.weeklyCallback = function(cb) {

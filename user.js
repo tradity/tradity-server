@@ -127,7 +127,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id '+
-		'JOIN schools ON users.school = schools.id WHERE `type` = ?', 
+		'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ?', 
 		[query.rtype], cb);
 }
 

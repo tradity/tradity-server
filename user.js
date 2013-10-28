@@ -361,7 +361,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 				if (res && res.insertId)
 					data.school = res.insertId;
 				
-				var updateCB = function(res) {
+				var updateCB = _.bind(function(res) {
 					if (uid === null)
 						uid = res.insertId;
 
@@ -369,7 +369,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 						cb('reg-success', uid);
 					else
 						this.sendRegisterEmail(data, uid, cb);
-				};
+				}, this);
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {

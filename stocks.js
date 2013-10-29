@@ -73,7 +73,7 @@ StocksDB.prototype.updateRanking = function(cb) {
 	this.query('TRUNCATE TABLE ranking', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",   id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following", id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/(totalvalue) DESC', [], function() {
-	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue - weekstarttotalvalue DESC', [], function() {
+	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue / weekstarttotalvalue DESC', [], function() {
 	this.query('SET @rank := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank := @rank + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/(weekstarttotalvalue) DESC', [], function() {
 	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
 	});});});});});

@@ -273,7 +273,7 @@ UserDB.prototype.deleteUser = function(query, user, access, cb) {
 UserDB.prototype.passwordReset = function(data, user, access, cb) {
 	this.query('SELECT * FROM users WHERE name = ?', [data.name], function(res) {
 		if (res.length == 0)
-			cb('password-reset-notfound');
+			return cb('password-reset-notfound');
 		
 		var u = res[0];
 		assert.ok(u);

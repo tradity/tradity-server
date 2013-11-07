@@ -241,7 +241,6 @@ socket.on('connect', function() {
 				assert.equal(data.result.uid, own_uid);
 				assert.equal(data.result.schoolname, schoolname);
 				assert.ok(data.result.totalvalue);
-				assert.ok(data.result.rank);
 				emit('query', {
 					type: 'get-ranking',
 					id: 'get-ranking',

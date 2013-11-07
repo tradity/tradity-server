@@ -22,6 +22,23 @@ DBSubsystemBase.prototype.query = function(query, data, cb) {
 	this.db.query(query, data, this.queryCallback(cb, query, data));
 }
 
+DBSubsystemBase.prototype.getConnection = function(conncb) {
+	var dbsb = this;
+	this.db.getConnection(function(err, cn) {
+		if (err)
+			this.emit('error', err);
+		conncb({
+			query: function(q, data, cb) {
+				data = data || [];
+				cn.query(q, data, dbsb.queryCallback(cb, q, data));
+			},
+			release: function() {
+				cn.end();
+			}
+		});
+	})
+}
+
 DBSubsystemBase.prototype.queryCallback = function(cb, query, data) {
 	if (!cb)
 		return (function() {});

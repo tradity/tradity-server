@@ -234,7 +234,7 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 }
 
 UserDB.prototype.loadSessionUser = function(key, cb) {
-	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, schools.name AS schoolname FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id LEFT JOIN schools ON schools.id=users.school WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP()', [key], function(res) {
+	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, schools.name AS schoolname FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id LEFT JOIN schools ON schools.id=users.school WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() LIMIT 1', [key], function(res) {
 		if (res.length == 0) {
 			cb(null);
 		} else {
@@ -352,7 +352,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 			else if (res[0].email == data.email)
 				cb('reg-email-already-present');
 			else
-				throw new Error('db returned bad email/name match: ' + [res[0], data]);
+				throw new Error('db returned bad email/name match: ' + [res[0].name, res[0].email, data[0].name, data[0].email, type]);
 			return;
 		}
 		

@@ -33,7 +33,7 @@ DBSubsystemBase.prototype.getConnection = function(conncb) {
 				cn.query(q, data, dbsb.queryCallback(cb, q, data));
 			},
 			release: function() {
-				cn.end();
+				cn.release();
 			}
 		});
 	})

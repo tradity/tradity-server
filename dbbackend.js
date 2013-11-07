@@ -21,7 +21,7 @@ Database.prototype.query = function(query, args, cb) {
 		if (err)
 			return cb(err, null);
 		connection.query(query, args, function() {
-			connection.end();
+			connection.release();
 			cb.apply(this, arguments);
 		});
 	});

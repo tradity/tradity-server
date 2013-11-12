@@ -102,7 +102,7 @@ StocksDB.prototype.dailyCallback = function(cb) {
 }
 
 StocksDB.prototype.weeklyCallback = function(cb) {
-	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0, weekstarttotalvalue = totalvalue', [], function() {
+	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0, weekstarttotalvalue = totalvalue, weekstartprov_recvd = prov_recvd', [], function() {
 	this.query('UPDATE stocks SET weekstartvalue = bid', [], cb);
 	});
 }

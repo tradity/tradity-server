@@ -71,12 +71,13 @@ StocksDB.prototype.updateRanking = function(cb) {
 		'dayoperfcur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
 			
 	this.query('TRUNCATE TABLE ranking', [], function() {
-	this.query('SET @rank1 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",   id, @rank1 := @rank1 + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
+	this.query('SET @rank1 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",   id, @rank1 := @rank1 + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue - prov_recvd DESC', [], function() {
 	this.query('SET @rank2 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following", id, @rank2 := @rank2 + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/(totalvalue) DESC', [], function() {
-	this.query('SET @rank3 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank3 := @rank3 + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue / weekstarttotalvalue DESC', [], function() {
-	this.query('SET @rank4 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank4 := @rank4 + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/(weekstarttotalvalue) DESC', [], function() {
+	this.query('SET @rank3 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-wprov", id, @rank3 := @rank3 + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
+	this.query('SET @rank4 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank4 := @rank4 + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, (totalvalue - prov_recvd) / (weekstarttotalvalue - weekstartprov_recvd) DESC', [], function() {
+	this.query('SET @rank5 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank5 := @rank5 + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/(weekstarttotalvalue) DESC', [], function() {
 	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
-	});});});});});
+	});});});});});});
 	
 	});	
 }

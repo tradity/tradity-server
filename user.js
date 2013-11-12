@@ -121,7 +121,7 @@ UserDB.prototype.logout = function(query, user, access, cb) {
 }
 
 UserDB.prototype.getRanking = function(query, user, access, cb) {	
-	this.query('SELECT rank, uid, users.name AS name, school, schools.name AS schoolname, totalvalue, weekstarttotalvalue, prov_recvd, tradecount != 0 as hastraded, '+
+	this.query('SELECT rank, uid, users.name AS name, school, schools.name AS schoolname, totalvalue, weekstarttotalvalue, weekstartprov_recvd, prov_recvd, tradecount != 0 as hastraded, '+
 		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, '+
 		'(dayfperfcur+totalfperfsold-totalfperfbase)/(totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/(weekstarttotalvalue) AS weekfperfval, ' +
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +

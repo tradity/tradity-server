@@ -40,13 +40,6 @@ afql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
 locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 
-setInterval(eh.wrap(function() {
-	UserDB.regularCallback();
-}), 60 * 1000);
-setInterval(eh.wrap(function() {
-	StocksDB.regularCallback();
-}), 240 * 1000);
-
 function ConnectionData(socket) {
 	this.user = null;
 	this.remoteip = socket.handshake.address.address;
@@ -124,7 +117,7 @@ ConnectionData.prototype.client_prod = function(query, cb) {
 		var starttime = new Date().getTime();
 		UserDB.regularCallback(function() {
 			var userdbtime = new Date().getTime();
-			StocksDB.regularCallback(function() {
+			StocksDB.regularCallback(query, function() {
 				cb('prod-ready', {'utime': userdbtime - starttime, 'stime': new Date().getTime() - userdbtime});
 			});
 		});

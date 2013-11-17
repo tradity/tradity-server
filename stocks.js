@@ -12,13 +12,12 @@ function StocksDB (db, cfg, quoteLoader) {
 	this.cfg = cfg;
 	this.leaderMatrix = null;
 	this.dqueries = null; // filled in by dqueries object when activated
-	this.regularCallbackActive = false;
 	this.stockNeeders = [];
 	
 	var d = new Date();
 	this.lastCallbackDay = d.getUTCHours() >= this.cfg.dailyCallbackHour ? d.getUTCDay() : d.getUTCDay() - 1;
 	
-	this.regularCallback();
+	this.regularCallback({});
 	this.quoteLoader.on('record', _.bind(function(rec) {
 		this.updateRecord(rec);
 	}, this));
@@ -29,19 +28,12 @@ StocksDB.prototype.stocksFilter = function(rec) {
 	return _.chain(this.cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == 'EUR';
 }
 
-StocksDB.prototype.regularCallback = function(cb) {
+StocksDB.prototype.regularCallback = function(query, cb) {
 	cb = cb || function() {};
-	if (this.regularCallbackActive) {
-		this.emit('error', 'Regular callback overlapping in StockDB – might be pretty serious (please restart server)!');
-		return cb();
-	}
 		
-	this.regularCallbackActive = true;
 	var rcbST = new Date().getTime();
 	
-	var xcb = _.bind(function() { 
-		this.regularCallbackActive = false;
-		
+	var xcb = _.bind(function() { 		
 		var rcbET = new Date().getTime();
 		console.log('StocksDB rcb in ' + (rcbET - rcbST) + ' ms');
 		cb();
@@ -50,14 +42,21 @@ StocksDB.prototype.regularCallback = function(cb) {
 	this.cleanUpUnusedStocks(_.bind(function() {
 	this.updateStockValues(_.bind(function() {
 	this.updateLeaderMatrix(_.bind(function() {
-		this.updateRanking();
-		var d = new Date();
-		if (d.getUTCDay() != this.lastCallbackDay && d.getUTCHours() >= this.cfg.dailyCallbackHour) {
-			this.lastCallbackDay = d.getUTCDay();
-			this.dailyCallback(xcb);
-		} else {
-			xcb();
-		}
+		var provcb = _.bind(function() {
+			this.updateRanking();
+			var d = new Date();
+			if (d.getUTCDay() != this.lastCallbackDay && d.getUTCHours() >= this.cfg.dailyCallbackHour) {
+				this.lastCallbackDay = d.getUTCDay();
+				this.dailyCallback(xcb);
+			} else {
+				xcb();
+			}
+		}, this);
+		
+		if (query.provisions)
+			this.updateProvisions(provcb);
+		else
+			provcb();
 	}, this));
 	}, this));
 	}, this));
@@ -216,11 +215,51 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	});
 }
 
+StocksDB.prototype.updateProvisions = function (cb_) {
+	this.locked(['depotstocks'], cb_, function(cb) {
+	
+	this.getConnection(function (conn) {
+	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function() {
+		var max = 'GREATEST(ds.provision_hwm, s.bid)';
+		var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
+		var fees = '(('+Δ+' * l.provision) / 100)';
+		
+		conn.query('SELECT ' +
+			'ds.depotentryid AS dsid, '+fees+' AS fees, '+max+' AS max, '+
+			'f.id AS fid, l.id AS lid '+
+			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
+			'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
+		function(dsr) {
+			if (!dsr.length) return cb();
+			var complete = 0;
+			for (var j = 0; j < dsr.length; ++j) {
+				_.bind(_.partial(function(j) {
+					var dsid = dsr[j].dsid;
+					//console.log('set phwm: ' + dsr[j].max + ', prov: ' + dsr[j].fees + ' for ' + dsid);
+					conn.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
+					conn.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fid], function() {
+					conn.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
+						if (++complete == dsr.length) 
+							conn.query('COMMIT', [], function() {
+								conn.release();
+								cb();
+							});
+					});
+					});
+					});
+				}, j), this)();
+			}
+		});
+	});
+	});
+	});
+}
+
 StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 	this.locked(['depotstocks'], cb_, function(cb) {
 	
 	this.getConnection(function (conn) {
-	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function(users) {
+	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function() {
 	conn.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	conn.query(
 		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, freemoney, prov_recvd FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
@@ -282,7 +321,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 		var Xa = _.pluck(res.X, 1);
 		//console.log(JSON.stringify(A),JSON.stringify(B),JSON.stringify(users_inv),JSON.stringify(X));
 
-		var complete1 = 0, complete2 = 0;
+		var complete = 0;
 		for (var i = 0; i < n; ++i) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i],  null);
@@ -301,36 +340,11 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 					res[0].type = 'stock-update';
 					this.emit('push', res[0]);
 					
-					//console.log(complete1 + ' of ' + n);
-					if (++complete1 == n) {
-						var max = 'GREATEST(ds.provision_hwm, s.bid)';
-						var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
-						var fees = '(('+Δ+' * l.provision) / 100)';
-						
-						conn.query('SELECT ' +
-							'ds.depotentryid AS dsid, '+fees+' AS fees, '+max+' AS max, '+
-							'f.id AS fid, l.id AS lid '+
-							'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
-							'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
-						function(dsr) {
-							if (!dsr.length) return cb();
-							for (var j = 0; j < dsr.length; ++j) {
-								_.bind(_.partial(function(j) {
-									var dsid = dsr[j].dsid;
-									//console.log('set phwm: ' + dsr[j].max + ', prov: ' + dsr[j].fees + ' for ' + dsid);
-									conn.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
-									conn.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fid], function() {
-									conn.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
-										if (++complete2 == dsr.length) 
-											conn.query('COMMIT', [], function() {
-												conn.release();
-												cb();
-											});
-									});
-									});
-									});
-								}, j), this)();
-							}
+					//console.log(complete + ' of ' + n);
+					if (++complete == n) {
+						conn.query('COMMIT', [], function() {
+							conn.release();
+							cb();
 						});
 					}
 				});

@@ -11,6 +11,21 @@ var socket = sio.connect('http://localhost:' + cfg.wsport);
 var authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString();
 var key = '';
 
+var options = process.argv.splice(2);
+
+assert.ok(options.length > 0);
+
+var query = {
+	type: options[0],
+	id: 'server-q-query',
+	authorizationKey: authorizationKey
+};
+
+for (var i = 1; i < options.length; ++i) {
+	var p = options[i].match(/-{0,2}(\w+)=(\S*)/);
+	query[p[1]] = p[2];
+}
+
 socket.on('connect', function() {	
 	var emit = function (e, d) { console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('response', function (data) {
@@ -18,12 +33,7 @@ socket.on('connect', function() {
 		process.exit(0);
 	});
 	
-	emit('query', {
-		type: 'stock-search',
-		id: 'stock-search-query',
-		name: process.argv[2],
-		authorizationKey: authorizationKey
-	});
+	emit('query', query);
 });
 
 })();

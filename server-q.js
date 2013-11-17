@@ -27,9 +27,9 @@ for (var i = 1; i < options.length; ++i) {
 }
 
 socket.on('connect', function() {	
-	var emit = function (e, d) { console.log('outgoing', e, d); socket.emit(e, d); }
+	var emit = function (e, d) { query.quiet || console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('response', function (data) {
-		console.log('incoming/response', data);
+		query.quiet || console.log('incoming/response', data);
 		process.exit(0);
 	});
 	

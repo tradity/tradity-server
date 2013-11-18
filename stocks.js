@@ -15,7 +15,6 @@ function StocksDB (db, cfg, quoteLoader) {
 	this.stockNeeders = [];
 	
 	var d = new Date();
-	this.lastCallbackDay = d.getUTCHours() >= this.cfg.dailyCallbackHour ? d.getUTCDay() : d.getUTCDay() - 1;
 	
 	this.regularCallback({});
 	this.quoteLoader.on('record', _.bind(function(rec) {
@@ -44,9 +43,12 @@ StocksDB.prototype.regularCallback = function(query, cb) {
 	this.updateLeaderMatrix(_.bind(function() {
 		var provcb = _.bind(function() {
 			this.updateRanking();
-			var d = new Date();
-			if (d.getUTCDay() != this.lastCallbackDay && d.getUTCHours() >= this.cfg.dailyCallbackHour) {
-				this.lastCallbackDay = d.getUTCDay();
+			
+			if (query.weekly) {
+				this.weeklyCallback(_.bind(function() {
+					this.dailyCallback(xcb);
+				}, this));
+			} if (query.daily) {
 				this.dailyCallback(xcb);
 			} else {
 				xcb();
@@ -89,12 +91,7 @@ StocksDB.prototype.dailyCallback = function(cb) {
 	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  1*86400', [], function() {
 	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.bid WHERE ds.stockid = s.id', [], function() {	
 	this.query('UPDATE stocks SET daystartvalue = bid', [], function() {
-	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0, daystarttotalvalue = totalvalue', [], function() {
-	if (new Date().getUTCDay() == this.cfg.weeklyCallbackDay)
-		this.weeklyCallback(cb);
-	else
-		cb();
-	});
+	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0, daystarttotalvalue = totalvalue', [], cb);
 	});
 	});
 	});});});
@@ -215,17 +212,18 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	});
 }
 
+var provMax = 'GREATEST(ds.provision_hwm, s.bid)';
+var provΔ = '(('+provMax+' - ds.provision_hwm) * ds.amount)';
+var provFees = '(('+provΔ+' * l.provision) / 100)';
+
 StocksDB.prototype.updateProvisions = function (cb_) {
 	this.locked(['depotstocks'], cb_, function(cb) {
 	
 	this.getConnection(function (conn) {
 	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function() {
-		var max = 'GREATEST(ds.provision_hwm, s.bid)';
-		var Δ = '(('+max+' - ds.provision_hwm) * ds.amount)';
-		var fees = '(('+Δ+' * l.provision) / 100)';
 		
 		conn.query('SELECT ' +
-			'ds.depotentryid AS dsid, '+fees+' AS fees, '+max+' AS max, '+
+			'ds.depotentryid AS dsid, '+provFees+' AS fees, '+provMax+' AS max, '+
 			'f.id AS fid, l.id AS lid '+
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
 			'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
@@ -380,7 +378,14 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	
-	this.query('SELECT s.*, SUM(ds.amount) AS amount FROM stocks AS s LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
+	this.query('SELECT s.*, '+
+		'SUM(ds.amount) AS amount, '+
+		'AVG(s.bid - ds.provision_hwm) AS hwmdiff, '+
+		'l.id AS lid, l.provision AS lprovision '+
+		'FROM stocks AS s '+
+		'LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id '+
+		'LEFT JOIN users AS l ON s.leader = l.id AND ds.userid != l.id '+
+		'WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0)
 			return cb('stock-buy-stock-not-found');
 		var r = res[0];
@@ -413,6 +418,13 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			return cb('stock-buy-single-paper-share-exceed');
 		if (Math.abs(amount) + tradedToday > r.pieces)
 			return cb('stock-buy-over-pieces-limit');
+		
+		if (price <= 0 && r.hwmdiff && r.hwmdiff > 0 && r.lid) {
+			var provPay = hwmdiff * -r.amount * r.lprovision / 100.0;
+			this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [provPay, provPay, user.id], function() {
+				this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [provPay, provPay, provPay, r.lid]);
+			});
+		}
 		
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 		

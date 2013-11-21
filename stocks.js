@@ -420,7 +420,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			return cb('stock-buy-over-pieces-limit');
 		
 		if (price <= 0 && r.hwmdiff && r.hwmdiff > 0 && r.lid) {
-			var provPay = hwmdiff * -r.amount * r.lprovision / 100.0;
+			var provPay = r.hwmdiff * -r.amount * r.lprovision / 100.0;
 			this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [provPay, provPay, user.id], function() {
 				this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [provPay, provPay, provPay, r.lid]);
 			});

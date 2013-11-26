@@ -329,10 +329,11 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			assert.equal(X[i],  X[i]); // If you don't understand this, search the www for good JS books and buy one.
 			assert.equal(Xa[i], Xa[i]);
 			
-			var lv  = Math.max(X[i]  / 100, 10000);
+			var lv  = X[i];
 			var lva = Math.max(Xa[i] / 100, 10000);
 			//console.log('set lv: User ' + users[i] + ' (' + i + '): X[i] = ' + X[i] + ', pr[i] = ' + prov_recvd[i] + ', lv = ' + lv);
-			conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [(lv + lva)/2.0, lva, lv, users[i]], function() {
+			conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?'
+				[(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, users[i]], function() {
 			conn.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_recvd[i], users[i]], function() {
 				conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], function(res) {
@@ -407,7 +408,6 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var ta_value = amount > 0 ? r.ask : r.bid;
 		
 		assert.ok(r.ask >= 0);
-		assert.ok(r.bid >= 0);
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
 		this.query('SELECT freemoney, totalvalue FROM users WHERE id = ?', [user.id], function(ures) {
@@ -424,9 +424,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		if (Math.abs(amount) + tradedToday > r.pieces)
 			return cb('stock-buy-over-pieces-limit');
 		
-		if (price <= 0 && r.hwmdiff && r.hwmdiff > 0 && r.lid) {
+		if (amount <= 0 && r.hwmdiff && r.hwmdiff > 0 && r.lid) {
 			var provPay = r.hwmdiff * -amount * r.lprovision / 100.0;
-			assert.ok(amount <= 0);
 			assert.ok(provPay >= 0);
 			
 			this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [provPay, provPay, user.id], function() {
@@ -448,7 +447,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var tradeID = oh_res.insertId;
 		
 		var perfn = r.leader ? 'fperf' : 'operf';
-		var perfv = price >= 0 ? 'base' : 'sold';
+		var perfv = amount >= 0 ? 'base' : 'sold';
 		var perfdf = 'day' + perfn + perfv;
 		var perfwf = 'week' + perfn + perfv;
 		var perftf = 'total' + perfn + perfv;

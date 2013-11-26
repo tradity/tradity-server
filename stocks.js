@@ -329,7 +329,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			assert.equal(X[i],  X[i]); // If you don't understand this, search the www for good JS books and buy one.
 			assert.equal(Xa[i], Xa[i]);
 			
-			var lv  = X[i];
+			var lv  = X[i] / 100;
 			var lva = Math.max(Xa[i] / 100, 10000);
 			//console.log('set lv: User ' + users[i] + ' (' + i + '): X[i] = ' + X[i] + ', pr[i] = ' + prov_recvd[i] + ', lv = ' + lv);
 			conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?',

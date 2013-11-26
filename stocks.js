@@ -332,7 +332,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			var lv  = X[i];
 			var lva = Math.max(Xa[i] / 100, 10000);
 			//console.log('set lv: User ' + users[i] + ' (' + i + '): X[i] = ' + X[i] + ', pr[i] = ' + prov_recvd[i] + ', lv = ' + lv);
-			conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?'
+			conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?',
 				[(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, users[i]], function() {
 			conn.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_recvd[i], users[i]], function() {
 				conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',

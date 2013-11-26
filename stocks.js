@@ -232,6 +232,8 @@ StocksDB.prototype.updateProvisions = function (cb_) {
 			var complete = 0;
 			for (var j = 0; j < dsr.length; ++j) {
 				_.bind(_.partial(function(j) {
+					assert.ok(dsr[j].fees >= 0);
+					
 					var dsid = dsr[j].dsid;
 					//console.log('set phwm: ' + dsr[j].max + ', prov: ' + dsr[j].fees + ' for ' + dsid);
 					conn.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
@@ -421,6 +423,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		
 		if (price <= 0 && r.hwmdiff && r.hwmdiff > 0 && r.lid) {
 			var provPay = r.hwmdiff * -r.amount * r.lprovision / 100.0;
+			assert.ok(provPay >= 0);
+			
 			this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [provPay, provPay, user.id], function() {
 				this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [provPay, provPay, provPay, r.lid]);
 			});

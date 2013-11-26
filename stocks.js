@@ -406,6 +406,9 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		
 		var ta_value = amount > 0 ? r.ask : r.bid;
 		
+		assert.ok(r.ask >= 0);
+		assert.ok(r.bid >= 0);
+		
 		// re-fetch freemoney because the 'user' object might come from dquery
 		this.query('SELECT freemoney, totalvalue FROM users WHERE id = ?', [user.id], function(ures) {
 		assert.equal(ures.length, 1);
@@ -422,7 +425,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			return cb('stock-buy-over-pieces-limit');
 		
 		if (price <= 0 && r.hwmdiff && r.hwmdiff > 0 && r.lid) {
-			var provPay = r.hwmdiff * -r.amount * r.lprovision / 100.0;
+			var provPay = r.hwmdiff * -amount * r.lprovision / 100.0;
+			assert.ok(amount <= 0);
 			assert.ok(provPay >= 0);
 			
 			this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [provPay, provPay, user.id], function() {

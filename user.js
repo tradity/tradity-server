@@ -260,12 +260,31 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 	this.updateUser(query, 'change', user, access, cb);
 }
 
-UserDB.prototype.deleteUser = function(query, user, access, cb) {
-	this.query('DELETE FROM sessions WHERE uid = ?', [user.id], function() {
-	this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [user.id, user.id], function() {
-	this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", provision=0, street="", zipcode="", town="", traderse=0, tradersp=0, traditye=0, wot=0, deletiontime = UNIX_TIMESTAMP()' +
-	'WHERE id = ?', [user.id, user.id], function() {
-		cb('delete-user-success');
+UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
+	assert.ok(user);
+	assert.ok(access);
+	
+	this.locked(['userdb', 'depotstocks'], cb_, function(cb) {
+	this.query('DELETE FROM ranking WHERE uid = ?', [user.uid], function() {
+	this.query('DELETE FROM depot_stocks WHERE userid = ?', [user.uid], function() {
+	this.query('UPDATE users SET freemoney = 1000000000, totalvalue = 1000000000, ' +
+		'dayfperfbase = 0, dayfperfcur = 0, dayfperfsold = 0, ' + 
+		'weekfperfbase = 0, weekfperfsold = 0, ' + 
+		'totalfperfbase = 0, totalfperfsold = 0, ' + 
+		'dayoperfbase = 0, dayoperfcur = 0, dayoperfsold = 0, ' + 
+		'weekoperfbase = 0, weekoperfsold = 0, ' + 
+		'totaloperfbase = 0, totaloperfsold = 0, ' + 
+		'daystarttotalvalue = 1000000000, weekstarttotalvalue = 1000000000, '+
+		'weekstartprov_recvd = 0, prov_recvd = 0 ' + 
+		'WHERE id = ?', [user.uid], function() {
+		sdb.sellAll(query, user, access, _.bind(function() {
+			this.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
+				'daystartvalue = 10000000, weekstartvalue = 10000000, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [user.uid], function() {
+				this.feed({'type': 'user-reset', 'targetid': user.uid, 'srcuser': user.uid});
+				cb('reset-user-success');
+			});
+		}, this));
+	});
 	});
 	});
 	});

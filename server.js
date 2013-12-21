@@ -158,9 +158,11 @@ ConnectionData.prototype.client_logout = _login(function(query, cb) {
 	}, this));
 })
 
-ConnectionData.prototype.client_delete_user = _login(function(query, cb) {
-	UserDB.deleteUser(query, this.user, this.access, _.bind(function(code) {
-		cb(code);
+ConnectionData.prototype.client_reset_user = _login(function(query, cb) {
+	UserDB.resetUser(query, this.user, this.access, StocksDB, _.bind(function(code) {
+		dqDB.resetUser(query, this.user, this.access, _.bind(function() {
+			cb(code);
+		}), this);
 	}, this));
 })
 

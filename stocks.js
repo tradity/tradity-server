@@ -374,10 +374,32 @@ StocksDB.prototype.stockExchangeIsOpen = function(sxname) {
 	return now.getTime() >= opentime && now.getTime() < closetime && _.indexOf(sxdata.days, now.getUTCDay()) != -1;
 }
 
+StocksDB.prototype.sellAll = function(query, user, access, cb) {
+	/* assume lock already present */
+	this.query('SELECT s.*, ds.* FROM stocks AS s JOIN depot_stocks AS ds ON ds.stockid = s.id WHERE s.leader = ?', [user.id], function(res) {
+		if (res.length == 0)
+			return cb();
+		
+		var complete = 0;
+		for (var i = 0; i < res.length; ++i) {
+			var depotentry = res[i];
+			this.buyStock({
+				override_unlocked__: true,
+				amount: -depotentry.amount,
+				leader: user.id,
+				comment: 'automatic sell: user reset'
+			}, {id: depotentry.userid}, access, function() {
+				if (++complete == res.length) 
+					cb();
+			});
+		}
+	});
+};
+
 StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 	assert.ok(user);
 	assert.ok(access);
-	this.locked(['depotstocks'], cb_, function(cb) {	
+	this.locked(query.override_unlocked__ ? [] : ['depotstocks'], cb_, function(cb) {	
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	

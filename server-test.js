@@ -250,7 +250,6 @@ socket.on('connect', function() {
 				break;
 			case 'get-ranking':
 				assert.equal(data.code, 'get-ranking-success');
-				assert.ok(data.result.length > 0);
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',
@@ -268,32 +267,15 @@ socket.on('connect', function() {
 				});
 				break;
 			case 'dquery':
+				assert.equal(data.code, 'dquery-success');
 				setTimeout(function() {
-				emit('query', {
-					type: 'delete-user',
-					id: 'delete-user',
-					key: key
-				});
-				}, 2000);
-				break;
-			case 'delete-user':
-				assert.equal(data.code, 'delete-user-success');
-				emit('query', {
-					type: 'login',
-					id: 'login-3',
-					name: email,
-					pw: password,
-					stayloggedin: true
-				});
-				break;
-			case 'login-3':
-				assert.equal(data.code, 'login-badname');
 				emit('query', {
 					type: 'prod',
 					id: 'prod-2',
 					authorizationKey: authorizationKey,
 					uid: own_uid
 				});
+				}, 2000);
 				break;
 			case 'prod-2':
 				assert.equal(data.code, 'prod-ready');
@@ -304,6 +286,7 @@ socket.on('connect', function() {
 				break;
 			case 'ping':
 				assert.equal(data.code, 'pong');
+				assert.equal(data.uid, null);
 				emit('query', {
 					type: 'get-config',
 					id: 'get-config'
@@ -313,6 +296,15 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'get-config-success');
 				assert.ok(data.config);
 				assert.ok(data.config.normalLoginTime);
+				emit('query', {
+					type: 'reset-user',
+					id: 'reset-user',
+					authorizationKey: authorizationKey,
+					uid: own_uid
+				});
+				break;
+			case 'reset-user':
+				assert.equal(data.code, 'reset-user-success');
 				console.log('Thank you for watching, please subscribe to my channel to view other tests');
 				process.exit(0);
 		}

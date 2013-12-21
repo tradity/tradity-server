@@ -29,14 +29,14 @@ function DelayedQueriesDB (db, config, stocksdb) {
 	}, this));
 	
 	this.loadDelayedQueries();
-}
+};
 util.inherits(DelayedQueriesDB, require('./objects.js').DBSubsystemBase);
 
 DelayedQueriesDB.prototype.getNeededStocks = function() {
 	return _.chain(this.neededStocks).keys().map(function(id) {
 		return id.substr(2);
 	}).value();
-}
+};
 
 DelayedQueriesDB.prototype.checkAndExecute = function(query) {
 	query.check(_.bind(function(condmatch) {
@@ -44,7 +44,7 @@ DelayedQueriesDB.prototype.checkAndExecute = function(query) {
 			return;
 		this.executeQuery(query);
 	}, this));
-}
+};
 
 DelayedQueriesDB.prototype.loadDelayedQueries = function() {
 	this.query('SELECT * FROM dqueries', [], function(r) {
@@ -55,7 +55,7 @@ DelayedQueriesDB.prototype.loadDelayedQueries = function() {
 			this.addQuery(res);
 		},this));
 	});
-}
+};
 
 DelayedQueriesDB.prototype.listDelayQueries = function(query, user, access, cb) {
 	cb('dquery-list-success', {
@@ -64,7 +64,7 @@ DelayedQueriesDB.prototype.listDelayQueries = function(query, user, access, cb) 
 			.map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
 			.value())
 	});
-}
+};
 
 DelayedQueriesDB.prototype.removeQueryUser = function(query, user, access, cb) {
 	var queryid = query.queryid;
@@ -74,7 +74,7 @@ DelayedQueriesDB.prototype.removeQueryUser = function(query, user, access, cb) {
 	} else {
 		cb('dquery-remove-notfound');
 	}
-}
+};
 
 DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
 	cb = cb || function() {};
@@ -99,7 +99,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
 		cb('dquery-success', {'queryid': query.queryid});
 		this.addQuery(query);
 	});
-}
+};
 
 DelayedQueriesDB.prototype.addQuery = function(query) {		
 	var cond = this.parseCondition(query.condition);
@@ -110,7 +110,7 @@ DelayedQueriesDB.prototype.addQuery = function(query) {
 	this.queries[entryid] = query;
 	_.each(query.neededStocks, _.bind(this.addNeededStock,this,query.queryid));
 	this.checkAndExecute(query);
-}
+};
 
 DelayedQueriesDB.prototype.addNeededStock = function(queryid, stock) {
 	if (this.neededStocks['s-'+stock]) {
@@ -119,7 +119,7 @@ DelayedQueriesDB.prototype.addNeededStock = function(queryid, stock) {
 	} else {
 		this.neededStocks['s-'+stock] = [queryid];
 	}
-}
+};
 
 DelayedQueriesDB.prototype.parseCondition = function(str) {
 	var clauses = str.split('∧');
@@ -186,7 +186,7 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 			});
 		});
 	}, neededStocks: stocks};
-}
+};
 
 DelayedQueriesDB.prototype.executeQuery = function(query) {
 	var e = this.queryTypes[query.query.type];
@@ -199,7 +199,7 @@ DelayedQueriesDB.prototype.executeQuery = function(query) {
 			this.removeQuery(query);
 		}
 	}, this));
-}
+};
 
 DelayedQueriesDB.prototype.removeQuery = function(query) {
 	this.query('DELETE FROM dqueries WHERE queryid = ?', [query.queryid], function() {
@@ -210,7 +210,21 @@ DelayedQueriesDB.prototype.removeQuery = function(query) {
 				delete this.neededStocks['s-'+stock];
 		}, this));
 	});
-}
+};
+
+DelayedQueriesDB.prototype.resetUser = function(query, user, access, cb) {
+	var toBeDeleted = [];
+	for (var queryid in this.queries) {
+		var q = this.queries[queryid];
+		if (q.userinfo.id == user.id || (q.query.leader == user.id))
+			toBeDeleted.push(q);
+	}
+	
+	for (var i = 0; i < toBeDeleted.length; ++i)
+		this.removeQuery(toBeDeleted[i]);
+	
+	cb();
+};
 
 exports.DelayedQueriesDB = DelayedQueriesDB;
 })();

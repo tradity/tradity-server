@@ -245,7 +245,9 @@ socket.on('connect', function() {
 					type: 'get-ranking',
 					id: 'get-ranking',
 					rtype: 'general',
-					key: key
+					key: key,
+					startindex: 0,
+					endindex: 20000000
 				});
 				break;
 			case 'get-ranking':

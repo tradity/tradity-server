@@ -120,7 +120,9 @@ UserDB.prototype.logout = function(query, user, access, cb) {
 	cb('logout-success');
 }
 
-UserDB.prototype.getRanking = function(query, user, access, cb) {	
+UserDB.prototype.getRanking = function(query, user, access, cb) {
+	query.startindex = query.startindex || 0;
+	query.endindex = query.endindex || (1 << 20);
 	this.query('SELECT rank, uid, users.name AS name, school, schools.name AS schoolname, totalvalue, weekstarttotalvalue, weekstartprov_recvd, prov_recvd, tradecount != 0 as hastraded, '+
 		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, '+
 		'(dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) AS weekfperfval, ' +
@@ -128,8 +130,8 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
 		'FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id '+
-		'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ?', 
-		[query.rtype], cb);
+		'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ? LIMIT ?, ?', 
+		[query.rtype, query.startindex, query.endindex - query.startindex], cb);
 }
 
 UserDB.prototype.getUserInfo = function(query, user, access, cb) {

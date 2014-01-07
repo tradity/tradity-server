@@ -130,7 +130,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
 		'FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id '+
-		'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ? LIMIT ?, ?', 
+		'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ? ORDER BY rank ASC LIMIT ?, ?', 
 		[query.rtype, query.startindex, query.endindex - query.startindex], function(res) {
 		this.query('SELECT COUNT(*) AS c FROM ranking WHERE `type` = ?', [query.rtype], function(cr) {
 			assert.equal(cr.length, 1);

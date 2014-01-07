@@ -131,7 +131,12 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 		'FROM ranking ' +
 		'JOIN users ON ranking.uid = users.id '+
 		'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ? LIMIT ?, ?', 
-		[query.rtype, query.startindex, query.endindex - query.startindex], cb);
+		[query.rtype, query.startindex, query.endindex - query.startindex], function(res) {
+		this.query('SELECT COUNT(*) AS c FROM ranking WHERE `type` = ?', [query.rtype], function(cr) {
+			assert.equal(cr.length, 1);
+			cb(res, cr[0].c);
+		});
+	});
 }
 
 UserDB.prototype.getUserInfo = function(query, user, access, cb) {

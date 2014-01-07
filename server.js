@@ -74,8 +74,8 @@ function _login (f) { return function(query, cb) {
 }}
 
 ConnectionData.prototype.client_get_ranking = _login(function(query, cb) {
-	UserDB.getRanking(query, this.user, this.access, _.bind(function(results) {
-		cb('get-ranking-success', {'result': results});
+	UserDB.getRanking(query, this.user, this.access, _.bind(function(results, count) {
+		cb('get-ranking-success', {'result': results, 'count': count});
 	}, this));
 })
 

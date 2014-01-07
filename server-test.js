@@ -252,6 +252,7 @@ socket.on('connect', function() {
 				break;
 			case 'get-ranking':
 				assert.equal(data.code, 'get-ranking-success');
+				assert.ok(data.count > 0);
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',

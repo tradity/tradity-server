@@ -243,16 +243,27 @@ socket.on('connect', function() {
 				assert.ok(data.result.totalvalue);
 				emit('query', {
 					type: 'get-ranking',
-					id: 'get-ranking',
+					id: 'get-ranking-1',
 					rtype: 'general',
 					key: key,
 					startindex: 0,
 					endindex: 20000000
 				});
 				break;
-			case 'get-ranking':
+			case 'get-ranking-1':
 				assert.equal(data.code, 'get-ranking-success');
 				assert.ok(data.count > 0);
+				emit('query', {
+					type: 'get-ranking',
+					id: 'get-ranking-2',
+					rtype: 'general',
+					key: key,
+					search: t
+				});
+				break;
+			case 'get-ranking-2':
+				assert.equal(data.code, 'get-ranking-success');
+				assert.equal(data.count, 1);
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',

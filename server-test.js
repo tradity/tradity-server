@@ -178,7 +178,6 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'CA7500801039',
 					leader: null,
-					comment: 'There is no spoon',
 					forceNow: true
 				});
 				break;
@@ -209,7 +208,6 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'CA7500801039',
 					leader: null,
-					comment: 'There is no spoon',
 					forceNow: true
 				});
 				break;
@@ -223,7 +221,6 @@ socket.on('connect', function() {
 					value: null,
 					stockid: 'CA7500801039',
 					leader: null,
-					comment: 'There is no spoon',
 					forceNow: true
 				});
 				break;
@@ -275,7 +272,6 @@ socket.on('connect', function() {
 						value: null,
 						stockid: 'DE000A1EWWW0',
 						leader: null,
-						comment: 'There was no spoon'
 					},
 					key: key,
 				});

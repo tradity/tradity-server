@@ -120,9 +120,9 @@ UserDB.prototype.logout = function(query, user, access, cb) {
 	cb('logout-success');
 }
 
-UserDB.prototype.getRanking = function(query, user, access, cb) {
-	query.startindex = query.startindex || 0;
-	query.endindex = query.endindex || (1 << 20);
+UserDB.prototype.getRanking = function(query, user, access, cb_) {
+	query.startindex = parseInt(query.startindex) || 0;
+	query.endindex = parseInt(query.endindex) || (1 << 20);
 	
 	var likestring = query.search;
 	var likestringWhere = '';
@@ -133,20 +133,23 @@ UserDB.prototype.getRanking = function(query, user, access, cb) {
 		likestringUnit = [likestring];
 	}
 	
-	this.query('SELECT rank, uid, users.name AS name, school, schools.name AS schoolname, totalvalue, weekstarttotalvalue, weekstartprov_recvd, prov_recvd, tradecount != 0 as hastraded, '+
-		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, '+
-		'(dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) AS weekfperfval, ' +
-		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
-		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
-		'FROM ranking ' +
-		'JOIN users ON ranking.uid = users.id '+
-		'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ? '+
-		likestringWhere+
-		'ORDER BY rank ASC LIMIT ?, ?', 
-		[query.rtype].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(res) {
-		this.query('SELECT COUNT(*) AS c FROM ranking JOIN users ON ranking.uid = users.id WHERE `type` = ? ' + likestringWhere, [query.rtype].concat(likestringUnit), function(cr) {
-			assert.equal(cr.length, 1);
-			cb(res, cr[0].c);
+	this.locked(['ranking'], cb_, function(cb) {
+		this.query('SELECT rank, uid, users.name AS name, school, schools.name AS schoolname, totalvalue, weekstarttotalvalue, ' +
+			'weekstartprov_sum, wprov_sum + lprov_sum AS prov_sum, tradecount != 0 as hastraded, '+
+			'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, '+
+			'(dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) AS weekfperfval, ' +
+			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
+			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
+			'FROM ranking ' +
+			'JOIN users ON ranking.uid = users.id '+
+			'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ? '+
+			likestringWhere+
+			'ORDER BY rank ASC LIMIT ?, ?', 
+			[query.rtype].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(res) {
+			this.query('SELECT COUNT(*) AS c FROM ranking JOIN users ON ranking.uid = users.id WHERE `type` = ? ' + likestringWhere, [query.rtype].concat(likestringUnit), function(cr) {
+				assert.equal(cr.length, 1);
+				cb(res, cr[0].c);
+			});
 		});
 	});
 }
@@ -160,18 +163,18 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
 		'birthday', 'schools.id AS schoolid', 'schools.name AS schoolname',
-		'`desc`', 'provision', 'totalvalue', 'rank', 'delayorderhist',
+		'`desc`', 'wprovision', 'lprovision', 'totalvalue', 'rank', 'delayorderhist',
 		'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
 		'url AS profilepic', 'eventid AS registerevent',
 		'(dayfperfcur+dayfperfsold) / dayfperfbase AS dayfperf', '(dayoperfcur+dayoperfsold) / dayoperfbase AS dayoperf',
 		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf', '(dayoperfcur+weekoperfsold) / weekoperfbase AS weekoperf',
 		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf',
-		'freemoney', 'prov_recvd', 'weekstarttotalvalue', 'daystarttotalvalue'
+		'freemoney', 'wprov_sum + lprov_sum AS prov_sum', 'weekstarttotalvalue', 'daystarttotalvalue'
 	].join(', ');
 	
 	this.query('SELECT ' + columns + ' FROM users '+
 		'LEFT JOIN schools ON users.school = schools.id '+
-		'LEFT JOIN ranking ON users.id = ranking.uid '+
+		'LEFT JOIN ranking ON users.id = ranking.uid '+ // note: this ignores the ranking lock!
 		'LEFT JOIN stocks ON users.id = stocks.leader '+
 		'LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" '+
 		'LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" '+
@@ -254,6 +257,7 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 }
 
 UserDB.prototype.loadSessionUser = function(key, cb) {
+	// ignores ranking lock
 	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, schools.name AS schoolname FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id LEFT JOIN schools ON schools.id=users.school WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() LIMIT 1', [key], function(res) {
 		if (res.length == 0) {
 			cb(null);
@@ -284,7 +288,7 @@ UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
 	assert.ok(access);
 	
 	this.locked(['userdb', 'depotstocks'], cb_, function(cb) {
-	this.query('DELETE FROM ranking WHERE uid = ?', [user.uid], function() {
+	this.query('DELETE FROM ranking WHERE uid = ?', [user.uid], function() { // ignores ranking lock – won’t be too bad
 	this.query('DELETE FROM depot_stocks WHERE userid = ?', [user.uid], function() {
 	this.query('UPDATE users SET freemoney = 1000000000, totalvalue = 1000000000, ' +
 		'dayfperfbase = 0, dayfperfcur = 0, dayfperfsold = 0, ' + 
@@ -294,7 +298,7 @@ UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
 		'weekoperfbase = 0, weekoperfsold = 0, ' + 
 		'totaloperfbase = 0, totaloperfsold = 0, ' + 
 		'daystarttotalvalue = 1000000000, weekstarttotalvalue = 1000000000, '+
-		'weekstartprov_recvd = 0, prov_recvd = 0 ' + 
+		'weekstartprov_sum = 0, wprov_sum = 0, lprov_sum = 0 ' + 
 		'WHERE id = ?', [user.uid], function() {
 		sdb.sellAll(query, user, access, _.bind(function() {
 			this.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
@@ -362,14 +366,11 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 		return;
 	}
 	
-	if (!data.provision) {
-		data.provision = 15;
-	}
+	data.wprovision = data.wprovision || 15;
+	data.lprovision = data.lprovision || 0;
 	
-	if (data.provision < 5 || data.provision > 30) {
-		cb('format-error');
-		return;
-	}
+	if (data.wprovision < 5 || data.wprovision > 30 || data.lprovision < 0 || data.lprovision > 100) 
+		return cb('invalid-provision');
 	
 	if (!data.school) // e. g., empty string
 		data.school = null;
@@ -413,9 +414,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, school = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, `desc` = ?, provision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, traditye = ?, wot = ? WHERE id = ?',
+						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, traditye = ?, wot = ? '+
+						'WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
-						data.birthday, data.desc, data.provision, data.street, data.zipcode, data.town, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, uid],
+						data.birthday, data.desc, data.wprovision, data.lprovision, data.street, data.zipcode, data.town, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, uid],
 						updateCB);
 						
 						if (data.name != user.name) {
@@ -423,8 +425,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 							this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
 						}
 
-						if (data.provision != user.provision) 
-							this.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json: {'oldprov': user.provision, 'newprov': data.provision}});
+						if (data.wprovision != user.wprovision || data.lprovision != user.lprovision)
+							this.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
+								{'oldwprov': user.wprovision, 'newwprov': data.wprovision,
+								 'oldlprov': user.lprovision, 'newlprov': data.lprovision}});
 					} else {
 						this.locked(['depotstocks'], updateCB, function(cb) {
 							if (data.betakey)

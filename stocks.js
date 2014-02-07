@@ -64,23 +64,28 @@ StocksDB.prototype.regularCallback = function(query, cb) {
 	}, this));
 }
 
-StocksDB.prototype.updateRanking = function(cb) {
-	cb = cb || function() {};
+StocksDB.prototype.updateRanking = function(cb_) {
+	cb_ = cb_ || function() {};
 	
 	this.query('UPDATE users SET '+
 		'dayfperfcur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
 		'dayoperfcur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
-			
+
+	this.locked(['ranking'], _.bind(function() { this.updateValueHistory(cb_); }, this), function(cb) {
 	this.query('TRUNCATE TABLE ranking', [], function() {
-	this.query('SET @rank1 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",   id, @rank1 := @rank1 + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue - prov_recvd DESC', [], function() {
-	this.query('SET @rank2 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following", id, @rank2 := @rank2 + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) DESC', [], function() {
-	this.query('SET @rank3 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-wprov", id, @rank3 := @rank3 + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
-	this.query('SET @rank4 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank4 := @rank4 + 1 FROM users WHERE deletiontime IS NULL ORDER BY tradecount > 0 DESC, (totalvalue - prov_recvd) / (weekstarttotalvalue - weekstartprov_recvd) DESC', [], function() {
-	this.query('SET @rank5 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank5 := @rank5 + 1 FROM users WHERE deletiontime IS NULL AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) DESC', [], function() {
-	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
-	});});});});});});
+	this.query('SET @rank1 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",   id, @rank1 := @rank1 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 ORDER BY tradecount > 0 DESC, totalvalue - wprov_sum - lprov_sum DESC', [], function() {
+	this.query('SET @rank2 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following", id, @rank2 := @rank2 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) DESC', [], function() {
+	this.query('SET @rank3 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-wprov", id, @rank3 := @rank3 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
+	this.query('SET @rank4 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank4 := @rank4 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 ORDER BY tradecount > 0 DESC, (totalvalue - wprov_sum - lprov_sum) / (weekstarttotalvalue - weekstartprov_sum) DESC', [], function() {
+	this.query('SET @rank5 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank5 := @rank5 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) DESC', [], cb);
+	});});});});});
+	});
 	
 	});	
+}
+
+StocksDB.prototype.updateValueHistory = function(cb) {
+	this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
 }
 
 StocksDB.prototype.dailyCallback = function(cb) {
@@ -89,16 +94,14 @@ StocksDB.prototype.dailyCallback = function(cb) {
 	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 14*86400', [], function() {
 	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  6*86400', [], function() {
 	this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  1*86400', [], function() {
-	this.query('UPDATE depot_stocks AS ds, stocks AS s SET ds.provision_hwm = s.bid WHERE ds.stockid = s.id', [], function() {	
 	this.query('UPDATE stocks SET daystartvalue = bid', [], function() {
 	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0, daystarttotalvalue = totalvalue', [], cb);
-	});
 	});
 	});});});
 }
 
 StocksDB.prototype.weeklyCallback = function(cb) {
-	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0, weekstarttotalvalue = totalvalue, weekstartprov_recvd = prov_recvd', [], function() {
+	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0, weekstarttotalvalue = totalvalue, weekstartprov_sum = wprov_sum + lprov_sum', [], function() {
 	this.query('UPDATE stocks SET weekstartvalue = bid', [], cb);
 	});
 }
@@ -179,8 +182,8 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 		lid = leadertest[1];
 	
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
-	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername,provision FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
-	this.query('SELECT *, 0 AS provision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
+	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername,wprovision,lprovision FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
+	this.query('SELECT *, 0 AS wprovision, 0 AS lprovision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
 		var externalSearchResultHandler = _.bind(function(res3) {
 			var results = _.union(res1, _.map(res3, function(r) {
 				return {
@@ -192,7 +195,8 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 					'exchange': r.exchange,
 					'leader': null,
 					'leadername': null,
-					'provision': 0,
+					'wprovision': 0,
+					'lprovision': 0,
 					'pieces': r.pieces
 				};
 			}));
@@ -212,9 +216,12 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	});
 }
 
-var provMax = 'GREATEST(ds.provision_hwm, s.bid)';
-var provΔ = '(('+provMax+' - ds.provision_hwm) * ds.amount)';
-var provFees = '(('+provΔ+' * l.provision) / 100)';
+var wprovMax = 'GREATEST(ds.provision_hwm, s.bid)';
+var wprovΔ = '(('+wprovMax+' - ds.provision_hwm) * ds.amount)';
+var wprovFees = '(('+wprovΔ+' * l.wprovision) / 100)';
+var lprovMin = 'LEAST(ds.provision_lwm, s.bid)';
+var lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
+var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 
 StocksDB.prototype.updateProvisions = function (cb_) {
 	this.locked(['depotstocks'], cb_, function(cb) {
@@ -223,7 +230,9 @@ StocksDB.prototype.updateProvisions = function (cb_) {
 	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function() {
 		
 		conn.query('SELECT ' +
-			'ds.depotentryid AS dsid, '+provFees+' AS fees, '+provMax+' AS max, '+
+			'ds.depotentryid AS dsid, '+
+			wprovFees+' AS wfees, '+wprovMax+' AS wmax, '+
+			lprovFees+' AS lfees, '+lprovMin+' AS lmin, '+
 			'f.id AS fid, l.id AS lid '+
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
 			'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
@@ -232,13 +241,19 @@ StocksDB.prototype.updateProvisions = function (cb_) {
 			var complete = 0;
 			for (var j = 0; j < dsr.length; ++j) {
 				_.bind(_.partial(function(j) {
-					assert.ok(dsr[j].fees >= 0);
+					assert.ok(dsr[j].wfees >= 0);
+					assert.ok(dsr[j].lfees <= 0);
 					
 					var dsid = dsr[j].dsid;
-					//console.log('set phwm: ' + dsr[j].max + ', prov: ' + dsr[j].fees + ' for ' + dsid);
-					conn.query('UPDATE depot_stocks SET provision_hwm = ?,prov_paid = prov_paid + ? WHERE depotentryid = ?', [dsr[j].max, dsr[j].fees, dsr[j].dsid], function() {
-					conn.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fid], function() {
-					conn.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [dsr[j].fees, dsr[j].fees, dsr[j].fees, dsr[j].lid], function() {
+					var totalfees = dsr[j].wfees + dsr[j].lfees;
+					
+					conn.query('UPDATE depot_stocks SET ' +
+						'provision_hwm = ?, wprov_sum = wprov_sum + ? ' +
+						'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
+						'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
+					conn.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalfees, totalfees, dsr[j].fid], function() {
+					conn.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+						[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
 						if (++complete == dsr.length) 
 							conn.query('COMMIT', [], function() {
 								conn.release();
@@ -262,9 +277,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function() {
 	conn.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	conn.query(
-		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, freemoney, prov_recvd FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
+		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, freemoney, users.wprov_sum + users.lprov_sum AS prov_sum FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
 		'ON s.leader IS NULL AND s.id = ds.stockid LEFT JOIN users ON ds.userid = users.id GROUP BY uid ' +
-		'UNION SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, prov_recvd FROM users WHERE (SELECT COUNT(*) FROM depot_stocks WHERE userid=users.id)=0', [], function(res_static) {
+		'UNION SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum FROM users WHERE (SELECT COUNT(*) FROM depot_stocks WHERE userid=users.id)=0', [], function(res_static) {
 	conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
@@ -281,7 +296,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 		});
 		
 		var B = _.map(_.range(n), function() { return [0.0, 0.0]; });
-		var prov_recvd = _.map(_.range(n), function() { return [0.0]; });
+		var prov_sum = _.map(_.range(n), function() { return [0.0]; });
 		
 		for (var k = 0; k < res_static.length; ++k) {
 			var uid = res_static[k].uid;
@@ -294,10 +309,10 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 				res_static[k].valsum = 0;
 			
 			B[users_inv[uid]] = [
-				res_static[k].valsum    + res_static[k].freemoney - res_static[k].prov_recvd,
-				res_static[k].askvalsum + res_static[k].freemoney - res_static[k].prov_recvd
+				res_static[k].valsum    + res_static[k].freemoney - res_static[k].prov_sum,
+				res_static[k].askvalsum + res_static[k].freemoney - res_static[k].prov_sum
 				];
-			prov_recvd[users_inv[uid]] = res_static[k].prov_recvd;
+			prov_sum[users_inv[uid]] = res_static[k].prov_sum;
 		}
 		
 		for (var k = 0; k < res_leader.length; ++k) {
@@ -331,10 +346,10 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			
 			var lv  = X[i] / 100;
 			var lva = Math.max(Xa[i] / 100, 10000);
-			//console.log('set lv: User ' + users[i] + ' (' + i + '): X[i] = ' + X[i] + ', pr[i] = ' + prov_recvd[i] + ', lv = ' + lv);
+			
 			conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?',
 				[(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, users[i]], function() {
-			conn.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_recvd[i], users[i]], function() {
+			conn.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_sum[i], users[i]], function() {
 				conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
 					[users[i]], function(res) {
 					assert.equal(res.length, 1);
@@ -386,8 +401,7 @@ StocksDB.prototype.sellAll = function(query, user, access, cb) {
 			this.buyStock({
 				override_unlocked__: true,
 				amount: -depotentry.amount,
-				leader: user.id,
-				comment: 'automatic sell: user reset'
+				leader: user.id
 			}, {id: depotentry.userid}, access, function() {
 				if (++complete == res.length) 
 					cb();
@@ -406,7 +420,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 	this.query('SELECT s.*, '+
 		'SUM(ds.amount) AS amount, '+
 		'AVG(s.bid - ds.provision_hwm) AS hwmdiff, '+
-		'l.id AS lid, l.provision AS lprovision '+
+		'AVG(s.bid - ds.provision_lwm) AS lwmdiff, '+
+		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision '+
 		'FROM stocks AS s '+
 		'LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id '+
 		'LEFT JOIN users AS l ON s.leader = l.id AND ds.userid != l.id '+
@@ -422,6 +437,9 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			}, user, access);
 			return cb('stock-buy-autodelay-sxnotopen');
 		}
+		
+		if (r.lid && user.email_verif == 0)
+			return cb('stock-buy-email-not-verif');
 		
 		var amount = parseInt(query.amount);
 		if (amount < -r.amount || amount != amount)
@@ -446,19 +464,25 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		if (Math.abs(amount) + tradedToday > r.pieces)
 			return cb('stock-buy-over-pieces-limit');
 		
-		if (amount <= 0 && r.hwmdiff && r.hwmdiff > 0 && r.lid) {
-			var provPay = r.hwmdiff * -amount * r.lprovision / 100.0;
-			assert.ok(provPay >= 0);
+		if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0))) {
+			var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
+			var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
+			assert.ok(r.lid != null);
+			assert.ok(wprovPay >= 0);
+			assert.ok(lprovPay <= 0);
 			
-			this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [provPay, provPay, user.id], function() {
-				this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, prov_recvd = prov_recvd + ? WHERE id = ?', [provPay, provPay, provPay, r.lid]);
+			var totalprovPay = wprovPay + lprovPay;
+			
+			this.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, user.id], function() {
+				this.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid]);
 			});
 		}
 		
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 		
-		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, comment, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)',
-			[user.id, r.stockid, r.leader, price, query.comment, amount, fee, r.name], function(oh_res) {
+		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)',
+			[user.id, r.stockid, r.leader, price, amount, fee, r.name], function(oh_res) {
 		this.feed({
 			'type': 'trade',
 			'targetid':oh_res.insertId,
@@ -480,13 +504,17 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			perftf + '=' + perftf + ' + ABS(?) ' +
 			' WHERE id = ?', [price+fee, fee, price, price, price, user.id], function() {
 		if (r.amount == null) {
-			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, comment) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
-				[user.id, r.id, amount, price, ta_value, query.comment], function() {
+			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?)', 
+				[user.id, r.id, amount, price, ta_value], function() {
 				cb('stock-buy-success', fee, tradeID);
 			});
 		} else {
-			this.query('UPDATE depot_stocks SET amount = amount + ?, buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, comment = ? WHERE userid = ? AND stockid = ?', 
-				[amount, price, query.comment, user.id, r.id], function() {
+			this.query('UPDATE depot_stocks SET ' +
+				'amount = amount + ?, buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
+				'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
+				'provision_lwm = (provision_lwm * amount + ?) / (amount + ?) ' +
+				'WHERE userid = ? AND stockid = ?', 
+				[amount, price, price, amount, price, amount, user.id, r.id], function() {
 				cb('stock-buy-success', fee, tradeID);
 			});
 		}
@@ -499,7 +527,10 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 }
 
 StocksDB.prototype.stocksForUser = function(user, cb) {
-	this.query('SELECT amount, buytime, buymoney, prov_paid, comment, s.stockid AS stockid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
+	this.query('SELECT '+
+		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, '+
+		's.stockid AS stockid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, '+
+		'users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
 		[user.id], cb);
 }

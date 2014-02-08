@@ -10,10 +10,16 @@ Access.fromJSON = function(j) {
 	var a = new Access();
 	if (!j)
 		return a;
-	var p = JSON.parse(j);
+		
+	if (j.trim() == '*') {
+		a.grant('*');
+	} else {
+		var p = JSON.parse(j);
+		
+		for (var i = 0; i < p.length; ++i) 
+			a.grant(p[i]);
+	}
 	
-	for (var i = 0; i < p.length; ++i) 
-		a.grant(p[i]);
 	return a;
 }
 
@@ -34,6 +40,10 @@ Access.prototype.update = function(otherAccess) {
 }
 
 Access.prototype.grant = function(area) {
+	area = area.trim();
+	if (!area)
+		return;
+	
 	if (area == '*')
 		return this.grantAny();
 	

@@ -11,6 +11,7 @@ var crypto = require('crypto');
 
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
+var adm = require('./admin.js');
 var stocks = require('./stocks.js');
 var fsdb = require('./fsdb.js');
 var dqueries = require('./dqueries.js');
@@ -29,11 +30,12 @@ var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportDa
 var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
+var AdminDB = new adm.AdminDB(db, cfg);
 var StocksDB = new stocks.StocksDB(db, cfg, afql);
 var FileStorageDB = new fsdb.FileStorageDB(db, cfg);
 var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
 
-var subsystems = [StocksDB, UserDB, dqDB, FileStorageDB];
+var subsystems = [StocksDB, UserDB, AdminDB, dqDB, FileStorageDB];
 _.each(subsystems, _.bind(function(sys) { sys.on('error', function(e) { eh.err(e); }); }));
 
 afql.on('error', function(e) { eh.err(e); });
@@ -66,18 +68,20 @@ ConnectionData.prototype.client_insertPSEmail = function(query, cb) {
 	}, this));
 }
 
-function _login (f) { return function(query, cb) {
-	if (this.user === null && !this.access.has('login-override'))
-		cb('not-logged-in')
-	else
-		return _.bind(f,this)(query, cb);
-}}
+function _login (f) {
+	return function(query, cb) {
+		if (this.user === null && !this.access.has('login-override'))
+			cb('not-logged-in')
+		else
+			return _.bind(f,this)(query, cb);
+	};
+}
 
 ConnectionData.prototype.client_get_ranking = _login(function(query, cb) {
 	UserDB.getRanking(query, this.user, this.access, _.bind(function(results, count) {
 		cb('get-ranking-success', {'result': results, 'count': count});
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_get_user_info = _login(function(query, cb) {
 	UserDB.getUserInfo(query, this.user, this.access, _.bind(function(user, orders, values, pinboard) {
@@ -86,13 +90,13 @@ ConnectionData.prototype.client_get_user_info = _login(function(query, cb) {
 		else
 			cb('get-user-info-success', {'result': user, 'orders': orders, 'values': values, 'pinboard': pinboard});
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_list_schools = function(query, cb) {
 	UserDB.listSchools(query, this.user, this.access, _.bind(function(results) {
 		cb('list-schools-success', {'result': results});
 	}, this));
-}
+};
 
 ConnectionData.prototype.client_password_reset = function(query, cb) {
 	if (this.user !== null)
@@ -100,7 +104,7 @@ ConnectionData.prototype.client_password_reset = function(query, cb) {
 	else UserDB.passwordReset(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
-}
+};
 
 ConnectionData.prototype.client_register = function(query, cb) {
 	if (this.user !== null)
@@ -108,7 +112,7 @@ ConnectionData.prototype.client_register = function(query, cb) {
 	else UserDB.register(query, this.user, this.access, _.bind(function(code, uid) {
 		cb(code, {'uid': uid});
 	}, this));
-}
+};
 
 ConnectionData.prototype.client_prod = function(query, cb) {
 	if (!this.access || this.access.has('server') == -1) {
@@ -122,33 +126,33 @@ ConnectionData.prototype.client_prod = function(query, cb) {
 			});
 		});
 	}
-}
+};
 
 ConnectionData.prototype.client_get_own_options = _login(function(query, cb) {
 	var r = _.clone(this.user);
 	delete r.pwhash;
 	delete r.pwsalt;
 	cb('own-options-success', {'result': r});
-})
+});
 
 ConnectionData.prototype.client_change_options = _login(function(query, cb) {
 	UserDB.changeOptions(query, this.user, this.access, _.bind(function(code) {
 		cb(code, {'is-reply-to': query.id});
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_emailverif = function(query, cb) {
 	UserDB.emailVerify(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
-}
+};
 
 ConnectionData.prototype.client_login = function(query, cb) {
 	UserDB.login(query, this.user, this.access, this, _.bind(function(code, key) {
 		this.pushEvents();
 		cb(code, {key:key});
 	}, this));
-}
+};
 
 ConnectionData.prototype.client_logout = _login(function(query, cb) {
 	UserDB.logout(query, this.user, this.access, _.bind(function(code, key) {
@@ -156,7 +160,7 @@ ConnectionData.prototype.client_logout = _login(function(query, cb) {
 		this.user = null;
 		this.access = new Access();
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_reset_user = _login(function(query, cb) {
 	UserDB.resetUser(query, this.user, this.access, StocksDB, _.bind(function(code) {
@@ -164,77 +168,131 @@ ConnectionData.prototype.client_reset_user = _login(function(query, cb) {
 			cb(code);
 		}), this);
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_stock_search = _login(function(query, cb) {
 	StocksDB.searchStocks(query, this.user, this.access, _.bind(function(code,results) {
 		cb(code, {'results': results});
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_stock_buy = _login(function(query, cb) {
 	StocksDB.buyStock(query, this.user, this.access, _.bind(function(code, fee, tradeID) {
 		cb(code, fee ? {'fee': fee, 'tradeid': tradeID} : null);
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_comment = _login(function(query, cb) {
 	StocksDB.commentEvent(query, this.user, this.access, cb);
-})
+});
 
 ConnectionData.prototype.client_list_own_depot = _login(function(query, cb) {
 	StocksDB.stocksForUser(this.user, _.bind(function(results) {
 		cb('list-own-depot-success', {'results': results});
 	}, this));
-})
+});
 
 ConnectionData.prototype.client_get_trade_info = _login(function(query, cb) {
 	StocksDB.getTradeInfo(query, this.user, this.access, function(code, trade, comments) {
 		cb(code, trade ? {'trade': trade, 'comments': comments} : null);
 	});
-})
+});
 
 ConnectionData.prototype.client_watchlist_add = _login(function(query, cb) {
 	UserDB.watchlistAdd(query, this.user, this.access, cb);
-})
+});
 
 ConnectionData.prototype.client_watchlist_remove = _login(function(query, cb) {
 	UserDB.watchlistRemove(query, this.user, this.access, cb);
-})
+});
 
 ConnectionData.prototype.client_watchlist_show = _login(function(query, cb) {
 	UserDB.watchlistShow(query, this.user, this.access, function(res) {
 		cb('watchlist-show-success', {'results':res});
 	});
-})
+});
+
+ConnectionData.prototype.client_list_all_users = _login(function(query, cb) {
+	AdminDB.listAllUsers(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code, res);
+	}, this));
+});
+
+ConnectionData.prototype.client_impersonate_user = _login(function(query, cb) {
+	AdminDB.impersonateUser(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_delete_user = _login(function(query, cb) {
+	AdminDB.deleteUser(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_change_user_email = _login(function(query, cb) {
+	AdminDB.changeUserEMail(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_change_comment_text = _login(function(query, cb) {
+	AdminDB.changeCommentText(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_notify_all = _login(function(query, cb) {
+	AdminDB.notifyAll(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_create_school = _login(function(query, cb) {
+	AdminDB.createSchool(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_rename_school = _login(function(query, cb) {
+	AdminDB.renameSchool(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_join_schools = _login(function(query, cb) {
+	AdminDB.joinSchools(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code);
+	}, this));
+});
 
 ConnectionData.prototype.client_ping = function(query, cb) {
 	cb('pong', {'uid': this.user ? this.user.uid : null});
-}
+};
 
 ConnectionData.prototype.client_fetch_events = _login(function(query, cb) {
 	this.fetchEvents(query);
-})
+});
 
 ConnectionData.prototype.client_dquery = _login(function(query, cb) {
 	dqDB.addDelayedQuery(query, this.user, this.access, cb);
-})
+});
 
 ConnectionData.prototype.client_dquery_list = _login(function(query, cb) {
 	dqDB.listDelayQueries(query, this.user, this.access, cb);
-})
+});
 
 ConnectionData.prototype.client_dquery_remove = _login(function(query, cb) {
 	dqDB.removeQueryUser(query, this.user, this.access, cb);
-})
+});
 
 ConnectionData.prototype.client_publish = _login(function(query, cb) {
 	FileStorageDB.publish(query, this.user, this.access, cb);
-})
+});
 
 ConnectionData.prototype.client_get_config = function(query, cb) {
 	cb('get-config-success', {'config':_.pick(cfg, cfg.clientconfig)});
-}
+};
 
 ConnectionData.prototype.fetchEvents = function(query) {
 	if (!this.user)
@@ -269,6 +327,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 			if (!info) // wtf?
 				return this.emit('error', new Error('no user on $self in info push handler'));
 			info.type = 'self-info';
+			info.access = this.access;
 			this.push(info);
 		}, this));
 	}
@@ -288,6 +347,9 @@ ConnectionData.prototype.response = function(data) {
 }
 
 ConnectionData.prototype.query = function(query) {
+	// sanitize by removing everything enclosed in '__'
+	query = _.omit(query, _.chain(query).keys().filter(function(k) { return /^__.*__$/.test(k); }));
+	
 	var recvTime = new Date().getTime();
 	
 	UserDB.loadSessionUser(query.key, _.bind(function(user) {

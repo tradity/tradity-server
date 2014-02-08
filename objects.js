@@ -61,7 +61,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 		
 		var query, params;
 		
-		if (!data.private) {
+		if (!data.private && !data.everyone) {
 			var additional = data.feedusers && data.feedusers.slice(0) || [];
 			if (additional.indexOf(data.srcuser) == -1)
 				additional.push(data.srcuser);
@@ -79,6 +79,9 @@ DBSubsystemBase.prototype.feed = function(data) {
 				query += 'UNION SELECT ?,? ';
 				params = params.concat([eventid, additional[i]]);
 			}
+		} else if (data.everyone) {
+			query = 'INSERT INTO events_users (eventid, userid) SELECT ?, id FROM users';
+			params = [eventid];
 		} else {
 			query = 'INSERT INTO events_users (eventid, userid) VALUES (?,?)';
 			params = [eventid, data.srcuser];

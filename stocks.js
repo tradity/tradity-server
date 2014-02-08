@@ -399,7 +399,7 @@ StocksDB.prototype.sellAll = function(query, user, access, cb) {
 		for (var i = 0; i < res.length; ++i) {
 			var depotentry = res[i];
 			this.buyStock({
-				override_unlocked__: true,
+				__override_unlocked__: true,
 				amount: -depotentry.amount,
 				leader: user.id
 			}, {id: depotentry.userid}, access, function() {
@@ -413,7 +413,7 @@ StocksDB.prototype.sellAll = function(query, user, access, cb) {
 StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 	assert.ok(user);
 	assert.ok(access);
-	this.locked(query.override_unlocked__ ? [] : ['depotstocks'], cb_, function(cb) {	
+	this.locked(query.__override_unlocked__ ? [] : ['depotstocks'], cb_, function(cb) {	
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	

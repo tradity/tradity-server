@@ -314,7 +314,7 @@ UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
 }
 
 UserDB.prototype.passwordReset = function(data, user, access, cb) {
-	this.query('SELECT * FROM users WHERE name = ?', [data.name], function(res) {
+	this.query('SELECT * FROM users WHERE name = ? AND deletiontime IS NULL', [data.name], function(res) {
 		if (res.length == 0)
 			return cb('password-reset-notfound');
 		

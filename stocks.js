@@ -481,7 +481,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 		
-		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname) VALUES(?,?,?,?,?,UNIX_TIMESTAMP(),?,?,?)',
+		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname) VALUES(?,?,?,?,UNIX_TIMESTAMP(),?,?,?)',
 			[user.id, r.stockid, r.leader, price, amount, fee, r.name], function(oh_res) {
 		this.feed({
 			'type': 'trade',

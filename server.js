@@ -214,7 +214,7 @@ ConnectionData.prototype.client_watchlist_show = _login(function(query, cb) {
 
 ConnectionData.prototype.client_list_all_users = _login(function(query, cb) {
 	AdminDB.listAllUsers(query, this.user, this.access, _.bind(function(code, res) {
-		cb(code, res);
+		cb(code, {'results':res});
 	}, this));
 });
 

@@ -41,6 +41,9 @@ Access.prototype.has = function(area) {
 }
 
 Access.prototype.update = function(otherAccess) {
+	if (otherAccess.hasAnyAccess)
+		this.grant('*');
+	
 	for (var i = 0; i < otherAccess.areas.length; ++i)
 		this.grant(otherAccess.areas[i]);
 }

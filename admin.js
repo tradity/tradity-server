@@ -73,7 +73,7 @@ AdminDB.prototype.changeCommentText = _reqpriv('moderate', function(query, user,
 });
 
 AdminDB.prototype.notifyAll = _reqpriv('moderate', function(query, user, access, cb) {
-	this.query('INSERT INTO mod_notif (time, content, sticky) VALUES (UNIX_TIMESTAMP(), ?, ?)', [query.content, query.sticky], function(res) {
+	this.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [query.content, query.sticky], function(res) {
 		this.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': user.id, 'everyone': true});
 		cb('notify-all-success');
 	});

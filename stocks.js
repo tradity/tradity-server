@@ -546,7 +546,7 @@ StocksDB.prototype.getTradeInfo = function(query, user, access, cb) {
 		var r = oh_res[0];
 		if (r.uid != user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < this.cfg.delayOrderHistTime))
 			return cb('get-trade-delayed-history');
-		this.query('SELECT c.*,u.name AS username,u.id AS uid FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [r.eventid], function(comments) {
+		this.query('SELECT c.*,u.name AS username,u.id AS uid, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [r.eventid], function(comments) {
 			cb('get-trade-info-succes', r, comments);
 		});
 	});

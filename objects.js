@@ -55,7 +55,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 	var src = data.srcuser;
 	var json = JSON.stringify(data.json ? data.json : {});
 	
-	this.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
+	this.query('INSERT INTO events(`type`,targetid,time,srcuser,trustedhtml,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
 		[data.type, data.targetid, data.srcuser, json], function(r) {
 		var eventid = r.insertId;
 		
@@ -94,7 +94,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 }
 
 DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
-	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, '+
+	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ecomments.trustedhtml AS trustedhtml, '+
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, '+
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky FROM events_users '+
 		'JOIN events ON events_users.eventid = events.eventid '+
@@ -136,7 +136,7 @@ DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 			feedusers.push(r.trader);
 		}
 		
-		this.query('INSERT INTO ecomments (eventid, commenter, comment, time) VALUES(?, ?, ?, UNIX_TIMESTAMP())', 
+		this.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, 0, UNIX_TIMESTAMP())', 
 			[query.eventid, user.id, query.comment], function(res) {
 			this.feed({'type': 'comment','targetid':res.insertId,'srcuser':user.id,'feedusers':feedusers});
 			cb('comment-success');

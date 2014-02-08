@@ -67,7 +67,7 @@ AdminDB.prototype.changeUserEMail = _reqpriv('userdb', function(query, user, acc
 });
 
 AdminDB.prototype.changeCommentText = _reqpriv('moderate', function(query, user, access, cb) {
-	this.query('UPDATE ecomments SET comment = ? WHERE commentid = ?', [query.comment, query.commentid], function() {
+	this.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?', [query.comment, access.has('server') && query.trustedhtml ? 1:0, query.commentid], function() {
 		cb('change-comment-text-success');
 	});
 });
@@ -83,7 +83,7 @@ AdminDB.prototype.createSchool = _reqpriv('schooldb', function(query, user, acce
 	this.locked(['userdb'], cb_, function(cb) {
 		this.query('SELECT COUNT(*) AS c FROM schools WHERE name = ?', [query.schoolname], function(r) {
 			assert.equal(r.length, 1);
-			if (r[0].c == 1)
+			if (r[0].c == 1 || !query.schoolname.trim())
 				return cb('create-school-already-exists');
 			
 			this.query('INSERT INTO schools (name) VALUES(?)', [query.schoolname], function() {
@@ -101,9 +101,15 @@ AdminDB.prototype.renameSchool = _reqpriv('schooldb', function(query, user, acce
 
 AdminDB.prototype.joinSchools = _reqpriv('schooldb', function(query, user, access, cb_) {
 	this.locked(['userdb'], cb_, function(cb) {
-		this.query('UPDATE users SET school = ? WHERE school = ?', [query.masterschool, query.subschool], function() {
-			this.query('DELETE FROM schools WHERE id = ?', [query.subschool], function() {
-				cb('join-schools-success');
+		this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [query.masterschool], function(r) {
+			assert.equal(r.length, 1);
+			if (r[0].c == 0 || query.masterschool == query.subschool)
+				return cb('join-schools-notfound');
+			
+			this.query('UPDATE users SET school = ? WHERE school = ?', [query.masterschool, query.subschool], function() {
+				this.query('DELETE FROM schools WHERE id = ?', [query.subschool], function() {
+					cb('join-schools-success');
+				});
 			});
 		});
 	});

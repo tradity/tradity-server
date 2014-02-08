@@ -23,7 +23,9 @@ function _reqpriv (required, f) {
 AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access, cb) {
 	this.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, giv_name, fam_name, users.id AS uid, tradecount, ' +
 		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, ' +
-		'logins.logintime AS lastlogintime, schools.name AS schoolname, schools.id AS schoolid FROM users ' +
+		'logins.logintime AS lastlogintime, schools.name AS schoolname, schools.id AS schoolid, ' +
+		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=uid) AS commentcount, '+
+		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=uid) AS lastcommenttime FROM users ' +
 		'LEFT JOIN schools ON schools.id = users.school ' +
 		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)', [], function(userlist)
 	{

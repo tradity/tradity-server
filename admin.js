@@ -21,9 +21,9 @@ function _reqpriv (required, f) {
 }
 
 AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access, cb) {
-	this.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, giv_name, fam_name, users.id AS id, tradecount, ' +
-		'email, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, logins.logintime AS lastlogintime, ' +
-		'schools.name AS schoolname, schools.id AS schoolid FROM users ' +
+	this.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, giv_name, fam_name, users.id AS uid, tradecount, ' +
+		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, ' +
+		'logins.logintime AS lastlogintime, schools.name AS schoolname, schools.id AS schoolid FROM users ' +
 		'LEFT JOIN schools ON schools.id = users.school ' +
 		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)', [], function(userlist)
 	{
@@ -31,7 +31,7 @@ AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access
 	});
 });
 
-AdminDB.prototype.impersonateUser = _reqpriv('*', function(query, user, access, cb) {
+AdminDB.prototype.impersonateUser = _reqpriv('server', function(query, user, access, cb) {
 	this.query('SELECT COUNT(*) AS c FROM users WHERE id=?', [query.userid], function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
@@ -73,7 +73,8 @@ AdminDB.prototype.changeCommentText = _reqpriv('moderate', function(query, user,
 });
 
 AdminDB.prototype.notifyAll = _reqpriv('moderate', function(query, user, access, cb) {
-	this.query('INSERT INTO mod_notif (time, content, sticky) VALUES (UNIX_TIMESTAMP(), ?, ?)', [query.content, query.sticky], function() {
+	this.query('INSERT INTO mod_notif (time, content, sticky) VALUES (UNIX_TIMESTAMP(), ?, ?)', [query.content, query.sticky], function(res) {
+		this.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': user.id, 'everyone': true});
 		cb('notify-all-success');
 	});
 });

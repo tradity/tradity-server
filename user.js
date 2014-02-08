@@ -184,6 +184,8 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 			return cb(null, null, null);
 		var xuser = users[0];
 		xuser.isSelf = (xuser.uid == user.uid);
+		if (xuser.isSelf) 
+			xuser.access = access.toArray();
 		
 		this.query('SELECT SUM(amount) AS samount, SUM(1) AS sone FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid], function(followers) {
 			xuser.f_amount = followers[0].samount || 0;
@@ -269,6 +271,7 @@ UserDB.prototype.loadSessionUser = function(key, cb) {
 			user.delayorderhist = !!user.delayorderhist;
 			
 			this.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]);
+			this.query('UPDATE users SET ticks = ticks + 1 WHERE id = ?', [user.id]);
 			cb(user);
 		}
 	});

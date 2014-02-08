@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-// server,filesystem,stocks,userdb
+// server,filesystem,stocks,userdb,moderate,schooldb
 var Access = function() {
 	this.areas = [];
 	this.hasAnyAccess = false;
@@ -28,6 +28,12 @@ Access.prototype.toJSON = function() {
 	if (this.hasAnyAccess)
 		return '["*"]';
 	return JSON.stringify(this.areas);
+}
+
+Access.prototype.toArray = function() {
+	if (this.hasAnyAccess)
+		return ['*'];
+	return this.areas;
 }
 
 Access.prototype.has = function(area) {

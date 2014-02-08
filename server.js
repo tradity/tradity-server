@@ -327,7 +327,6 @@ ConnectionData.prototype.pushSelfInfo = function() {
 			if (!info) // wtf?
 				return this.emit('error', new Error('no user on $self in info push handler'));
 			info.type = 'self-info';
-			info.access = this.access;
 			this.push(info);
 		}, this));
 	}

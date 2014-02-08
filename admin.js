@@ -34,12 +34,12 @@ AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access
 });
 
 AdminDB.prototype.impersonateUser = _reqpriv('server', function(query, user, access, cb) {
-	this.query('SELECT COUNT(*) AS c FROM users WHERE id=?', [query.userid], function(r) {
+	this.query('SELECT COUNT(*) AS c FROM users WHERE id=?', [query.uid], function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
 			return cb('impersonate-user-notfound');
 	
-		this.query('UPDATE sessions SET uid = ? WHERE id = ?', [query.userid, user.sid], function() {
+		this.query('UPDATE sessions SET uid = ? WHERE id = ?', [query.uid, user.sid], function() {
 			cb('impersonate-user-success');
 		});
 	});

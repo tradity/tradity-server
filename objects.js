@@ -94,7 +94,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 }
 
 DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
-	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ecomments.trustedhtml AS trustedhtml, '+
+	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, '+
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, '+
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky FROM events_users '+
 		'JOIN events ON events_users.eventid = events.eventid '+

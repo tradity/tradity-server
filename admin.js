@@ -117,6 +117,16 @@ AdminDB.prototype.joinSchools = _reqpriv('schooldb', function(query, user, acces
 	});
 });
 
+AdminDB.prototype.getUserLogins = _reqpriv('userdb', function(query, user, access, cb) {
+	this.query('SELECT * FROM logins WHERE uid = ?', [query.uid], function(res) {
+		_.each(res, function(e) {
+			e.headers = JSON.parse(e.headers);
+		});
+		
+		cb('get-user-logins-success', res);
+	});
+});
+
 exports.AdminDB = AdminDB;
 
 })();

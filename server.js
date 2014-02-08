@@ -45,7 +45,7 @@ locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 function ConnectionData(socket) {
 	this.user = null;
 	this.remoteip = socket.handshake.address.address;
-	this.hsheaders = socket.handshake.headers;
+	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.cdid = new Date().getTime() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
 	this.access = new Access();
 	this.registeredEventHandlers = [];
@@ -214,6 +214,12 @@ ConnectionData.prototype.client_watchlist_show = _login(function(query, cb) {
 
 ConnectionData.prototype.client_list_all_users = _login(function(query, cb) {
 	AdminDB.listAllUsers(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code, {'results':res});
+	}, this));
+});
+
+ConnectionData.prototype.client_get_user_logins = _login(function(query, cb) {
+	AdminDB.getUserLogins(query, this.user, this.access, _.bind(function(code, res) {
 		cb(code, {'results':res});
 	}, this));
 });

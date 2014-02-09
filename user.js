@@ -203,7 +203,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 				 * before they actually do a lot of harm.
 				 */
 				var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; });
-				if (_.intersection(levels, _.range(1, levels.length)).length != levels.length)
+				if (_.intersection(levelArray, _.range(1, levelArray.length)).length != levelArray.length)
 					this.emit('error', new Error('Invalid school chain for user: ' + schools));
 				
 				xuser.schools = schools;

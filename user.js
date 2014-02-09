@@ -134,15 +134,16 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	}
 	
 	this.locked(['ranking'], cb_, function(cb) {
-		this.query('SELECT rank, uid, users.name AS name, school, schools.name AS schoolname, totalvalue, weekstarttotalvalue, ' +
-			'weekstartprov_sum, wprov_sum + lprov_sum AS prov_sum, tradecount != 0 as hastraded, '+
+		this.query('SELECT rank, users.id AS uid, users.name AS name, schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, '+
+			'totalvalue, weekstarttotalvalue, weekstartprov_sum, wprov_sum + lprov_sum AS prov_sum, tradecount != 0 as hastraded, '+
 			'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, '+
 			'(dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) AS weekfperfval, ' +
 			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
 			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
 			'FROM ranking ' +
 			'JOIN users ON ranking.uid = users.id '+
-			'LEFT JOIN schools ON users.school = schools.id WHERE `type` = ? '+
+			'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid AND NOT pending '+
+			'LEFT JOIN schools ON sm.schoolid = schools.id WHERE `type` = ? '+
 			likestringWhere+
 			'ORDER BY rank ASC LIMIT ?, ?', 
 			[query.rtype].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(res) {
@@ -158,23 +159,25 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 	if (query.lookfor == '$self')
 		query.lookfor = user.id;
 	
-	var columns = [
-		'users.id AS uid', 'users.name AS name',
+	var columns = (access.has('userdb') ? [
+		'users.*'
+	] : [
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
-		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name',
-		'birthday', 'schools.id AS schoolid', 'schools.name AS schoolname',
-		'`desc`', 'wprovision', 'lprovision', 'totalvalue', 'rank', 'delayorderhist',
+		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
+	]).concat([
+		'users.id AS uid', 'users.name AS name', 'birthday',
+		'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', '`desc`', 'wprovision', 'lprovision', 'totalvalue', 'rank', 'delayorderhist',
 		'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
-		'url AS profilepic', 'eventid AS registerevent',
+		'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
 		'(dayfperfcur+dayfperfsold) / dayfperfbase AS dayfperf', '(dayoperfcur+dayoperfsold) / dayoperfbase AS dayoperf',
 		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf', '(dayoperfcur+weekoperfsold) / weekoperfbase AS weekoperf',
 		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf',
 		'freemoney', 'wprov_sum + lprov_sum AS prov_sum', 'weekstarttotalvalue', 'daystarttotalvalue'
-	].join(', ');
+	]).join(', ');
 	
 	this.query('SELECT ' + columns + ' FROM users '+
-		'LEFT JOIN schools ON users.school = schools.id '+
 		'LEFT JOIN ranking ON users.id = ranking.uid '+ // note: this ignores the ranking lock!
+		'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid '+
 		'LEFT JOIN stocks ON users.id = stocks.leader '+
 		'LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" '+
 		'LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" '+
@@ -183,20 +186,35 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		if (users.length == 0)
 			return cb(null, null, null);
 		var xuser = users[0];
-		xuser.isSelf = (xuser.uid == user.uid);
+		xuser.isSelf = (user && xuser.uid == user.uid);
 		if (xuser.isSelf) 
 			xuser.access = access.toArray();
 		
 		this.query('SELECT SUM(amount) AS samount, SUM(1) AS sone FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid], function(followers) {
 			xuser.f_amount = followers[0].samount || 0;
 			xuser.f_count = followers[0].sone || 0;
-			if (query.nohistory)
-				return cb(xuser, null, null, null);
-			
-			this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
-				this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
-					this.query('SELECT c.*,u.name AS username,u.id AS uid, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
-						cb(xuser, orders, values, comments);
+				
+			this.query('SELECT p.name, p.path, p.id FROM schools AS c ' +
+				'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "%") ' + 
+				'WHERE c.id = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid], function(schools) {
+				
+				/* do some validation on the schools array.
+				 * this is not necessary; however, it may help catch bugs long 
+				 * before they actually do a lot of harm.
+				 */
+				var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; });
+				if (_.intersection(levels, _.range(1, levels.length)).length != levels.length)
+					this.emit('error', new Error('Invalid school chain for user: ' + schools));
+				
+				xuser.schools = schools;
+				if (query.nohistory)
+					return cb(xuser, null, null, null);
+				
+				this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
+					this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
+						this.query('SELECT c.*,u.name AS username,u.id AS uid, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+							cb(xuser, orders, values, comments);
+						});
 					});
 				});
 			});
@@ -205,14 +223,18 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 }
 
 UserDB.prototype.listSchools = function(query, user, access, cb) {
-	this.query('SELECT schools.id, schools.name, COUNT(users.id) AS usercount FROM schools LEFT JOIN users ON users.school=schools.id GROUP BY schools.id', [], cb);
+	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools '+
+		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending '+
+		'GROUP BY schools.id', [], cb);
 }
 
 UserDB.prototype.regularCallback = function(cb) {
 	cb = cb || function() {};
 	
 	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []);
-	this.query('DELETE FROM schools WHERE (SELECT COUNT(id) FROM users WHERE users.school = schools.id) = 0', [], cb);
+	this.query('DELETE FROM schools AS p WHERE ' +
+		'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
+		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "%")) = 0', [], cb);
 }
 					
 UserDB.prototype.emailVerify = function(query, user, access, cb) {
@@ -260,7 +282,14 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 
 UserDB.prototype.loadSessionUser = function(key, cb) {
 	// ignores ranking lock
-	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, schools.name AS schoolname FROM sessions JOIN users ON sessions.uid = users.id LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id LEFT JOIN schools ON schools.id=users.school WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() LIMIT 1', [key], function(res) {
+	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, ' +
+		'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, sm.pending AS schoolpending ' +
+		'FROM sessions ' +
+		'JOIN users ON sessions.uid = users.id ' +
+		'LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id ' +
+		'LEFT JOIN schoolmembers AS sm ON sm.uid=users.id ' +
+		'LEFT JOIN schools ON schools.id=sm.schoolid ' +
+		'WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() LIMIT 1', [key], function(res) {
 		if (res.length == 0) {
 			cb(null);
 		} else {
@@ -416,16 +445,25 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
-						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, school = ?, email = ?, email_verif = ?,' +
+						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?,' +
 						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, traditye = ?, wot = ? '+
 						'WHERE id = ?',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.email == user.email,
+						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.email, data.email == user.email,
 						data.birthday, data.desc, data.wprovision, data.lprovision, data.street, data.zipcode, data.town, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, uid],
 						updateCB);
 						
 						if (data.name != user.name) {
 							this.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': user.name, 'newname': data.name}});
 							this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
+						}
+						
+						if (data.school != user.school) {
+							if (data.school == null)
+								this.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
+							else
+								this.query('REPLACE INTO schoolmembers (uid, schoolid, pending) '+
+									'VALUES(?, ?, ((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0))',
+									[uid, data.school, data.school]);
 						}
 
 						if (data.wprovision != user.wprovision || data.lprovision != user.lprovision)
@@ -436,14 +474,18 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 						this.locked(['depotstocks'], updateCB, function(cb) {
 							if (data.betakey)
 								this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
-							this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, school, email, traderse, tradersp, traditye, wot, street, zipcode, town)' +
-							'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-							[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.school, data.email, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
+							this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, traderse, tradersp, traditye, wot, street, zipcode, town)' +
+							'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+							[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.email, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
 							function(res) {
 								uid = res.insertId;
 								this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 								this.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 									['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(cb, this, res));
+									
+								this.query('INSERT INTO schoolmembers (uid, schoolid, pending) '+
+									'VALUES(?, ?, ((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0))',
+									[uid, data.school, data.school]);
 							});
 						});
 					}
@@ -460,7 +502,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 					cb('reg-unknown-school');
 					return;
 				} else {
-					this.query('INSERT INTO schools (name) VALUES(?)', [data.school], schoolAddedCB);
+					this.query('INSERT INTO schools (name,path) VALUES(?,MD5(?))', [data.school, data.school], schoolAddedCB);
 				}
 			} else {
 				if (data.school !== null) {
@@ -473,7 +515,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 		};
 		
 		if (data.school !== null) {
-			this.query('SELECT id FROM schools WHERE id = ? OR name = ?', [data.school, data.school], schoolLookupCB);
+			this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [data.school], schoolLookupCB);
 		} else {
 			_.bind(schoolLookupCB,this)([]);
 		}

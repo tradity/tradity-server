@@ -55,7 +55,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 	var src = data.srcuser;
 	var json = JSON.stringify(data.json ? data.json : {});
 	
-	this.query('INSERT INTO events(`type`,targetid,time,srcuser,trustedhtml,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
+	this.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
 		[data.type, data.targetid, data.srcuser, json], function(r) {
 		var eventid = r.insertId;
 		

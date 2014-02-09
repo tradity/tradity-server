@@ -19,13 +19,13 @@ socket.on('connect', function() {
 	var password = 'musterpw' + t;
 	var own_uid = null;
 	
-	var emit = function (e, d) { console.log('outgoing', e, d); socket.emit(e, d); }
+	var emit = function (e, d) { console.log('outgoing', e, JSON.stringify(d, null, 2)); socket.emit(e, d); }
 	socket.on('push', function (data) {
-		console.log('incoming/push', data);
+		console.log('incoming/push', JSON.stringify(data, null, 2));
 	});
 	
 	socket.on('response', function (data) {
-		console.log('incoming', data);
+		console.log('incoming', JSON.stringify(data, null, 2));
 		
 		var handledRegister = false;
 		switch(data['is-reply-to']) {
@@ -236,7 +236,7 @@ socket.on('connect', function() {
 			case 'get-user-info-2':
 				assert.equal(data.code, 'get-user-info-success');
 				assert.equal(data.result.uid, own_uid);
-				assert.equal(data.result.schoolname, schoolname);
+				assert.notEqual(_.pluck(data.result.schools, 'name').indexOf(schoolname), -1);
 				assert.ok(data.result.totalvalue);
 				emit('query', {
 					type: 'get-ranking',

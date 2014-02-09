@@ -1,4 +1,6 @@
 (function () { "use strict";
+	
+function parentPath(x) { return x.match(/(\/\w+)+\/\w+$/)[1]; }
 
 var _ = require('underscore');
 var util = require('util');
@@ -23,12 +25,13 @@ function _reqpriv (required, f) {
 AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access, cb) {
 	this.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, giv_name, fam_name, users.id AS uid, tradecount, ' +
 		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, ' +
-		'logins.logintime AS lastlogintime, schools.name AS schoolname, schools.id AS schoolid, ' +
+		'logins.logintime AS lastlogintime, schools.path AS schoolpath, schools.id AS schoolid, pending, ' +
 		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=uid) AS commentcount, '+
 		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=uid) AS lastcommenttime FROM users ' +
-		'LEFT JOIN schools ON schools.id = users.school ' +
-		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)', [], function(userlist)
-	{
+		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
+		'LEFT JOIN schools ON schools.id = sm.schoolid ' +
+		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)',
+		[], function(userlist) {
 		cb('list-all-users-success', userlist);
 	});
 });
@@ -51,11 +54,13 @@ AdminDB.prototype.deleteUser = _reqpriv('userdb', function(query, user, access, 
 	
 	this.locked(['userdb'], cb_, function(cb) {
 		this.query('DELETE FROM sessions WHERE uid = ?', [query.uid], function() {
+		this.query('DELETE FROM schoolmembers WHERE uid = ?', [query.uid], function() {
 		this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [query.uid, query.uid], function() {
 		this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), ' +
-		'fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, school=NULL, realnamepublish=0, `desc`="", wprovision=0, lprovision=0, ' + 
+		'fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, realnamepublish=0, `desc`="", wprovision=0, lprovision=0, ' + 
 		'street="", zipcode="", town="", traderse=0, tradersp=0, traditye=0, wot=0, deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [query.uid, query.uid], function() {
 			cb('delete-user-success');
+		});
 		});
 		});
 		});
@@ -83,21 +88,46 @@ AdminDB.prototype.notifyAll = _reqpriv('moderate', function(query, user, access,
 
 AdminDB.prototype.createSchool = _reqpriv('schooldb', function(query, user, access, cb_) {
 	this.locked(['userdb'], cb_, function(cb) {
-		this.query('SELECT COUNT(*) AS c FROM schools WHERE name = ?', [query.schoolname], function(r) {
+		this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
 			assert.equal(r.length, 1);
-			if (r[0].c == 1 || !query.schoolname.trim())
+			if (r[0].c == 1 || !query.schoolname.trim() || 
+				!/^(\/\w+)+$/.test(query.schoolpath)) {
 				return cb('create-school-already-exists');
+			}
 			
-			this.query('INSERT INTO schools (name) VALUES(?)', [query.schoolname], function() {
-				cb('create-school-success');
+			var createCB = _.bind(function() {
+				this.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function() {
+					cb('create-school-success');
+				});
+			}, this);
+			
+			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
+				createCB();
+			else this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
+				assert.equal(r.length, 1);
+				if (r[0].c == 1)
+					return cb('create-school-missing-parent');
+				
+				createCB();
 			});
 		});
 	});
 });
 
 AdminDB.prototype.renameSchool = _reqpriv('schooldb', function(query, user, access, cb) {
-	this.query('UPDATE schools SET name = ? WHERE id = ?', [query.schoolname, query.schoolid], function() {
-		cb('rename-school-success');
+	this.query('SELECT path FROM schools WHERE id = ?', [query.schoolid], function(r) {
+		if (r.length == 0 || (query.schoolpath && parentPath(r[0].path) != parentPath(query.schoolpath)))
+			return cb('rename-school-notfound');
+		
+		this.query('UPDATE schools SET name = ?, WHERE id = ?', [query.schoolname, query.schoolid], function() {
+			if (query.schoolpath) {
+				this.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ?', [r[0].path, query.schoolpath, r[0].path + '%'], function() {
+					cb('rename-school-success');
+				});
+			} else {
+				cb('rename-school-success');
+			}
+		});
 	});
 });
 
@@ -108,7 +138,7 @@ AdminDB.prototype.joinSchools = _reqpriv('schooldb', function(query, user, acces
 			if (r[0].c == 0 || query.masterschool == query.subschool)
 				return cb('join-schools-notfound');
 			
-			this.query('UPDATE users SET school = ? WHERE school = ?', [query.masterschool, query.subschool], function() {
+			this.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [query.masterschool, query.subschool], function() {
 				this.query('DELETE FROM schools WHERE id = ?', [query.subschool], function() {
 					cb('join-schools-success');
 				});

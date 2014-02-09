@@ -29,7 +29,7 @@ for (var i = 1; i < options.length; ++i) {
 socket.on('connect', function() {	
 	var emit = function (e, d) { query.quiet || console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('response', function (data) {
-		query.quiet || console.log('incoming/response', data);
+		query.quiet || console.log('incoming/response', JSON.stringify(data, null, 2));
 		process.exit(0);
 	});
 	

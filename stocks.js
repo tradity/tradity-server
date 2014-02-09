@@ -127,7 +127,7 @@ StocksDB.prototype.updateStockValues = function(cb) {
 			stocklist = _.union(stocklist, needer.getNeededStocks());
 		});
 		stocklist = _.filter(stocklist, function(s) {
-			return !/__LEADER_(\d+)__/.test(s);
+			return !/^__LEADER_(\d+)__$/.test(s);
 		});
 		
 		if (stocklist.length > 0)
@@ -248,7 +248,7 @@ StocksDB.prototype.updateProvisions = function (cb_) {
 					var totalfees = dsr[j].wfees + dsr[j].lfees;
 					
 					conn.query('UPDATE depot_stocks SET ' +
-						'provision_hwm = ?, wprov_sum = wprov_sum + ? ' +
+						'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
 						'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
 						'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
 					conn.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalfees, totalfees, dsr[j].fid], function() {

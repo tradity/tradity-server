@@ -232,9 +232,13 @@ UserDB.prototype.regularCallback = function(cb) {
 	cb = cb || function() {};
 	
 	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []);
-	this.query('DELETE FROM schools AS p WHERE ' +
+	this.query('SELECT id FROM schools AS p WHERE ' +
 		'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
-		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "%")) = 0', [], cb);
+		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "%")) = 0', [], function(r) {
+		for (var i = 0; i < r.length; ++i)
+			this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
+		cb();
+	});
 }
 					
 UserDB.prototype.emailVerify = function(query, user, access, cb) {

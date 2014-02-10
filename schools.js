@@ -58,7 +58,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 				function(comments) {
 				s.comments = comments;
 			
-				this.query('SELECT oh.stocktextid AS stockid, oh.stockname ' +
+				this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
 					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime)) AS wsum '+
 					'FROM orderhistory AS oh ' +

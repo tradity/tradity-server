@@ -29,21 +29,25 @@ function _reqschooladm (f) {
 
 // only internal
 SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
-	this.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status ' +
+	this.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +
 		'FROM schools AS c ' +
 		'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
 		'JOIN schooladmins AS sa ON sa.schoolid = p.id ' +
-		'WHERE c.schoolid = ?', [schoolid], cb);
+		'JOIN users ON users.id = sa.uid ' +
+		'WHERE c.id = ?', [schoolid], cb);
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
-	this.query('SELECT * FROM schools WHERE ? IN (id, path, name) ' +
-		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" '+
+	this.query('SELECT * FROM schools ' +
+		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
+		'WHERE ? IN (id, path, name) ' + 
 		'LIMIT 1', [lookfor], function(res) {
 		if (res.length == 0)
 			return cb('get-school-info-notfound');
 		
 		var s = res[0];	
+		s.parentPath = null;
+		
 		this.loadSchoolAdmins(s.id, function(admins) {
 			s.admins = admins;
 			
@@ -52,7 +56,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 				function(comments) {
 				s.comments = comments;
 			
-				this.query('SELECT oh.stocktextid AS stockid, ' +
+				this.query('SELECT oh.stocktextid AS stockid, oh.stockname ' +
 					'SUM(ABS(money)) AS moneysum, ' +
 					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime)) AS wsum '+
 					'FROM orderhistory AS oh ' +
@@ -61,8 +65,8 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 					s.popularStocks = popular.splice(0, 10);
 					
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
-						var parentPath = s.path.match(/(\/\w+)+\/\w+$/)[1];
-						this.loadSchoolInfo(parentPath, user, access, function(code, result) {
+						s.parentPath = s.path.match(/(\/\w+)+\/\w+$/)[1];
+						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {
 							assert.equal(code, 'get-schools-info-success');
 							
 							s.parentSchool = result;

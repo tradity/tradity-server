@@ -12,6 +12,7 @@ var crypto = require('crypto');
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
 var adm = require('./admin.js');
+var sch = require('./schools.js');
 var stocks = require('./stocks.js');
 var fsdb = require('./fsdb.js');
 var dqueries = require('./dqueries.js');
@@ -31,11 +32,12 @@ var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
 var AdminDB = new adm.AdminDB(db, cfg);
+var SchoolsDB = new sch.SchoolsDB(db, cfg);
 var StocksDB = new stocks.StocksDB(db, cfg, afql);
 var FileStorageDB = new fsdb.FileStorageDB(db, cfg);
 var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
 
-var subsystems = [StocksDB, UserDB, AdminDB, dqDB, FileStorageDB];
+var subsystems = [StocksDB, UserDB, AdminDB, SchoolsDB, dqDB, FileStorageDB];
 _.each(subsystems, _.bind(function(sys) { sys.on('error', function(e) { eh.err(e); }); }));
 
 afql.on('error', function(e) { eh.err(e); });
@@ -225,49 +227,67 @@ ConnectionData.prototype.client_get_user_logins = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_impersonate_user = _login(function(query, cb) {
-	AdminDB.impersonateUser(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.impersonateUser(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
 
 ConnectionData.prototype.client_delete_user = _login(function(query, cb) {
-	AdminDB.deleteUser(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.deleteUser(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
 
 ConnectionData.prototype.client_change_user_email = _login(function(query, cb) {
-	AdminDB.changeUserEMail(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.changeUserEMail(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
 
 ConnectionData.prototype.client_change_comment_text = _login(function(query, cb) {
-	AdminDB.changeCommentText(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.changeCommentText(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
 
 ConnectionData.prototype.client_notify_all = _login(function(query, cb) {
-	AdminDB.notifyAll(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.notifyAll(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
 
 ConnectionData.prototype.client_create_school = _login(function(query, cb) {
-	AdminDB.createSchool(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.createSchool(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
 
 ConnectionData.prototype.client_rename_school = _login(function(query, cb) {
-	AdminDB.renameSchool(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.renameSchool(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
 
 ConnectionData.prototype.client_join_schools = _login(function(query, cb) {
-	AdminDB.joinSchools(query, this.user, this.access, _.bind(function(code, res) {
+	AdminDB.joinSchools(query, this.user, this.access, _.bind(function(code) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_get_school_info = _login(function(query, cb) {
+	SchoolsDB.getSchoolInfo(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code, {'result':res});
+	}, this));
+});
+
+ConnectionData.prototype.client_school_change_description = _login(function(query, cb) {
+	SchoolsDB.changeDescription(query, this.user, this.access, _.bind(function(code) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_school_change_member_status = _login(function(query, cb) {
+	SchoolsDB.changeMemberStatus(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });

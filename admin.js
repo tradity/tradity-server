@@ -16,7 +16,7 @@ function _reqpriv (required, f) {
 	var requiredPermission = required;
 	return function(query, user, access, cb) {
 		if (user === null || !access.has(requiredPermission))
-			cb('not-logged-in')
+			cb('permission-denied');
 		else
 			return _.bind(f,this)(query, user, access, cb);
 	};
@@ -25,7 +25,7 @@ function _reqpriv (required, f) {
 AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access, cb) {
 	this.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, giv_name, fam_name, users.id AS uid, tradecount, ' +
 		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, ' +
-		'logins.logintime AS lastlogintime, schools.path AS schoolpath, schools.id AS schoolid, pending, ' +
+		'logins.logintime AS lastlogintime, schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
 		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=uid) AS commentcount, '+
 		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=uid) AS lastcommenttime FROM users ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
@@ -96,7 +96,9 @@ AdminDB.prototype.createSchool = _reqpriv('schooldb', function(query, user, acce
 			}
 			
 			var createCB = _.bind(function() {
-				this.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function() {
+				this.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
+					this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': user.id});
+					
 					cb('create-school-success');
 				});
 			}, this);
@@ -121,7 +123,7 @@ AdminDB.prototype.renameSchool = _reqpriv('schooldb', function(query, user, acce
 		
 		this.query('UPDATE schools SET name = ?, WHERE id = ?', [query.schoolname, query.schoolid], function() {
 			if (query.schoolpath) {
-				this.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ?', [r[0].path, query.schoolpath, r[0].path + '%'], function() {
+				this.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?', [r[0].path, query.schoolpath, r[0].path + '/%', r[0].path], function() {
 					cb('rename-school-success');
 				});
 			} else {

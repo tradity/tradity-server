@@ -182,7 +182,9 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 		lid = leadertest[1];
 	
 	var xstr = '%' + str.replace(/%/, '\\%') + '%';
-	this.query('SELECT stocks.stockid AS stockid,stocks.lastvalue AS lastvalue,stocks.ask AS ask,stocks.bid AS bid,stocks.leader AS leader,users.name AS leadername,wprovision,lprovision FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
+	this.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS  ask, stocks.bid AS bid, '+
+		'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
+		'FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
 	this.query('SELECT *, 0 AS wprovision, 0 AS lprovision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
 		var externalSearchResultHandler = _.bind(function(res3) {
 			var results = _.union(res1, _.map(res3, function(r) {

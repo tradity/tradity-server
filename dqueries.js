@@ -191,6 +191,7 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 DelayedQueriesDB.prototype.executeQuery = function(query) {
 	var e = this.queryTypes[query.query.type];
 	assert.ok(e);
+	query.query.__is_delayed__ = true;
 	e(query.query, query.userinfo, query.accessinfo, _.bind(function(code) {
 		var json = query.query.dquerydata || {};
 		json.result = code;

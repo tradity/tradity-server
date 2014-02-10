@@ -429,7 +429,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		if (res.length == 0 || res[0].lastvalue == 0)
 			return cb('stock-buy-stock-not-found');
 		var r = res[0];
-		if (!this.stockExchangeIsOpen(r.exchange) && !(access.has('stocks') && query.forceNow)) {
+		if (!this.stockExchangeIsOpen(r.exchange) && !(access.has('stocks') && query.forceNow) && !query.__is_delayed__) {
 			query.retainUntilCode = 'stock-buy-success';
 			this.dqueries.addDelayedQuery({
 				condition: 'stock::' + r.stockid + '::exchange-open > 0',

@@ -69,14 +69,14 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = s.path.match(/(\/\w+)+\/\w+$/)[1];
 						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {
-							assert.equal(code, 'get-schools-info-success');
+							assert.equal(code, 'get-schools-inf-success');
 							
 							s.parentSchool = result;
 							
-							cb('get-schools-info-success', s);
+							cb('get-school-info-success', s);
 						});
 					} else {
-						cb('get-schools-info-success', s);
+						cb('get-school-info-success', s);
 					}
 				});
 			});

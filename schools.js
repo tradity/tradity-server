@@ -32,7 +32,7 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 	this.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status ' +
 		'FROM schools AS c ' +
 		'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
-		'JOIN schooladmins AS sa ON sa.schoolid = p.id '
+		'JOIN schooladmins AS sa ON sa.schoolid = p.id ' +
 		'WHERE c.schoolid = ?', [schoolid], cb);
 };
 
@@ -92,7 +92,7 @@ SchoolsDB.prototype.changeMemberStatus = _reqschooladm(function(query, user, acc
 	if (query.newstatus == 'member') {
 		this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
 			cb('school-change-member-status-success');
-		}
+		});
 	} else {
 		this.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', query.uid, query.schoolid, query.status, function() {
 			cb('school-change-member-status-success');

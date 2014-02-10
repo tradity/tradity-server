@@ -48,6 +48,8 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 		var s = res[0];	
 		s.parentPath = null;
 		
+		assert.ok(s.eventid);
+		
 		this.loadSchoolAdmins(s.id, function(admins) {
 			s.admins = admins;
 			

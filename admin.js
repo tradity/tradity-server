@@ -26,8 +26,8 @@ AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access
 	this.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, giv_name, fam_name, users.id AS uid, tradecount, ' +
 		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, ' +
 		'logins.logintime AS lastlogintime, schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
-		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=uid) AS commentcount, '+
-		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=uid) AS lastcommenttime FROM users ' +
+		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=users.id) AS commentcount, '+
+		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=users.id) AS lastcommenttime FROM users ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
 		'LEFT JOIN schools ON schools.id = sm.schoolid ' +
 		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)',

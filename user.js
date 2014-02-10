@@ -138,7 +138,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	}
 	
 	this.locked(['ranking'], cb_, function(cb) {
-		this.query('SELECT rank, users.id AS uid, users.name AS name, schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime' +
+		this.query('SELECT rank, users.id AS uid, users.name AS name, schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, ' +
 			'totalvalue, weekstarttotalvalue, weekstartprov_sum, wprov_sum + lprov_sum AS prov_sum, tradecount != 0 as hastraded, ' +
 			'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, ' +
 			'(dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) AS weekfperfval, ' +

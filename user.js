@@ -138,20 +138,25 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	}
 	
 	this.locked(['ranking'], cb_, function(cb) {
+		var join = 'FROM ranking '+
+			'JOIN users ON ranking.uid = users.id ' +
+			'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid AND NOT pending ' +
+			'LEFT JOIN schools ON sm.schoolid = schools.id ';
+		
 		this.query('SELECT rank, users.id AS uid, users.name AS name, schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, ' +
 			'totalvalue, weekstarttotalvalue, weekstartprov_sum, wprov_sum + lprov_sum AS prov_sum, tradecount != 0 as hastraded, ' +
 			'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, ' +
 			'(dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) AS weekfperfval, ' +
 			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
 			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
-			'FROM ranking ' +
-			'JOIN users ON ranking.uid = users.id '+
-			'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid AND NOT pending '+
-			'LEFT JOIN schools ON sm.schoolid = schools.id WHERE `type` = ? '+
-			likestringWhere+
+			join +
+			'WHERE `type` = ? ' +
+			likestringWhere +
 			'ORDER BY rank ASC LIMIT ?, ?', 
 			[query.rtype].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(res) {
-			this.query('SELECT COUNT(*) AS c FROM ranking JOIN users ON ranking.uid = users.id WHERE `type` = ? ' + likestringWhere, [query.rtype].concat(likestringUnit), function(cr) {
+			this.query('SELECT COUNT(*) AS c ' +
+				join +
+				'WHERE `type` = ? ' + likestringWhere, [query.rtype].concat(likestringUnit), function(cr) {
 				assert.equal(cr.length, 1);
 				cb(res, cr[0].c);
 			});

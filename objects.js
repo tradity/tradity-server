@@ -103,7 +103,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 		'LEFT JOIN orderhistory AS oh ON (e2.targetid = oh.orderid AND e2.type="trade") OR (oh.orderid = events.targetid AND events.type="trade") '+
 		'LEFT JOIN users AS su ON su.id = events.srcuser '+
 		'LEFT JOIN users AS trader ON (trader.id = oh.userid AND e2.type="trade") OR (trader.id = e2.targetid AND e2.type="user-register") '+
-		'LEFT JOIN schools ON (schools.id = e2.targetid AND e2.type="trade") '+
+		'LEFT JOIN schools ON (schools.id = e2.targetid AND e2.type="school-create") '+
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification"'+
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
 		[user.uid, query ? query.since : 0, query && query.count !== null ? query.count : 100000], function(r) {

@@ -72,7 +72,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 					s.popularStocks = popular.splice(0, 10);
 					
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
-						s.parentPath = s.path.match(/(\/\w+)+\/\w+$/)[1];
+						s.parentPath = s.path.match(/(\/[\w_-]+)+\/[\w_-]+$/)[1];
 						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {
 							assert.equal(code, 'get-schools-inf-success');
 							
@@ -144,7 +144,7 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 		this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
 			assert.equal(r.length, 1);
 			if (r[0].c == 1 || !query.schoolname.trim() || 
-				!/^(\/\w+)+$/.test(query.schoolpath)) {
+				!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
 				return cb('create-school-already-exists');
 			}
 			

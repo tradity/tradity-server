@@ -64,12 +64,6 @@ util.inherits(ConnectionData, events.EventEmitter);
 
 ConnectionData.uniqueCount = 0;
 
-ConnectionData.prototype.client_insertPSEmail = function(query, cb) {
-	UserDB.insertPSEmail(query, this.user, this.access, _.bind(function(code) {
-		cb(code);
-	}, this));
-}
-
 function _login (f) {
 	return function(query, cb) {
 		if (this.user === null && !this.access.has('login-override'))

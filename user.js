@@ -21,22 +21,6 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 	}, this));
 }
 
-UserDB.prototype.insertPSEmail = function(query, user, access, cb) {
-	this.query('SELECT COUNT(*) AS c FROM ps_emails WHERE email = ?', [query.email], function(res) {		
-		assert.equal(res.length, 1);
-			
-		if (res[0].c != 0) {
-			assert.equal(res[0].c, 1);
-			cb('email-already-present');
-			return;
-		}
-		
-		this.query('INSERT INTO ps_emails (email, time, lang) VALUES(?, UNIX_TIMESTAMP(), ?)', [query.email, query.lang], function(res) {
-			cb('email-enter-success');
-		});
-	});
-}
-
 UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 	crypto.randomBytes(16, _.bind(function(ex, buf) {
 		var key = buf.toString('hex');
@@ -400,7 +384,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 	this.locked(['userdb'], cb_, function(cb) {
 		
 	var uid = user !== null ? user.id : null;
-	if (!data.name || !data.email || !data.giv_name || !data.fam_name) {
+	if (!data.name || !data.email) {
 		cb('format-error');
 		return;
 	}
@@ -415,6 +399,8 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 		return;
 	}
 	
+	data.giv_name = data.giv_name || '';
+	data.fam_name = data.fam_name || '';
 	data.wprovision = data.wprovision || 15;
 	data.lprovision = data.lprovision || 0;
 	

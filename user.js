@@ -69,11 +69,6 @@ UserDB.prototype.login = function(query, user, access, xdata, cb) {
 			return;
 		}
 		
-		if (res[0].email_verif == 0 && !access.has('userdb')) {
-			cb('login-email-not-verified');
-			return;
-		}
-		
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;

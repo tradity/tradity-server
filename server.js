@@ -301,7 +301,7 @@ ConnectionData.prototype.client_school_delete_comment = _login(function(query, c
 ConnectionData.prototype.client_school_kick_user = _login(function(query, cb) {
 	SchoolsDB.kickUser(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
-	});
+	},this));
 });
 
 ConnectionData.prototype.client_ping = function(query, cb) {

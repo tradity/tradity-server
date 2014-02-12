@@ -1,5 +1,7 @@
 (function () { "use strict";
 	
+function parentPath(x) { return x.match(/(\/[\w_-]+)+\/[\w_-]+$/)[1]; }
+
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
@@ -72,7 +74,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 					s.popularStocks = popular.splice(0, 10);
 					
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
-						s.parentPath = s.path.match(/(\/[\w_-]+)+\/[\w_-]+$/)[1];
+						s.parentPath = parentPath(s.path);
 						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {
 							assert.equal(code, 'get-schools-inf-success');
 							

@@ -121,7 +121,7 @@ ConnectionData.prototype.client_prod = function(query, cb) {
 		cb('prod-not-allowed');
 	} else {
 		var starttime = new Date().getTime();
-		UserDB.regularCallback(function() {
+		UserDB.regularCallback(query, function() {
 			var userdbtime = new Date().getTime();
 			StocksDB.regularCallback(query, function() {
 				cb('prod-ready', {'utime': userdbtime - starttime, 'stime': new Date().getTime() - userdbtime});

@@ -108,7 +108,7 @@ SchoolsDB.prototype.changeMemberStatus = _reqschooladm(function(query, user, acc
 			cb('school-change-member-status-success');
 		});
 	} else {
-		this.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', query.uid, query.schoolid, query.status, function() {
+		this.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', [query.uid, query.schoolid, query.status], function() {
 			cb('school-change-member-status-success');
 		});
 	}

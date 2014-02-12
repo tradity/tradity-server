@@ -133,8 +133,8 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	}
 	
 	if (query.schoolid) {
-		likestringWhere += 'AND sm.schoolid = ? ';
-		likestringUnit = likestringUnit.concat([parseInt(query.schoolid)]);
+		likestringWhere += 'AND schools.id = ? OR schools.path = ? ';
+		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}
 	
 	this.locked(['ranking'], cb_, function(cb) {
@@ -238,15 +238,18 @@ UserDB.prototype.listSchools = function(query, user, access, cb) {
 		'GROUP BY schools.id', [], cb);
 }
 
-UserDB.prototype.regularCallback = function(cb) {
+UserDB.prototype.regularCallback = function(query, cb) {
 	cb = cb || function() {};
 	
 	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []);
-	this.query('SELECT id FROM schools AS p WHERE ' +
+	this.query('SELECT id, path FROM schools AS p WHERE ' +
 		'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
 		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0', [], function(r) {
-		for (var i = 0; i < r.length; ++i)
-			this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
+		for (var i = 0; i < r.length; ++i) {
+			if (path.replace(/[^\/]/g, '').length == 1 || query.weekly)
+				this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
+		}
+		
 		cb();
 	});
 }

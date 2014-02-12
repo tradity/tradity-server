@@ -162,7 +162,7 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 				createCB();
 			else this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
 				assert.equal(r.length, 1);
-				if (r[0].c == 1)
+				if (r[0].c != 1)
 					return cb('create-school-missing-parent');
 				
 				createCB();

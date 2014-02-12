@@ -86,36 +86,6 @@ AdminDB.prototype.notifyAll = _reqpriv('moderate', function(query, user, access,
 	});
 });
 
-AdminDB.prototype.createSchool = _reqpriv('schooldb', function(query, user, access, cb_) {
-	this.locked(['userdb'], cb_, function(cb) {
-		this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
-			assert.equal(r.length, 1);
-			if (r[0].c == 1 || !query.schoolname.trim() || 
-				!/^(\/\w+)+$/.test(query.schoolpath)) {
-				return cb('create-school-already-exists');
-			}
-			
-			var createCB = _.bind(function() {
-				this.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
-					this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': user.id});
-					
-					cb('create-school-success');
-				});
-			}, this);
-			
-			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
-				createCB();
-			else this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
-				assert.equal(r.length, 1);
-				if (r[0].c == 1)
-					return cb('create-school-missing-parent');
-				
-				createCB();
-			});
-		});
-	});
-});
-
 AdminDB.prototype.renameSchool = _reqpriv('schooldb', function(query, user, access, cb) {
 	this.query('SELECT path FROM schools WHERE id = ?', [query.schoolid], function(r) {
 		if (r.length == 0 || (query.schoolpath && parentPath(r[0].path) != parentPath(query.schoolpath)))

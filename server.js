@@ -257,7 +257,7 @@ ConnectionData.prototype.client_notify_all = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_create_school = _login(function(query, cb) {
-	AdminDB.createSchool(query, this.user, this.access, _.bind(function(code) {
+	SchoolsDB.createSchool(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
 });
@@ -290,6 +290,18 @@ ConnectionData.prototype.client_school_change_member_status = _login(function(qu
 	SchoolsDB.changeMemberStatus(query, this.user, this.access, _.bind(function(code) {
 		cb(code);
 	}, this));
+});
+
+ConnectionData.prototype.client_school_delete_comment = _login(function(query, cb) {
+	SchoolsDB.deleteComment(query, this.user, this.access, _.bind(function(code) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_school_kick_user = _login(function(query, cb) {
+	SchoolsDB.kickUser(query, this.user, this.access, _.bind(function(code) {
+		cb(code);
+	});
 });
 
 ConnectionData.prototype.client_ping = function(query, cb) {

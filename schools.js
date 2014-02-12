@@ -53,10 +53,15 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 		this.loadSchoolAdmins(s.id, function(admins) {
 			s.admins = admins;
 			
-			this.query('SELECT c.*,u.name AS username,u.id AS uid, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?',
+			this.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%'], function(subschools) {
+			this.query('SELECT c.*,u.name AS username,u.id AS uid, trustedhtml ' +
+				'FROM ecomments AS c '+
+				'LEFT JOIN users AS u ON c.commenter = u.id '+
+				'WHERE c.eventid = ?',
 				[s.eventid],
 				function(comments) {
 				s.comments = comments;
+				s.subschools = subschools;
 			
 				this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
@@ -79,6 +84,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 						cb('get-school-info-success', s);
 					}
 				});
+			});
 			});
 		});
 	});
@@ -105,6 +111,63 @@ SchoolsDB.prototype.changeMemberStatus = _reqschooladm(function(query, user, acc
 		});
 	}
 });
+
+SchoolsDB.prototype.deleteComment = _reqschooladm(function(query, user, access, cb) {
+	this.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
+		'JOIN events AS e ON e.eventid = c.eventid ' +
+		'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
+		[query.commentid, query.schoolid], function(res) {
+		if (res.length == 0)
+			return cb('permission-denied');
+		
+		assert.ok(res.length == 1 && res[0].cid == query.commentid);
+		
+		this.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
+			['<em>Dieser Kommentar wurde durch die Gruppenadministratoren gelöscht.</em>', query.commentid], function() {
+			cb('school-delete-comment-success');
+		});
+	});
+});
+
+SchoolsDB.prototype.kickUser = _reqschooladm(function(query, user, access, cb) {
+	this.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
+		[query.uid, query.schoolid], function() {
+		cb('school-kick-user-success');
+	});
+});
+
+SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
+	if (!query.schoolpath)
+		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
+	
+	this.locked(['userdb'], cb_, function(cb) {
+		this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
+			assert.equal(r.length, 1);
+			if (r[0].c == 1 || !query.schoolname.trim() || 
+				!/^(\/\w+)+$/.test(query.schoolpath)) {
+				return cb('create-school-already-exists');
+			}
+			
+			var createCB = _.bind(function() {
+				this.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
+					this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': user.id});
+					
+					cb('create-school-success');
+				});
+			}, this);
+			
+			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
+				createCB();
+			else this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
+				assert.equal(r.length, 1);
+				if (r[0].c == 1)
+					return cb('create-school-missing-parent');
+				
+				createCB();
+			});
+		});
+	});
+};
 
 exports.SchoolsDB = SchoolsDB;
 

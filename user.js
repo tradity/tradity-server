@@ -225,7 +225,7 @@ UserDB.prototype.regularCallback = function(query, cb) {
 		'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
 		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0', [], function(r) {
 		for (var i = 0; i < r.length; ++i) {
-			if (path.replace(/[^\/]/g, '').length == 1 || query.weekly)
+			if (path[i].path.replace(/[^\/]/g, '').length == 1 || query.weekly)
 				this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
 		}
 		

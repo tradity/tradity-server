@@ -225,7 +225,7 @@ UserDB.prototype.regularCallback = function(query, cb) {
 		'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
 		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0', [], function(r) {
 		for (var i = 0; i < r.length; ++i) {
-			if (path[i].path.replace(/[^\/]/g, '').length == 1 || query.weekly)
+			if (r[i].path.replace(/[^\/]/g, '').length == 1 || query.weekly)
 				this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
 		}
 		
@@ -475,6 +475,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 								this.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
 									'VALUES(?, ?, ((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0), UNIX_TIMESTAMP())',
 									[uid, data.school, data.school]);
+							
+							if (user.school != null) 
+								this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, user.school]);
 						}
 
 						if (data.wprovision != user.wprovision || data.lprovision != user.lprovision)

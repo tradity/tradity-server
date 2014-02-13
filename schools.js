@@ -134,7 +134,10 @@ SchoolsDB.prototype.deleteComment = _reqschooladm(function(query, user, access, 
 SchoolsDB.prototype.kickUser = _reqschooladm(function(query, user, access, cb) {
 	this.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
 		[query.uid, query.schoolid], function() {
-		cb('school-kick-user-success');
+		this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
+			[query.uid, query.schoolid], function() {
+			cb('school-kick-user-success');
+		});
 	});
 });
 

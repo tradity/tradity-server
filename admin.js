@@ -91,7 +91,7 @@ AdminDB.prototype.renameSchool = _reqpriv('schooldb', function(query, user, acce
 		if (r.length == 0 || (query.schoolpath && parentPath(r[0].path) != parentPath(query.schoolpath)))
 			return cb('rename-school-notfound');
 		
-		this.query('UPDATE schools SET name = ?, WHERE id = ?', [query.schoolname, query.schoolid], function() {
+		this.query('UPDATE schools SET name = ? WHERE id = ?', [query.schoolname, query.schoolid], function() {
 			if (query.schoolpath) {
 				this.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?', [r[0].path, query.schoolpath, r[0].path + '/%', r[0].path], function() {
 					cb('rename-school-success');

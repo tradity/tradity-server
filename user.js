@@ -113,6 +113,8 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	
 	if (query.schoolid) {
 		likestringWhere += 'AND schools.id = ? OR schools.path = ? ';
+		if (parseInt(query.schoolid) != query.schoolid && !/^\//.test(query.schoolid))
+			query.schoolid = '/' + query.schoolid;
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}
 	

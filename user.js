@@ -496,10 +496,12 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 								this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 								this.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 									['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(cb, this, res));
-									
-								this.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) '+
-									'VALUES(?, ?, ((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0), UNIX_TIMESTAMP())',
-									[uid, data.school, data.school]);
+								
+								if (data.school) {
+									this.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
+										'VALUES(?, ?, ((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0), UNIX_TIMESTAMP())',
+										[uid, data.school, data.school]);
+								}
 							});
 						});
 					}

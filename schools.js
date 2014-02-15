@@ -12,6 +12,10 @@ function SchoolsDB (db, config) {
 }
 util.inherits(SchoolsDB, require('./objects.js').DBSubsystemBase);
 
+function adminlistContainsUser(admins, user) {
+	return _.chain(adminlist).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0;
+}
+
 function _reqschooladm (f) {
 	return function(query, user, access, cb) {
 		var forward = _.bind(function() { return _.bind(f, this)(query, user, access, cb); }, this);
@@ -21,7 +25,7 @@ function _reqschooladm (f) {
 		assert.ok(this.loadSchoolAdmins);
 		
 		this.loadSchoolAdmins(query.schoolid, function(adminlist) {
-			if (_.chain(adminlist).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0)
+			if (adminlistContainsUser(adminlist, user))
 				cb('permission-denied');
 			else
 				forward();
@@ -103,15 +107,17 @@ SchoolsDB.prototype.changeDescription = _reqschooladm(function(query, user, acce
 });
 
 SchoolsDB.prototype.changeMemberStatus = _reqschooladm(function(query, user, access, cb) {
-	if (query.newstatus == 'member') {
-		this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
-			cb('school-change-member-status-success');
-		});
-	} else {
-		this.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', [query.schoolid, query.uid, query.status], function() {
-			cb('school-change-member-status-success');
-		});
-	}
+	this.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?', [query.schoolid, query.uid], function() {
+		if (query.newstatus == 'member') {
+			this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
+				cb('school-change-member-status-success');
+			});
+		} else {
+			this.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', [query.schoolid, query.uid, query.status], function() {
+				cb('school-change-member-status-success');
+			});
+		}
+	});
 });
 
 SchoolsDB.prototype.deleteComment = _reqschooladm(function(query, user, access, cb) {

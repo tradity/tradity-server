@@ -14,42 +14,60 @@ util.inherits(DBSubsystemBase, events.EventEmitter);
 
 DBSubsystemBase.prototype.dbevent = function(name, data, access) {
 	this.emit('dbevent', {name:name, data:data, access:access});
-}
+};
+
+DBSubsystemBase.prototype.timeQueryWrap = function(fn, connid) {
+	if (this.cfg && this.cfg.timeQueries) {
+		return _.bind(function(query, data, cb) {
+			var tStart = new Date().getTime();
+			
+			fn(query, data, _.bind(function() {
+				var tEnd = new Date().getTime();
+				console.log('Query ', connid, query.substr(0, 60), ' took ', tEnd - tStart, 'ms');
+				
+				cb.apply(this, arguments);
+			}, this));
+		}, this);
+	} else {
+		return fn;
+	}
+};
 
 DBSubsystemBase.prototype.query = function(query, data, cb) {
 	data = data || [];
 	
-	this.db.query(query, data, this.queryCallback(cb, query, data));
-}
+	this.timeQueryWrap(_.bind(this.db.query, this.db), '*')(query, data, this.queryCallback(cb, query, data));
+};
 
 DBSubsystemBase.prototype.getConnection = function(conncb) {
-	var dbsb = this;
-	this.db.getConnection(function(err, cn) {
+	this.db.getConnection(_.bind(function(err, cn) {
 		if (err)
 			this.emit('error', err);
+			
+		if (!this.dbconnid)
+			this.dbconnid = 0;
+		var connid = ++this.dbconnid;
+		
 		conncb({
-			query: function(q, data, cb) {
+			query: _.bind(function(q, data, cb) {
 				data = data || [];
-				cn.query(q, data, dbsb.queryCallback(cb, q, data));
-			},
-			release: function() {
+				this.timeQueryWrap(_.bind(cn.query, cn), connid)(q, data, this.queryCallback(cb, q, data));
+			}, this),
+			release: _.bind(function() {
 				cn.release();
-			}
+			}, this)
 		});
-	})
-}
+	}, this));
+};
 
-DBSubsystemBase.prototype.queryCallback = function(cb, query, data) {
-	if (!cb)
-		return (function() {});
-	
+DBSubsystemBase.prototype.queryCallback = function(cb, query, data) {	
 	return _.bind(function(err, res) {
 		if (err) 
 			this.emit('error', query ? new Error(err + '\nCaused by <<' + query + '>> with arguments [' + new Buffer(JSON.stringify(data)).toString('base64') + ']') : err);
-		else
+		else if (cb)
 			_.bind(cb, this)(res);
 	}, this);
-}
+};
 
 DBSubsystemBase.prototype.feed = function(data) {
 	var src = data.srcuser;
@@ -91,7 +109,7 @@ DBSubsystemBase.prototype.feed = function(data) {
 			this.emit('push-events');
 		});
 	});
-}
+};
 
 DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, '+
@@ -119,7 +137,7 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 			return ev;
 		}).reject(function(ev) { return !ev; }).value());
 	});
-}
+};
 
 DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 	this.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
@@ -144,18 +162,18 @@ DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 			cb('comment-success');
 		});
 	});
-}
+};
 
 DBSubsystemBase.prototype.getNeededStocks = function() {
 	return [];
-}
+};
 
 DBSubsystemBase.prototype.locked = function(locks, origCB, fn) {
 	if (!this.lockAuthority)
 		this.lockAuthority = locking.Lock.globalLockAuthority;
 	
 	this.lockAuthority.locked(locks, origCB, _.bind(fn, this));
-}
+};
 
 exports.DBSubsystemBase = DBSubsystemBase;
 

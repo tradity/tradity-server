@@ -107,12 +107,12 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	var likestringUnit = [];
 	if (query.search) {
 		var likestring = '%' + (query.search.toString()).replace(/%/g, '\\%') + '%';
-		likestringWhere += 'AND users.name LIKE ? ';
+		likestringWhere += 'AND (users.name LIKE ?) ';
 		likestringUnit = likestringUnit.concat([likestring]);
 	}
 	
 	if (query.schoolid) {
-		likestringWhere += 'AND schools.id = ? OR schools.path = ? ';
+		likestringWhere += 'AND (schools.id = ? OR schools.path = ?) ';
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}
 	

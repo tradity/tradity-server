@@ -80,7 +80,7 @@ UserDB.prototype.login = function(query, user, access, xdata, cb) {
 		crypto.randomBytes(16, _.bind(function(ex, buf) {
 			var key = buf.toString('hex');
 			
-			this.regularCallback();
+			this.regularCallback({});
 			
 			this.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
 				[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
@@ -225,7 +225,7 @@ UserDB.prototype.regularCallback = function(query, cb) {
 		'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
 		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0', [], function(r) {
 		for (var i = 0; i < r.length; ++i) {
-			if (r[i].path.replace(/[^\/]/g, '').length == 1 || query.weekly)
+			if (r[i].path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly))
 				this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
 		}
 		
@@ -435,7 +435,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 					
 					data.school = res.insertId;
 					
-					gainUIDCB = _.bind(function(uid) {
+					gainUIDCB = _.bind(function() {
+						assert.ok(uid != null);
+						
 						this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': uid});
 					}, this);
 				}

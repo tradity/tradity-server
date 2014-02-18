@@ -373,7 +373,19 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 			}, this));
 		}, this));
 	});
-}
+};
+
+UserDB.prototype.createInviteLink = function(query, user, access, cb) {
+	crypto.randomBytes(16, _.bind(function(ex, buf) {
+		var key = buf.toString('hex');
+		this.query('INSERT INTO invitelink ' +
+			'(uid, key, email, ctime, schoolid) VALUES' +
+			'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
+			[user.id, key, query.email, parseInt(query.schoolid)], function() {
+			/*...*/
+		});
+	}, this));
+};
 
 UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 	this.locked(['userdb'], cb_, function(cb) {

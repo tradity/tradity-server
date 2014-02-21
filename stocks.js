@@ -325,6 +325,8 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			A[f][l] -= amount / this.cfg.leaderValueShare;
 		}
 		
+		// todo: test scc handling for A
+		
 		var sgesvST = new Date().getTime();
 		var res = lapack.sgesv(A, B);
 		if (!res) {

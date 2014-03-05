@@ -70,7 +70,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 		var filehash = hash('md5', content);
 		if (!query.name) query.name = filehash;
 		var filename = (user ? user.id + '-' : '') + query.name.replace(/[^-_+\w\.]/g, '');
-		var url = this.cfg.fsdb.puburl.replace(/\{\$hostname\}/, this.cfg.hostname).replace(/\{\$name\}/, filename);
+		var url = this.cfg.fsdb.puburl.replace(/\{\$hostname\}/g, this.cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = _.bind(function() {
 			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content) '+

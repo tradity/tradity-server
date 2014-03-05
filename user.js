@@ -21,6 +21,30 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 	}, this));
 }
 
+UserDB.prototype.sendInviteEmail = function(data, uid, cb) {
+	var url = this.cfg.inviteurl.replace(/\{\$key\}/g, data.key).replace(/\{\$hostname\}/g, this.cfg.hostname);
+	
+	var opt = _.clone(this.cfg.mail['invite-base']);
+	opt.to = data.email;
+	opt.subject += ' (' + data.sender.name + ')';
+	opt.headers = {
+		'Sender': data.sender.email
+	};
+	opt.generateTextFromHTML = true;
+	
+	opt.html = '<p>Der Benutzer „' + data.sender.name + '“ hat dich zum Börsenspiel Tradity eingeladen.\n' +
+		'<a href="' + url + '">Klicke hier, um mitzuspielen.</a></p>';
+	
+	this.emailsennder.sendMail(opt, _.bind(function(error, resp) {
+		if (error) {
+			cb('create-invite-link-failed');
+			this.emit('error', error);
+		} else {
+			cb('create-invite-link-success');
+		}
+	}, this));
+};
+
 UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 	crypto.randomBytes(16, _.bind(function(ex, buf) {
 		var key = buf.toString('hex');
@@ -28,7 +52,7 @@ UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 		this.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
 			[uid, key], function(res) {
 			
-			var url = this.cfg.regurl.replace(/\{\$key\}/, key).replace(/\{\$uid\}/, uid).replace(/\{\$hostname\}/, this.cfg.hostname);
+			var url = this.cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, uid).replace(/\{\$hostname\}/g, this.cfg.hostname);
 			
 			var opt = _.clone(this.cfg.mail['register-base']);
 			opt.to = data.email;
@@ -376,13 +400,35 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 };
 
 UserDB.prototype.createInviteLink = function(query, user, access, cb) {
+	query.email = query.email || null;
+	
+	if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
+		return cb('create-invite-link-invalid-email');
+		
+	if (user.email_verif == 0)
+		return cb('create-invite-link-not-verif');
+	
 	crypto.randomBytes(16, _.bind(function(ex, buf) {
 		var key = buf.toString('hex');
+		var sendKeyToCaller = access.has('userdb');
 		this.query('INSERT INTO invitelink ' +
 			'(uid, key, email, ctime, schoolid) VALUES' +
 			'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 			[user.id, key, query.email, parseInt(query.schoolid)], function() {
-			/*...*/
+			_.bind(query.email ? function(cont) {
+				this.sendInviteEmail({
+					sender: user,
+					email: query.email,
+					key: key
+				}, _.bind(function(status) {
+					cont(status);
+				}, this));
+			} : function(cont) {
+				sendKeyToCaller = true;
+				cont('create-invite-link-success');
+			}, this)(_.bind(function(status) {
+				cb(status, sendKeyToCaller ? key : null);
+			}, this));
 		});
 	}, this));
 };
@@ -532,7 +578,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 					cb('reg-unknown-school');
 					return;
 				} else {
-					this.query('INSERT INTO schools (name,path) VALUES(?,MD5(?))', [data.school, data.school], schoolAddedCB);
+					this.query('INSERT INTO schools (name,path) VALUES(?,CONCAT("/",MD5(?)))', [data.school, data.school], schoolAddedCB);
 				}
 			} else {
 				if (data.school !== null) {

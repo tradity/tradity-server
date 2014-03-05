@@ -88,7 +88,7 @@ YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
 		this.emit('error', e);
 	}, this);
 	var sl = _.reduce(stocklist, function(memo, code) { return memo + '+' + code; }, '');
-	var requrl = this.infoLink.replace('%\{stocklist\}', sl).replace('%\{format\}', fstring);
+	var requrl = this.infoLink.replace(/%\{stocklist\}/g, sl).replace(/%\{format\}/g, fstring);
 	
 	var req = http.request(requrl, _.bind(function(res) {
 		csv().from.stream(res.on('error', forwardError)).on('record', _.bind(function(rec) {
@@ -129,7 +129,7 @@ YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, filter, c
 	
 	var forwardError = _.bind(function(e) {this.emit('error', e)}, this);
 	
-	var requrl = this.searchLink.replace('%\{name\}', name).replace('%\{random\}', new Date().getTime()).replace('%\{fake-cb\}', FAKE_CALLBACK);
+	var requrl = this.searchLink.replace(/%\{name\}/g, name).replace(/%\{random\}/g, new Date().getTime()).replace(/%\{fake-cb\}/g, FAKE_CALLBACK);
 	
 	var req = http.request(requrl, _.bind(function(res) {
 		var resultstr = '';

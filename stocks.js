@@ -181,7 +181,7 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	if (leadertest !== null)
 		lid = leadertest[1];
 	
-	var xstr = '%' + str.replace(/%/, '\\%') + '%';
+	var xstr = '%' + str.replace(/%/g, '\\%') + '%';
 	this.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS  ask, stocks.bid AS bid, '+
 		'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
 		'FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {

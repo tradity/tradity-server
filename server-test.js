@@ -111,7 +111,7 @@ socket.on('connect', function() {
 				});
 				break;
 			case 'stock-search-1':
-				//assert.equal(data.code, 'not-logged-in');
+				assert.equal(data.code, 'not-logged-in');
 				emit('query', {
 					type: 'login',
 					id: 'login-2',

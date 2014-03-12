@@ -21,9 +21,7 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 	}, this));
 }
 
-UserDB.prototype.sendInviteEmail = function(data, uid, cb) {
-	var url = this.cfg.inviteurl.replace(/\{\$key\}/g, data.key).replace(/\{\$hostname\}/g, this.cfg.hostname);
-	
+UserDB.prototype.sendInviteEmail = function(data, cb) {	
 	var opt = _.clone(this.cfg.mail['invite-base']);
 	opt.to = data.email;
 	opt.subject += ' (' + data.sender.name + ')';
@@ -33,9 +31,9 @@ UserDB.prototype.sendInviteEmail = function(data, uid, cb) {
 	opt.generateTextFromHTML = true;
 	
 	opt.html = '<p>Der Benutzer „' + data.sender.name + '“ hat dich zum Börsenspiel Tradity eingeladen.\n' +
-		'<a href="' + url + '">Klicke hier, um mitzuspielen.</a></p>';
+		'<a href="' + data.url + '">Klicke hier, um mitzuspielen.</a></p>';
 	
-	this.emailsennder.sendMail(opt, _.bind(function(error, resp) {
+	this.emailsender.sendMail(opt, _.bind(function(error, resp) {
 		if (error) {
 			cb('create-invite-link-failed');
 			this.emit('error', error);
@@ -402,24 +400,28 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 UserDB.prototype.createInviteLink = function(query, user, access, cb) {
 	query.email = query.email || null;
 	
-	if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
-		return cb('create-invite-link-invalid-email');
-		
-	if (user.email_verif == 0)
-		return cb('create-invite-link-not-verif');
+	if (!access.has('userdb')) {
+		if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
+			return cb('create-invite-link-invalid-email');
+			
+		if (user.email_verif == 0)
+			return cb('create-invite-link-not-verif');
+	}
 	
 	crypto.randomBytes(16, _.bind(function(ex, buf) {
 		var key = buf.toString('hex');
 		var sendKeyToCaller = access.has('userdb');
 		this.query('INSERT INTO invitelink ' +
-			'(uid, key, email, ctime, schoolid) VALUES' +
+			'(uid, `key`, email, ctime, schoolid) VALUES' +
 			'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-			[user.id, key, query.email, parseInt(query.schoolid)], function() {
+			[user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
+			var url = this.cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, this.cfg.hostname);
+	
 			_.bind(query.email ? function(cont) {
 				this.sendInviteEmail({
 					sender: user,
 					email: query.email,
-					key: key
+					url: url
 				}, _.bind(function(status) {
 					cont(status);
 				}, this));
@@ -427,7 +429,7 @@ UserDB.prototype.createInviteLink = function(query, user, access, cb) {
 				sendKeyToCaller = true;
 				cont('create-invite-link-success');
 			}, this)(_.bind(function(status) {
-				cb(status, sendKeyToCaller ? key : null);
+				cb(status, sendKeyToCaller ? url : null);
 			}, this));
 		});
 	}, this));
@@ -548,21 +550,50 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 						this.locked(['depotstocks'], updateCB, function(cb) {
 							if (data.betakey)
 								this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
-							this.query('INSERT INTO users (name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, traderse, tradersp, traditye, wot, street, zipcode, town)' +
-							'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-							[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.email, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
-							function(res) {
-								uid = res.insertId;
-								this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
-								this.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
-									['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(cb, this, res));
-								
-								if (data.school) {
-									this.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
-										'VALUES(?, ?, ((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0), UNIX_TIMESTAMP())',
-										[uid, data.school, data.school]);
-								}
-							});
+							
+							var inv = {};
+							_.bind(data.invitekey ? function(cont) {
+								this.query('SELECT * FROM invitelink WHERE `key` = ?', [data.invitekey], function(invres) {
+									if (invres.length == 0)
+										cont();
+									
+									assert.equal(invres.length, 1);
+									
+									var inv = invres[0];
+									if (inv.schoolid && !data.school || parseInt(data.school) == parseInt(inv.schoolid)) {
+										data.school = inv.schoolid;
+										inv.__schoolverif__ = 1;
+									}
+									
+									this.query('INSERT INTO inviteaccept (iid, uid, accepttime) (?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
+									
+									cont();
+								});
+							} : function(cont) {
+								cont();
+							}, this)(_.bind(function() {
+								this.query('INSERT INTO users ' +
+									'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
+									'traderse, tradersp, traditye, wot, street, zipcode, town)' +
+									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+									[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
+									data.email, (inv.email && inv.email == data.email) ? 1 : 0,
+									data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
+								function(res) {
+									uid = res.insertId;
+									this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
+									this.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
+										['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(cb, this, res));
+									
+									if (data.school) {
+										this.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
+											'VALUES(?, ?, ' + 
+											(inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
+											', UNIX_TIMESTAMP())',
+											[uid, data.school, data.school]);
+									}
+								});
+							}, this));
 						});
 					}
 				}, this);

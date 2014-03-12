@@ -16,10 +16,12 @@ function adminlistContainsUser(admins, user) {
 	return _.chain(adminlist).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0;
 }
 
-function _reqschooladm (f) {
+function _reqschooladm (f, soft) {
+	var soft = soft || false;
+	
 	return function(query, user, access, cb) {
 		var forward = _.bind(function() { return _.bind(f, this)(query, user, access, cb); }, this);
-		if (access.has('schooldb'))
+		if (access.has('schooldb') || (soft && !query.schoolid))
 			return forward();
 		
 		assert.ok(this.loadSchoolAdmins);
@@ -80,7 +82,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = parentPath(s.path);
 						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {
-							assert.equal(code, 'get-schools-inf-success');
+							assert.equal(code, 'get-schools-info-success');
 							
 							s.parentSchool = result;
 							
@@ -178,6 +180,10 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 			});
 		});
 	});
+};
+
+SchoolsDB.prototype.createInviteLink = function(query, user, access, UserDB, cb) {
+	_reqschooladm(_.bind(UserDB.createInviteLink, UserDB), true)(query, user, access, cb);
 };
 
 exports.SchoolsDB = SchoolsDB;

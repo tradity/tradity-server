@@ -256,6 +256,12 @@ ConnectionData.prototype.client_create_school = _login(function(query, cb) {
 	}, this));
 });
 
+ConnectionData.prototype.client_create_invite_link = _login(function(query, cb) {
+	SchoolsDB.createInviteLink(query, this.user, this.access, UserDB, _.bind(function(code, url) {
+		cb(code, {'url': url});
+	}, this));
+});
+
 ConnectionData.prototype.client_rename_school = _login(function(query, cb) {
 	AdminDB.renameSchool(query, this.user, this.access, _.bind(function(code) {
 		cb(code);

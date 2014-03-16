@@ -62,9 +62,10 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 			s.admins = admins;
 			
 			this.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%'], function(subschools) {
-			this.query('SELECT c.*,u.name AS username,u.id AS uid, trustedhtml ' +
+			this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
 				'FROM ecomments AS c '+
-				'LEFT JOIN users AS u ON c.commenter = u.id '+
+				'LEFT JOIN users AS u ON c.commenter = u.id ' +
+				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
 				'WHERE c.eventid = ?',
 				[s.eventid],
 				function(comments) {

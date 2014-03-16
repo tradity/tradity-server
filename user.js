@@ -223,7 +223,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 				
 				this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
 					this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
-						this.query('SELECT c.*,u.name AS username,u.id AS uid, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+						this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image"  WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
 							cb(xuser, orders, values, comments);
 						});
 					});
@@ -412,7 +412,7 @@ UserDB.prototype.createInviteLink = function(query, user, access, cb) {
 		var key = buf.toString('hex');
 		var sendKeyToCaller = access.has('userdb');
 		this.query('INSERT INTO invitelink ' +
-			'(uid, `key`, email, ctime, schoolid) VALUES' +
+			'(uid, `key`, email, ctime, schoolid) VALUES ' +
 			'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 			[user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
 			var url = this.cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, this.cfg.hostname);

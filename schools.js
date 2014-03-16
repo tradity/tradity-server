@@ -83,7 +83,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = parentPath(s.path);
 						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {
-							assert.equal(code, 'get-schools-info-success');
+							assert.equal(code, 'get-school-info-success');
 							
 							s.parentSchool = result;
 							

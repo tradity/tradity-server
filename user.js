@@ -535,7 +535,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 								this.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
 							else
 								this.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
-									'VALUES(?, ?, ((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0), UNIX_TIMESTAMP())',
+									'VALUES(?, ?, ' + (access.has('schooldb') ? '0' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
 									[uid, data.school, data.school]);
 							
 							if (user.school != null) 

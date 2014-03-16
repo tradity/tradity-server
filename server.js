@@ -133,7 +133,7 @@ ConnectionData.prototype.client_get_own_options = _login(function(query, cb) {
 
 ConnectionData.prototype.client_change_options = _login(function(query, cb) {
 	UserDB.changeOptions(query, this.user, this.access, _.bind(function(code) {
-		cb(code, {'is-reply-to': query.id});
+		cb(code, {'is-reply-to': query.id}, 'repush');
 	}, this));
 });
 
@@ -405,7 +405,7 @@ ConnectionData.prototype.query = function(query) {
 		 
 		this.user = user;
 		
-		var cb = _.bind(function(code, obj) {
+		var cb = _.bind(function(code, obj, extra) {
 			var now = new Date().getTime();
 			obj = obj || {};
 			obj['code'] = code;
@@ -414,6 +414,11 @@ ConnectionData.prototype.query = function(query) {
 			obj['_t_srecv'] = recvTime;
 			obj['_t_sdelta'] = now - recvTime;
 			this.response(obj);
+			
+			if (extra && extra == 'repush') {
+				this.lastInfoPush = 0;
+				this.pushSelfInfo();
+			}
 		}, this);
 		
 		var t = query.type.replace(/-/g, '_');

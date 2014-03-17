@@ -304,6 +304,12 @@ ConnectionData.prototype.client_school_kick_user = _login(function(query, cb) {
 	},this));
 });
 
+ConnectionData.prototype.client_school_publish_banner = _login(function(query, cb) {
+	SchoolsDB.publishBanner(query, this.user, this.access, FileStorageDB, _.bind(function(code) {
+		cb(code);
+	},this));
+});
+
 ConnectionData.prototype.client_ping = function(query, cb) {
 	cb('pong', {'uid': this.user ? this.user.uid : null});
 };

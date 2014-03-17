@@ -36,7 +36,8 @@ FileStorageDB.prototype.handle = function(req, res) {
 			'X-Sotrade-Hash': r.hash,
 			'X-Sotrade-Source-User-ID': r.user,
 			'X-Sotrade-Name': r.name,
-			'X-Sotrade-Role': r.role
+			'X-Sotrade-Role': r.role,
+			'X-Sotrade-Groupassoc': r.groupassoc
 		};
 		
 		if (r.gzipped) 
@@ -54,7 +55,7 @@ FileStorageDB.prototype.handle = function(req, res) {
 
 FileStorageDB.prototype.publish = function(query, user, access, cb) {
 	var content = query.content;
-	var uniqrole = this.cfg.fsdb.uniqroles.indexOf(query.role) != -1;
+	var uniqrole = this.cfg.fsdb.uniqroles[query.role];
 	
 	if (query.base64)
 		content = new Buffer(query.content, 'base64');
@@ -73,15 +74,29 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 		var url = this.cfg.fsdb.puburl.replace(/\{\$hostname\}/g, this.cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = _.bind(function() {
-			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content) '+
-				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
-				[user ? user.id : null, filename, url, query.mime, filehash, query.role, content], function() {
+			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc) '+
+				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?)',
+				[user ? user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__], function() {
 				return cb('publish-success');
 			});
 		}, this);
 		
 		if (uniqrole && user && !access.has('filesystem')) {
-			this.query('DELETE FROM httpresources WHERE user = ? AND role = ?', [user.id, query.role], continueAfterDelPrevious);
+			var sql = 'DELETE FROM httpresources WHERE role = ? ';
+			var dataarr = [query.role];
+			
+			for (var i = 0; i < uniqrole.length; ++i) {
+				var fieldname = uniqrole[i];
+				sql += 'AND `' + fieldname + '` = ? ';
+				
+				switch (fieldname) {
+					case 'user': dataarr.push(user.id); break;
+					case 'groupassoc': dataarr.push(query.__groupassoc__); break;
+					default: this.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
+				}
+			}
+			
+			this.query(sql, dataarr, continueAfterDelPrevious);
 		} else {
 			continueAfterDelPrevious();
 		}

@@ -46,8 +46,9 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
-	this.query('SELECT * FROM schools ' +
+	this.query('SELECT *, url AS banner FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
+		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
 		'WHERE ? IN (id, path, name) ' + 
 		'LIMIT 1', [lookfor], function(res) {
 		if (res.length == 0)
@@ -182,6 +183,12 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 		});
 	});
 };
+
+SchoolsDB.prototype.publishBanner = _reqschooladm(function(query, user, access, FileStorageDB, cb) {
+	query.__groupassoc__ = query.schoolid;
+	query.role = 'schools.banner';
+	return FileStorageDB.publish(query, user, access, cb);
+});
 
 SchoolsDB.prototype.createInviteLink = function(query, user, access, UserDB, cb) {
 	_reqschooladm(_.bind(UserDB.createInviteLink, UserDB), true)(query, user, access, cb);

@@ -62,8 +62,12 @@ DBSubsystemBase.prototype.getConnection = function(conncb) {
 
 DBSubsystemBase.prototype.queryCallback = function(cb, query, data) {	
 	return _.bind(function(err, res) {
+		var datajson = JSON.stringify(data);
+		
 		if (err) 
-			this.emit('error', query ? new Error(err + '\nCaused by <<' + query + '>> with arguments [' + new Buffer(JSON.stringify(data)).toString('base64') + ']') : err);
+			this.emit('error', query ? new Error(
+				err + '\nCaused by <<' + query + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '')
+			) : err);
 		else if (cb)
 			_.bind(cb, this)(res);
 	}, this);

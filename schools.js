@@ -184,11 +184,12 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 	});
 };
 
-SchoolsDB.prototype.publishBanner = _reqschooladm(function(query, user, access, FileStorageDB, cb) {
+SchoolsDB.prototype.publishBanner = function(query, user, access, FileStorageDB, cb) {
 	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';
-	return FileStorageDB.publish(query, user, access, cb);
-});
+	
+	_reqschooladm(_.bind(FileStorageDB.publish, FileStorageDB))(query, user, access, cb);
+};
 
 SchoolsDB.prototype.createInviteLink = function(query, user, access, UserDB, cb) {
 	_reqschooladm(_.bind(UserDB.createInviteLink, UserDB), true)(query, user, access, cb);

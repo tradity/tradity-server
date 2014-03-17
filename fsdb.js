@@ -70,7 +70,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 			
 		var filehash = hash('md5', content);
 		if (!query.name) query.name = filehash;
-		var filename = (user ? user.id + '-' : '') + query.name.replace(/[^-_+\w\.]/g, '');
+		var filename = (user ? user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = this.cfg.fsdb.puburl.replace(/\{\$hostname\}/g, this.cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = _.bind(function() {

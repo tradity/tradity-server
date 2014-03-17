@@ -49,7 +49,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 	this.query('SELECT *, url AS banner FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
 		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
-		'WHERE ? IN (id, path, name) ' + 
+		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 
 		'LIMIT 1', [lookfor], function(res) {
 		if (res.length == 0)
 			return cb('get-school-info-notfound');

@@ -46,7 +46,7 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
-	this.query('SELECT *, url AS banner FROM schools ' +
+	this.query('SELECT schools.id, schools.name, schools.path, descpage, eventid, type, targetid, time, srcuser, json, url AS banner FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
 		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
 		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 

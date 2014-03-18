@@ -58,7 +58,10 @@ UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 			opt.generateTextFromHTML = true;
 			opt.html = '<p>Um deine Registrierung zu vollenden, klicke bitte auf diesen Link:\n' + 
 			'<a href="' + url + '">' + url + '</a></p>\n' + 
-			'<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>';
+			'<p>Um gewinnberechtigt zu sein und am Ende der Wettbewerbsphase ein Teilnahmezertifikat zu erhalten, '+
+			'gib bitte unter dem Menüpunkt „Einstellungen“ deinen Vor- und Nachnamen an.</p>\n' +
+			'<p>Wir wünschen dir viel Spaß und Erfolg!</p><p>Das Tradity Team</p>\n' +
+			'<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>\n';
 			
 			cb('reg-email-sending', uid);
 			

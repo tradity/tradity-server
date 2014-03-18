@@ -94,6 +94,15 @@ DBSubsystemBase.prototype.feed = function(data) {
 				'UNION ' +
 				'SELECT ?,w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ? '; // all users in watchlist
 			params = [eventid, data.srcuser, eventid, data.srcuser];
+			
+			if (data.feedschool) {
+				query += 'UNION ' +
+					'SELECT ?, sm.uid FROM schools AS p ' +
+					'JOIN schools AS c ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
+					'JOIN schoolmembers AS sm ON sm.schoolid = c.id AND sm.pending = 0 ' +
+					'WHERE p.id = ? ';
+				params = params.concat([eventid, data.feedschool]);
+			}
 				 
 			for (var i = 0; i < additional.length; ++i) {
 				if (parseInt(additional[i]) != additional[i])
@@ -152,20 +161,32 @@ DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 		if (res.length == 0)
 			return cb('comment-notfound');
 			
+		var feedschool = null;
 		var feedusers = [];
 		var r = res[0];
 		if (r.type == 'user-register') {
 			assert.ok(r.targetid !== null);
 			feedusers.push(r.targetid);
 		}
+		
 		if (r.type == 'trade') {
 			assert.ok(r.trader !== null);
 			feedusers.push(r.trader);
 		}
 		
+		if (r.type == 'school-create') {
+			feedschool = r.targetid;
+		}
+		
 		this.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, 0, UNIX_TIMESTAMP())', 
 			[query.eventid, user.id, query.comment], function(res) {
-			this.feed({'type': 'comment','targetid':res.insertId,'srcuser':user.id,'feedusers':feedusers});
+			this.feed({
+				'type': 'comment',
+				'targetid': res.insertId,
+				'srcuser': user.id,
+				'feedusers': feedusers,
+				'feedschool': feedschool
+			});
 			cb('comment-success');
 		});
 	});

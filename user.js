@@ -139,7 +139,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	}
 	
 	this.locked(['ranking'], cb_, function(cb) {
-		var join = 'FROM ranking '+
+		var join = 'FROM ranking ' +
 			'JOIN users ON ranking.uid = users.id ' +
 			'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid ' +
 			'LEFT JOIN schools ON sm.schoolid = schools.id ';

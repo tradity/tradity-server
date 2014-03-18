@@ -16,23 +16,27 @@ function adminlistContainsUser(admins, user) {
 	return _.chain(admins).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0;
 }
 
-function _reqschooladm (f, soft) {
+function _reqschooladm (f, soft, scdb) {
 	var soft = soft || false;
 	
-	return _.bind(function(query, user, access, cb) {
+	return function(query, user, access, cb) {
 		var forward = _.bind(function() { return _.bind(f, this)(query, user, access, cb); }, this);
 		if (access.has('schooldb') || (soft && !query.schoolid))
 			return forward();
 		
-		assert.ok(this.loadSchoolAdmins);
+		var lsa = null;
+		if (this.loadSchoolAdmins) lsa = _.bind(this.loadSchoolAdmins, this);
+		if (scdb.loadSchoolAdmins) lsa = _.bind(scdb.loadSchoolAdmins, scdb);
 		
-		this.loadSchoolAdmins(query.schoolid, function(adminlist) {
+		assert.ok(lsa);
+		
+		lsa(query.schoolid, function(adminlist) {
 			if (adminlistContainsUser(adminlist, user))
 				cb('permission-denied');
 			else
 				forward();
 		});
-	}, this);
+	};
 }
 
 // only internal
@@ -188,11 +192,11 @@ SchoolsDB.prototype.publishBanner = function(query, user, access, FileStorageDB,
 	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';
 	
-	_.bind(_reqschooladm, this)(_.bind(FileStorageDB.publish, FileStorageDB))(query, user, access, cb);
+	_reqschooladm(_.bind(FileStorageDB.publish, FileStorageDB), false, this)(query, user, access, cb);
 };
 
 SchoolsDB.prototype.createInviteLink = function(query, user, access, UserDB, cb) {
-	_.bind(_reqschooladm, this)(_.bind(UserDB.createInviteLink, UserDB), true)(query, user, access, cb);
+	_reqschooladm(_.bind(UserDB.createInviteLink, UserDB), true, this)(query, user, access, cb);
 };
 
 exports.SchoolsDB = SchoolsDB;

@@ -353,20 +353,23 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?',
 				[(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, users[i]], function() {
 			conn.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_sum[i], users[i]], function() {
-				conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader = ?',
-					[users[i]], function(res) {
-					assert.equal(res.length, 1);
-					res[0].type = 'stock-update';
-					this.emit('push', res[0]);
-					
-					//console.log(complete + ' of ' + n);
-					if (++complete == n) {
-						conn.query('COMMIT', [], function() {
+				if (++complete == n) {
+					conn.query('COMMIT', [], function() {
+						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
+							[users[i]], function(res) {
+							
+							for (var j = 0; j < res.length; ++j) {
+								process.nextTick(_.bind(_.partial(function(r) {
+									r.type = 'stock-update';
+									this.emit('push', r);
+								}, res[j]), this));
+							}
+							
 							conn.release();
 							cb();
 						});
-					}
-				});
+					});
+				}
 			});
 			});
 			}, i), this)();

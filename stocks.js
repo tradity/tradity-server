@@ -16,7 +16,6 @@ function StocksDB (db, cfg, quoteLoader) {
 	
 	var d = new Date();
 	
-	this.regularCallback({});
 	this.quoteLoader.on('record', _.bind(function(rec) {
 		this.updateRecord(rec);
 	}, this));

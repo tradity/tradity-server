@@ -25,8 +25,8 @@ function _reqschooladm (f, soft, scdb) {
 			return forward();
 		
 		var lsa = null;
-		if (this.loadSchoolAdmins) lsa = _.bind(this.loadSchoolAdmins, this);
-		if (scdb.loadSchoolAdmins) lsa = _.bind(scdb.loadSchoolAdmins, scdb);
+		if (this && this.loadSchoolAdmins) lsa = _.bind(this.loadSchoolAdmins, this);
+		if (scdb && scdb.loadSchoolAdmins) lsa = _.bind(scdb.loadSchoolAdmins, scdb);
 		
 		assert.ok(lsa);
 		

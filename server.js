@@ -222,7 +222,7 @@ ConnectionData.prototype.client_get_user_logins = _login(function(query, cb) {
 
 ConnectionData.prototype.client_impersonate_user = _login(function(query, cb) {
 	AdminDB.impersonateUser(query, this.user, this.access, _.bind(function(code) {
-		cb(code);
+		cb(code, null, 'repush');
 	}, this));
 });
 

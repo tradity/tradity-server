@@ -13,7 +13,7 @@ function SchoolsDB (db, config) {
 util.inherits(SchoolsDB, require('./objects.js').DBSubsystemBase);
 
 function adminlistContainsUser(admins, user) {
-	return _.chain(adminlist).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0;
+	return _.chain(admins).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0;
 }
 
 function _reqschooladm (f, soft) {

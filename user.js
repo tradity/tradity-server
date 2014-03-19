@@ -128,6 +128,11 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	query.startindex = parseInt(query.startindex) || 0;
 	query.endindex = parseInt(query.endindex) || (1 << 20);
 	
+	var join = 'FROM ranking ' +
+		'JOIN users ON ranking.uid = users.id ' +
+		'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid ' +
+		'LEFT JOIN schools AS c ON sm.schoolid = c.id ';
+	
 	var likestringWhere = '';
 	var likestringUnit = [];
 	if (query.search) {
@@ -137,16 +142,12 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	}
 	
 	if (query.schoolid) {
-		likestringWhere += 'AND (schools.id = ? OR schools.path = ?) ';
+		join += 'LEFT JOIN schools AS p ON c.path LIKE CONCAT(path, "/%") OR p.id = c.id ';
+		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}
 	
-	this.locked(['ranking'], cb_, function(cb) {
-		var join = 'FROM ranking ' +
-			'JOIN users ON ranking.uid = users.id ' +
-			'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid ' +
-			'LEFT JOIN schools ON sm.schoolid = schools.id ';
-		
+	this.locked(['ranking'], cb_, function(cb) {		
 		this.query('SELECT rank, users.id AS uid, users.name AS name, schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, pending, ' +
 			'totalvalue, weekstarttotalvalue, weekstartprov_sum, wprov_sum + lprov_sum AS prov_sum, tradecount != 0 as hastraded, ' +
 			'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, ' +

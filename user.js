@@ -142,7 +142,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	}
 	
 	if (query.schoolid) {
-		join += 'LEFT JOIN schools AS p ON c.path LIKE CONCAT(path, "/%") OR p.id = c.id ';
+		join += 'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
 		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}

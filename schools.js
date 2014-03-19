@@ -193,7 +193,7 @@ SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
 	var params = [];
 	if (query.parentPath) {
 		where = 'WHERE path LIKE ? OR path = ? ';
-		params = params.concat([path + '/%', path]);
+		params = params.concat([query.parentPath + '/%', query.parentPath]);
 	}
 	
 	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +

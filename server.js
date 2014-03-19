@@ -89,7 +89,7 @@ ConnectionData.prototype.client_get_user_info = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_list_schools = function(query, cb) {
-	UserDB.listSchools(query, this.user, this.access, _.bind(function(results) {
+	SchoolsDB.listSchools(query, this.user, this.access, _.bind(function(results) {
 		cb('list-schools-success', {'result': results});
 	}, this));
 };

@@ -237,12 +237,6 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 	});
 }
 
-UserDB.prototype.listSchools = function(query, user, access, cb) {
-	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools '+
-		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending '+
-		'GROUP BY schools.id', [], cb);
-}
-
 UserDB.prototype.regularCallback = function(query, cb) {
 	cb = cb || function() {};
 	

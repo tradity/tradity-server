@@ -188,6 +188,20 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 	});
 };
 
+SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
+	var where = '';
+	var params = [];
+	if (query.parentPath) {
+		where = 'WHERE path LIKE ? OR path = ? ';
+		params = params.concat([path + '/%', path]);
+	}
+	
+	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
+		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
+		where +
+		'GROUP BY schools.id', params, cb);
+}
+
 SchoolsDB.prototype.publishBanner = function(query, user, access, FileStorageDB, cb) {
 	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';

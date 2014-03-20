@@ -76,15 +76,13 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 				function(comments) {
 				s.comments = comments;
 				s.subschools = subschools;
-			
+								
 				this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
-					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime)) AS wsum '+
+					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime)) AS wsum ' +
 					'FROM orderhistory AS oh ' +
 					'JOIN schoolmembers AS sm ON sm.uid = oh.userid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
-					'GROUP BY stocktextid ORDER BY wsum DESC', [s.id], function(popular) {
-					s.popularStocks = popular.splice(0, 10);
-					
+					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {					
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = parentPath(s.path);
 						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {

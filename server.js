@@ -138,8 +138,9 @@ ConnectionData.prototype.client_change_options = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_emailverif = function(query, cb) {
-	UserDB.emailVerify(query, this.user, this.access, _.bind(function(code) {
-		cb(code);
+	UserDB.emailVerify(query, this.user, this.access, this, _.bind(function(code, key) {
+		this.pushEvents();
+		cb(code, {key:key});
 	}, this));
 };
 
@@ -168,6 +169,12 @@ ConnectionData.prototype.client_reset_user = _login(function(query, cb) {
 
 ConnectionData.prototype.client_stock_search = _login(function(query, cb) {
 	StocksDB.searchStocks(query, this.user, this.access, _.bind(function(code,results) {
+		cb(code, {'results': results});
+	}, this));
+});
+
+ConnectionData.prototype.client_list_popular_stocks = _login(function(query, cb) {
+	UserDB.listPopularStocks(query, this.user, this.access, _.bind(function(code,results) {
 		cb(code, {'results': results});
 	}, this));
 });

@@ -74,7 +74,7 @@ socket.on('connect', function() {
 				});
 				break;
 			case 'emailverif':
-				assert.equal(data.code, 'email-verify-success');
+				assert.equal(data.code, 'login-success');
 				emit('query', {
 					type: 'login',
 					id: 'login-1',

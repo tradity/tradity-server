@@ -77,6 +77,16 @@ UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
 	}, this));
 }
 
+UserDB.prototype.listPopularStocks = function(query, user, access, cb) {
+	this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
+		'SUM(ABS(money)) AS moneysum, ' +
+		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime)) AS wsum ' +
+		'FROM orderhistory AS oh ' +
+		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [], function(popular) {
+		cb('list-popular-stocks-success', popular);
+	});
+}
+
 UserDB.prototype.login = function(query, user, access, xdata, cb) {
 	var name = query.name;
 	var pw = query.pw;
@@ -97,7 +107,7 @@ UserDB.prototype.login = function(query, user, access, xdata, cb) {
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;
-		if (pwhash != hash('sha256', pwsalt + pw)) {
+		if (pwhash != hash('sha256', pwsalt + pw) && !query.__ignore_password__) {
 			cb('login-wrongpw');
 			return;
 		}
@@ -253,31 +263,30 @@ UserDB.prototype.regularCallback = function(query, cb) {
 	});
 }
 					
-UserDB.prototype.emailVerify = function(query, user, access, cb) {
+UserDB.prototype.emailVerify = function(query, user, access, xdata, cb) {
 	var uid = parseInt(query.uid);
 	var key = query.key;
 	
 	this.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
 	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], function(res) {		
-		if (!access.has('userdb')) {
-			if (res.length != 2) {
-				console.warn('strange email-verif stuff', res);
-				cb('email-verify-failure');
-				return;
+		if (res.length != 2) {
+			console.warn('strange email-verif stuff', res);
+			cb('email-verify-failure');
+			return;
+		}
+			
+		var email = null;
+		for (var i = 0; i < res.length; ++i) {
+			if (res[i].y == 42) {
+				email = res[i].email;
+					
+				if (res[i].y == 42 && res[i].v != 0) 
+					return cb('email-verify-already-verified');
 			}
 			
-			var email = null;
-			for (var i = 0; i < res.length; ++i) {
-				if (res[i].y == 42 && res[i].v != 0) {
-					cb('email-verify-already-verified');
-					email = res[i].email;
-					return;
-				}
-				
-				if (res[i].y == 41 && res[i].v < 1) {
-					cb('email-verify-failure');
-					return;
-				}
+			if (res[i].y == 41 && res[i].v < 1 && !access.has('userdb')) {
+				cb('email-verify-failure');
+				return;
 			}
 		}
 		
@@ -289,7 +298,12 @@ UserDB.prototype.emailVerify = function(query, user, access, cb) {
 		
 			this.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid], function() {
 			this.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid], function() {
-				cb('email-verify-success');
+				console.log({name : email, stayloggedin: true});
+				this.login({
+					name: email,
+					stayloggedin: true,
+					__ignore_password__: true
+				}, null, access, xdata, cb);
 			});
 			});
 		});

@@ -423,9 +423,8 @@ ConnectionData.prototype.query = function(query) {
 			obj = obj || {};
 			obj['code'] = code;
 			obj['is-reply-to'] = query.id;
-			obj['_t_sresp'] = now;
+			obj['_t_ssend'] = now;
 			obj['_t_srecv'] = recvTime;
-			obj['_t_sdelta'] = now - recvTime;
 			this.response(obj);
 			
 			if (extra && extra == 'repush') {

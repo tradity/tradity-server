@@ -2,7 +2,7 @@
 	"scripts": { "start": "service-sotrade-restart || true" },
 	"name": "tradity-de-server",
 	"version": "0.0.1",
-	"homepage": "http://tradity.de",
+	"homepage": "https://tradity.de",
 	"bugs" : { "email": "tradity-dev@entless.org" },
 	"dependencies": {
 		"xml2js": "*",

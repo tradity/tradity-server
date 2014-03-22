@@ -346,6 +346,9 @@ UserDB.prototype.changeOptions = function(query, user, access, cb) {
 }
 
 UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
+	if (!this.cfg.resetAllowed && !access.has('userdb'))
+		return cb('permission-denied');
+	
 	assert.ok(user);
 	assert.ok(access);
 	

@@ -182,7 +182,7 @@ DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 		}
 		
 		this.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
-			[query.eventid, user.id, query.comment, query.ishtml && access.has('comments')], function(res) {
+			[query.eventid, user.id, query.comment, query.ishtml && access.has('comments') ? 1 : 0], function(res) {
 			this.feed({
 				'type': 'comment',
 				'targetid': res.insertId,

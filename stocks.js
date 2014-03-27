@@ -473,7 +473,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0)) && r.lid) {
 			var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
 			var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
-			console.log(r);
+
 			assert.ok(wprovPay >= 0);
 			assert.ok(lprovPay <= 0);
 			

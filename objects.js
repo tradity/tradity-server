@@ -156,6 +156,9 @@ DBSubsystemBase.prototype.fetchEvents = function(query, user, access, cb) {
 };
 
 DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
+	if (!query.comment)
+		return cb('format-error');
+	
 	this.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
 	'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid=?', [query.eventid], function(res) {
 		if (res.length == 0)

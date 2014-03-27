@@ -81,7 +81,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 			});
 		}, this);
 		
-		if (uniqrole && user && !access.has('filesystem')) {
+		if (uniqrole && user && !(access.has('filesystem') && query.retainOldFiles)) {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';
 			var dataarr = [query.role];
 			

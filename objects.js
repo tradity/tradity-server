@@ -181,8 +181,8 @@ DBSubsystemBase.prototype.commentEvent = function(query, user, access, cb) {
 			feedschool = r.targetid;
 		}
 		
-		this.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, 0, UNIX_TIMESTAMP())', 
-			[query.eventid, user.id, query.comment], function(res) {
+		this.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
+			[query.eventid, user.id, query.comment, query.ishtml && access.has('comments')], function(res) {
 			this.feed({
 				'type': 'comment',
 				'targetid': res.insertId,

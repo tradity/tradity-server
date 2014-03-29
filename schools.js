@@ -21,7 +21,7 @@ function _reqschooladm (f, soft, scdb) {
 	
 	return function(query, user, access, cb) {
 		(parseInt(query.schoolid) == query.schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
-			this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
+			(this && this.query ? this.query : scdb.query)('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
 				if (res.length == 0)
 					query.schoolid = null;
 				else

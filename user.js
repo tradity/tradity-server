@@ -48,7 +48,7 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 		name: data.email,
 		stayloggedin: true,
 		__ignore_password__: true
-	}, null, access, xdata, function(code, key) {
+	}, null, access, xdata, _.bind(function(code, key) {
 		assert.equal(code, 'login-success');
 		
 		crypto.randomBytes(16, _.bind(function(ex, buf) {
@@ -82,7 +82,7 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 				}, this));
 			});
 		}, this));
-	});
+	}, this));
 }
 
 UserDB.prototype.listPopularStocks = function(query, user, access, cb) {

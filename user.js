@@ -503,18 +503,18 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 		
 		var schoolLookupCB = function(res) {
 			var schoolAddedCB = function(res) {
-				var gainUIDCB = function() {};
+				var gainUIDCBs = [];
 				
 				if (res && res.insertId) {
 					// in case school was created
 					
 					data.school = res.insertId;
 					
-					gainUIDCB = _.bind(function() {
+					gainUIDCBs.push(_.bind(function() {
 						assert.ok(uid != null);
 						
 						this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': uid});
-					}, this);
+					}, this));
 				}
 				
 				var updateCB = _.bind(function(res) {
@@ -523,7 +523,8 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 					
 					assert.ok(uid != null);
 					
-					gainUIDCB();
+					for (var i = 0; i < gainUIDCBs.length; ++i)
+						gainUIDCBs[i]();
 
 					if ((user && data.email == user.email) || (access.has('userdb') && data.nomail))
 						cb('reg-success', uid);
@@ -580,7 +581,11 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 										inv.__schoolverif__ = 1;
 									}
 									
-									this.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
+									var oldGainUIDCB = gainUIDCB;
+									
+									gainUIDCBs.push(_.bind(function() {
+										this.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
+									}, this)));
 									
 									cont();
 								});

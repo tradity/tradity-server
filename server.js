@@ -105,8 +105,8 @@ ConnectionData.prototype.client_password_reset = function(query, cb) {
 ConnectionData.prototype.client_register = function(query, cb) {
 	if (this.user !== null)
 		cb('already-logged-in');
-	else UserDB.register(query, this.user, this.access, _.bind(function(code, uid) {
-		cb(code, {'uid': uid});
+	else UserDB.register(query, this.user, this.access, this, _.bind(function(code, uid, key) {
+		cb(code, {'uid': uid, 'key': key});
 	}, this));
 };
 
@@ -132,7 +132,7 @@ ConnectionData.prototype.client_get_own_options = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_change_options = _login(function(query, cb) {
-	UserDB.changeOptions(query, this.user, this.access, _.bind(function(code) {
+	UserDB.changeOptions(query, this.user, this.access, this, _.bind(function(code) {
 		cb(code, {'is-reply-to': query.id}, 'repush');
 	}, this));
 });

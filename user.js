@@ -43,38 +43,46 @@ UserDB.prototype.sendInviteEmail = function(data, cb) {
 	}, this));
 };
 
-UserDB.prototype.sendRegisterEmail = function(data, uid, cb) {
-	crypto.randomBytes(16, _.bind(function(ex, buf) {
-		var key = buf.toString('hex');
+UserDB.prototype.sendRegisterEmail = function(data, uid, xdata, cb) {
+	this.login({
+		name: data.email,
+		stayloggedin: true,
+		__ignore_password__: true
+	}, null, access, xdata, function(code, key) {
+		assert.equal(code, 'login-success');
 		
-		this.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
-			[uid, key], function(res) {
+		crypto.randomBytes(16, _.bind(function(ex, buf) {
+			var key = buf.toString('hex');
 			
-			var url = this.cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, uid).replace(/\{\$hostname\}/g, this.cfg.hostname);
-			
-			var opt = _.clone(this.cfg.mail['register-base']);
-			opt.to = data.email;
-			opt.subject += ' (' + data.name + ')';
-			opt.generateTextFromHTML = true;
-			opt.html = '<p>Um deine Registrierung zu vollenden, klicke bitte auf diesen Link:\n' + 
-			'<a href="' + url + '">' + url + '</a></p>\n' + 
-			'<p>Um gewinnberechtigt zu sein und am Ende der Wettbewerbsphase ein Teilnahmezertifikat zu erhalten, '+
-			'gib bitte unter dem Menüpunkt „Einstellungen“ deinen Vor- und Nachnamen an.</p>\n' +
-			'<p>Wir wünschen dir viel Spaß und Erfolg!</p><p>Das Tradity Team</p>\n' +
-			'<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>\n';
-			
-			cb('reg-email-sending', uid);
-			
-			this.emailsender.sendMail(opt, _.bind(function (error, resp) {
-				if (error) {
-					cb('reg-email-failed', uid);
-					this.emit('error', error);
-				} else {
-					cb('reg-success', uid);
-				}
-			}, this));
-		});
-	}, this));
+			this.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
+				[uid, key], function(res) {
+				
+				var url = this.cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, uid).replace(/\{\$hostname\}/g, this.cfg.hostname);
+				
+				var opt = _.clone(this.cfg.mail['register-base']);
+				opt.to = data.email;
+				opt.subject += ' (' + data.name + ')';
+				opt.generateTextFromHTML = true;
+				opt.html = '<p>Um deine Registrierung zu vollenden, klicke bitte auf diesen Link:\n' + 
+				'<a href="' + url + '">' + url + '</a></p>\n' + 
+				'<p>Um gewinnberechtigt zu sein und am Ende der Wettbewerbsphase ein Teilnahmezertifikat zu erhalten, '+
+				'gib bitte unter dem Menüpunkt „Einstellungen“ deinen Vor- und Nachnamen an.</p>\n' +
+				'<p>Wir wünschen dir viel Spaß und Erfolg!</p><p>Das Tradity Team</p>\n' +
+				'<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>\n';
+				
+				cb('reg-email-sending', uid, key);
+				
+				this.emailsender.sendMail(opt, _.bind(function (error, resp) {
+					if (error) {
+						cb('reg-email-failed', uid, key);
+						this.emit('error', error);
+					} else {
+						cb('reg-success', uid, key);
+					}
+				}, this));
+			});
+		}, this));
+	});
 }
 
 UserDB.prototype.listPopularStocks = function(query, user, access, cb) {
@@ -336,13 +344,13 @@ UserDB.prototype.loadSessionUser = function(key, cb) {
 	});
 }
 
-UserDB.prototype.register = function(query, user, access, cb) {
+UserDB.prototype.register = function(query, user, access, xdata, cb) {
 	assert.strictEqual(user, null);
-	this.updateUser(query, 'register', null, access, cb);
+	this.updateUser(query, 'register', null, access, xdata, cb);
 }
 
-UserDB.prototype.changeOptions = function(query, user, access, cb) {
-	this.updateUser(query, 'change', user, access, cb);
+UserDB.prototype.changeOptions = function(query, user, access, xdata, cb) {
+	this.updateUser(query, 'change', user, access, xdata, cb);
 }
 
 UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
@@ -450,7 +458,7 @@ UserDB.prototype.createInviteLink = function(query, user, access, cb) {
 	}, this));
 };
 
-UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
+UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 	this.locked(['userdb'], cb_, function(cb) {
 		
 	var uid = user !== null ? user.id : null;
@@ -528,8 +536,8 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 
 					if ((user && data.email == user.email) || (access.has('userdb') && data.nomail))
 						cb('reg-success', uid);
-					else
-						this.sendRegisterEmail(data, uid, cb);
+					else 
+						this.sendRegisterEmail(data, uid, xdata, cb);
 				}, this);
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
@@ -602,7 +610,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 									this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 									this.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 										['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(cb, this, res));
-									
+										
 									if (data.school) {
 										this.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
 											'VALUES(?, ?, ' + 

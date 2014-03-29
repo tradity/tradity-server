@@ -581,8 +581,6 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 										inv.__schoolverif__ = 1;
 									}
 									
-									var oldGainUIDCB = gainUIDCB;
-									
 									gainUIDCBs.push(_.bind(function() {
 										this.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
 									}, this));

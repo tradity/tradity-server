@@ -44,6 +44,11 @@ afql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
 locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 
+process.on('uncaughtException', function(err) {
+	eh.err(err);
+	process.exit(1);
+});
+
 function ConnectionData(socket) {
 	this.user = null;
 	this.remoteip = socket.handshake.address.address;

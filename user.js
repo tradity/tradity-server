@@ -585,7 +585,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, cb_) {
 									
 									gainUIDCBs.push(_.bind(function() {
 										this.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
-									}, this)));
+									}, this));
 									
 									cont();
 								});

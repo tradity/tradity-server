@@ -43,7 +43,7 @@ UserDB.prototype.sendInviteEmail = function(data, cb) {
 	}, this));
 };
 
-UserDB.prototype.sendRegisterEmail = function(data, uid, xdata, cb) {
+UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 	this.login({
 		name: data.email,
 		stayloggedin: true,
@@ -537,7 +537,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 					if ((user && data.email == user.email) || (access.has('userdb') && data.nomail))
 						cb('reg-success', uid);
 					else 
-						this.sendRegisterEmail(data, uid, xdata, cb);
+						this.sendRegisterEmail(data, access, uid, xdata, cb);
 				}, this);
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {

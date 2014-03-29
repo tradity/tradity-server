@@ -20,16 +20,6 @@ function _reqschooladm (f, soft, scdb) {
 	var soft = soft || false;
 	
 	return function(query, user, access, cb) {
-		var forward = _.bind(function() { return _.bind(f, this)(query, user, access, cb); }, this);
-		if (access.has('schooldb') || (soft && !query.schoolid))
-			return forward();
-		
-		var lsa = null;
-		if (this && this.loadSchoolAdmins) lsa = _.bind(this.loadSchoolAdmins, this);
-		if (scdb && scdb.loadSchoolAdmins) lsa = _.bind(scdb.loadSchoolAdmins, scdb);
-		
-		assert.ok(lsa);
-		
 		(parseInt(query.schoolid) == query.schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
 			this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
 				if (res.length == 0)
@@ -40,6 +30,16 @@ function _reqschooladm (f, soft, scdb) {
 				cont();
 			});
 		}, this))(_.bind(function() {
+			var forward = _.bind(function() { return _.bind(f, this)(query, user, access, cb); }, this);
+			if (access.has('schooldb') || (soft && !query.schoolid))
+				return forward();
+			
+			var lsa = null;
+			if (this && this.loadSchoolAdmins) lsa = _.bind(this.loadSchoolAdmins, this);
+			if (scdb && scdb.loadSchoolAdmins) lsa = _.bind(scdb.loadSchoolAdmins, scdb);
+			
+			assert.ok(lsa);
+			
 			lsa(query.schoolid, function(adminlist) {
 				if (adminlistContainsUser(adminlist, user))
 					cb('permission-denied');

@@ -30,12 +30,23 @@ function _reqschooladm (f, soft, scdb) {
 		
 		assert.ok(lsa);
 		
-		lsa(query.schoolid, function(adminlist) {
-			if (adminlistContainsUser(adminlist, user))
-				cb('permission-denied');
-			else
-				forward();
-		});
+		(parseInt(query.schoolid) == query.schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
+			this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
+				if (res.length == 0)
+					query.schoolid = null;
+				else
+					query.schoolid = res[0].id;
+				
+				cont();
+			});
+		}, this))(_.bind(function() {
+			lsa(query.schoolid, function(adminlist) {
+				if (adminlistContainsUser(adminlist, user))
+					cb('permission-denied');
+				else
+					forward();
+			});
+		}, this));
 	};
 }
 

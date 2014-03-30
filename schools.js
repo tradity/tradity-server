@@ -67,7 +67,7 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
-	this.query('SELECT schools.id, schools.name, schools.path, descpage, eventid, type, targetid, time, srcuser, json, url AS banner FROM schools ' +
+	this.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
 		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
 		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 
@@ -79,6 +79,13 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 		s.parentPath = null;
 		
 		assert.ok(s.eventid);
+		
+		if (s.config == '')
+			s.config = {};
+		else
+			s.config = JSON.parse(s.config);
+			
+		assert.ok(s.config);
 		
 		this.loadSchoolAdmins(s.id, function(admins) {
 			s.admins = admins;
@@ -107,9 +114,13 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 							
 							s.parentSchool = result;
 							
+							s.config = _.defaults(s.config, s.parentSchool.config, this.cfg.schoolConfigDefaults);
+							
 							cb('get-school-info-success', s);
 						});
 					} else {
+						s.config = _.defaults(s.config, this.cfg.schoolConfigDefaults);
+						
 						cb('get-school-info-success', s);
 					}
 				});

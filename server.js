@@ -46,7 +46,10 @@ locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 
 process.on('uncaughtException', function(err) {
 	eh.err(err);
-	process.exit(1);
+	
+	setTimeout(function() {
+		process.exit(1);
+	}, 1000);
 });
 
 function ConnectionData(socket) {
@@ -465,7 +468,7 @@ server.on('request', function (req, res) {
 		res.end('Hi (not really found)!');
 	}
 });
-server.listen(cfg.wsport, 'localhost');
+server.listen(cfg.wsport, cfg.wshost);
 var io = sio.listen(server);
 
 io.configure('production', function(){

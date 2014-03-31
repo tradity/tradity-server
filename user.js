@@ -48,7 +48,7 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 		name: data.email,
 		stayloggedin: true,
 		__ignore_password__: true
-	}, null, access, xdata, _.bind(function(code, key) {
+	}, null, access, xdata, _.bind(function(code, loginkey) {
 		assert.equal(code, 'login-success');
 		
 		crypto.randomBytes(16, _.bind(function(ex, buf) {
@@ -70,14 +70,14 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 				'<p>Wir wünschen dir viel Spaß und Erfolg!</p><p>Das Tradity Team</p>\n' +
 				'<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>\n';
 				
-				cb('reg-email-sending', uid, key);
+				cb('reg-email-sending', uid, loginkey);
 				
 				this.emailsender.sendMail(opt, _.bind(function (error, resp) {
 					if (error) {
-						cb('reg-email-failed', uid, key);
+						cb('reg-email-failed', uid, loginkey);
 						this.emit('error', error);
 					} else {
-						cb('reg-success', uid, key);
+						cb('reg-success', uid, loginkey);
 					}
 				}, this));
 			});
@@ -595,7 +595,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 									
 									assert.equal(invres.length, 1);
 									
-									var inv = invres[0];
+									inv = invres[0];
 									if (inv.schoolid && !data.school || parseInt(data.school) == parseInt(inv.schoolid)) {
 										data.school = inv.schoolid;
 										inv.__schoolverif__ = 1;

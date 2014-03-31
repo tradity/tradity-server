@@ -109,7 +109,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {					
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = parentPath(s.path);
-						this.loadSchoolInfo(s.parentPath, user, access, function(code, result) {
+						this.loadSchoolInfo(s.parentPath, user, access, _.bind(function(code, result) {
 							assert.equal(code, 'get-school-info-success');
 							
 							s.parentSchool = result;
@@ -117,7 +117,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 							s.config = _.defaults(s.config, s.parentSchool.config, this.cfg.schoolConfigDefaults);
 							
 							cb('get-school-info-success', s);
-						});
+						}, this));
 					} else {
 						s.config = _.defaults(s.config, this.cfg.schoolConfigDefaults);
 						

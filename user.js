@@ -420,6 +420,18 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 	});
 };
 
+UserDB.prototype.getInviteKeyInfo = function(query, user, access, cb) {
+	this.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [query.invitekey], function(res) {
+		if (res.length == 0) {
+			cb('get-invitekey-info-notfound');
+		} else {
+			assert.equal(res.length, 1);
+			
+			cb('get-invitekey-info-success', res[0]);
+		}
+	});
+};
+
 UserDB.prototype.createInviteLink = function(query, user, access, cb) {
 	query.email = query.email || null;
 	

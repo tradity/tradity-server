@@ -110,6 +110,12 @@ ConnectionData.prototype.client_password_reset = function(query, cb) {
 	}, this));
 };
 
+ConnectionData.prototype.client_get_invitekey_info = function(query, cb) {
+	UserDB.getInviteKeyInfo(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code, {'result': res});
+	}, this));
+};
+
 ConnectionData.prototype.client_register = function(query, cb) {
 	if (this.user !== null)
 		cb('already-logged-in');

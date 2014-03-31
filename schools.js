@@ -142,7 +142,7 @@ SchoolsDB.prototype.changeDescription = _reqschooladm(function(query, user, acce
 
 SchoolsDB.prototype.changeMemberStatus = _reqschooladm(function(query, user, access, cb) {
 	this.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?', [query.schoolid, query.uid], function() {
-		if (query.newstatus == 'member') {
+		if (query.status == 'member') {
 			this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
 				cb('school-change-member-status-success');
 			});

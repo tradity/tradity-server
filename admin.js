@@ -36,6 +36,13 @@ AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access
 	});
 });
 
+AdminDB.prototype.evalCode = _reqpriv('*', function(query, user, access, cb) {
+	if (!query.authorizationKey)
+		cb('permission-denied');
+	else
+		cb('eval-code-success', eval(query.code));
+});
+
 AdminDB.prototype.impersonateUser = _reqpriv('server', function(query, user, access, cb) {
 	this.query('SELECT COUNT(*) AS c FROM users WHERE id=?', [query.uid], function(r) {
 		assert.equal(r.length, 1);

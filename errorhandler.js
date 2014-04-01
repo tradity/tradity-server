@@ -17,6 +17,9 @@ ErrorHandler.prototype.err = function(e, noemail) {
 	if (e.stack)
 		opt.text += e.stack + '\n';
 		
+	if (this.getEnvironmentInformation) 
+		opt.text += '\n' + JSON.stringify(this.getEnvironmentInformation(), null, 2);
+			
 	console.error(opt.text);
 	
 	this.transport.sendMail(opt, _.bind(function (error, resp) {

@@ -38,7 +38,9 @@ var FileStorageDB = new fsdb.FileStorageDB(db, cfg);
 var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
 
 var subsystems = [StocksDB, UserDB, AdminDB, SchoolsDB, dqDB, FileStorageDB];
-_.each(subsystems, _.bind(function(sys) { sys.on('error', function(e) { eh.err(e); }); }));
+_.each(subsystems, function(sys) {
+	sys.on('error', function(e) { eh.err(e); });
+});
 
 afql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
@@ -69,6 +71,10 @@ function ConnectionData(socket) {
 	}, this));
 }
 util.inherits(ConnectionData, events.EventEmitter);
+
+ConnectionData.prototype.toString = function() {
+	return JSON.stringify(_.pick(this, 'user', 'remoteip', 'hsheaders', 'cdid', 'access', 'lastInfoPush', 'mostRecentEventTime'));
+};
 
 ConnectionData.uniqueCount = 0;
 
@@ -227,6 +233,12 @@ ConnectionData.prototype.client_watchlist_show = _login(function(query, cb) {
 	UserDB.watchlistShow(query, this.user, this.access, function(res) {
 		cb('watchlist-show-success', {'results':res});
 	});
+});
+
+ConnectionData.prototype.client_eval_code = _login(function(query, cb) {
+	AdminDB.evalCode(query, this.user, this.access, _.bind(function(code, res) {
+		cb(code, {'result':res});
+	}, this));
 });
 
 ConnectionData.prototype.client_list_all_users = _login(function(query, cb) {
@@ -490,6 +502,15 @@ io.configure('production', function(){
 	io.set('log level', 1);
 });
 
+var recentQueries = [];
+var recentQueryCount = 128;
+eh.getEnvironmentInformation = function() {
+	return {
+		recentQueries: recentQueries,
+		recentDBQueries: db.getRecentQueries()
+	};
+};
+
 io.sockets.on('connection', function(socket) {
 	var d = new ConnectionData(socket);
 	d.on('error', function(e) { eh.err(e); });
@@ -507,6 +528,10 @@ io.sockets.on('connection', function(socket) {
 	});
 	
 	socket.on('query', eh.wrap(function(query) {
+		recentQueries.push([query, d.toString()]);
+		while (recentQueries.length > recentQueryCount)
+			recentQueries.shift();
+		
 		d.query(query);
 	}));
 	

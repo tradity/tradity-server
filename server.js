@@ -265,6 +265,12 @@ ConnectionData.prototype.client_change_comment_text = _login(function(query, cb)
 	}, this));
 });
 
+ConnectionData.prototype.client_notify_unstick_all = _login(function(query, cb) {
+	AdminDB.notifyUnstickAll(query, this.user, this.access, _.bind(function(code) {
+		cb(code);
+	}, this));
+});
+
 ConnectionData.prototype.client_notify_all = _login(function(query, cb) {
 	AdminDB.notifyAll(query, this.user, this.access, _.bind(function(code) {
 		cb(code);

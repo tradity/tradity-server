@@ -79,8 +79,14 @@ AdminDB.prototype.changeCommentText = _reqpriv('moderate', function(query, user,
 	});
 });
 
+AdminDB.prototype.notifyUnstickAll = _reqpriv('moderate', function(query, user, access, cb) {
+	this.query('UPDATE mod_notif SET sticky = 0', [], function() {
+		cb('notify-unstick-all-success');
+	});
+});
+
 AdminDB.prototype.notifyAll = _reqpriv('moderate', function(query, user, access, cb) {
-	this.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [query.content, query.sticky], function(res) {
+	this.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [query.content, query.sticky ? 1 : 0], function(res) {
 		this.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': user.id, 'everyone': true});
 		cb('notify-all-success');
 	});

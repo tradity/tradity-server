@@ -1,6 +1,9 @@
 (function () { "use strict";
 	
-function parentPath(x) { return x.match(/(\/[\w_-]+)+\/[\w_-]+$/)[1]; }
+function parentPath(x) {
+	var match = x.match(/(\/[\w_-]+)+\/[\w_-]+$/);
+	return match ? match[1] : '/';
+}
 
 var _ = require('underscore');
 var util = require('util');

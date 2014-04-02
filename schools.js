@@ -67,7 +67,8 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
-	this.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner FROM schools ' +
+	this.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
+		'FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
 		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
 		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 
@@ -91,6 +92,11 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 			s.admins = admins;
 			
 			this.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%'], function(subschools) {
+			this.query('SELECT COUNT(uid) AS usercount ' +
+				'FROM schoolmembers AS sm '+
+				'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
+				'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
+				'WHERE p.id = ?', [s.id], function(usercount) {
 			this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
 				'FROM ecomments AS c '+
 				'LEFT JOIN users AS u ON c.commenter = u.id ' +
@@ -100,6 +106,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 				function(comments) {
 				s.comments = comments;
 				s.subschools = subschools;
+				s.usercount = usercount[0].usercount;
 								
 				this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
@@ -124,6 +131,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 						cb('get-school-info-success', s);
 					}
 				});
+			});
 			});
 			});
 		});

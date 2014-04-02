@@ -165,7 +165,7 @@ SchoolsDB.prototype.deleteComment = _reqschooladm(function(query, user, access, 
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
 		this.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-			['<em>Dieser Kommentar wurde durch die Gruppenadministratoren gelöscht.</em>', query.commentid], function() {
+			[this.readTemplate('comment-deleted-by-group-admin.html'), query.commentid], function() {
 			cb('school-delete-comment-success');
 		});
 	});

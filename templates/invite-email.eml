@@ -1,0 +1,7 @@
+From: tech@tradity.de
+Subject: Tradity Einladung („${sendername}“)
+To: ${email}
+Sender: ${sendermail}
+
+<p>Der Benutzer „${sendername}“ hat dich zum Börsenspiel Tradity eingeladen.
+<a href="${url}">Klicke hier, um mitzuspielen.</a></p>

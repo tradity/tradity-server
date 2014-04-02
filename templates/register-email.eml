@@ -1,0 +1,10 @@
+From: tech@tradity.de
+Subject: Tradity Registrierung („${username}“)
+To: ${email}
+
+<p>Um deine Registrierung zu vollenden, klicke bitte auf diesen Link:
+<a href="${url}">${url}</a></p>
+<p>Um gewinnberechtigt zu sein und am Ende der Wettbewerbsphase ein Teilnahmezertifikat zu erhalten, 
+gib bitte unter dem Menüpunkt „Einstellungen“ deinen Vor- und Nachnamen an.</p>
+<p>Wir wünschen dir viel Spaß und Erfolg!</p><p>Das Tradity Team</p>
+<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>

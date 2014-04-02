@@ -3,6 +3,7 @@
 var util = require('util');
 var events = require('events');
 var locking = require('./locking.js');
+var templates = require('./templates-compiled.js');
 var assert = require('assert');
 var _ = require('underscore');
 
@@ -207,6 +208,47 @@ DBSubsystemBase.prototype.locked = function(locks, origCB, fn) {
 		this.lockAuthority = locking.Lock.globalLockAuthority;
 	
 	this.lockAuthority.locked(locks, origCB, _.bind(fn, this));
+};
+
+DBSubsystemBase.prototype.readTemplate = function(template, variables) {
+	var t = templates[template];
+	
+	if (!t) {
+		this.emit('error', new Error('Template not found: ' + template));
+		return null;
+	}
+	
+	_.chain(variables).keys().each(function(e) {
+		var r = new RegExp('\\{\\$' + e + '\\}', 'g');
+		t = t.replace(r, variables[e]);
+	});
+	
+	return t;
+};
+
+DBSubsystemBase.prototype.readEMailTemplate = function(template, variables) {
+	var t = this.readTemplate(template, variables);
+	
+	var headerend = t.indexOf('\n\n');
+	
+	var headers = t.substr(0, headerend).split('\n');
+	var body = t.substr(headerend + 2);
+	
+	var opt = {headers:{}};
+	
+	for (var i = 0; i < headers.length; ++i) {
+		var h = headers[i];
+		var headerNameEnd = h.indexOf(':');
+		var headerName = h.substr(0, headerNameEnd).trim();
+		var headerValue = h.substr(headerNameEnd + 1).trim();
+		
+		opt[headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase()}).replace(/-/g, '')] = headerValue;
+		opt.headers[headerName] = headerValue;
+	}
+	
+	opt.html = body;
+	opt.generateTextFromHTML = true;
+	return opt;
 };
 
 exports.DBSubsystemBase = DBSubsystemBase;

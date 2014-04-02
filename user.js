@@ -22,16 +22,7 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 }
 
 UserDB.prototype.sendInviteEmail = function(data, cb) {	
-	var opt = _.clone(this.cfg.mail['invite-base']);
-	opt.to = data.email;
-	opt.subject += ' (' + data.sender.name + ')';
-	opt.headers = {
-		'Sender': data.sender.email
-	};
-	opt.generateTextFromHTML = true;
-	
-	opt.html = '<p>Der Benutzer „' + data.sender.name + '“ hat dich zum Börsenspiel Tradity eingeladen.\n' +
-		'<a href="' + data.url + '">Klicke hier, um mitzuspielen.</a></p>';
+	var opt = this.readEMailTemplate('invite-email.eml', {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url});
 	
 	this.emailsender.sendMail(opt, _.bind(function(error, resp) {
 		if (error) {
@@ -59,16 +50,7 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 				
 				var url = this.cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, uid).replace(/\{\$hostname\}/g, this.cfg.hostname);
 				
-				var opt = _.clone(this.cfg.mail['register-base']);
-				opt.to = data.email;
-				opt.subject += ' (' + data.name + ')';
-				opt.generateTextFromHTML = true;
-				opt.html = '<p>Um deine Registrierung zu vollenden, klicke bitte auf diesen Link:\n' + 
-				'<a href="' + url + '">' + url + '</a></p>\n' + 
-				'<p>Um gewinnberechtigt zu sein und am Ende der Wettbewerbsphase ein Teilnahmezertifikat zu erhalten, '+
-				'gib bitte unter dem Menüpunkt „Einstellungen“ deinen Vor- und Nachnamen an.</p>\n' +
-				'<p>Wir wünschen dir viel Spaß und Erfolg!</p><p>Das Tradity Team</p>\n' +
-				'<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>\n';
+				var opt = this.readEMailTemplate('register-email.eml', {'url': url, 'username': data.name, 'email': data.email});
 				
 				cb('reg-email-sending', uid, loginkey);
 				
@@ -398,11 +380,7 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 			var pw = buf.toString('hex');
 			this.generatePWKey(pw, _.bind(function(salt, hash) {
 				this.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
-					var opt = _.clone(this.cfg.mail['pwreset-base']);
-					opt.to = u.email;
-					opt.subject += ' (' + data.name + ')';
-					opt.generateTextFromHTML = true;
-					opt.html = '<p>Dein Passwort bei Tradity wurde zurückgesetzt. Du kannst dich jetzt mit „' + pw + '“ anmelden.</p>';
+					var opt = this.readEMailTemplate('password-reset-email.eml', {'password': pw, 'username': data.name, 'email': u.email});
 					
 					cb('password-reset-sending', u.id);
 					

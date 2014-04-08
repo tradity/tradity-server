@@ -41,17 +41,17 @@ StocksDB.prototype.regularCallback = function(query, cb) {
 	this.updateStockValues(_.bind(function() {
 	this.updateLeaderMatrix(_.bind(function() {
 		var provcb = _.bind(function() {
-			this.updateRanking();
-			
-			if (query.weekly) {
-				this.weeklyCallback(_.bind(function() {
+			this.updateRanking(_.bind(function() {
+				if (query.weekly) {
+					this.weeklyCallback(_.bind(function() {
+						this.dailyCallback(xcb);
+					}, this));
+				} if (query.daily) {
 					this.dailyCallback(xcb);
-				}, this));
-			} if (query.daily) {
-				this.dailyCallback(xcb);
-			} else {
-				xcb();
-			}
+				} else {
+					xcb();
+				}
+			}, this));
 		}, this);
 		
 		if (query.provisions)

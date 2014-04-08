@@ -11,7 +11,7 @@ var INFO_LINK_DEFAULT = 'http://download.finance.yahoo.com/d/quotes.csv?s=%{stoc
 var SEARCH_LINK_DEFAULT = 'http://d.yimg.com/aq/autoc?query=%{name}&region=DE&lang=de-DE&callback=%{fake-cb}&rnd=%{random}';
 var FORMAT_DEFAULT = ['s', 'n', 'l1', 'a', 'b', 'x'];
 var MAXLEN_DEFAULT = 196;
-var USER_AGENT_DEFAULT = 'Yahoo quotes.csv loader script (contact: sqrt@entless.org) (NodeJS ' + process.version + ' http)';
+var USER_AGENT_DEFAULT = 'Yahoo quotes.csv loader script (contact: tech@tradity.de) (NodeJS ' + process.version + ' http)';
 
 function YahooFinanceQuoteEntry(id, format, record) {
 	this.id = id;

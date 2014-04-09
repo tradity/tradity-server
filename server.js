@@ -461,7 +461,13 @@ ConnectionData.prototype.query = function(query) {
 			
 			if (extra && extra == 'repush') {
 				this.lastInfoPush = 0;
-				this.pushSelfInfo();
+				
+				UserDB.loadSessionUser(query.key, _.bind(function(newUser) {
+					if (newUser)
+						this.user = newUser;
+					
+					this.pushSelfInfo();
+				}, this));
 			}
 		}, this);
 		

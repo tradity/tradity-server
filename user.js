@@ -204,6 +204,9 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 		xuser.isSelf = (user && xuser.uid == user.uid);
 		if (xuser.isSelf) 
 			xuser.access = access.toArray();
+			
+		delete xuser.pwhash;
+		delete xuser.pwsalt;
 		
 		this.query('SELECT SUM(amount) AS samount, SUM(1) AS sone FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid], function(followers) {
 			xuser.f_amount = followers[0].samount || 0;
@@ -407,6 +410,8 @@ UserDB.prototype.getInviteKeyInfo = function(query, user, access, cb) {
 		} else {
 			assert.equal(res.length, 1);
 			
+			res[0].url = this.cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, this.cfg.hostname);
+			
 			cb('get-invitekey-info-success', res[0]);
 		}
 	});
@@ -444,7 +449,7 @@ UserDB.prototype.createInviteLink = function(query, user, access, cb) {
 				sendKeyToCaller = true;
 				cont('create-invite-link-success');
 			}, this)(_.bind(function(status) {
-				cb(status, sendKeyToCaller ? url : null);
+				cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
 			}, this));
 		});
 	}, this));

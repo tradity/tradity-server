@@ -296,8 +296,8 @@ ConnectionData.prototype.client_create_school = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_create_invite_link = _login(function(query, cb) {
-	SchoolsDB.createInviteLink(query, this.user, this.access, UserDB, _.bind(function(code, url) {
-		cb(code, {'url': url});
+	SchoolsDB.createInviteLink(query, this.user, this.access, UserDB, _.bind(function(code, res) {
+		cb(code, res);
 	}, this));
 });
 

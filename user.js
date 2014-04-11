@@ -592,8 +592,8 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 							}, this)(_.bind(function() {
 								this.query('INSERT INTO users ' +
 									'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
-									'traderse, tradersp, traditye, wot, street, zipcode, town)' +
-									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+									'traderse, tradersp, traditye, wot, street, zipcode, town, registertime)' +
+									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())',
 									[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
 									data.email, (inv.email && inv.email == data.email) ? 1 : 0,
 									data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],

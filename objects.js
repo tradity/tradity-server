@@ -219,9 +219,15 @@ DBSubsystemBase.prototype.readTemplate = function(template, variables) {
 	}
 	
 	_.chain(variables).keys().each(function(e) {
-		var r = new RegExp('\\{\\$' + e + '\\}', 'g');
+		var r = new RegExp('\\$\\{' + e + '\\}', 'g');
 		t = t.replace(r, variables[e]);
 	});
+	
+	var unresolved = t.match(/\$\{([^\}]*)\}/);
+	if (unresolved) {
+		this.emit('error', new Error('Unknown variable “' + unresolved[1] + '” in template ' + template));
+		return null;
+	}
 	
 	return t;
 };

@@ -89,7 +89,8 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'list-schools',
 					id: 'list-schools-2',
-					key: key
+					key: key,
+					search: 'ustersch'
 				});
 				break;
 			case 'list-schools-2':

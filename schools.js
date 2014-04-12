@@ -230,6 +230,13 @@ SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
 		params = params.concat([query.parentPath + '/%', query.parentPath]);
 	}
 	
+	if (query.search) {
+		var likestring = '%' + (query.search.toString()).replace(/%/g, '\\%') + '%';
+		
+		where += 'AND (name LIKE ? OR path LIKE ?) ';
+		params = params.concat([likestring, likestring]);
+	}
+	
 	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
 		where +

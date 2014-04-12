@@ -223,10 +223,10 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 };
 
 SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
-	var where = '';
+	var where = 'WHERE 1 ';
 	var params = [];
 	if (query.parentPath) {
-		where = 'WHERE path LIKE ? OR path = ? ';
+		where = 'AND path LIKE ? OR path = ? ';
 		params = params.concat([query.parentPath + '/%', query.parentPath]);
 	}
 	
@@ -236,6 +236,8 @@ SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
 		where += 'AND (name LIKE ? OR path LIKE ?) ';
 		params = params.concat([likestring, likestring]);
 	}
+	
+	console.log(where, params);
 	
 	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +

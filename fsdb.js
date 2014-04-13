@@ -3,6 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var url = require('url');
+var assert = require('assert');
 var hash = require('mhash').hash;
 
 function FileStorageDB (db, cfg) {

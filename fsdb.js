@@ -27,6 +27,8 @@ FileStorageDB.prototype.handle = function(req, res) {
 			return;
 		}
 		
+		assert.equal(rows.length, 1);
+		
 		var r = rows[0];
 		var headers = {
 			'Content-Type': r.mime,

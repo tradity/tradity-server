@@ -229,9 +229,9 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 					return cb(xuser, null, null, null);
 				
 				this.locked(['valuehistory'], cb, _.bind(function(cb_) {
-					this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id  WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
+					this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
 						this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
-							this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image"  WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+							this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
 								cb_(xuser, orders, values, comments);
 							});
 						});
@@ -487,7 +487,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 	
 	var betakey = data.betakey ? data.betakey.toString().split('-') : [0,0];
 	
-	this.query('SELECT email,name,id FROM users WHERE email = ? OR (name = ?) ORDER BY NOT(id != ?)',
+	this.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[data.email, data.name, uid], function(res) {
 	this.query('SELECT `key` FROM betakeys WHERE `id`=?',
 		[betakey[0]], function(βkey) {
@@ -540,10 +540,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
 						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traderse = ?, tradersp = ?, traditye = ?, wot = ? '+
+						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traditye = ? '+
 						'WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.email, data.email == user.email,
-						data.birthday, data.desc, data.wprovision, data.lprovision, data.street, data.zipcode, data.town, data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, uid],
+						data.birthday, data.desc, data.wprovision, data.lprovision, data.street, data.zipcode, data.town, data.traditye?1:0, uid],
 						updateCB);
 						
 						if (data.name != user.name) {
@@ -597,11 +597,11 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 							}, this)(_.bind(function() {
 								this.query('INSERT INTO users ' +
 									'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
-									'traderse, tradersp, traditye, wot, street, zipcode, town, registertime)' +
-									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())',
+									'traditye, street, zipcode, town, registertime)' +
+									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())',
 									[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
 									data.email, (inv.email && inv.email == data.email) ? 1 : 0,
-									data.traderse?1:0, data.tradersp?1:0, data.traditye?1:0, data.wot?1:0, data.street, data.zipcode, data.town],
+									data.traditye?1:0, data.street, data.zipcode, data.town],
 								function(res) {
 									uid = res.insertId;
 									this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});

@@ -68,7 +68,7 @@ AdminDB.prototype.deleteUser = _reqpriv('userdb', function(query, user, access, 
 		this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [query.uid, query.uid], function() {
 		this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), ' +
 		'fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, realnamepublish=0, `desc`="", wprovision=0, lprovision=0, ' + 
-		'street="", zipcode="", town="", traderse=0, tradersp=0, traditye=0, wot=0, deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [query.uid, query.uid], function() {
+		'street="", zipcode="", town="", traditye=0, deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [query.uid, query.uid], function() {
 			cb('delete-user-success');
 		});
 		});

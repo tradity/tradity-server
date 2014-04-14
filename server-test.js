@@ -55,9 +55,6 @@ socket.on('connect', function() {
 					street: '',
 					town: '',
 					zipcode: '',
-					wot: 0,
-					tradersp: 0,
-					traderse: 0,
 					traditye: 0
 				});
 				break;

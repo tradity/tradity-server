@@ -248,8 +248,12 @@ DBSubsystemBase.prototype.readEMailTemplate = function(template, variables) {
 		var headerName = h.substr(0, headerNameEnd).trim();
 		var headerValue = h.substr(headerNameEnd + 1).trim();
 		
-		opt[headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase()}).replace(/-/g, '')] = headerValue;
-		opt.headers[headerName] = headerValue;
+		var camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase()}).replace(/-/g, '');
+		
+		if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) != -1)
+			opt[camelCaseHeaderName] = headerValue;
+		else
+			opt.headers[headerName] = headerValue;
 	}
 	
 	opt.html = body;

@@ -72,11 +72,11 @@ StocksDB.prototype.updateRanking = function(cb_) {
 
 	this.locked(['ranking'], _.bind(function() { this.updateValueHistory(cb_); }, this), function(cb) {
 	this.query('TRUNCATE TABLE ranking', [], function() {
-	this.query('SET @rank1 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",   id, @rank1 := @rank1 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 ORDER BY tradecount > 0 DESC, totalvalue - wprov_sum - lprov_sum DESC', [], function() {
-	this.query('SET @rank2 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following", id, @rank2 := @rank2 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) DESC', [], function() {
-	this.query('SET @rank3 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-wprov", id, @rank3 := @rank3 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
-	this.query('SET @rank4 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank4 := @rank4 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 ORDER BY tradecount > 0 DESC, (totalvalue - wprov_sum - lprov_sum) / (weekstarttotalvalue - weekstartprov_sum) DESC', [], function() {
-	this.query('SET @rank5 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank5 := @rank5 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND totalfperfbase != 0 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) DESC', [], cb);
+	this.query('SET @rank1 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",        id, @rank1 := @rank1 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0                         AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, totalvalue - wprov_sum - lprov_sum DESC', [], function() {
+	this.query('SET @rank2 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following",      id, @rank2 := @rank2 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND totalfperfbase != 0 AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) DESC', [], function() {
+	this.query('SET @rank3 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-wprov",  id, @rank3 := @rank3 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0                         AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
+	this.query('SET @rank4 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank4 := @rank4 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0                         AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, (totalvalue - wprov_sum - lprov_sum) / (weekstarttotalvalue - weekstartprov_sum) DESC', [], function() {
+	this.query('SET @rank5 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank5 := @rank5 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND totalfperfbase != 0 AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) DESC', [], cb);
 	});});});});});
 	});
 	

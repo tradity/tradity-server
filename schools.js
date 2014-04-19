@@ -237,8 +237,6 @@ SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
 		params = params.concat([likestring, likestring]);
 	}
 	
-	console.log(where, params);
-	
 	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
 		where +

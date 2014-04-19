@@ -23,7 +23,13 @@ var query = {
 
 for (var i = 1; i < options.length; ++i) {
 	var p = options[i].match(/-{0,2}(\w+)=(\S*)/);
-	query[p[1]] = p[2];
+	
+	var value = p[2];
+	if (value == 'false') value = false;
+	if (value == 'true')  value = true;
+	if (value == 'null')  value = null;
+	
+	query[p[1]] = value;
 }
 
 socket.on('connect', function() {	

@@ -80,7 +80,7 @@ ConnectionData.uniqueCount = 0;
 
 function _login (f) {
 	return function(query, cb) {
-		if (this.user === null && !this.access.has('login-override'))
+		if (this.user === null && !this.access.has('login_override'))
 			cb('not-logged-in')
 		else
 			return _.bind(f,this)(query, cb);
@@ -440,15 +440,16 @@ ConnectionData.prototype.query = function(query) {
 			access.update(Access.fromJSON(user.access));
 		
 		this.access.update(access);
-			
+		
 		if (query.authorizationKey == authorizationKey) {
 			console.log('Received query with master authorization of type', query.type);
 			this.access.grantAny();
 			if (user == null && query.uid != null)
 				user = {uid: query.uid, id: query.uid};
 		}
-		 
+		
 		this.user = user;
+		this.access[['grant', 'drop'][this.user && this.user.email_verif ? 0 : 1]]('email_verif');
 		
 		var cb = _.bind(function(code, obj, extra) {
 			var now = new Date().getTime();

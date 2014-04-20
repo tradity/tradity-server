@@ -35,6 +35,8 @@ UserDB.prototype.sendInviteEmail = function(data, cb) {
 };
 
 UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
+	access.drop('email_verif');
+	
 	this.login({
 		name: data.email,
 		stayloggedin: true,
@@ -293,7 +295,8 @@ UserDB.prototype.emailVerify = function(query, user, access, xdata, cb) {
 		
 			this.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid], function() {
 			this.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid], function() {
-				console.log({name : email, stayloggedin: true});
+				access.grant('email_verif');
+				
 				this.login({
 					name: email,
 					stayloggedin: true,
@@ -424,7 +427,7 @@ UserDB.prototype.createInviteLink = function(query, user, access, cb) {
 		if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
 			return cb('create-invite-link-invalid-email');
 			
-		if (user.email_verif == 0)
+		if (!access.has('email_verif'))
 			return cb('create-invite-link-not-verif');
 	}
 	

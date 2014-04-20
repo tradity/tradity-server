@@ -451,7 +451,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 			return cb('stock-buy-autodelay-sxnotopen');
 		}
 		
-		if (r.lid && user.email_verif == 0)
+		if (r.lid && !access.has('email_verif'))
 			return cb('stock-buy-email-not-verif');
 		
 		var amount = parseInt(query.amount);

@@ -370,7 +370,9 @@ ConnectionData.prototype.client_dquery_remove = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_publish = _login(function(query, cb) {
-	FileStorageDB.publish(query, this.user, this.access, cb);
+	FileStorageDB.publish(query, this.user, this.access, _.bind(function(code) {
+		cb(code, null, 'repush');
+	}, this));
 });
 
 ConnectionData.prototype.client_get_config = function(query, cb) {

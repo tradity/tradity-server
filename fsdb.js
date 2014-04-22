@@ -98,6 +98,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 	var uniqrole = this.cfg.fsdb.uniqroles[query.role];
 	
 	query.proxy = query.proxy ? true : false;
+	query.mime = query.mime || 'application/octet-stream';
 	
 	if (query.base64)
 		content = new Buffer(query.content, 'base64');
@@ -111,25 +112,31 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 				return cb('publish-inacceptable-role');
 				
 			if (query.proxy) {
-				for (var i = 0; i < this.cfg.fsdb.allowProxyURIs.length; ++i) {
+				var hasRequiredAccess = false;
+				
+				for (var i = 0; i < this.cfg.fsdb.allowProxyURIs.length && !hasRequiredAccess; ++i) {
 					var p = this.cfg.fsdb.allowProxyURIs[i];
 					assert.ok(p.regex);
 					assert.ok(p.requireAccess);
 					
-					if (p.test(query.content)) {
-						
-						var hasRequiredAccess = p.requireAccess.length == 0;
-						for (var i = 0; i < p.requireAccess.length; ++i) {
-							if (access.has(p.requireAccess[i])) {
-								hasRequiredAccess = true;
-								break;
+					var match = query.content.match(p.regex);
+					if (match) {
+						if (typeof p.requireAccess == 'function') {
+							hasRequiredAccess = p.requireAccess(user, access, match);
+						} else {
+							hasRequiredAccess = p.requireAccess.length == 0;
+							for (var i = 0; i < p.requireAccess.length; ++i) {
+								if (access.has(p.requireAccess[i])) {
+									hasRequiredAccess = true;
+									break;
+								}
 							}
 						}
-						
-						if (!hasRequiredAccess)
-							return cb('publish-proxy-not-allowed');
 					}
 				}
+				
+				if (!hasRequiredAccess)
+					return cb('publish-proxy-not-allowed');
 			} else {
 				// local mime type is ignored for proxy requests
 				

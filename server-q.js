@@ -32,6 +32,13 @@ for (var i = 1; i < options.length; ++i) {
 	query[p[1]] = value;
 }
 
+if (query.timeout) {
+	setTimeout(function() {
+		console.log('timeout exceeded');
+		process.exit(1);
+	}, query.timeout * 1000);
+}
+
 socket.on('connect', function() {	
 	var emit = function (e, d) { query.quiet || console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('response', function (data) {

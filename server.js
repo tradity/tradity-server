@@ -8,6 +8,7 @@ var assert = require('assert');
 var nodemailer = require('nodemailer');
 var fs = require('fs');
 var crypto = require('crypto');
+var url = require('url');
 
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
@@ -88,8 +89,8 @@ function _login (f) {
 }
 
 ConnectionData.prototype.client_get_ranking = _login(function(query, cb) {
-	UserDB.getRanking(query, this.user, this.access, _.bind(function(results, count) {
-		cb('get-ranking-success', {'result': results, 'count': count});
+	UserDB.getRanking(query, this.user, this.access, _.bind(function(results) {
+		cb('get-ranking-success', {'result': results});
 	}, this));
 });
 
@@ -173,9 +174,9 @@ ConnectionData.prototype.client_login = function(query, cb) {
 
 ConnectionData.prototype.client_logout = _login(function(query, cb) {
 	UserDB.logout(query, this.user, this.access, _.bind(function(code, key) {
-		cb('logout-success');
 		this.user = null;
 		this.access = new Access();
+		cb('logout-success');
 	}, this));
 });
 
@@ -496,8 +497,15 @@ ConnectionData.prototype.disconnected = function() {
 
 var server = require('http').createServer();
 server.on('request', function (req, res) {
-	if (!FileStorageDB.handle(req, res)) {
-		res.writeHead(200);
+	var loc = url.parse(req.url, true);
+	if (loc.pathname.match(/^(\/dynamic)?\/?ping/)) {
+		res.writeHead(200, {'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*'});
+		res.end('pong');
+		return;
+	}
+	
+	if (!FileStorageDB.handle(req, res, loc)) {
+		res.writeHead(404, {'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*'});
 		res.end('Hi (not really found)!');
 	}
 });

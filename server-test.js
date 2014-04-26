@@ -247,7 +247,6 @@ socket.on('connect', function() {
 				break;
 			case 'get-ranking-1':
 				assert.equal(data.code, 'get-ranking-success');
-				assert.ok(data.count > 0);
 				emit('query', {
 					type: 'get-ranking',
 					id: 'get-ranking-2',
@@ -258,7 +257,6 @@ socket.on('connect', function() {
 				break;
 			case 'get-ranking-2':
 				assert.equal(data.code, 'get-ranking-success');
-				assert.equal(data.count, 1);
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',

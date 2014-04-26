@@ -41,7 +41,7 @@ StocksDB.prototype.regularCallback = function(query, cb) {
 	this.updateStockValues(_.bind(function() {
 	this.updateLeaderMatrix(_.bind(function() {
 		var provcb = _.bind(function() {
-			this.updateRanking(_.bind(function() {
+			this.updateRankingInformation(_.bind(function() {
 				if (query.weekly) {
 					this.weeklyCallback(_.bind(function() {
 						this.dailyCallback(xcb);
@@ -63,29 +63,20 @@ StocksDB.prototype.regularCallback = function(query, cb) {
 	}, this));
 }
 
-StocksDB.prototype.updateRanking = function(cb_) {
-	cb_ = cb_ || function() {};
+StocksDB.prototype.updateRankingInformation = function(cb) {
+	cb = cb || function() {};
 	
 	this.query('UPDATE users SET '+
-		'dayfperfcur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
-		'dayoperfcur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
-
-	this.locked(['ranking'], _.bind(function() { this.updateValueHistory(cb_); }, this), function(cb) {
-	this.query('TRUNCATE TABLE ranking', [], function() {
-	this.query('SET @rank1 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general",        id, @rank1 := @rank1 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0                         AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, totalvalue - wprov_sum - lprov_sum DESC', [], function() {
-	this.query('SET @rank2 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following",      id, @rank2 := @rank2 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND totalfperfbase != 0 AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, (dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) DESC', [], function() {
-	this.query('SET @rank3 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-wprov",  id, @rank3 := @rank3 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0                         AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, totalvalue DESC', [], function() {
-	this.query('SET @rank4 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "general-week",   id, @rank4 := @rank4 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0                         AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, (totalvalue - wprov_sum - lprov_sum) / (weekstarttotalvalue - weekstartprov_sum) DESC', [], function() {
-	this.query('SET @rank5 := 0; REPLACE INTO ranking(`type`,uid,rank) SELECT "following-week", id, @rank5 := @rank5 + 1 FROM users WHERE deletiontime IS NULL AND email_verif != 0 AND  weekfperfbase != 0 AND hiddenuser != 1 ORDER BY tradecount > 0 DESC, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) DESC', [], cb);
-	});});});});});
-	});
-	
+		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
+		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
+		this.updateValueHistory(cb);
 	});	
 }
 
 StocksDB.prototype.updateValueHistory = function(cb) {
 	this.locked(['valuehistory'], cb, _.bind(function(cb) {
-		this.query('INSERT INTO valuehistory(userid,value,time) SELECT id,totalvalue,UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
+		var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
+		this.query('INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT id, ' + copyFields + ', UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
 	}, this));
 }
 
@@ -93,21 +84,16 @@ StocksDB.prototype.dailyCallback = function(cb) {
 	cb = cb || function() {};
 
 	this.locked(['valuehistory'], null, _.bind(function(exitlock) {
-		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 86400*2 AND FLOOR(va.time/86400)=FLOOR(vb.time/86400) WHERE va.time < UNIX_TIMESTAMP() - 14*86400', [], function() {
-		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  6*86400 AND va.time > UNIX_TIMESTAMP() - 14*86400', [], function() {
-		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  1*86400 AND va.time > UNIX_TIMESTAMP() -  6*86400', [], exitlock);
-		});});
+		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  10*86400 AND va.time > UNIX_TIMESTAMP() - 14*86400', [], function() {
+		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  2*86400 AND va.time > UNIX_TIMESTAMP() -  6*86400', [], exitlock);
+		});
 	}, this));
 	
-	this.query('UPDATE stocks SET daystartvalue = bid', [], function() {
-	this.query('UPDATE users SET dayfperfbase = dayfperfcur, dayoperfbase = dayoperfcur, dayfperfsold = 0, dayoperfsold = 0, daystarttotalvalue = totalvalue', [], cb);
-	});
+	this.query('UPDATE stocks SET daystartvalue = bid', [], cb);
 }
 
 StocksDB.prototype.weeklyCallback = function(cb) {
-	this.query('UPDATE users SET weekfperfbase = dayfperfbase, weekoperfbase = dayoperfbase, weekfperfsold = 0, weekoperfsold = 0, weekstarttotalvalue = totalvalue, weekstartprov_sum = wprov_sum + lprov_sum', [], function() {
 	this.query('UPDATE stocks SET weekstartvalue = bid', [], cb);
-	});
 }
 
 StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
@@ -506,16 +492,12 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		var tradeID = oh_res.insertId;
 		
 		var perfn = r.leader ? 'fperf' : 'operf';
-		var perfv = amount >= 0 ? 'base' : 'sold';
-		var perfdf = 'day' + perfn + perfv;
-		var perfwf = 'week' + perfn + perfv;
-		var perftf = 'total' + perfn + perfv;
+		var perfv = amount >= 0 ? 'bought' : 'sold';
+		var perffull = perfn + '_' + perfv;
 		
-		this.query('UPDATE users SET tradecount = tradecount+1, freemoney = freemoney-(?),totalvalue = totalvalue-(?), '+
-			perfdf + '=' + perfdf + ' + ABS(?), ' +
-			perfwf + '=' + perfwf + ' + ABS(?), ' +
-			perftf + '=' + perftf + ' + ABS(?) ' +
-			' WHERE id = ?', [price+fee, fee, price, price, price, user.id], function() {
+		this.query('UPDATE users SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
+			perffull + '=' + perffull + ' + ABS(?) ' +
+			' WHERE id = ?', [price+fee, fee, price, user.id], function() {
 		if (r.amount == null) {
 			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?)', 
 				[user.id, r.id, amount, price, ta_value], function() {

@@ -2,7 +2,6 @@
 
 var _ = require('underscore');
 var util = require('util');
-var url = require('url');
 var http = require('http');
 var https = require('https');
 var assert = require('assert');
@@ -14,9 +13,8 @@ function FileStorageDB (db, cfg) {
 }
 util.inherits(FileStorageDB, require('./objects.js').DBSubsystemBase);
 
-FileStorageDB.prototype.handle = function(req, res) {
-	var loc = url.parse(req.url, true);
-	var fsmatch = loc.pathname.match(this.cfg.fsdb.reqregex);
+FileStorageDB.prototype.handle = function(req, res, reqURL) {
+	var fsmatch = reqURL.pathname.match(this.cfg.fsdb.reqregex);
 	
 	if (!fsmatch)
 		return false;

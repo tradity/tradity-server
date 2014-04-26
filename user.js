@@ -67,7 +67,7 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 			});
 		}, this));
 	}, this));
-}
+};
 
 UserDB.prototype.listPopularStocks = function(query, user, access, cb) {
 	this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
@@ -77,7 +77,7 @@ UserDB.prototype.listPopularStocks = function(query, user, access, cb) {
 		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [], function(popular) {
 		cb('list-popular-stocks-success', popular);
 	});
-}
+};
 
 UserDB.prototype.login = function(query, user, access, xdata, cb) {
 	var name = query.name;
@@ -124,82 +124,98 @@ UserDB.prototype.login = function(query, user, access, xdata, cb) {
 UserDB.prototype.logout = function(query, user, access, cb) {
 	this.query('DELETE FROM sessions WHERE `key` = ?', [query.key]);
 	cb('logout-success');
-}
+};
 
 UserDB.prototype.getRanking = function(query, user, access, cb_) {
 	query.startindex = parseInt(query.startindex) || 0;
 	query.endindex = parseInt(query.endindex) || (1 << 20);
 	
-	var join = 'FROM ranking ' +
-		'JOIN users ON ranking.uid = users.id ' +
-		'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid ' +
-		'LEFT JOIN schools AS c ON sm.schoolid = c.id ';
+	if (!query.since)
+		query.since = 0;
+	
+	if (parseInt(query.since) != query.since)
+		return cb_('format-error');
 	
 	var likestringWhere = '';
 	var likestringUnit = [];
+	
+	var join = 'FROM users AS u ' +
+		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid ' +
+		'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
+		'JOIN valuehistory AS past_va ON past_va.userid = u.id ' +
+		'JOIN (SELECT userid, MIN(time) AS t FROM valuehistory WHERE time > ? GROUP BY userid) AS past_locator_va ' +
+			'ON past_va.userid = past_locator_va.userid AND past_va.time = past_locator_va.t ';
+			
+	if (!query.includeAll) 
+		likestringWhere += ' AND email_verif != 0 ';
+
 	if (query.search) {
 		var likestring = '%' + (query.search.toString()).replace(/%/g, '\\%') + '%';
-		likestringWhere += 'AND (users.name LIKE ?) ';
-		likestringUnit = likestringUnit.concat([likestring]);
+		likestringWhere += 'AND ((u.name LIKE ?) OR (realnamepublish != 0 AND (giv_name LIKE ? OR fam_name LIKE ?))) ';
+		likestringUnit = likestringUnit.concat([likestring, likestring, likestring]);
 	}
 	
 	if (query.schoolid) {
-		join += 'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
+		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
 		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}
 	
-	this.locked(['ranking'], cb_, function(cb) {		
-		this.query('SELECT rank, users.id AS uid, users.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
-			'totalvalue, weekstarttotalvalue, weekstartprov_sum, wprov_sum + lprov_sum AS prov_sum, tradecount != 0 as hastraded, ' +
-			'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf, (dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf, ' +
-			'(dayfperfcur+totalfperfsold-totalfperfbase)/GREATEST(700000000, totalvalue) AS totalfperfval, (dayfperfcur+weekfperfsold-weekfperfbase)/GREATEST(700000000, weekstarttotalvalue) AS weekfperfval, ' +
+	this.locked(['valuehistory'], cb_, _.bind(function(cb) {
+		this.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
+			'tradecount != 0 as hastraded, ' + 
+			'u.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
+			'u.wprov_sum + u.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
+			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) / (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
+			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) - (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
 			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
 			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
-			join +
-			'WHERE `type` = ? ' +
+			join + /* needs query.since parameter */
+			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere +
-			'ORDER BY rank ASC LIMIT ?, ?', 
-			[query.rtype].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(res) {
-			this.query('SELECT COUNT(*) AS c ' +
-				join +
-				'WHERE `type` = ? ' + likestringWhere, [query.rtype].concat(likestringUnit), function(cr) {
-				assert.equal(cr.length, 1);
-				cb(res, cr[0].c);
-			});
-		});
-	});
-}
+			'LIMIT ?, ?', 
+			[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), cb);
+	}, this));
+};
 
-UserDB.prototype.getUserInfo = function(query, user, access, cb) {
+UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 	if (query.lookfor == '$self')
 		query.lookfor = user.id;
 	
+	this.locked(['valuehistory'], cb_, _.bind(function(cb) {
+	
 	var columns = (access.has('userdb') ? [
-		'users.*'
+		'u.*'
 	] : [
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
 	]).concat([
-		'users.id AS uid', 'users.name AS name', 'birthday',
+		'u.id AS uid', 'u.name AS name', 'birthday',
 		'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
-		'`desc`', 'wprovision', 'lprovision', 'totalvalue', 'rank', 'delayorderhist',
+		'`desc`', 'wprovision', 'lprovision', 'u.totalvalue', 'delayorderhist',
 		'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
 		'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
-		'(dayfperfcur+dayfperfsold) / dayfperfbase AS dayfperf', '(dayoperfcur+dayoperfsold) / dayoperfbase AS dayoperf',
-		'(dayfperfcur+weekfperfsold) / weekfperfbase AS weekfperf', '(dayoperfcur+weekoperfsold) / weekoperfbase AS weekoperf',
-		'(dayfperfcur+totalfperfsold) / totalfperfbase AS totalfperf', '(dayoperfcur+totaloperfsold) / totaloperfbase AS totaloperf',
-		'freemoney', 'wprov_sum + lprov_sum AS prov_sum', 'weekstarttotalvalue', 'daystarttotalvalue'
+		'((u.fperf_cur + u.fperf_sold -  day_va.fperf_sold) / (u.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
+		'((u.operf_cur + u.operf_sold -  day_va.operf_sold) / (u.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
+		'((u.fperf_cur + u.fperf_sold - week_va.fperf_sold) / (u.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
+		'((u.operf_cur + u.operf_sold - week_va.operf_sold) / (u.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
+		'(u.fperf_cur + u.fperf_sold) / u.fperf_bought AS totalfperf',
+		'(u.operf_cur + u.operf_sold) / u.operf_bought AS totaloperf',
+		'freemoney', 'u.wprov_sum + u.lprov_sum AS prov_sum',
+		'week_va.totalvalue AS weekstarttotalvalue',
+		'day_va.totalvalue  AS daystarttotalvalue'
 	]).join(', ');
-	
-	this.query('SELECT ' + columns + ' FROM users '+
-		'LEFT JOIN ranking ON users.id = ranking.uid '+ // note: this ignores the ranking lock!
-		'LEFT JOIN schoolmembers AS sm ON users.id = sm.uid '+
-		'LEFT JOIN stocks ON users.id = stocks.leader '+
-		'LEFT JOIN httpresources ON httpresources.user = users.id AND httpresources.role = "profile.image" '+
-		'LEFT JOIN events ON events.targetid = users.id AND events.type = "user-register" '+
-		'WHERE users.id = ? OR users.name = ?', 
-		[parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, query.lookfor], function(users) {
+		
+	this.query('SELECT ' + columns + ' FROM users AS u '+
+		'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
+		'LEFT JOIN valuehistory AS day_va  ON day_va.userid  = u.id AND day_va.time  = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
+		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid '+
+		'LEFT JOIN stocks ON u.id = stocks.leader '+
+		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" '+
+		'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" '+
+		'WHERE u.id = ? OR u.name = ?', 
+		[Date.parse('last sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
+			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb(null, null, null);
 		var xuser = users[0];
@@ -229,20 +245,20 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb) {
 				xuser.schools = schools;
 				if (query.nohistory)
 					return cb(xuser, null, null, null);
-				
-				this.locked(['valuehistory'], cb, _.bind(function(cb_) {
-					this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
-						this.query('SELECT * FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
-							this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
-								cb_(xuser, orders, values, comments);
-							});
+			
+				this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
+					this.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
+						this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+							cb(xuser, orders, values, comments);
 						});
 					});
-				}, this));
+				});
 			});
 		});
 	});
-}
+	
+	}, this));
+};
 
 UserDB.prototype.regularCallback = function(query, cb) {
 	cb = cb || function() {};
@@ -258,7 +274,7 @@ UserDB.prototype.regularCallback = function(query, cb) {
 		
 		cb();
 	});
-}
+};
 					
 UserDB.prototype.emailVerify = function(query, user, access, xdata, cb) {
 	var uid = parseInt(query.uid);
@@ -306,15 +322,13 @@ UserDB.prototype.emailVerify = function(query, user, access, xdata, cb) {
 			});
 		});
 	});
-}
+};
 
 UserDB.prototype.loadSessionUser = function(key, cb) {
-	// ignores ranking lock
-	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ranking.rank AS rank, ' +
+	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ' +
 		'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
 		'FROM sessions ' +
 		'JOIN users ON sessions.uid = users.id ' +
-		'LEFT JOIN ranking ON ranking.`type`="general" AND ranking.uid = users.id ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.uid=users.id ' +
 		'LEFT JOIN schools ON schools.id=sm.schoolid ' +
 		'WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() LIMIT 1', [key], function(res) {
@@ -332,16 +346,16 @@ UserDB.prototype.loadSessionUser = function(key, cb) {
 			cb(user);
 		}
 	});
-}
+};
 
 UserDB.prototype.register = function(query, user, access, xdata, cb) {
 	assert.strictEqual(user, null);
 	this.updateUser(query, 'register', null, access, xdata, cb);
-}
+};
 
 UserDB.prototype.changeOptions = function(query, user, access, xdata, cb) {
 	this.updateUser(query, 'change', user, access, xdata, cb);
-}
+};
 
 UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
 	if (!this.cfg.resetAllowed && !access.has('userdb'))
@@ -351,17 +365,11 @@ UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
 	assert.ok(access);
 	
 	this.locked(['userdb', 'depotstocks'], cb_, function(cb) {
-	this.query('DELETE FROM ranking WHERE uid = ?', [user.uid], function() { // ignores ranking lock – won’t be too bad
 	this.query('DELETE FROM depot_stocks WHERE userid = ?', [user.uid], function() {
 	this.query('UPDATE users SET freemoney = 1000000000, totalvalue = 1000000000, ' +
-		'dayfperfbase = 0, dayfperfcur = 0, dayfperfsold = 0, ' + 
-		'weekfperfbase = 0, weekfperfsold = 0, ' + 
-		'totalfperfbase = 0, totalfperfsold = 0, ' + 
-		'dayoperfbase = 0, dayoperfcur = 0, dayoperfsold = 0, ' + 
-		'weekoperfbase = 0, weekoperfsold = 0, ' + 
-		'totaloperfbase = 0, totaloperfsold = 0, ' + 
-		'daystarttotalvalue = 1000000000, weekstarttotalvalue = 1000000000, '+
-		'weekstartprov_sum = 0, wprov_sum = 0, lprov_sum = 0 ' + 
+		'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
+		'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
+		'wprov_sum = 0, lprov_sum = 0 ' + 
 		'WHERE id = ?', [user.uid], function() {
 		sdb.sellAll(query, user, access, _.bind(function() {
 			this.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
@@ -373,8 +381,7 @@ UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
 	});
 	});
 	});
-	});
-}
+};
 
 UserDB.prototype.passwordReset = function(data, user, access, cb) {
 	this.query('SELECT * FROM users WHERE name = ? AND deletiontime IS NULL', [data.name], function(res) {
@@ -656,7 +663,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 	});
 	});
 	});
-}
+};
 
 UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 	this.query('SELECT stockid,users.id AS uid,users.name, bid FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?', [query.stockid], function(res) {
@@ -671,21 +678,21 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 			cb('watchlist-add-success');
 		}); 
 	});
-}
+};
 
 UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
 	this.query('DELETE FROM watchlists WHERE watcher=? AND watched=?', [user.id, query.stockid], function() {
 		this.feed({'type': 'watch-remove','targetid':null,'srcuser':user.id,'json':{'watched':query.stockid}});
 		cb('watchlist-remove-success');
 	}); 
-}
+};
 
 UserDB.prototype.watchlistShow = function(query, user, access, cb) {
 	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, watchstartvalue, watchstarttime FROM watchlists AS w '+
 		'JOIN stocks ON w.watched=stocks.id LEFT JOIN users ON users.id=stocks.leader WHERE w.watcher = ?', [user.id], function(res) {
 		cb(res);
 	});
-}
+};
 
 exports.UserDB = UserDB;
 

@@ -101,9 +101,9 @@ StocksDB.prototype.cleanUpUnusedStocks = function(cb) {
 	
 	this.query('DELETE FROM depot_stocks WHERE amount = 0', [], function() {
 		this.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
-			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 OR ' +
-			'(SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 OR ' +
-			'leader IS NOT NULL', [this.cfg.lrutimeLimit],
+			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 ' +
+			'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 ' +
+			'OR leader IS NOT NULL', [this.cfg.lrutimeLimit],
 			cb);
 	});
 }

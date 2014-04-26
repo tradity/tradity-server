@@ -3,7 +3,7 @@
 	"name": "tradity-de-server",
 	"version": "0.0.1",
 	"homepage": "https://tradity.de",
-	"bugs" : { "email": "tradity-dev@entless.org" },
+	"bugs" : { "email": "developers@tradity.de" },
 	"dependencies": {
 		"xml2js": "*",
 		"mhash": "*",

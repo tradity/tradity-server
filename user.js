@@ -222,7 +222,9 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 		xuser.isSelf = (user && xuser.uid == user.uid);
 		if (xuser.isSelf) 
 			xuser.access = access.toArray();
-			
+		
+		assert.ok(xuser.registerevent);
+		
 		delete xuser.pwhash;
 		delete xuser.pwsalt;
 		
@@ -246,9 +248,17 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 				if (query.nohistory)
 					return cb(xuser, null, null, null);
 			
-				this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh LEFT JOIN users AS u ON oh.leader = u.id WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ORDER BY buytime DESC', [xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
+				this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh ' +
+					'LEFT JOIN users AS u ON oh.leader = u.id ' + 
+					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
+					'ORDER BY buytime DESC',
+					[xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
 					this.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
-						this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml FROM ecomments AS c LEFT JOIN users AS u ON c.commenter = u.id LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+						this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+							'FROM ecomments AS c ' + 
+							'LEFT JOIN users AS u ON c.commenter = u.id ' + 
+							'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+							'WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
 							cb(xuser, orders, values, comments);
 						});
 					});
@@ -674,23 +684,176 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 			return cb('watchlist-add-self');
 		
 		this.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)', [user.id, res[0].bid, query.stockid], function(r) {
-			this.feed({'type': 'watch-add','targetid':r.insertId,'srcuser':user.id,'json':{'watched': query.stockid, 'watcheduser':uid,'watchedname':res[0].name},'feedusers':uid ? [uid] : []});
+			this.feed({
+				type: 'watch-add',
+				targetid: r.insertId,
+				srcuser: 
+				user.id,
+				json: {
+					watched: query.stockid, 
+					watcheduser: uid,
+					watchedname: 
+					res[0].name
+				},
+				feedusers: uid ? [uid] : []
+			});
+			
 			cb('watchlist-add-success');
 		}); 
 	});
 };
 
 UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
-	this.query('DELETE FROM watchlists WHERE watcher=? AND watched=?', [user.id, query.stockid], function() {
-		this.feed({'type': 'watch-remove','targetid':null,'srcuser':user.id,'json':{'watched':query.stockid}});
+	this.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [user.id, query.stockid], function() {
+		this.feed({
+			type: 'watch-remove',
+			targetid: null,
+			srcuser: user.id,
+			json: { watched: query.stockid }
+		});
+		
 		cb('watchlist-remove-success');
 	}); 
 };
 
 UserDB.prototype.watchlistShow = function(query, user, access, cb) {
-	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, watchstartvalue, watchstarttime FROM watchlists AS w '+
-		'JOIN stocks ON w.watched=stocks.id LEFT JOIN users ON users.id=stocks.leader WHERE w.watcher = ?', [user.id], function(res) {
+	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, watchstartvalue, watchstarttime ' +
+		'FROM watchlists AS w ' +
+		'JOIN stocks ON w.watched = stocks.id ' +
+		'LEFT JOIN users ON users.id = stocks.leader ' + 
+		'LEFT JOIN watchlists AS rw ON rw.watched = w.watcher AND rw.watcher = stocks.leader ' +
+		'WHERE w.watcher = ?', [user.id], function(res) {
 		cb(res);
+	});
+};
+
+UserDB.prototype.getChat = function(query, user, access, cb) {
+	var whereString = '';
+	var params = [];
+	
+	if (!query.endpoints || !query.endpoints.length) {
+		if (!query.chatid || parseInt(query.chatid) != query.chatid)
+			return cb('format-error');
+		
+		whereString += 'WHERE cm.chatid = ?';
+		params.push(query.chatid);
+	} else {
+		var containsOwnUser = false;
+		for (var i = 0; i < query.endpoints.length; ++i) {
+			var uid = query.endpoints[i];
+			containsOwnUser = containsOwnUser || (uid == user.id);
+			if (parseInt(uid) != uid)
+				return cb('format-error');
+		}
+		
+		if (!containsOwnUser && user)
+			query.endpoints.push(user.id);
+			
+		
+		var endpointsList = query.endpoints.join(',');
+		var numEndpoints = query.endpoints.length;
+		
+		whereString += 
+			'WHERE (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.id = cm.userid WHERE cm.chatid = c.chatid ' +
+			'AND cm.userid IN (' +  endpointsList + ')) = ? ';
+		
+		params.push(numEndpoints);
+	}
+	
+	this.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
+		'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
+		'WHERE ' + whereString + ' ' +
+		'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC LIMIT 1', params, function(chatlist) {
+		_.bind((chatlist.length == 0) ? function(cont) {
+			if (query.failOnMissing)
+				cont(null);
+			
+			this.query('INSERT INTO chats(creator) VALUE(?)', [users.id], function(res) {
+				this.feed({
+					type: 'chat-start',
+					targetid: res.insertId, 
+					srcuser: uid,
+					noFollowers: true,
+					feedusers: query.endpoints
+				}, function(eventid) {
+					cont({chatid: res.insertId, eventid: eventid});
+				});
+			});
+		} : function(cont) {
+			cont(chatlist[0]);
+		}, this)(_.bind(function(chat) {
+			if (chat === null)
+				return cb('chat-get-notfound');
+			
+			assert.notStrictEqual(chat.chatid, null);
+			assert.notStrictEqual(chat.eventid, null);
+			
+			chat.endpoints = query.endpoints;
+			
+			if (query.noMessages)
+				return cb(chat);
+			
+			this.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
+				'FROM chatmembers AS cm ' +
+				'JOIN users ON users.id = cm.userid ' +
+				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+				'WHERE cm.chatid = ?', [chat.chatid], function(endpoints) {
+				assert.ok(endpoints.length > 0);
+				chat.endpoints = endpoints;
+				
+				this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+					'FROM ecomments AS c ' + 
+					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
+					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+					'WHERE c.eventid = ?', [chat.eventid], function(comments) {
+					chat.messages = comments;
+					cb('chat-get-success', chat);
+				});	
+			});
+		}, this));
+	});
+};
+
+UserDB.prototype.addUserToChat = function(query, user, access, cb) {
+	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
+		return cb('format-error');
+	
+	this.query('SELECT name FROM users WHERE id = ?', [query.userid], function(res) {
+		if (res.length == 0)
+			return cb('chat-adduser-user-notfound');
+		
+		assert.equal(res.length, 1);
+		var username = res[0].name;
+		
+		this.getChat({
+			chatid: query.chatid,
+			failOnMissing: true
+		}, user, access, function(status, chat) {
+			switch (status) {
+				case 'chat-get-notfound':
+					return cb('chat-adduser-chat-notfound');
+				case 'chat-get-success':
+					break;
+				default:
+					return cb(status); // assume other error
+			}
+			
+			this.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid], function(r) {
+				var feedusers = _.pluck(chat.endpoints, 'uid');
+				feedusers.push(query.userid);
+				
+				this.feed({
+					type: 'chat-user-added',
+					targetid: query.chatid, 
+					srcuser: user.id,
+					noFollowers: true,
+					feedusers: chat.endpoints,
+					json: {addedUser: query.userid, addedUserName: username}
+				});
+				
+				cb('chat-adduser-success');
+			});
+		});
 	});
 };
 

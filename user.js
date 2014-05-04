@@ -717,7 +717,7 @@ UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
 };
 
 UserDB.prototype.watchlistShow = function(query, user, access, cb) {
-	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, watchstartvalue, watchstarttime ' +
+	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime ' +
 		'FROM watchlists AS w ' +
 		'JOIN stocks ON w.watched = stocks.id ' +
 		'LEFT JOIN users ON users.id = stocks.leader ' + 

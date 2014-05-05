@@ -384,8 +384,10 @@ UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
 		sdb.sellAll(query, user, access, _.bind(function() {
 			this.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
 				'daystartvalue = 10000000, weekstartvalue = 10000000, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [user.uid], function() {
-				this.feed({'type': 'user-reset', 'targetid': user.uid, 'srcuser': user.uid});
-				cb('reset-user-success');
+				this.query('DELETE FROM valuehistory WHERE userid = ?', [user.uid], function() {
+					this.feed({'type': 'user-reset', 'targetid': user.uid, 'srcuser': user.uid});
+					cb('reset-user-success');
+				});
 			});
 		}, this));
 	});
@@ -717,11 +719,12 @@ UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
 };
 
 UserDB.prototype.watchlistShow = function(query, user, access, cb) {
-	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime ' +
+	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, lastusetime AS lastactive ' +
 		'FROM watchlists AS w ' +
 		'JOIN stocks ON w.watched = stocks.id ' +
 		'LEFT JOIN users ON users.id = stocks.leader ' + 
 		'LEFT JOIN watchlists AS rw ON rw.watched = w.watcher AND rw.watcher = stocks.leader ' +
+		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
 		'WHERE w.watcher = ?', [user.id], function(res) {
 		cb(res);
 	});

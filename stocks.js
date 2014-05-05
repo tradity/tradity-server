@@ -83,11 +83,11 @@ StocksDB.prototype.updateValueHistory = function(cb) {
 StocksDB.prototype.dailyCallback = function(cb) {
 	cb = cb || function() {};
 
-	this.locked(['valuehistory'], null, _.bind(function(exitlock) {
+	/*this.locked(['valuehistory'], null, _.bind(function(exitlock) {
 		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  10*86400 AND va.time > UNIX_TIMESTAMP() - 14*86400', [], function() {
 		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  2*86400 AND va.time > UNIX_TIMESTAMP() -  6*86400', [], exitlock);
 		});
-	}, this));
+	}, this));*/
 	
 	this.query('UPDATE stocks SET daystartvalue = bid', [], cb);
 }

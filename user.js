@@ -730,7 +730,8 @@ UserDB.prototype.watchlistShow = function(query, user, access, cb) {
 	});
 };
 
-UserDB.prototype.getChat = function(query, user, access, cb) {
+UserDB.prototype.getChat = function(query, user, access, cb_) {
+	this.locked(['chat'], cb_, function(cb) {
 	var whereString = '';
 	var params = [];
 	
@@ -741,6 +742,9 @@ UserDB.prototype.getChat = function(query, user, access, cb) {
 		whereString += 'WHERE cm.chatid = ?';
 		params.push(query.chatid);
 	} else {
+		if (query.chatid)
+			return cb('format-error');
+		
 		var containsOwnUser = false;
 		for (var i = 0; i < query.endpoints.length; ++i) {
 			var uid = query.endpoints[i];
@@ -815,9 +819,11 @@ UserDB.prototype.getChat = function(query, user, access, cb) {
 			});
 		}, this));
 	});
+	});
 };
 
-UserDB.prototype.addUserToChat = function(query, user, access, cb) {
+UserDB.prototype.addUserToChat = function(query, user, access, cb_) {
+	this.locked(['chat'], cb_, function(cb) {
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
 		return cb('format-error');
 	
@@ -857,6 +863,7 @@ UserDB.prototype.addUserToChat = function(query, user, access, cb) {
 				cb('chat-adduser-success');
 			});
 		});
+	});
 	});
 };
 

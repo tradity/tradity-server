@@ -205,8 +205,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 		'(u.operf_cur + u.operf_sold) / u.operf_bought AS totaloperf',
 		'freemoney', 'u.wprov_sum + u.lprov_sum AS prov_sum',
 		'week_va.totalvalue AS weekstarttotalvalue',
-		'day_va.totalvalue  AS daystarttotalvalue',
-		'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp '
+		'day_va.totalvalue  AS daystarttotalvalue'
 	]).join(', ');
 		
 	this.query('SELECT ' + columns + ' FROM users AS u '+
@@ -249,20 +248,22 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 				
 				xuser.schools = schools;
 				if (query.nohistory)
-					return cb(xuser, null, null, null);
+					return cb(xuser, null, null, null, null);
 			
 				this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh ' +
 					'LEFT JOIN users AS u ON oh.leader = u.id ' + 
 					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
 					[xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
-					this.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
-						this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
-							'FROM ecomments AS c ' + 
-							'LEFT JOIN users AS u ON c.commenter = u.id ' + 
-							'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
-							'WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
-							cb(xuser, orders, values, comments);
+					this.query('SELECT * FROM achievements WHERE userid = ?', [xuser.uid], function(achievements) {
+						this.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
+							this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+								'FROM ecomments AS c ' + 
+								'LEFT JOIN users AS u ON c.commenter = u.id ' + 
+								'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+								'WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
+								cb(xuser, orders, achievements, values, comments);
+							});
 						});
 					});
 				});

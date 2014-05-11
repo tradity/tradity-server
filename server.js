@@ -14,6 +14,8 @@ var cfg = require('./config.js').config;
 var usr = require('./user.js');
 var adm = require('./admin.js');
 var sch = require('./schools.js');
+var ach = require('./achievements.js');
+var feedctrl = require('./feed.js');
 var stocks = require('./stocks.js');
 var fsdb = require('./fsdb.js');
 var dqueries = require('./dqueries.js');
@@ -22,6 +24,7 @@ var db_ = require('./dbbackend.js');
 var af = require('./arivafinance.js');
 var locking = require('./locking.js');
 var Access = require('./access.js').Access;
+var AchievementList = require('./achievement-list.js').AchievementList;
 
 crypto.randomBytes(64, _.bind(function(ex, buf) {
 var authorizationKey = buf.toString('hex');
@@ -31,17 +34,22 @@ var afql = new af.ArivaFinanceQuoteLoader();
 var mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
 var eh = new eh_.ErrorHandler(cfg, mailer);
 var db = new db_.Database(cfg);
+var FeedControllerDB = new feedctrl.FeedControllerDB(db, cfg);
 var UserDB = new usr.UserDB(db, mailer, cfg);
 var AdminDB = new adm.AdminDB(db, cfg);
 var SchoolsDB = new sch.SchoolsDB(db, cfg);
 var StocksDB = new stocks.StocksDB(db, cfg, afql);
 var FileStorageDB = new fsdb.FileStorageDB(db, cfg);
+var AchievementsDB = new ach.AchievementsDB(db, cfg);
 var dqDB = new dqueries.DelayedQueriesDB(db, cfg, StocksDB);
 
-var subsystems = [StocksDB, UserDB, AdminDB, SchoolsDB, dqDB, FileStorageDB];
+var subsystems = [FeedControllerDB, StocksDB, UserDB, AdminDB, SchoolsDB, dqDB, FileStorageDB, AchievementsDB];
 _.each(subsystems, function(sys) {
 	sys.on('error', function(e) { eh.err(e); });
+	sys.setFeedController(FeedControllerDB);
 });
+
+AchievementsDB.registerAchievements(AchievementList);
 
 afql.on('error', function(e) { eh.err(e); });
 db.on('error', function(e) { eh.err(e); });
@@ -207,7 +215,7 @@ ConnectionData.prototype.client_stock_buy = _login(function(query, cb) {
 });
 
 ConnectionData.prototype.client_comment = _login(function(query, cb) {
-	StocksDB.commentEvent(query, this.user, this.access, cb);
+	FeedControllerDB.commentEvent(query, this.user, this.access, cb);
 });
 
 ConnectionData.prototype.client_list_own_depot = _login(function(query, cb) {
@@ -388,7 +396,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	this.pushSelfInfo();
 	
 	// fetch regular events
-	StocksDB.fetchEvents(query, this.user, this.access, _.bind(function(evlist) {
+	FeedControllerDB.fetchEvents(query, this.user, this.access, _.bind(function(evlist) {
 		_.each(evlist, _.bind(function(ev) {
 			this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
 			this.emit('push', ev);
@@ -400,7 +408,7 @@ ConnectionData.prototype.push = function(data) {
 	if (data.type != 'stock-update')
 		this.emit('push', data);
 	this.pushSelfInfo();
-}
+};
 
 ConnectionData.prototype.pushSelfInfo = function() {
 	if (!this.user)
@@ -416,7 +424,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 			this.push(info);
 		}, this));
 	}
-}
+};
 
 ConnectionData.prototype.pushEvents = function() {
 	if (this.pushEventsTimer || !this.user || !this.user.uid)
@@ -425,11 +433,15 @@ ConnectionData.prototype.pushEvents = function() {
 		this.pushEventsTimer = null;
 		this.fetchEvents({since: this.mostRecentEventTime, count: null});
 	}, this), 1000);
-}
+};
 
 ConnectionData.prototype.response = function(data) {
 	this.emit('response', data);
-}
+};
+
+ConnectionData.prototype.onUserConnected = function() {
+	AchievementsDB.checkAchievements(this.user, this.access);
+};
 
 ConnectionData.prototype.query = function(query) {
 	var recvTime = new Date().getTime();
@@ -444,9 +456,11 @@ ConnectionData.prototype.query = function(query) {
 	
 	query = sanitizeQuery(query);
 	
+	var hadUser = this.user ? true : false;
+	
 	UserDB.loadSessionUser(query.key, _.bind(function(user) {
 		var access = new Access();
-		if (user != null)
+		if (user != null) 
 			access.update(Access.fromJSON(user.access));
 		
 		this.access.update(access);
@@ -460,6 +474,9 @@ ConnectionData.prototype.query = function(query) {
 		
 		this.user = user;
 		this.access[['grant', 'drop'][this.user && this.user.email_verif ? 0 : 1]]('email_verif');
+		
+		if (!hadUser && this.user != null)
+			this.onUserConnected();
 		
 		var cb = _.bind(function(code, obj, extra) {
 			var now = new Date().getTime();

@@ -164,7 +164,7 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 		results = _.uniq(results, false, function(r) { return r.stockid; });
 		var symbols = _.pluck(results, 'stockid');
 		symbols = _.map(symbols, escape);
-		this.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE stockid IN ("' + _.map(symbols, _.bind(this.db.escape, this.db)).join('","') + '")');
+		this.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
 		cb('stock-search-success', results);
 	}, this);
 	
@@ -418,6 +418,7 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 	
 	this.query('SELECT s.*, '+
 		'SUM(ds.amount) AS amount, '+
+		'SUM(ds.amount * s.lastvalue) AS money, '+
 		'AVG(s.bid - ds.provision_hwm) AS hwmdiff, '+
 		'AVG(s.bid - ds.provision_lwm) AS lwmdiff, '+
 		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision '+
@@ -427,6 +428,8 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		'WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0)
 			return cb('stock-buy-stock-not-found');
+		assert.equal(res.length, 1);
+		
 		var r = res[0];
 		if (!this.stockExchangeIsOpen(r.exchange) && !(access.has('stocks') && query.forceNow)) {
 			if (!query.__is_delayed__) {
@@ -484,15 +487,17 @@ StocksDB.prototype.buyStock = function(query, user, access, cb_) {
 		
 		var fee = Math.max(Math.abs(this.cfg['transaction-fee-perc'] * price), this.cfg['transaction-fee-min']);
 		
-		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname) VALUES(?,?,?,?,UNIX_TIMESTAMP(),?,?,?)',
-			[user.id, r.stockid, r.leader, price, amount, fee, r.name], function(oh_res) {
+		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
+			'VALUES(?,?,?,?,UNIX_TIMESTAMP(),?,?,?)',
+			[user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount], function(oh_res) {
 		this.feed({
 			'type': 'trade',
-			'targetid':oh_res.insertId,
-			'srcuser':user.id,
-			'json':{'__delay__': !!ures[0].delayorderhist ? this.cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
+			'targetid': oh_res.insertId,
+			'srcuser': user.id,
+			'json': {'__delay__': !!ures[0].delayorderhist ? this.cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
 			'feedusers': r.leader ? [r.leader] : []
 		});
+		
 		var tradeID = oh_res.insertId;
 		
 		var perfn = r.leader ? 'fperf' : 'operf';

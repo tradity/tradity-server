@@ -122,8 +122,9 @@ UserDB.prototype.login = function(query, user, access, xdata, cb) {
 }
 
 UserDB.prototype.logout = function(query, user, access, cb) {
-	this.query('DELETE FROM sessions WHERE `key` = ?', [query.key]);
-	cb('logout-success');
+	this.query('DELETE FROM sessions WHERE `key` = ?', [query.key], function() {
+		cb('logout-success');
+	});
 };
 
 UserDB.prototype.getRanking = function(query, user, access, cb_) {
@@ -169,7 +170,8 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) / (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
 			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) - (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
 			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
-			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name ' +
+			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name, ' +
+			'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
 			join + /* needs query.since parameter */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere +
@@ -203,7 +205,8 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 		'(u.operf_cur + u.operf_sold) / u.operf_bought AS totaloperf',
 		'freemoney', 'u.wprov_sum + u.lprov_sum AS prov_sum',
 		'week_va.totalvalue AS weekstarttotalvalue',
-		'day_va.totalvalue  AS daystarttotalvalue'
+		'day_va.totalvalue  AS daystarttotalvalue',
+		'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp '
 	]).join(', ');
 		
 	this.query('SELECT ' + columns + ' FROM users AS u '+
@@ -589,6 +592,9 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 							this.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
 								{'oldwprov': user.wprovision, 'newwprov': data.wprovision,
 								 'oldlprov': user.lprovision, 'newlprov': data.lprovision}});
+						
+						if (data.desc != user.desc)
+							this.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid});
 					} else {
 						this.locked(['depotstocks'], updateCB, function(cb) {
 							if (data.betakey)
@@ -619,11 +625,12 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 							}, this)(_.bind(function() {
 								this.query('INSERT INTO users ' +
 									'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
-									'traditye, street, zipcode, town, registertime)' +
-									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())',
+									'traditye, street, zipcode, town, registertime, wprovision, lprovision)' +
+									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?)',
 									[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
 									data.email, (inv.email && inv.email == data.email) ? 1 : 0,
-									data.traditye?1:0, data.street, data.zipcode, data.town],
+									data.traditye?1:0, data.street, data.zipcode, data.town,
+									this.cfg.defaultWProvision, this.cfg.defaultLProvision],
 								function(res) {
 									uid = res.insertId;
 									this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});

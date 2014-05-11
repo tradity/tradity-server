@@ -152,7 +152,16 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 		var continueAfterDelPrevious = _.bind(function() {
 			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[user ? user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function() {
+				[user ? user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
+				
+				if (user) {
+					this.feed({
+						'type': 'file-publish',
+						'targetid': res.insertId,
+						'srcuser': user.id
+					});
+				}
+				
 				return cb('publish-success');
 			});
 		}, this);

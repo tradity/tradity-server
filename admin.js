@@ -123,7 +123,7 @@ AdminDB.prototype.joinSchools = _reqpriv('schooldb', function(query, user, acces
 	this.locked(['userdb'], cb_, function(cb) {
 		this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [query.masterschool], function(r) {
 			assert.equal(r.length, 1);
-			if (r[0].c == 0 || query.masterschool == query.subschool)
+			if ((r[0].c == 0 && query.masterschool != null) || query.masterschool == query.subschool)
 				return cb('join-schools-notfound');
 			
 			this.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [query.masterschool, query.subschool], function() {

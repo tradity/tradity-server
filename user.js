@@ -517,7 +517,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 		[data.email, data.name, uid], function(res) {
 	this.query('SELECT `key` FROM betakeys WHERE `id` = ?',
 		[betakey[0]], function(βkey) {
-		if (this.cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && type=='register' && !access.has('userdb')) {
+		if (this.cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && type == 'register' && !access.has('userdb')) {
 			cb('reg-beta-necessary');
 			return;
 		}

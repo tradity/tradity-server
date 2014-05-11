@@ -9,6 +9,7 @@ var nodemailer = require('nodemailer');
 var fs = require('fs');
 var crypto = require('crypto');
 var url = require('url');
+var spawn = require('child_process').spawn;
 
 var cfg = require('./config.js').config;
 var usr = require('./user.js');
@@ -483,7 +484,7 @@ ConnectionData.prototype.query = function(query) {
 			obj = obj || {};
 			obj['code'] = code;
 			obj['is-reply-to'] = query.id;
-			obj['_t_ssend'] = now;
+			obj['_t_sdone'] = now;
 			obj['_t_srecv'] = recvTime;
 			this.response(obj);
 			
@@ -556,16 +557,40 @@ io.sockets.on('connection', function(socket) {
 	var d = new ConnectionData(socket);
 	d.on('error', function(e) { eh.err(e); });
 	
+	var wrapForReply = function(obj, cb) {
+		var s = JSON.stringify(obj);
+		
+		(s.length > 20480 ? function(cont) {
+			var buflist = [];
+			
+			// would be cool to have this as a library, but as it stands,
+			// there is no native lzma library for Node.js,
+			// and subprocess piping just seems to be the fastest option
+			var lzma = spawn('lzma', ['-6']); 
+			lzma.stdout.on('data', function(data) { buflist.push(data); });
+			lzma.stdout.on('end', function() { cont(Buffer.concat(buflist).toString('base64'), 'lzma'); });
+			lzma.stdin.end(s);
+		} : function(cont) {
+			cont(s, 'raw');
+		})(function(result, encoding) {
+			cb({
+				s: result,
+				e: encoding,
+				t: new Date().getTime()
+			});
+		});
+	};
+	
 	d.on('response', function(data) {
-		socket.emit('response', data);
+		wrapForReply(data, function(r) { socket.emit('response', r) });
 	});
 	
 	d.on('push', function(data) {
-		socket.emit('push', data);
+		wrapForReply(data, function(r) { socket.emit('push', r) });
 	});
 	
 	d.on('error', function(data) {
-		socket.emit('error', data);
+		wrapForReply(data, function(r) { socket.emit('error', r) });
 	});
 	
 	socket.on('query', eh.wrap(function(query) {

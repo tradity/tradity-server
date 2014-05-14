@@ -386,6 +386,24 @@ ConnectionData.prototype.client_publish = _login(function(query, cb) {
 	}, this));
 });
 
+ConnectionData.prototype.client_chat_get = _login(function(query, cb) {
+	UserDB.getChat(query, this.user, this.access, _.bind(function(code, chat) {
+		cb(code, {'chat': chat});
+	}, this));
+});
+
+ConnectionData.prototype.client_chat_adduser = _login(function(query, cb) {
+	UserDB.addUserToChat(query, this.user, this.access, _.bind(function(code) {
+		cb(code);
+	}, this));
+});
+
+ConnectionData.prototype.client_list_all_chats = _login(function(query, cb) {
+	UserDB.listAllChats(query, this.user, this.access, _.bind(function(code, chatlist) {
+		cb(code, {'chats': chatlist});
+	}, this));
+});
+
 ConnectionData.prototype.client_get_config = function(query, cb) {
 	cb('get-config-success', {'config':_.pick(cfg, cfg.clientconfig)});
 };

@@ -875,6 +875,29 @@ UserDB.prototype.addUserToChat = function(query, user, access, cb_) {
 	});
 };
 
+UserDB.prototype.listAllChats = function(query, user, access, cb) {
+	this.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername ' +
+		'FROM chatmembers AS cmi ' +
+		'JOIN chats AS c ON c.chatid = cmi.chatid ' +
+		'JOIN chatmembers AS cm ON cm.chatid = c.chatid ' +
+		'JOIN users AS u ON cm.userid = u.id ' +
+		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
+		'WHERE cmi.userid = ?' [user.id], function(res) {
+		var ret = {};
+		
+		for (var i = 0; i < res.length; ++i) {
+			if (!ret[res[i].chatid]) {
+				ret[res[i].chatid] = _.pick(res[i], 'chatid', 'creator', 'creatorname');
+				ret[res[i].chatid].members = [];
+			}
+			
+			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername});
+		}
+		
+		cb('list-all-chats-success', ret);
+	});
+};
+
 exports.UserDB = UserDB;
 
 })();

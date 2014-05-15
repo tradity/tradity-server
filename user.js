@@ -747,7 +747,7 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 		if (!query.chatid || parseInt(query.chatid) != query.chatid)
 			return cb('format-error');
 		
-		whereString += ' cm.chatid = ?';
+		whereString += ' chatid = ?';
 		params.push(query.chatid);
 	} else {
 		if (query.chatid)
@@ -763,7 +763,6 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 		
 		if (!containsOwnUser && user)
 			query.endpoints.push(user.id);
-			
 		
 		var endpointsList = query.endpoints.join(',');
 		var numEndpoints = query.endpoints.length;
@@ -816,7 +815,7 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 			chat.endpoints = query.endpoints;
 			
 			if (query.noMessages)
-				return cb(chat);
+				return cb('chat-get-success', chat);
 			
 			this.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
 				'FROM chatmembers AS cm ' +

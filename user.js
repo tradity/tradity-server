@@ -747,7 +747,7 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 		if (!query.chatid || parseInt(query.chatid) != query.chatid)
 			return cb('format-error');
 		
-		whereString += 'WHERE cm.chatid = ?';
+		whereString += ' cm.chatid = ?';
 		params.push(query.chatid);
 	} else {
 		if (query.chatid)
@@ -894,7 +894,7 @@ UserDB.prototype.listAllChats = function(query, user, access, cb) {
 		'JOIN users AS u ON cm.userid = u.id ' +
 		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
 		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
-		'WHERE cmi.userid = ?' [user.id], function(res) {
+		'WHERE cmi.userid = ?', [user.id], function(res) {
 		var ret = {};
 		
 		for (var i = 0; i < res.length; ++i) {

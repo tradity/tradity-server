@@ -829,7 +829,7 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 					'FROM ecomments AS c ' + 
 					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
 					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
-					'WHERE c.eventid = ?', [chat.eventid], function(comments) {
+					'WHERE c.eventid = ?', [chat.chatstartevent], function(comments) {
 					chat.messages = comments;
 					cb('chat-get-success', chat);
 				});	

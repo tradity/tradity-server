@@ -769,7 +769,7 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 		var numEndpoints = query.endpoints.length;
 		
 		whereString += 
-			'WHERE (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.id = cm.userid WHERE cm.chatid = c.chatid ' +
+			' (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.id = cm.userid WHERE cm.chatid = c.chatid ' +
 			'AND cm.userid IN (' +  endpointsList + ')) = ? ';
 		
 		params.push(numEndpoints);

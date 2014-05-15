@@ -163,8 +163,12 @@ StocksDB.prototype.searchStocks = function(query, user, access, cb) {
 	var handleResults = _.bind(function(results) {
 		results = _.uniq(results, false, function(r) { return r.stockid; });
 		var symbols = _.pluck(results, 'stockid');
-		symbols = _.map(symbols, escape);
-		this.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
+		
+		if (symbols.length > 0) {
+			symbols = _.map(symbols, escape);
+			this.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
+		}
+		
 		cb('stock-search-success', results);
 	}, this);
 	

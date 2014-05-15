@@ -810,13 +810,13 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 			
 			this.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
 				'FROM chatmembers AS cm ' +
-				'JOIN users ON users.id = cm.userid ' +
-				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+				'JOIN users AS u ON u.id = cm.userid ' +
+				'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
 				'WHERE cm.chatid = ?', [chat.chatid], function(endpoints) {
 				assert.ok(endpoints.length > 0);
 				chat.endpoints = endpoints;
 				
-				this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+				this.query('SELECT c.*, u.name AS username, u.id AS uid, url AS profilepic, trustedhtml ' + 
 					'FROM ecomments AS c ' + 
 					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
 					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 

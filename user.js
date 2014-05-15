@@ -784,14 +784,24 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 				cont(null);
 			
 			this.query('INSERT INTO chats(creator) VALUE(?)', [user.id], function(res) {
-				this.feed({
-					type: 'chat-start',
-					targetid: res.insertId, 
-					srcuser: user.id,
-					noFollowers: true,
-					feedusers: query.endpoints
-				}, function(eventid) {
-					cont({chatid: res.insertId, eventid: eventid});
+				var members = [];
+				var memberValues = [];
+				for (var i = 0; i < query.endpoints.length; ++i) {
+					members.push('(?, ?, UNIX_TIMESTAMP())');
+					memberValues.push(res.insertId);
+					memberValues.push(query.endpoints[i]);
+				}
+				
+				this.query('INSERT INTO chatmembers(chatid, userid, jointime) VALUES ' + members.join(','), memberValues, function() {
+					this.feed({
+						type: 'chat-start',
+						targetid: res.insertId, 
+						srcuser: user.id,
+						noFollowers: true,
+						feedusers: query.endpoints
+					}, function(eventid) {
+						cont({chatid: res.insertId, eventid: eventid});
+					});
 				});
 			});
 		} : function(cont) {

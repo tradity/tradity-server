@@ -783,11 +783,11 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 			if (query.failOnMissing)
 				cont(null);
 			
-			this.query('INSERT INTO chats(creator) VALUE(?)', [users.id], function(res) {
+			this.query('INSERT INTO chats(creator) VALUE(?)', [user.id], function(res) {
 				this.feed({
 					type: 'chat-start',
 					targetid: res.insertId, 
-					srcuser: uid,
+					srcuser: user.id,
 					noFollowers: true,
 					feedusers: query.endpoints
 				}, function(eventid) {

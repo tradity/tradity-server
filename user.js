@@ -886,12 +886,14 @@ UserDB.prototype.addUserToChat = function(query, user, access, cb_) {
 };
 
 UserDB.prototype.listAllChats = function(query, user, access, cb) {
-	this.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername ' +
+	this.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, ' +
+		'eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +
 		'JOIN chats AS c ON c.chatid = cmi.chatid ' +
 		'JOIN chatmembers AS cm ON cm.chatid = c.chatid ' +
 		'JOIN users AS u ON cm.userid = u.id ' +
 		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
+		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
 		'WHERE cmi.userid = ?' [user.id], function(res) {
 		var ret = {};
 		

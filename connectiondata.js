@@ -198,8 +198,8 @@ ConnectionData.prototype.disconnected = buscomponent.errorWrap(function() {
 		this.removeListener(e[0], e[1]);
 	}
 	
-	socket.removeListener('query', this.query_);
-	socket.removeListener('disconnect', this.disconnected_);
+	this.socket.removeListener('query', this.query_);
+	this.socket.removeListener('disconnect', this.disconnected_);
 	
 	this.request({name: 'deleteConnectionData', id: this.cdid}, function() {
 		this.unplugBus();

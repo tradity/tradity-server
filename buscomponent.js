@@ -152,6 +152,16 @@ function needsInit (fn) {
 	};
 };
 
+function errorWrap (fn) {
+	return function() {
+		try {
+			fn.apply(this, arguments);
+		} catch (e) {
+			this.emit('error', e);
+		}
+	};
+};
+
 // XXX this should be removed in favor of DB-side locking
 BusComponent.prototype.locked = function(locks, origCB, fn) {
 	if (!this.lockAuthority)
@@ -167,5 +177,6 @@ exports.listener     = listener;
 exports.provideQUA   = provideQUA;
 exports.provideQUAX  = provideQUAX;
 exports.needsInit    = needsInit;
+exports.errorWrap    = errorWrap;
 
 })();

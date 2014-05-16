@@ -20,20 +20,13 @@ function ConnectionData(socket) {
 	this.mostRecentEventTime = 0;
 	this.socket = socket;
 	
-	socket.on('query', this.errorHandlerWrap(_.bind(this.query, this)));
-	socket.on('disconnect', this.errorHandlerWrap(_.bind(this.disconnected, this)));
+	this.query_ = _.bind(this.query, this);
+	this.disconnected_ = _.bind(this.disconnected, this);
+	
+	socket.on('query', this.query_);
+	socket.on('disconnect', this.disconnected_);
 }
 util.inherits(ConnectionData, buscomponent.BusComponent);
-
-ConnectionData.prototype.errorHandlerWrap = function(fn) {
-	return _.bind(function() {
-		try {
-			fn.apply(this, arguments);
-		} catch (e) {
-			this.emit('error', e);
-		}
-	}, this);
-};
 
 ConnectionData.prototype.onBusConnect = function() {
 	this.regListenerBoundEx('push', this.push);
@@ -112,7 +105,7 @@ ConnectionData.prototype.onUserConnected = function() {
 	this.request({name: 'checkAchievements', user: this.user});
 };
 
-ConnectionData.prototype.query = function(query) {
+ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 	var recvTime = new Date().getTime();
 	
 	// sanitize by removing everything enclosed in '__'s
@@ -191,7 +184,7 @@ ConnectionData.prototype.query = function(query) {
 		
 		});
 	});
-};
+});
 
 ConnectionData.prototype.regListenerBoundEx = function(event, fn) {
 	var boundListener = _.bind(fn, this);
@@ -199,17 +192,20 @@ ConnectionData.prototype.regListenerBoundEx = function(event, fn) {
 	this.on(event, boundListener, true); // set raw = true, so we can remove the listener later
 };
 
-ConnectionData.prototype.disconnected = function() {
+ConnectionData.prototype.disconnected = buscomponent.errorWrap(function() {
 	for (var i = 0; i < this.registeredEventHandlers.length; ++i) {
 		var e = this.registeredEventHandlers[i];
 		this.removeListener(e[0], e[1]);
 	}
 	
+	socket.removeListener('query', this.query_);
+	socket.removeListener('disconnect', this.disconnected_);
+	
 	this.request({name: 'deleteConnectionData', id: this.cdid}, function() {
 		this.unplugBus();
 		this.socket = null;
 	});
-};
+});
 
 ConnectionData.prototype.wrapForReply = function(obj, cb) {
 	cb = _.bind(cb, this);

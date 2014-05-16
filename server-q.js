@@ -3,6 +3,7 @@
 var sio = require('socket.io-client');
 var fs = require('fs');
 var assert = require('assert');
+var util = require('util');
 var _ = require('underscore');
 
 var cfg = require('./config.js').config;
@@ -42,7 +43,9 @@ if (query.timeout) {
 socket.on('connect', function() {	
 	var emit = function (e, d) { query.quiet || console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('response', function (data) {
-		query.quiet || console.log('incoming/response', JSON.stringify(data, null, 2));
+		assert.equal(data.e, 'raw');
+		
+		query.quiet || console.log('incoming/response', util.inspect(JSON.parse(data.s)));
 		process.exit(0);
 	});
 	

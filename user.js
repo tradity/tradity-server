@@ -5,13 +5,12 @@ var util = require('util');
 var hash = require('mhash').hash;
 var crypto = require('crypto');
 var assert = require('assert');
+var buscomponent = require('./buscomponent.js');
 
-function UserDB (db, emailsender, config) {
-	this.db = db;
-	this.emailsender = emailsender;
-	this.cfg = config;
+function UserDB () {
 }
-util.inherits(UserDB, require('./objects.js').DBSubsystemBase);
+
+util.inherits(UserDB, buscomponent.BusComponent);
 
 UserDB.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, _.bind(function(ex, buf) {
@@ -21,17 +20,20 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 	}, this));
 }
 
-UserDB.prototype.sendInviteEmail = function(data, cb) {	
-	var opt = this.readEMailTemplate('invite-email.eml', {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url});
-	
-	this.emailsender.sendMail(opt, _.bind(function(error, resp) {
-		if (error) {
-			cb('create-invite-link-failed');
-			this.emit('error', error);
-		} else {
-			cb('create-invite-link-success');
-		}
-	}, this));
+UserDB.prototype.sendInviteEmail = function(data, cb) {
+	this.request({name: 'readEMailTemplate', 
+		template: 'invite-email.eml',
+		variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
+	}, function(opt) {
+		this.request({name: 'sendMail', opt: opt}, function(error, resp) {
+			if (error) {
+				cb('create-invite-link-failed');
+				this.emit('error', error);
+			} else {
+				cb('create-invite-link-success');
+			}
+		});
+	});
 };
 
 UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
@@ -41,7 +43,7 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 		name: data.email,
 		stayloggedin: true,
 		__ignore_password__: true
-	}, null, access, xdata, _.bind(function(code, loginkey) {
+	}, null, access, xdata, _.bind(function(code, loginResp) {
 		assert.equal(code, 'login-success');
 		
 		crypto.randomBytes(16, _.bind(function(ex, buf) {
@@ -49,37 +51,40 @@ UserDB.prototype.sendRegisterEmail = function(data, access, uid, xdata, cb) {
 			
 			this.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
 				[uid, key], function(res) {
-				
-				var url = this.cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, uid).replace(/\{\$hostname\}/g, this.cfg.hostname);
-				
-				var opt = this.readEMailTemplate('register-email.eml', {'url': url, 'username': data.name, 'email': data.email});
-				
-				cb('reg-email-sending', uid, loginkey);
-				
-				this.emailsender.sendMail(opt, _.bind(function (error, resp) {
-					if (error) {
-						cb('reg-email-failed', uid, loginkey);
-						this.emit('error', error);
-					} else {
-						cb('reg-success', uid, loginkey);
-					}
-				}, this));
+
+				this.getServerConfig(function(cfg) {
+					var url = cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, uid).replace(/\{\$hostname\}/g, cfg.hostname);
+					
+					this.request({name: 'readEMailTemplate', 
+						template: 'register-email.eml',
+						variables: {'url': url, 'username': data.name, 'email': data.email}
+					}, function(opt) {
+						this.request({name: 'sendMail', opt: opt}, function (error, resp) {
+							if (error) {
+								cb('reg-email-failed', loginResp, 'repush');
+								this.emit('error', error);
+							} else {
+								cb('reg-success', loginResp, 'repush');
+							}
+						}, this);
+					});
+				});
 			});
 		}, this));
 	}, this));
 };
 
-UserDB.prototype.listPopularStocks = function(query, user, access, cb) {
+UserDB.prototype.listPopularStocks = buscomponent.provideQUA('client-list-popular-stocks', function(query, user, access, cb) {
 	this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 		'SUM(ABS(money)) AS moneysum, ' +
-		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime)) AS wsum ' +
+		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 		'FROM orderhistory AS oh ' +
 		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [], function(popular) {
-		cb('list-popular-stocks-success', popular);
+		cb('list-popular-stocks-success', {'results': popular});
 	});
-};
+});
 
-UserDB.prototype.login = function(query, user, access, xdata, cb) {
+UserDB.prototype.login = buscomponent.provideQUAX('client-login', function(query, user, access, xdata, cb) {
 	var name = query.name;
 	var pw = query.pw;
 	var stayloggedin = query.stayloggedin;
@@ -105,29 +110,31 @@ UserDB.prototype.login = function(query, user, access, xdata, cb) {
 		}
 		
 		crypto.randomBytes(16, _.bind(function(ex, buf) {
-			var key = buf.toString('hex');
-			
-			this.regularCallback({});
-			
-			this.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
-				[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
-			this.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
-				'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-				[uid, key, stayloggedin ? this.cfg.stayloggedinTime : this.cfg.normalLoginTime], function(res) {
-					cb('login-success', key);
-			});
+			this.getServerConfig(function(cfg) {
+				var key = buf.toString('hex');
+				
+				this.regularCallback({});
+				
+				this.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
+					[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
+				this.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
+					'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
+					[uid, key, stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
+						cb('login-success', {key: key, uid: uid}, 'repush');
+				});
+				});
 			});
 		}, this));
 	});
-}
+});
 
-UserDB.prototype.logout = function(query, user, access, cb) {
+UserDB.prototype.logout = buscomponent.provideQUA('logout', function(query, user, access, cb) {
 	this.query('DELETE FROM sessions WHERE `key` = ?', [query.key], function() {
 		cb('logout-success');
 	});
-};
+});
 
-UserDB.prototype.getRanking = function(query, user, access, cb_) {
+UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', function(query, user, access, cb_) {
 	query.startindex = parseInt(query.startindex) || 0;
 	query.endindex = parseInt(query.endindex) || (1 << 20);
 	
@@ -162,7 +169,7 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}
 	
-	this.locked(['valuehistory'], cb_, _.bind(function(cb) {
+	this.locked(['valuehistory'], cb_, function(cb) {
 		this.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
 			'tradecount != 0 as hastraded, ' + 
 			'u.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
@@ -176,15 +183,19 @@ UserDB.prototype.getRanking = function(query, user, access, cb_) {
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere +
 			'LIMIT ?, ?', 
-			[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), cb);
-	}, this));
-};
+			[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(ranking) {
+				cb('get-ranking-success', {'result': ranking});
+			});
+	});
+});
 
-UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
+UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', function(query, user, access, cb_) {
+	this.getServerConfig(function(cfg) {
+	
 	if (query.lookfor == '$self')
 		query.lookfor = user.id;
 	
-	this.locked(['valuehistory'], cb_, _.bind(function(cb) {
+	this.locked(['valuehistory'], cb_, function(cb) {
 	
 	var columns = (access.has('userdb') ? [
 		'u.*'
@@ -219,7 +230,7 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 		[Date.parse('last sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
 			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, query.lookfor], function(users) {
 		if (users.length == 0)
-			return cb(null, null, null);
+			return cb('get-user-info-notfound');
 		var xuser = users[0];
 		xuser.isSelf = (user && xuser.uid == user.uid);
 		if (xuser.isSelf) 
@@ -247,14 +258,14 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 					return this.emit('error', new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
 				
 				xuser.schools = schools;
-				if (query.nohistory)
-					return cb(xuser, null, null, null, null);
+				if (query.nohistory) 
+					return cb('get-user-info-success', {result: xuser});
 			
 				this.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh ' +
 					'LEFT JOIN users AS u ON oh.leader = u.id ' + 
 					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
-					[xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? this.cfg.delayOrderHistTime : 0], function(orders) {
+					[xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? cfg.delayOrderHistTime : 0], function(orders) {
 					this.query('SELECT * FROM achievements WHERE userid = ?', [xuser.uid], function(achievements) {
 						this.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
 							this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
@@ -262,7 +273,12 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 								'LEFT JOIN users AS u ON c.commenter = u.id ' + 
 								'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
 								'WHERE c.eventid = ?', [xuser.registerevent], function(comments) {
-								cb(xuser, orders, achievements, values, comments);
+								return cb('get-user-info-success', {
+									result: xuser,
+									orders: orders,
+									achievements: achievements,
+									values: values,
+									pinboard: comments});
 							});
 						});
 					});
@@ -270,11 +286,11 @@ UserDB.prototype.getUserInfo = function(query, user, access, cb_) {
 			});
 		});
 	});
-	
-	}, this));
-};
+	});
+	});
+});
 
-UserDB.prototype.regularCallback = function(query, cb) {
+UserDB.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'reply'], function(query, cb) {
 	cb = cb || function() {};
 	
 	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []);
@@ -288,9 +304,9 @@ UserDB.prototype.regularCallback = function(query, cb) {
 		
 		cb();
 	});
-};
-					
-UserDB.prototype.emailVerify = function(query, user, access, xdata, cb) {
+});
+
+UserDB.prototype.emailVerify = buscomponent.provideQUAX('client-emailverif', function(query, user, access, xdata, cb) {
 	var uid = parseInt(query.uid);
 	var key = query.key;
 	
@@ -336,9 +352,9 @@ UserDB.prototype.emailVerify = function(query, user, access, xdata, cb) {
 			});
 		});
 	});
-};
+});
 
-UserDB.prototype.loadSessionUser = function(key, cb) {
+UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'reply'], function(key, cb) {
 	this.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ' +
 		'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
 		'FROM sessions ' +
@@ -360,46 +376,54 @@ UserDB.prototype.loadSessionUser = function(key, cb) {
 			cb(user);
 		}
 	});
-};
+});
 
-UserDB.prototype.register = function(query, user, access, xdata, cb) {
-	assert.strictEqual(user, null);
+UserDB.prototype.register = buscomponent.provideQUAX('client-register', function(query, user, access, xdata, cb) {
+	if (user !== null)
+		return cb('already-logged-in');
 	this.updateUser(query, 'register', null, access, xdata, cb);
-};
+});
 
-UserDB.prototype.changeOptions = function(query, user, access, xdata, cb) {
+UserDB.prototype.changeOptions = buscomponent.provideQUAX('client-change-options', function(query, user, access, xdata, cb) {
 	this.updateUser(query, 'change', user, access, xdata, cb);
-};
+});
 
-UserDB.prototype.resetUser = function(query, user, access, sdb, cb_) {
-	if (!this.cfg.resetAllowed && !access.has('userdb'))
-		return cb('permission-denied');
-	
-	assert.ok(user);
-	assert.ok(access);
-	
-	this.locked(['userdb', 'depotstocks'], cb_, function(cb) {
-	this.query('DELETE FROM depot_stocks WHERE userid = ?', [user.uid], function() {
-	this.query('UPDATE users SET freemoney = 1000000000, totalvalue = 1000000000, ' +
-		'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
-		'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
-		'wprov_sum = 0, lprov_sum = 0 ' + 
-		'WHERE id = ?', [user.uid], function() {
-		sdb.sellAll(query, user, access, _.bind(function() {
-			this.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
-				'daystartvalue = 10000000, weekstartvalue = 10000000, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [user.uid], function() {
-				this.query('DELETE FROM valuehistory WHERE userid = ?', [user.uid], function() {
-					this.feed({'type': 'user-reset', 'targetid': user.uid, 'srcuser': user.uid});
-					cb('reset-user-success');
+UserDB.prototype.resetUser = buscomponent.provideQUA('client-reset-user', function(query, user, access, cb_) {
+	this.getServerConfig(function(cfg) {
+		if (!cfg.resetAllowed && !access.has('userdb'))
+			return cb('permission-denied');
+		
+		assert.ok(user);
+		assert.ok(access);
+		
+		this.locked(['userdb', 'depotstocks'], cb_, function(cb) {
+		this.query('DELETE FROM depot_stocks WHERE userid = ?', [user.uid], function() {
+		this.query('UPDATE users SET freemoney = 1000000000, totalvalue = 1000000000, ' +
+			'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
+			'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
+			'wprov_sum = 0, lprov_sum = 0 ' + 
+			'WHERE id = ?', [user.uid], function() {
+			this.request({name: 'sellAll', query: query, user: user, access: access}, function() {
+				this.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
+					'daystartvalue = 10000000, weekstartvalue = 10000000, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [user.uid], function() {
+					this.query('DELETE FROM valuehistory WHERE userid = ?', [user.uid], function() {
+						this.feed({'type': 'user-reset', 'targetid': user.uid, 'srcuser': user.uid});
+						this.request({name: 'dqueriesResetUser', user: user}, function() {
+							cb('reset-user-success');
+						});
+					});
 				});
 			});
-		}, this));
+		});
+		});
+		});
 	});
-	});
-	});
-};
+});
 
-UserDB.prototype.passwordReset = function(data, user, access, cb) {
+UserDB.prototype.passwordReset = buscomponent.provideQUA('client-password-reset', function(data, user, access, cb) {
+	if (user)
+		return cb('already-logged-in');
+	
 	this.query('SELECT * FROM users WHERE name = ? AND deletiontime IS NULL', [data.name], function(res) {
 		if (res.length == 0)
 			return cb('password-reset-notfound');
@@ -411,77 +435,84 @@ UserDB.prototype.passwordReset = function(data, user, access, cb) {
 			var pw = buf.toString('hex');
 			this.generatePWKey(pw, _.bind(function(salt, hash) {
 				this.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
-					var opt = this.readEMailTemplate('password-reset-email.eml', {'password': pw, 'username': data.name, 'email': u.email});
-					
-					cb('password-reset-sending', u.id);
-					
-					this.emailsender.sendMail(opt, _.bind(function (error, resp) {
-						if (error) {
-							cb('password-reset-failed', u.id);
-							this.emit('error', error);
-						} else {
-							cb('password-reset-success', u.id);
-						}
-					}, this));
+					var opt = this.request({name: 'readEMailTemplate', 
+						template: 'password-reset-email.eml',
+						variables: {'password': pw, 'username': data.name, 'email': u.email},
+					}, function(opt) {
+						this.request({name: 'sendMail', opt: opt}, function (error, resp) {
+							if (error) {
+								cb('password-reset-failed');
+								this.emit('error', error);
+							} else {
+								cb('password-reset-success');
+							}
+						});
+					});
 				});
 			}, this));
 		}, this));
 	});
-};
+});
 
-UserDB.prototype.getInviteKeyInfo = function(query, user, access, cb) {
+UserDB.prototype.getInviteKeyInfo = buscomponent.provideQUA('client-get-invite-key-info', function(query, user, access, cb) {
 	this.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [query.invitekey], function(res) {
 		if (res.length == 0) {
 			cb('get-invitekey-info-notfound');
 		} else {
-			assert.equal(res.length, 1);
-			
-			res[0].url = this.cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, this.cfg.hostname);
-			
-			cb('get-invitekey-info-success', res[0]);
+			this.getServerConfig(function(cfg) {
+				assert.equal(res.length, 1);
+				
+				res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
+				
+				cb('get-invitekey-info-success', {result: res[0]});
+			});
 		}
 	});
-};
+});
 
-UserDB.prototype.createInviteLink = function(query, user, access, cb) {
-	query.email = query.email || null;
-	
-	if (!access.has('userdb')) {
-		if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
-			return cb('create-invite-link-invalid-email');
+UserDB.prototype.createInviteLink = buscomponent.provideQUA('createInviteLink', function(query, user, access, cb) {
+	this.getServerConfig(function(cfg) {
+		query.email = query.email || null;
+		
+		if (!access.has('userdb')) {
+			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
+				return cb('create-invite-link-invalid-email');
 			
-		if (!access.has('email_verif'))
-			return cb('create-invite-link-not-verif');
-	}
-	
-	crypto.randomBytes(16, _.bind(function(ex, buf) {
-		var key = buf.toString('hex');
-		var sendKeyToCaller = access.has('userdb');
-		this.query('INSERT INTO invitelink ' +
-			'(uid, `key`, email, ctime, schoolid) VALUES ' +
-			'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-			[user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
-			var url = this.cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, this.cfg.hostname);
-	
-			_.bind(query.email ? function(cont) {
-				this.sendInviteEmail({
-					sender: user,
-					email: query.email,
-					url: url
-				}, _.bind(function(status) {
-					cont(status);
+			if (!access.has('email_verif'))
+				return cb('create-invite-link-not-verif');
+		}
+		
+		crypto.randomBytes(16, _.bind(function(ex, buf) {
+			var key = buf.toString('hex');
+			var sendKeyToCaller = access.has('userdb');
+			this.query('INSERT INTO invitelink ' +
+				'(uid, `key`, email, ctime, schoolid) VALUES ' +
+				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
+				[user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
+				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
+		
+				_.bind(query.email ? function(cont) {
+					this.sendInviteEmail({
+						sender: user,
+						email: query.email,
+						url: url
+					}, _.bind(function(status) {
+						cont(status);
+					}, this));
+				} : function(cont) {
+					sendKeyToCaller = true;
+					cont('create-invite-link-success');
+				}, this)(_.bind(function(status) {
+					cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
 				}, this));
-			} : function(cont) {
-				sendKeyToCaller = true;
-				cont('create-invite-link-success');
-			}, this)(_.bind(function(status) {
-				cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
-			}, this));
-		});
-	}, this));
-};
+			});
+		}, this));
+	});
+});
 
 UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
+	this.getServerConfig(function(cfg) {
+	
 	this.locked(['userdb'], cb_, function(cb) {
 		
 	var uid = user !== null ? user.id : null;
@@ -517,7 +548,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 		[data.email, data.name, uid], function(res) {
 	this.query('SELECT `key` FROM betakeys WHERE `id` = ?',
 		[betakey[0]], function(βkey) {
-		if (this.cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && type == 'register' && !access.has('userdb')) {
+		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && type == 'register' && !access.has('userdb')) {
 			cb('reg-beta-necessary');
 			return;
 		}
@@ -558,7 +589,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 						gainUIDCBs[i]();
 
 					if ((user && data.email == user.email) || (access.has('userdb') && data.nomail))
-						cb('reg-success', uid);
+						cb('reg-success', {uid: uid}, 'repush');
 					else 
 						this.sendRegisterEmail(data, access, uid, xdata, cb);
 				}, this);
@@ -631,7 +662,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 									[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
 									data.email, (inv.email && inv.email == data.email) ? 1 : 0,
 									data.traditye?1:0, data.street, data.zipcode, data.town,
-									this.cfg.defaultWProvision, this.cfg.defaultLProvision],
+									cfg.defaultWProvision, cfg.defaultLProvision],
 								function(res) {
 									uid = res.insertId;
 									this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
@@ -683,9 +714,11 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 	});
 	});
 	});
+	
+	});
 };
 
-UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
+UserDB.prototype.watchlistAdd = buscomponent.provideQUA('client-watchlist-add', function(query, user, access, cb) {
 	this.query('SELECT stockid,users.id AS uid,users.name, bid FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?', [query.stockid], function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
@@ -711,9 +744,9 @@ UserDB.prototype.watchlistAdd = function(query, user, access, cb) {
 			cb('watchlist-add-success');
 		}); 
 	});
-};
+});
 
-UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
+UserDB.prototype.watchlistRemove = buscomponent.provideQUA('client-watchlist-remove', function(query, user, access, cb) {
 	this.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [user.id, query.stockid], function() {
 		this.feed({
 			type: 'watch-remove',
@@ -724,9 +757,9 @@ UserDB.prototype.watchlistRemove = function(query, user, access, cb) {
 		
 		cb('watchlist-remove-success');
 	}); 
-};
+});
 
-UserDB.prototype.watchlistShow = function(query, user, access, cb) {
+UserDB.prototype.watchlistShow = buscomponent.provideQUA('client-watchlist-show', function(query, user, access, cb) {
 	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, lastusetime AS lastactive ' +
 		'FROM watchlists AS w ' +
 		'JOIN stocks ON w.watched = stocks.id ' +
@@ -734,11 +767,11 @@ UserDB.prototype.watchlistShow = function(query, user, access, cb) {
 		'LEFT JOIN watchlists AS rw ON rw.watched = w.watcher AND rw.watcher = stocks.leader ' +
 		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
 		'WHERE w.watcher = ?', [user.id], function(res) {
-		cb(res);
+		cb('watchlist-show-success', {'results': res});
 	});
-};
+});
 
-UserDB.prototype.getChat = function(query, user, access, cb_) {
+UserDB.prototype.getChat = buscomponent.provideQUA('client-chat-get', function(query, user, access, cb_) {
 	this.locked(['chat'], cb_, function(cb) {
 	var whereString = '';
 	var params = [];
@@ -825,21 +858,32 @@ UserDB.prototype.getChat = function(query, user, access, cb_) {
 				assert.ok(endpoints.length > 0);
 				chat.endpoints = endpoints;
 				
-				this.query('SELECT c.*, u.name AS username, u.id AS uid, url AS profilepic, trustedhtml ' + 
+				var ownUserIsEndpoint = false;
+				for (var i = 0; i < chat.endpoints.length; ++i) {
+					if (chat.endpoints[i].uid == user.id) {
+						ownUserIsEndpoint = true;
+						break;
+					}
+				}
+				
+				if (!ownUserIsEndpoint)
+					return cb('chat-get-notfound');
+				
+				this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
 					'FROM ecomments AS c ' + 
 					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
 					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
 					'WHERE c.eventid = ?', [chat.chatstartevent], function(comments) {
 					chat.messages = comments;
-					cb('chat-get-success', chat);
+					cb('chat-get-success', {chat: chat});
 				});	
 			});
 		}, this));
 	});
 	});
-};
+});
 
-UserDB.prototype.addUserToChat = function(query, user, access, cb_) {
+UserDB.prototype.addUserToChat = buscomponent.provideQUA('client-chat-adduser', function(query, user, access, cb_) {
 	this.locked(['chat'], cb_, function(cb) {
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
 		return cb('format-error');
@@ -882,9 +926,9 @@ UserDB.prototype.addUserToChat = function(query, user, access, cb_) {
 		});
 	});
 	});
-};
+});
 
-UserDB.prototype.listAllChats = function(query, user, access, cb) {
+UserDB.prototype.listAllChats = buscomponent.provideQUA('client-list-all-chats', function(query, user, access, cb) {
 	this.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, ' +
 		'eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +
@@ -905,9 +949,9 @@ UserDB.prototype.listAllChats = function(query, user, access, cb) {
 			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername});
 		}
 		
-		cb('list-all-chats-success', ret);
+		cb('list-all-chats-success', {chats: ret});
 	});
-};
+});
 
 exports.UserDB = UserDB;
 

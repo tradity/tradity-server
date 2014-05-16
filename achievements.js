@@ -3,31 +3,25 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var buscomponent = require('./buscomponent.js');
 
-function AchievementsDB (db, config) {
-	this.db = db;
-	this.cfg = config;
+function AchievementsDB () {
 	this.achievementList = [];
-	
-	this.eventProviders = function() {
-		assert.ok(this);
-		assert.ok(this.feedController);
-		
-		return [this, this.feedController];
-	};
 };
 
-util.inherits(AchievementsDB, require('./objects.js').DBSubsystemBase);
+util.inherits(AchievementsDB, buscomponent.BusComponent);
 
-AchievementsDB.prototype.checkAchievements = function(user) {
+AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['user'], function(user) {
 	this.query('SELECT * FROM achievements WHERE userid = ?', [user.id], function(userAchievements) {
 		_.each(this.achievementList, _.bind(function(achievementEntry) {
 			this.checkAchievement(achievementEntry, user.id, userAchievements);
 		}, this));
 	});
-};
+});
 
 AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, userAchievements_) {
+	this.getServerConfig(function(cfg) {
+	
 	(userAchievements_ ? function(cont) {
 		cont(userAchievements_);
 	} : _.bind(function(cont) {
@@ -56,7 +50,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 				(_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
 					function(uid, userAchievements, db, cb) { cb(true); } : 
 					_.bind(achievementEntry.check, achievementEntry)
-			)(uid, userAchievements, this, _.bind(function(hasBeenAchieved) {
+			)(uid, userAchievements, cfg, this, _.bind(function(hasBeenAchieved) {
 				if (!hasBeenAchieved)
 					return;
 				
@@ -85,16 +79,16 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 			}, this));
 		});
 	}, this));
+	
+	});
 };
 
 AchievementsDB.prototype.registerObserver = function(achievementEntry) {
 	_.each(achievementEntry.fireOn, _.bind(function(checkCallback, eventName) {
-		_.each(this.eventProviders(), _.bind(function(provider) {
-			provider.on(eventName, _.bind(function(data) {
-				_.bind(checkCallback, achievementEntry)(data, this, _.bind(function(userIDs) {
-					_.each(userIDs, _.bind(function(uid) {
-						this.checkAchievement(achievementEntry, uid);
-					}, this));
+		this.on(eventName, _.bind(function(data) {
+			_.bind(checkCallback, achievementEntry)(data, this, _.bind(function(userIDs) {
+				_.each(userIDs, _.bind(function(uid) {
+					this.checkAchievement(achievementEntry, uid);
 				}, this));
 			}, this));
 		}, this));

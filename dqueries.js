@@ -4,39 +4,36 @@ var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
 var Access = require('./access.js').Access;
+var buscomponent = require('./buscomponent.js');
 
-function DelayedQueriesDB (db, config, stocksdb) {
-	this.db = db;
-	this.cfg = config;
-	this.stocksdb = stocksdb;
-	this.stocksdb.stockNeeders.push(this);
+function DelayedQueriesDB () {
 	this.queries = {};
+	
 	this.neededStocks = {};
-	this.queryTypes = {
-		'stock-buy': _.bind(this.stocksdb.buyStock, this.stocksdb),
-		'dquery-remove': _.bind(this.removeQuery, this)
-	};
-	
-	assert.ok(!this.stocksdb.dqueries);
-	this.stocksdb.dqueries = this;
-	
-	this.stocksdb.on('push', _.bind(function(ev) {
+	this.queryTypes = ['stock-buy', 'dquery-remove'];
+};
+util.inherits(DelayedQueriesDB, buscomponent.BusComponent);
+
+DelayedQueriesDB.prototype.onBusConnect = function() {
+	this.on('push', function(ev) {
 		if (ev.type == 'stock-update' && this.neededStocks['s-'+ev.stockid]) {
 			_.each(this.neededStocks['s-'+ev.stockid], _.bind(function(entryid) {
 				this.checkAndExecute(this.queries[entryid]);
 			}, this));
 		}
-	}, this));
+	});
 	
 	this.loadDelayedQueries();
 };
-util.inherits(DelayedQueriesDB, require('./objects.js').DBSubsystemBase);
 
-DelayedQueriesDB.prototype.getNeededStocks = function() {
-	return _.chain(this.neededStocks).keys().map(function(id) {
+DelayedQueriesDB.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ', ['reply'], function(cb) {
+	var neededIDs = _.chain(this.neededStocks).keys().map(function(id) {
 		return id.substr(2);
 	}).value();
-};
+	
+	cb(neededIDs);
+	return neededIDs;
+});
 
 DelayedQueriesDB.prototype.checkAndExecute = function(query) {
 	query.check(_.bind(function(condmatch) {
@@ -57,16 +54,16 @@ DelayedQueriesDB.prototype.loadDelayedQueries = function() {
 	});
 };
 
-DelayedQueriesDB.prototype.listDelayQueries = function(query, user, access, cb) {
+DelayedQueriesDB.prototype.listDelayQueries = buscomponent.provideQUA('dquery-list', function(query, user, access, cb) {
 	cb('dquery-list-success', {
 		'results': (_.chain(this.queries).values()
 			.filter(function(q) { return q.userinfo.id == user.id; })
 			.map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
 			.value())
 	});
-};
+});
 
-DelayedQueriesDB.prototype.removeQueryUser = function(query, user, access, cb) {
+DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQUA('dquery-remove', function(query, user, access, cb) {
 	var queryid = query.queryid;
 	if (this.queries[queryid] && this.queries[queryid].userinfo.id == user.id) {
 		this.removeQuery(this.queries[queryid]);
@@ -74,9 +71,9 @@ DelayedQueriesDB.prototype.removeQueryUser = function(query, user, access, cb) {
 	} else {
 		cb('dquery-remove-notfound');
 	}
-};
+});
 
-DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
+DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQUA('client-dquery', function(query, user, access, cb) {
 	cb = cb || function() {};
 	
 	var qstr = null;
@@ -88,7 +85,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
 		return cb('format-error');
 	}
 	
-	if (!this.queryTypes[query.query.type])
+	if (this.queryTypes.indexOf(query.query.type) == -1)
 		cb('unknown-query-type');
 	
 	this.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
@@ -99,9 +96,11 @@ DelayedQueriesDB.prototype.addDelayedQuery = function(query, user, access, cb) {
 		cb('dquery-success', {'queryid': query.queryid});
 		this.addQuery(query);
 	});
-};
+});
 
-DelayedQueriesDB.prototype.addQuery = function(query) {		
+DelayedQueriesDB.prototype.addQuery = function(query) {
+	assert.ok(query);
+
 	var cond = this.parseCondition(query.condition);
 	query.check = cond.check;
 	query.neededStocks = cond.neededStocks;
@@ -155,8 +154,14 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 							this.query('SELECT exchange FROM stocks WHERE stockid = ?', [stockid], function(r) {
 								if (r.length == 0)
 									return cb(false);
-								var v = this.stocksdb.stockExchangeIsOpen(r[0].exchange);
-								cb(lt ? v < value : v > value);
+								
+								this.getServerConfig(function(cfg) {
+									assert.ok(cfg);
+									
+									this.request({name: 'stockExchangeIsOpen', sxname: r[0].exchange, cfg: cfg}, function(isOpen) {
+										return cb(lt ? isOpen < value : isOpen > value);
+									});
+								});
 							});
 						}, this));
 						break;
@@ -189,17 +194,15 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 };
 
 DelayedQueriesDB.prototype.executeQuery = function(query) {
-	var e = this.queryTypes[query.query.type];
-	assert.ok(e);
 	query.query.__is_delayed__ = true;
-	e(query.query, query.userinfo, query.accessinfo, _.bind(function(code) {
+	this.request({name: 'client-' + query.query.type, query: query.query, user: query.userinfo, access: query.accessinfo}, function(code) {
 		var json = query.query.dquerydata || {};
 		json.result = code;
 		if (!query.query.retainUntilCode || query.query.retainUntilCode == code) {
 			this.feed({'type': 'dquery-exec', 'targetid':null, 'srcuser': query.userinfo.id, 'json': json, 'noFollowers': true});
 			this.removeQuery(query);
 		}
-	}, this));
+	});
 };
 
 DelayedQueriesDB.prototype.removeQuery = function(query) {
@@ -213,7 +216,7 @@ DelayedQueriesDB.prototype.removeQuery = function(query) {
 	});
 };
 
-DelayedQueriesDB.prototype.resetUser = function(query, user, access, cb) {
+DelayedQueriesDB.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['user', 'reply'], function(user, cb) {
 	var toBeDeleted = [];
 	for (var queryid in this.queries) {
 		var q = this.queries[queryid];
@@ -225,7 +228,7 @@ DelayedQueriesDB.prototype.resetUser = function(query, user, access, cb) {
 		this.removeQuery(toBeDeleted[i]);
 	
 	cb();
-};
+});
 
 exports.DelayedQueriesDB = DelayedQueriesDB;
 })();

@@ -3,20 +3,17 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var buscomponent = require('./buscomponent.js');
 
-function FeedControllerDB (db, config) {
-	this.db = db;
-	this.cfg = config;
+function FeedControllerDB () {
 };
 
-util.inherits(FeedControllerDB, require('./objects.js').DBSubsystemBase);
+util.inherits(FeedControllerDB, buscomponent.BusComponent);
 
-FeedControllerDB.prototype.feed = function(data, onEventId) {
+FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'reply'], function(data, onEventId) {
 	assert.ok(data.type);
 	assert.ok(data.type.length);
 	assert.ok(data.srcuser);
-	
-	onEventId = onEventId || function() {};
 		
 	var json = JSON.stringify(data.json ? data.json : {});
 	data = _.extend(data, data.json);
@@ -79,9 +76,9 @@ FeedControllerDB.prototype.feed = function(data, onEventId) {
 			this.emit('push-events');
 		});
 	});
-};
+});
 
-FeedControllerDB.prototype.fetchEvents = function(query, user, access, cb) {
+FeedControllerDB.prototype.fetchEvents = buscomponent.provideQUA('feedFetchEvents', function(query, user, access, cb) {
 	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, '+
@@ -112,9 +109,9 @@ FeedControllerDB.prototype.fetchEvents = function(query, user, access, cb) {
 			return ev;
 		}).reject(function(ev) { return !ev; }).value());
 	});
-};
+});
 
-FeedControllerDB.prototype.commentEvent = function(query, user, access, cb) {
+FeedControllerDB.prototype.commentEvent = buscomponent.provideQUA('client-comment', function(query, user, access, cb) {
 	if (!query.comment)
 		return cb('format-error');
 	
@@ -163,7 +160,7 @@ FeedControllerDB.prototype.commentEvent = function(query, user, access, cb) {
 			cb('comment-success');
 		});
 	});
-};
+});
 
 exports.FeedControllerDB = FeedControllerDB;
 

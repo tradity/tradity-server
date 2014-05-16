@@ -5,12 +5,12 @@ function parentPath(x) { return x.match(/(\/[\w_-]+)+\/[\w_-]+$/)[1]; }
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var buscomponent = require('./buscomponent.js');
 
-function SchoolsDB (db, config) {
-	this.db = db;
-	this.cfg = config;
+function SchoolsDB () {
 }
-util.inherits(SchoolsDB, require('./objects.js').DBSubsystemBase);
+
+util.inherits(SchoolsDB, buscomponent.BusComponent);
 
 function adminlistContainsUser(admins, user) {
 	return _.chain(admins).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0;
@@ -56,7 +56,6 @@ function _reqschooladm (f, soft, scdb) {
 	};
 }
 
-// only internal
 SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 	this.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +
 		'FROM schools AS c ' +
@@ -66,7 +65,7 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 		'WHERE c.id = ?', [schoolid], cb);
 };
 
-SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
+SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cfg, cb) {
 	this.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
 		'FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
@@ -110,23 +109,23 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 								
 				this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
-					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime)) AS wsum ' +
+					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 					'FROM orderhistory AS oh ' +
 					'JOIN schoolmembers AS sm ON sm.uid = oh.userid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
-					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {					
+					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = parentPath(s.path);
-						this.loadSchoolInfo(s.parentPath, user, access, _.bind(function(code, result) {
+						this.loadSchoolInfo(s.parentPath, user, access, cfg, _.bind(function(code, result) {
 							assert.equal(code, 'get-school-info-success');
 							
 							s.parentSchool = result;
 							
-							s.config = _.defaults(s.config, s.parentSchool.config, this.cfg.schoolConfigDefaults);
+							s.config = _.defaults(s.config, s.parentSchool.config, cfg.schoolConfigDefaults);
 							
 							cb('get-school-info-success', s);
 						}, this));
 					} else {
-						s.config = _.defaults(s.config, this.cfg.schoolConfigDefaults);
+						s.config = _.defaults(s.config, cfg.schoolConfigDefaults);
 						
 						cb('get-school-info-success', s);
 					}
@@ -138,17 +137,21 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cb) {
 	});
 };
 
-SchoolsDB.prototype.getSchoolInfo = function(query, user, access, cb) {
-	this.loadSchoolInfo(query.lookfor, user, access, cb);
-};
-
-SchoolsDB.prototype.changeDescription = _reqschooladm(function(query, user, access, cb) {
-	this.query('UPDATE schools SET descpage = ? WHERE id = ?', [query.descpage, query.schoolid], function() {
-		cb('school-change-description-success');
+SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQUA('client-get-school-info', function(query, user, access, cb) {
+	this.getServerConfig(function(cfg) {
+		this.loadSchoolInfo(query.lookfor, user, access, cfg, function(results) {
+			cb(code, {'result': results});
+		});
 	});
 });
 
-SchoolsDB.prototype.changeMemberStatus = _reqschooladm(function(query, user, access, cb) {
+SchoolsDB.prototype.changeDescription = buscomponent.provideQUA('client-school-change-description', _reqschooladm(function(query, user, access, cb) {
+	this.query('UPDATE schools SET descpage = ? WHERE id = ?', [query.descpage, query.schoolid], function() {
+		cb('school-change-description-success');
+	});
+}));
+
+SchoolsDB.prototype.changeMemberStatus = buscomponent.provideQUA('client-school-change-member-status', _reqschooladm(function(query, user, access, cb) {
 	this.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?', [query.schoolid, query.uid], function() {
 		if (query.status == 'member') {
 			this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
@@ -160,9 +163,9 @@ SchoolsDB.prototype.changeMemberStatus = _reqschooladm(function(query, user, acc
 			});
 		}
 	});
-});
+}));
 
-SchoolsDB.prototype.deleteComment = _reqschooladm(function(query, user, access, cb) {
+SchoolsDB.prototype.deleteComment = buscomponent.provideQUA('client-school-delete-comment', _reqschooladm(function(query, user, access, cb) {
 	this.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
 		'JOIN events AS e ON e.eventid = c.eventid ' +
 		'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
@@ -177,9 +180,9 @@ SchoolsDB.prototype.deleteComment = _reqschooladm(function(query, user, access, 
 			cb('school-delete-comment-success');
 		});
 	});
-});
+}));
 
-SchoolsDB.prototype.kickUser = _reqschooladm(function(query, user, access, cb) {
+SchoolsDB.prototype.kickUser = buscomponent.provideQUA('client-school-kick-user', _reqschooladm(function(query, user, access, cb) {
 	this.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
 		[query.uid, query.schoolid], function() {
 		this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
@@ -187,9 +190,9 @@ SchoolsDB.prototype.kickUser = _reqschooladm(function(query, user, access, cb) {
 			cb('school-kick-user-success');
 		});
 	});
-});
+}));
 
-SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
+SchoolsDB.prototype.createSchool = buscomponent.provideQUA('client-create-school', function(query, user, access, cb_) {
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	
@@ -220,9 +223,9 @@ SchoolsDB.prototype.createSchool = function(query, user, access, cb_) {
 			});
 		});
 	});
-};
+});
 
-SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
+SchoolsDB.prototype.listSchools = buscomponent.provideQUA('client-list-schools', function(query, user, access, cb) {
 	var where = 'WHERE 1 ';
 	var params = [];
 	if (query.parentPath) {
@@ -240,19 +243,24 @@ SchoolsDB.prototype.listSchools = function(query, user, access, cb) {
 	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
 		where +
-		'GROUP BY schools.id', params, cb);
-}
+		'GROUP BY schools.id', params, function(results) {
+			cb('list-schools-success', {'result': results});
+		}
+	);
+});
 
-SchoolsDB.prototype.publishBanner = function(query, user, access, FileStorageDB, cb) {
+SchoolsDB.prototype.publishBanner = buscomponent.provideQUA('client-school-publish-banner', function(query, user, access, FileStorageDB, cb) {
 	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';
 	
 	_reqschooladm(_.bind(FileStorageDB.publish, FileStorageDB), false, this)(query, user, access, cb);
-};
+});
 
-SchoolsDB.prototype.createInviteLink = function(query, user, access, UserDB, cb) {
-	_reqschooladm(_.bind(UserDB.createInviteLink, UserDB), true, this)(query, user, access, cb);
-};
+SchoolsDB.prototype.createInviteLink = buscomponent.provideQUA('client-create-invite-link', function(query, user, access, cb) {
+	_reqschooladm(_.bind(function(query, user, access, cb) {
+		this.request({name: 'createInviteLink', query: query, user: user, access: access}, cb);
+	}, UserDB), true, this)(query, user, access, cb);
+});
 
 exports.SchoolsDB = SchoolsDB;
 

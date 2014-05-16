@@ -2,44 +2,42 @@
 
 var _ = require('underscore');
 var fs = require('fs');
-var nodemailer = require('nodemailer');
+var util = require('util');
+var buscomponent = require('./buscomponent.js');
 
-function ErrorHandler(cfg, mailer) {
-	this.prot = cfg.mail['error-base'];
-	this.transport = mailer;
+function ErrorHandler() {
 }
 
-ErrorHandler.prototype.err = function(e, noemail) {
-	noemail = noemail || false;
+util.inherits(ErrorHandler, buscomponent.BusComponent);
+
+ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
+	if (!e)
+		return this.err(new Error('Error without Error object caught -- abort'), true);
 	
-	var opt = _.clone(this.prot);
-	opt.text = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
-	if (e.stack)
-		opt.text += e.stack + '\n';
+	this.getServerConfig(function(cfg) {
+		noemail = noemail || false;
 		
-	if (this.getEnvironmentInformation) 
-		opt.text += '\n' + JSON.stringify(this.getEnvironmentInformation(), null, 2);
-			
-	console.error(opt.text);
-	
-	this.transport.sendMail(opt, _.bind(function (error, resp) {
-		if (error)
-			this.err(error, true);
-	}, this));
-	
-	fs.appendFile('errors.log', opt.text, function() {});
-}
-
-ErrorHandler.prototype.wrap = function(f) {
-	var eh = this;
-	return function() {
+		var opt = _.clone(cfg.mail['error-base']);
+		opt.text = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
+		if (e.stack)
+			opt.text += e.stack + '\n';
+		
 		try {
-			f.apply(this, arguments);
-		} catch (e) {
-			eh.err(e);
-		}
-	}
-}
+			if (this.bus)
+				opt.text += '\n' + util.inspect(this.bus.log.reverse(), {depth: 2});
+		} catch(e) { console.error(e); }
+				
+		console.error(opt.text);
+		
+		this.request({name: 'sendMail', opt: opt}, function (error, resp) {
+			if (error)
+				this.err(error, true);
+		});
+		
+		if (cfg.errorLogFile)
+			fs.appendFile(cfg.errorLogFile, opt.text, function() {});
+	});
+});
 
 exports.ErrorHandler = ErrorHandler;
 

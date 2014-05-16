@@ -8,12 +8,11 @@ function parentPath(x) {
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var buscomponent = require('./buscomponent.js');
 
-function AdminDB (db, config) {
-	this.db = db;
-	this.cfg = config;
+function AdminDB () {
 }
-util.inherits(AdminDB, require('./objects.js').DBSubsystemBase);
+util.inherits(AdminDB, buscomponent.BusComponent);
 
 function _reqpriv (required, f) {
 	var requiredPermission = required;
@@ -25,7 +24,7 @@ function _reqpriv (required, f) {
 	};
 }
 
-AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access, cb) {
+AdminDB.prototype.listAllUsers = buscomponent.provideQUA('client-list-all-users', _reqpriv('userdb', function(query, user, access, cb) {
 	this.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, users.id AS uid, tradecount, ' +
 		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, ' +
 		'logins.logintime AS lastlogintime, schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
@@ -35,30 +34,30 @@ AdminDB.prototype.listAllUsers = _reqpriv('userdb', function(query, user, access
 		'LEFT JOIN schools ON schools.id = sm.schoolid ' +
 		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)',
 		[], function(userlist) {
-		cb('list-all-users-success', userlist);
+		cb('list-all-users-success', {results: userlist});
 	});
-});
+}));
 
-AdminDB.prototype.evalCode = _reqpriv('*', function(query, user, access, cb) {
+AdminDB.prototype.evalCode = buscomponent.provideQUA('client-eval-code', _reqpriv('*', function(query, user, access, cb) {
 	if (!query.authorizationKey)
 		cb('permission-denied');
 	else
-		cb('eval-code-success', eval(query.code));
-});
+		cb('eval-code-success', {result: eval(query.code)});
+}));
 
-AdminDB.prototype.impersonateUser = _reqpriv('server', function(query, user, access, cb) {
+AdminDB.prototype.impersonateUser = buscomponent.provideQUA('client-impersonate-user', _reqpriv('server', function(query, user, access, cb) {
 	this.query('SELECT COUNT(*) AS c FROM users WHERE id=?', [query.uid], function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
-			return cb('impersonate-user-notfound');
+			return cb('impersonate-user-notfound', null, 'repush');
 	
 		this.query('UPDATE sessions SET uid = ? WHERE id = ?', [query.uid, user.sid], function() {
-			cb('impersonate-user-success');
+			cb('impersonate-user-success', null, 'repush');
 		});
 	});
-});
+}));
 
-AdminDB.prototype.deleteUser = _reqpriv('userdb', function(query, user, access, cb_) {
+AdminDB.prototype.deleteUser = buscomponent.provideQUA('client-delete-user', _reqpriv('userdb', function(query, user, access, cb_) {
 	if (user.id == query.uid)
 		return cb_('delete-user-self-notallowed');
 	
@@ -75,34 +74,34 @@ AdminDB.prototype.deleteUser = _reqpriv('userdb', function(query, user, access, 
 		});
 		});
 	});
-});
+}));
 
-AdminDB.prototype.changeUserEMail = _reqpriv('userdb', function(query, user, access, cb) {
+AdminDB.prototype.changeUserEMail = buscomponent.provideQUA('client-change-user', _reqpriv('userdb', function(query, user, access, cb) {
 	this.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?', [query.email, query.emailverif ? 1 : 0, query.uid], function() {
 		cb('change-user-email-success');
 	});
-});
+}));
 
-AdminDB.prototype.changeCommentText = _reqpriv('moderate', function(query, user, access, cb) {
+AdminDB.prototype.changeCommentText = buscomponent.provideQUA('client-change-comment-text', _reqpriv('moderate', function(query, user, access, cb) {
 	this.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?', [query.comment, access.has('server') && query.trustedhtml ? 1:0, query.commentid], function() {
 		cb('change-comment-text-success');
 	});
-});
+}));
 
-AdminDB.prototype.notifyUnstickAll = _reqpriv('moderate', function(query, user, access, cb) {
+AdminDB.prototype.notifyUnstickAll = buscomponent.provideQUA('client-notify-unstick-all', _reqpriv('moderate', function(query, user, access, cb) {
 	this.query('UPDATE mod_notif SET sticky = 0', [], function() {
 		cb('notify-unstick-all-success');
 	});
-});
+}));
 
-AdminDB.prototype.notifyAll = _reqpriv('moderate', function(query, user, access, cb) {
+AdminDB.prototype.notifyAll = buscomponent.provideQUA('client-notify-all', _reqpriv('moderate', function(query, user, access, cb) {
 	this.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [query.content, query.sticky ? 1 : 0], function(res) {
 		this.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': user.id, 'everyone': true});
 		cb('notify-all-success');
 	});
-});
+}));
 
-AdminDB.prototype.renameSchool = _reqpriv('schooldb', function(query, user, access, cb) {
+AdminDB.prototype.renameSchool = buscomponent.provideQUA('client-rename-school', _reqpriv('schooldb', function(query, user, access, cb) {
 	this.query('SELECT path FROM schools WHERE id = ?', [query.schoolid], function(r) {
 		if (r.length == 0 || (query.schoolpath && parentPath(r[0].path) != parentPath(query.schoolpath)))
 			return cb('rename-school-notfound');
@@ -117,9 +116,9 @@ AdminDB.prototype.renameSchool = _reqpriv('schooldb', function(query, user, acce
 			}
 		});
 	});
-});
+}));
 
-AdminDB.prototype.joinSchools = _reqpriv('schooldb', function(query, user, access, cb_) {
+AdminDB.prototype.joinSchools = buscomponent.provideQUA('client-join-schools', _reqpriv('schooldb', function(query, user, access, cb_) {
 	this.locked(['userdb'], cb_, function(cb) {
 		this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [query.masterschool], function(r) {
 			assert.equal(r.length, 1);
@@ -133,17 +132,17 @@ AdminDB.prototype.joinSchools = _reqpriv('schooldb', function(query, user, acces
 			});
 		});
 	});
-});
+}));
 
-AdminDB.prototype.getUserLogins = _reqpriv('userdb', function(query, user, access, cb) {
+AdminDB.prototype.getUserLogins = buscomponent.provideQUA('client-get-user-logins', _reqpriv('userdb', function(query, user, access, cb) {
 	this.query('SELECT * FROM logins WHERE uid = ?', [query.uid], function(res) {
 		_.each(res, function(e) {
 			e.headers = JSON.parse(e.headers);
 		});
 		
-		cb('get-user-logins-success', res);
+		cb('get-user-logins-success', {results: res});
 	});
-});
+}));
 
 exports.AdminDB = AdminDB;
 

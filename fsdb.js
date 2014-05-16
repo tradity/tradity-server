@@ -6,18 +6,19 @@ var http = require('http');
 var https = require('https');
 var assert = require('assert');
 var hash = require('mhash').hash;
+var buscomponent = require('./buscomponent.js');
 
-function FileStorageDB (db, cfg) {
-	this.db = db;
-	this.cfg = cfg;
+function FileStorageDB () {
 }
-util.inherits(FileStorageDB, require('./objects.js').DBSubsystemBase);
+util.inherits(FileStorageDB, buscomponent.BusComponent);
 
-FileStorageDB.prototype.handle = function(req, res, reqURL) {
-	var fsmatch = reqURL.pathname.match(this.cfg.fsdb.reqregex);
+FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
+	this.getServerConfig(function(cfg) {
+	
+	var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
 	
 	if (!fsmatch)
-		return false;
+		return cb(false);
 	
 	var filename = fsmatch[fsmatch.length - 1];
 	
@@ -88,12 +89,16 @@ FileStorageDB.prototype.handle = function(req, res, reqURL) {
 		}, this));
 	});
 	
-	return true;
-}
+	cb(true);
+	
+	});
+});
 
-FileStorageDB.prototype.publish = function(query, user, access, cb) {
+FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', function(query, user, access, cb) {
+	this.getServerConfig(function(cfg) {
+	
 	var content = query.content;
-	var uniqrole = this.cfg.fsdb.uniqroles[query.role];
+	var uniqrole = cfg.fsdb.uniqroles[query.role];
 	
 	query.proxy = query.proxy ? true : false;
 	query.mime = query.mime || 'application/octet-stream';
@@ -104,16 +109,16 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 		var total = uniqrole ? 0 : res[0].total;
 		
 		if (!access.has('filesystem')) {
-			if (content.length + total > this.cfg.fsdb.userquota)
+			if (content.length + total > cfg.fsdb.userquota)
 				return cb('publish-quota-exceed');
-			if (this.cfg.fsdb.allowroles.indexOf(query.role) == -1)
+			if (cfg.fsdb.allowroles.indexOf(query.role) == -1)
 				return cb('publish-inacceptable-role');
 				
 			if (query.proxy) {
 				var hasRequiredAccess = false;
 				
-				for (var i = 0; i < this.cfg.fsdb.allowProxyURIs.length && !hasRequiredAccess; ++i) {
-					var p = this.cfg.fsdb.allowProxyURIs[i];
+				for (var i = 0; i < cfg.fsdb.allowProxyURIs.length && !hasRequiredAccess; ++i) {
+					var p = cfg.fsdb.allowProxyURIs[i];
 					assert.ok(p.regex);
 					assert.ok(p.requireAccess);
 					
@@ -138,7 +143,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 			} else {
 				// local mime type is ignored for proxy requests
 				
-				if (this.cfg.fsdb.allowmime.indexOf(query.mime) == -1)
+				if (cfg.fsdb.allowmime.indexOf(query.mime) == -1)
 					return cb('publish-inacceptable-mime');
 			}
 		}
@@ -147,7 +152,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 		query.name = query.name || filehash;
 		
 		var filename = (user ? user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
-		var url = this.cfg.fsdb.puburl.replace(/\{\$hostname\}/g, this.cfg.hostname).replace(/\{\$name\}/g, filename);
+		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = _.bind(function() {
 			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
@@ -162,7 +167,7 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 					});
 				}
 				
-				return cb('publish-success');
+				return cb('publish-success', null, 'repush');
 			});
 		}, this);
 		
@@ -186,7 +191,9 @@ FileStorageDB.prototype.publish = function(query, user, access, cb) {
 			continueAfterDelPrevious();
 		}
 	});
-}
+	
+	});
+});
 
 exports.FileStorageDB = FileStorageDB;
 

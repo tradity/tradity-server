@@ -3,6 +3,7 @@
 var sio = require('socket.io-client');
 var fs = require('fs');
 var assert = require('assert');
+var util = require('util');
 var _ = require('underscore');
 
 var cfg = require('./config.js').config;
@@ -24,8 +25,11 @@ socket.on('connect', function() {
 		console.log('incoming/push', JSON.stringify(data, null, 2));
 	});
 	
-	socket.on('response', function (data) {
-		console.log('incoming', JSON.stringify(data, null, 2));
+	socket.on('response', function (rawData) {
+		assert.equal(rawData.e, 'raw');
+		var data = JSON.parse(rawData.s);
+		
+		console.log('incoming', util.inspect(data));
 		
 		var handledRegister = false;
 		switch(data['is-reply-to']) {
@@ -59,7 +63,7 @@ socket.on('connect', function() {
 				});
 				break;
 			case 'register':
-				assert(data.code == 'reg-email-sending' || data.code == 'reg-success', 'Register return code should be email-sending or success');
+				assert(data.code == 'reg-success', 'Register return code should be email-success');
 				if (handledRegister) 
 					break;
 				handledRegister = true;

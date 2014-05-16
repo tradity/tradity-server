@@ -96,6 +96,9 @@ ConnectionData.prototype.pushEvents = function() {
 		return;
 	
 	this.pushEventsTimer = setTimeout(_.bind(function() {
+		if (this.socket === null)
+			return;
+		
 		this.pushEventsTimer = null;
 		this.fetchEvents({since: this.mostRecentEventTime, count: null});
 	}, this), 1000);
@@ -204,6 +207,7 @@ ConnectionData.prototype.disconnected = function() {
 	
 	this.request({name: 'deleteConnectionData', id: this.cdid}, function() {
 		this.unplugBus();
+		this.socket = null;
 	});
 };
 

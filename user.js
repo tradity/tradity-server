@@ -831,7 +831,8 @@ UserDB.prototype.getChat = buscomponent.provideQUA('client-chat-get', function(q
 						targetid: res.insertId, 
 						srcuser: user.id,
 						noFollowers: true,
-						feedusers: query.endpoints
+						feedusers: query.endpoints,
+						json: {endpoints: query.endpoints}
 					}, function(eventid) {
 						cont({chatid: res.insertId, eventid: eventid});
 					});
@@ -919,7 +920,7 @@ UserDB.prototype.addUserToChat = buscomponent.provideQUA('client-chat-adduser', 
 					srcuser: user.id,
 					noFollowers: true,
 					feedusers: chat.endpoints,
-					json: {addedUser: query.userid, addedUserName: username}
+					json: {addedUser: query.userid, addedUserName: username, endpoints: chat.endpoints}
 				});
 				
 				cb('chat-adduser-success');

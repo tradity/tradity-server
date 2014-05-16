@@ -113,6 +113,20 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 }
 
 AchievementList.push({
+	name: 'CHAT_PARTICIPANTS_5',
+	fireOn: {
+		'feed-chat-start': function (ev, db, cb) { cb([ev.endpoints]); },
+		'feed-chat-user-added': function (ev, db, cb) { cb(_.union([ev.addedUser], _.pluck(ev.endpoints, 'uid'))); }
+	},
+	xp: 100,
+	check: function(uid, userAchievements, cfg, db, cb) {
+		db.query('SELECT MAX((SELECT COUNT(*) FROM chatmembers WHERE chatid = cm.chatid)) AS membercount FROM `chatmembers` AS cm WHERE userid = ?', [uid],
+			function(res) { cb(res[0].membercount >= 5); });
+	},
+	version: -1
+});
+
+AchievementList.push({
 	name: 'TRADE_VOLUME_25K',
 	fireOn: { 'feed-trade': function (ev, db, cb) { cb([ev.srcuser]); } },
 	xp: 100,

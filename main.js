@@ -6,7 +6,6 @@ var events = require('events');
 var assert = require('assert');
 var fs = require('fs');
 var crypto = require('crypto');
-var url = require('url');
 var spawn = require('child_process').spawn;
 
 var cfg = require('./config.js').config;

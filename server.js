@@ -4,6 +4,7 @@ var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
 var http = require('http');
+var url = require('url');
 var sio = require('socket.io');
 var buscomponent = require('./buscomponent.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;

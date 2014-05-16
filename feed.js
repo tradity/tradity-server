@@ -156,7 +156,7 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideQUA('client-commen
 				feedschool: feedschool,
 				feedchat: feedchat,
 				noFollowers: noFollowers
-			});
+			}, function() {});
 			cb('comment-success');
 		});
 	});

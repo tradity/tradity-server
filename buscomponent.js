@@ -88,7 +88,7 @@ BusComponent.prototype.getConnection = function(cb) {
 	}); 
 };
 
-BusComponent.prototype.feed = function(data, onEventId) { this.request({name: 'feed', data: data}, onEventId); };
+BusComponent.prototype.feed = function(data, onEventId) { this.request({name: 'feed', data: data}, onEventId || function() {}); };
 
 function provide(name, args, fn) {
 	fn.isProvider = true;

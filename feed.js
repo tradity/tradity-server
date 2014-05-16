@@ -14,7 +14,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'reply']
 	assert.ok(data.type);
 	assert.ok(data.type.length);
 	assert.ok(data.srcuser);
-		
+	
 	var json = JSON.stringify(data.json ? data.json : {});
 	data = _.extend(data, data.json);
 	

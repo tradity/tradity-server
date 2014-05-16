@@ -760,7 +760,8 @@ UserDB.prototype.watchlistRemove = buscomponent.provideQUA('client-watchlist-rem
 });
 
 UserDB.prototype.watchlistShow = buscomponent.provideQUA('client-watchlist-show', function(query, user, access, cb) {
-	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, lastusetime AS lastactive ' +
+	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
+		'lastusetime AS lastactive, IF(rw.watched IS NULL, 0, 1) AS friends ' +
 		'FROM watchlists AS w ' +
 		'JOIN stocks ON w.watched = stocks.id ' +
 		'LEFT JOIN users ON users.id = stocks.leader ' + 

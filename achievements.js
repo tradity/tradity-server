@@ -112,6 +112,8 @@ AchievementsDB.prototype.registerAchievements = function(list) {
 	this.achievementList = this.achievementList.concat(list);
 	
 	_.each(list, _.bind(function(achievementEntry) {
+		assert.notStrictEqual(achievementEntry.version, null);
+		
 		this.registerObserver(achievementEntry);
 	}, this));
 };

@@ -77,6 +77,37 @@ for (var i = 0; i < referralCountAchievements.length; ++i) {
 					return res[0].invitecount >= count;
 				});
 			},
+			version: -1,
+			prereqAchievements: prevCount ? [ 'REFERRAL_COUNT_' + prevCount ] : []
+		});
+	})();
+}
+
+var commentCountAchievements = [[1, 1], [5, 2], [17, 10], [47, 25], [101, 50], [5, 1]];
+for (var i = 0; i < commentCountAchievements.length; ++i) {
+	(function() {
+		var counts = commentCountAchievements[i];
+		var prevCounts = null;
+		for (var j = 0; j < commentCountAchievements.length; ++j) {
+			var p = commentCountAchievements[j];
+			if (p[0] < counts[0] && p[1] <= counts[1])
+				prevCounts = p;
+		}
+		
+		AchievementList.push({
+			name: 'COMMENT_COUNT_' + counts.join('_'),
+			fireOn: { 'feed-comment': function (ev, db, cb) { cb([ev.srcuser]); } },
+			xp: 100,
+			check: function(uid, userAchievements, cfg, db, cb) {
+				db.query('SELECT COUNT(eventid) AS c, COUNT(DISTINCT eventid) AS cd FROM `ecomments` WHERE commenter = ? ' +
+					'AND (SELECT type FROM events WHERE events.eventid=ecomments.eventid) != "chat-start"', [uid], function(res) {
+					assert.equal(res.length, 1);
+					
+					return res[0].c >= counts[0] && res[0].dc >= counts[1];
+				});
+			},
+			version: -1,
+			prevCounts: prevCounts ? [ 'COMMENT_COUNT' + prevCounts.join('_') ] : []
 		});
 	})();
 }
@@ -145,6 +176,40 @@ AchievementList.push({
 	xp: 100,
 	check: function(uid, userAchievements, cfg, db, cb) {
 		db.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND amount < 0 AND amount != -prevamount', [uid], 
+			function(res) { cb(res[0].tradecount > 0); });
+	},
+	version: -1,
+	prereqAchievements: ['TRADE_COUNT_2']
+});
+
+AchievementList.push({
+	name: 'TRADE_RESELL_1H',
+	fireOn: { 'trade': function (ev, db, cb) { cb([ev.srcuser]); } },
+	xp: 100,
+	check: function(uid, userAchievements, cfg, db, cb) {
+		db.query('SELECT COUNT(*) AS tradecount ' + 
+			'FROM orderhistory AS o1 ' +
+			'JOIN orderhistory AS o2 ON o1.userid = o2.userid AND ' +
+				'o1.stocktextid = o2.stocktextid AND ' +
+				'o1.buytime < o2.buytime AND o1.buytime > o2.buytime - 3600 '+
+			'WHERE o1.userid = ?', [uid], 
+			function(res) { cb(res[0].tradecount > 0); });
+	},
+	version: -1,
+	prereqAchievements: ['TRADE_COUNT_2']
+});
+
+AchievementList.push({
+	name: 'TRADE_RESELL_10D',
+	fireOn: { 'trade': function (ev, db, cb) { cb([ev.srcuser]); } },
+	xp: 100,
+	check: function(uid, userAchievements, cfg, db, cb) {
+		db.query('SELECT COUNT(*) AS tradecount ' + 
+			'FROM orderhistory AS o1 ' +
+			'JOIN orderhistory AS o2 ON o1.userid = o2.userid AND ' +
+				'o1.stocktextid = o2.stocktextid AND ' +
+				'o1.buytime < o2.buytime - 864000 '+
+			'WHERE o1.userid = ?', [uid], 
 			function(res) { cb(res[0].tradecount > 0); });
 	},
 	version: -1,

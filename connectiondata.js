@@ -3,6 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var spawn = require('child_process').spawn;
 var buscomponent = require('./buscomponent.js');
 var Access = require('./access.js').Access;
 

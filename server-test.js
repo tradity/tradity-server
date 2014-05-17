@@ -31,7 +31,6 @@ socket.on('connect', function() {
 		
 		console.log('incoming', util.inspect(data));
 		
-		var handledRegister = false;
 		switch(data['is-reply-to']) {
 			case 'list-schools-1':
 				assert.equal(data.code, 'list-schools-success');
@@ -64,18 +63,6 @@ socket.on('connect', function() {
 				break;
 			case 'register':
 				assert(data.code == 'reg-success', 'Register return code should be email-success');
-				if (handledRegister) 
-					break;
-				handledRegister = true;
-				emit('query', {
-					type: 'emailverif',
-					id: 'emailverif',
-					uid: data.uid,
-					authorizationKey: authorizationKey
-				});
-				break;
-			case 'emailverif':
-				assert.equal(data.code, 'login-success');
 				emit('query', {
 					type: 'login',
 					id: 'login-1',

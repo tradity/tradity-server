@@ -1,8 +1,6 @@
 (function () { "use strict";
 
 var _ = require('underscore');
-var util = require('util');
-var events = require('events');
 var assert = require('assert');
 var fs = require('fs');
 var crypto = require('crypto');
@@ -11,58 +9,45 @@ var cfg = require('./config.js').config;
 var bus = require('./bus.js');
 var buscomponent = require('./buscomponent.js');
 
-var usr = require('./user.js');
-var adm = require('./admin.js');
-var sch = require('./schools.js');
-var ach = require('./achievements.js');
-var feedctrl = require('./feed.js');
-var stocks = require('./stocks.js');
-var fsdb = require('./fsdb.js');
-var dqueries = require('./dqueries.js');
-var eh_ = require('./errorhandler.js');
-var db_ = require('./dbbackend.js');
 var af = require('./arivafinance.js');
-var misc = require('./misc.js');
-var emailsender = require('./emailsender.js');
-var server = require('./server.js');
-var AchievementList = require('./achievement-list.js').AchievementList;
+var achievementList = require('./achievement-list.js');
 
 crypto.randomBytes(64, _.bind(function(ex, buf) {
 var authorizationKey = buf.toString('hex');
 fs.writeFileSync(cfg['auth-key-file'], authorizationKey, {mode: 432});
 
 var afql = new af.ArivaFinanceQuoteLoader();
-
 var mainBus = new bus.Bus();
 
+afql.on('error', function(e) { mainBus.emit('error', e); });
 mainBus.on('getServerConfig', function(req) { req.reply(cfg); });
 mainBus.on('getAuthorizationKey', function(req) { req.reply(authorizationKey); });
+mainBus.on('getStockQuoteLoader', function(req) { req.reply(afql); });
+mainBus.on('getAchievementList', function(req) { req.reply(achievementList.AchievementList); });
 
-var eh = new eh_.ErrorHandler().setBus(mainBus, 'errorhandling');
-var MailerDB = new emailsender.MailerDB().setBus(mainBus, 'mailer');
-var db = new db_.Database().setBus(mainBus, 'db');
-var FeedControllerDB = new feedctrl.FeedControllerDB().setBus(mainBus, 'feed');
-var UserDB = new usr.UserDB().setBus(mainBus, 'user');
-var AdminDB = new adm.AdminDB().setBus(mainBus, 'admin');
-var SchoolsDB = new sch.SchoolsDB().setBus(mainBus, 'schools');
-var StocksDB = new stocks.StocksDB(afql).setBus(mainBus, 'stocks');
-var FileStorageDB = new fsdb.FileStorageDB().setBus(mainBus, 'fsdb');
-var AchievementsDB = new ach.AchievementsDB().setBus(mainBus, 'achievements');
-var dqDB = new dqueries.DelayedQueriesDB().setBus(mainBus, 'dqueries');
-var MiscDB = new misc.MiscDB().setBus(mainBus, 'misc');
+var loadComponents = [
+	'./errorhandler.js', './emailsender.js', './dbbackend.js', './feed.js', './user.js', './admin.js', 
+	'./schools.js', './stocks.js', './fsdb.js', './achievements.js', './dqueries.js', './misc.js'
+];
 
-AchievementsDB.registerAchievements(AchievementList);
-
-afql.on('error', function(e) { eh.err(e); });
+for (var i = 0; i < loadComponents.length; ++i) {
+	var c = require(loadComponents[i]);
+	for (var j in c) 
+		if (c[j] && c[j].prototype.setBus) 
+			new c[j]().setBus(mainBus, loadComponents[i].replace(/\.[^.]+$/, '').replace(/[^\w]/g, ''));
+}
 
 process.on('uncaughtException', function(err) {
-	eh.err(err);
-	
-	setTimeout(function() {
-		process.exit(1);
-	}, 1000);
+	mainBus.emit('error', err);
+	mainBus.emit('shutdown');
 });
 
+var forwardSignals = ['SIGTERM', 'SIGINT'];
+for (var i = 0; i < forwardSignals.length; ++i) {
+	process.on(forwardSignals[i], function() { mainBus.emit('shutdown'); });
+}
+
+var server = require('./server.js');
 var stserver = new server.SoTradeServer().setBus(mainBus, 'serverMaster');
 stserver.start();
 

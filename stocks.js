@@ -7,18 +7,26 @@ var assert = require('assert');
 require('datejs');
 var buscomponent = require('./buscomponent.js');
 
-function StocksDB (quoteLoader) {
-	this.quoteLoader = quoteLoader; // XXX
-	
-	this.quoteLoader.on('record', _.bind(function(rec) {
-		this.updateRecord(rec);
-	}, this));
+function StocksDB () {
+	this.quoteLoader = null;
 }
 util.inherits(StocksDB, buscomponent.BusComponent);
 
+StocksDB.prototype.onBusConnect = function() {
+	this.request({name: 'getStockQuoteLoader'}, function(ql) {
+		assert.ok(ql);
+		
+		this.quoteLoader = ql;
+		
+		this.quoteLoader.on('record', _.bind(function(rec) {
+			this.updateRecord(rec);
+		}, this));
+	});
+};
+
 StocksDB.prototype.stocksFilter = function(rec, cfg) {
 	return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == cfg.requireCurrency;
-}
+};
 
 StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'reply'], function(query, cb) {
 	cb = cb || function() {};

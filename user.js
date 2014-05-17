@@ -306,7 +306,7 @@ UserDB.prototype.emailVerify = buscomponent.provideQUAX('client-emailverif', fun
 	var key = query.key;
 	
 	this.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
-	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], function(res) {		
+	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], function(res) {
 		if (res.length != 2) {
 			console.warn('strange email-verif stuff', res);
 			cb('email-verify-failure');

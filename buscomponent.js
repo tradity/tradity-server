@@ -121,7 +121,7 @@ BusComponent.prototype.registerProviders = function() {
 			if (!this[i].requestCBBound)
 				this[i].requestCBBound = _.bind(this[i].requestCB, this);
 			
-			this.on(this[i].providedRequest, this[i].requestCBBound);
+			this.on(this[i].providedRequest, this[i].requestCBBound, true); // true -> raw listener / no extra binding
 		}
 	}
 };

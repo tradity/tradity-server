@@ -45,6 +45,12 @@ AdminDB.prototype.evalCode = buscomponent.provideQUA('client-eval-code', _reqpri
 		cb('eval-code-success', {result: eval(query.code)});
 }));
 
+AdminDB.prototype.evalCode = buscomponent.provideQUA('client-shutdown', _reqpriv('server', function(query, user, access, cb) {
+	this.emit('shutdown');
+	
+	cb('shutdown-success');
+}));
+
 AdminDB.prototype.impersonateUser = buscomponent.provideQUA('client-impersonate-user', _reqpriv('server', function(query, user, access, cb) {
 	this.query('SELECT COUNT(*) AS c FROM users WHERE id=?', [query.uid], function(r) {
 		assert.equal(r.length, 1);

@@ -8,6 +8,8 @@ var buscomponent = require('./buscomponent.js');
 function Database () {
 	this.dbmod = null;
 	this.connectionPool = null;
+	this.openQueries = 0;
+	this.isShuttingDown = false;
 }
 
 util.inherits(Database, buscomponent.BusComponent);
@@ -17,9 +19,28 @@ Database.prototype._init = function(cb) {
 		this.dbmod = cfg['dbmod'] || require('mysql');
 		this.connectionPool = this.dbmod.createPool(cfg['db']);
 		this.inited = true;
+		this.openQueries = 0;
+		
+		/*
+		 * Note: We don't set isShuttingDown = true here.
+		 * This happens so we can actually resurrect the database connection
+		 * during the shutdown process, so other components can complete
+		 * any work in progress.
+		 */
+		
 		cb();
 	});
 };
+
+Database.prototype.shutdown = buscomponent.listener('masterShutdown', function() {
+	this.isShuttingDown = true;
+	
+	if (this.connectionPool && this.openQueries == 0) {
+		this.connectionPool.end();
+		this.connectionPool = null;
+		this.inited = false;
+	}
+});
 
 Database.prototype._query = buscomponent.needsInit(function(query, args, cb) {
 	this._getConnection(function(err, connection) {
@@ -33,7 +54,27 @@ Database.prototype._query = buscomponent.needsInit(function(query, args, cb) {
 });
 
 Database.prototype._getConnection = buscomponent.needsInit(function(cb) {
-	this.connectionPool.getConnection(cb);
+	assert.ok (this.connectionPool);
+	
+	this.openQueries++;
+	
+	var db = this;
+	this.connectionPool.getConnection(function(err, conn) {
+		if (conn === null)
+			return cb(err, null);
+		
+		cb(err, {
+			query: _.bind(conn.query, conn),
+			release: function() {
+				db.openQueries--;
+				
+				if (db.openQueries == 0 && db.isShuttingDown)
+					db.shutdown();
+				
+				return conn.release();
+			}
+		});
+	});
 });
 
 Database.prototype.escape = buscomponent.needsInit(function(str) {
@@ -92,7 +133,7 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['rep
 	}, this));
 });
 
-Database.prototype.queryCallback = function(cb, query, data) {	
+Database.prototype.queryCallback = function(cb, query, data) {
 	return _.bind(function(err, res) {
 		var datajson = JSON.stringify(data);
 		

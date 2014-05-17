@@ -13,6 +13,7 @@ function SoTradeServer () {
 	this.httpServer = null;
 	this.io = null;
 	this.clients = [];
+	this.isShuttingDown = false;
 }
 
 util.inherits(SoTradeServer, buscomponent.BusComponent);
@@ -61,13 +62,27 @@ SoTradeServer.prototype.connectionHandler = function(socket) {
 	
 	var d = new ConnectionData(socket);
 	assert.ok(d.cdid);
-	d.setBus(this.bus, 'cdata' - d.cdid);
+	d.setBus(this.bus, 'cdata-' + d.cdid);
 	this.clients.push(d);
 };
 
 SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id', 'reply'], function(id, cb) {
-	this.clients = _.reject(this.clients, function(client) { return client.id == id; });
+	this.clients = _.reject(this.clients, function(client) { return client.cdid == id; });
+	
+	if (this.isShuttingDown)
+		this.shutdown();
+	
 	cb();
+});
+
+SoTradeServer.prototype.shutdown = buscomponent.listener('shutdown', function() {
+	this.isShuttingDown = true;
+	
+	if (this.clients.length == 0) {
+		this.emit('masterShutdown');
+		this.httpServer.close();
+		this.unplugBus();
+	}
 });
 
 exports.SoTradeServer = SoTradeServer;

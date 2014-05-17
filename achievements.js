@@ -11,11 +11,20 @@ function AchievementsDB () {
 
 util.inherits(AchievementsDB, buscomponent.BusComponent);
 
-AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['user'], function(user) {
+AchievementsDB.prototype.onBusConnect = function() {
+	this.request({name: 'getAchievementList'}, function(al) {
+		assert.ok(al);
+		this.registerAchievements(al);
+	});
+};
+
+AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['user', 'reply'], function(user, cb) {
 	this.query('SELECT * FROM achievements WHERE userid = ?', [user.id], function(userAchievements) {
 		_.each(this.achievementList, _.bind(function(achievementEntry) {
 			this.checkAchievement(achievementEntry, user.id, userAchievements);
 		}, this));
+		
+		cb();
 	});
 });
 

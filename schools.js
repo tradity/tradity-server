@@ -192,35 +192,41 @@ SchoolsDB.prototype.kickUser = buscomponent.provideQUA('client-school-kick-user'
 	});
 }));
 
-SchoolsDB.prototype.createSchool = buscomponent.provideQUA('client-create-school', function(query, user, access, cb_) {
+SchoolsDB.prototype.createSchool = buscomponent.provideQUA('client-create-school', function(query, user, access, cb) {
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	
-	this.locked(['userdb'], cb_, function(cb) {
-		this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
+	this.getConnection(function(conn) {
+		conn.query('START TRANSACTION', [], function() {
+		conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
 			assert.equal(r.length, 1);
 			if (r[0].c == 1 || !query.schoolname.trim() || 
 				!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
+				conn.release();
 				return cb('create-school-already-exists');
 			}
 			
 			var createCB = _.bind(function() {
-				this.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
+				conn.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
 					this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': user.id});
 					
+					conn.release();
 					cb('create-school-success');
 				});
 			}, this);
 			
 			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
 				createCB();
-			else this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
+			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
 				assert.equal(r.length, 1);
-				if (r[0].c != 1)
+				if (r[0].c != 1) {
+					conn.release();
 					return cb('create-school-missing-parent');
+				}
 				
 				createCB();
 			});
+		});
 		});
 	});
 });

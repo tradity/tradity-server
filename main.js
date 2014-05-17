@@ -23,7 +23,6 @@ var eh_ = require('./errorhandler.js');
 var db_ = require('./dbbackend.js');
 var af = require('./arivafinance.js');
 var misc = require('./misc.js');
-var locking = require('./locking.js');
 var emailsender = require('./emailsender.js');
 var server = require('./server.js');
 var AchievementList = require('./achievement-list.js').AchievementList;
@@ -55,7 +54,6 @@ var MiscDB = new misc.MiscDB().setBus(mainBus, 'misc');
 AchievementsDB.registerAchievements(AchievementList);
 
 afql.on('error', function(e) { eh.err(e); });
-locking.Lock.globalLockAuthority.on('error', function(e) { eh.err(e); });
 
 process.on('uncaughtException', function(err) {
 	eh.err(err);

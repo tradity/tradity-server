@@ -1,6 +1,5 @@
 (function () { "use strict";
 
-var locking = require('./locking.js');
 var assert = require('assert');
 var _ = require('underscore');
 
@@ -82,7 +81,7 @@ BusComponent.prototype.getConnection = function(cb) {
 		cb({
 			release: _.bind(conn.release, conn),
 			query: _.bind(function(query, args, cb) {
-				conn.query(query, args, _.bind(cb, this));
+				conn.query(query, args, _.bind(cb || function() {}, this));
 			}, this)
 		});
 	}); 
@@ -161,15 +160,6 @@ function errorWrap (fn) {
 		}
 	};
 };
-
-// XXX this should be removed in favor of DB-side locking
-BusComponent.prototype.locked = function(locks, origCB, fn) {
-	if (!this.lockAuthority)
-		this.lockAuthority = locking.Lock.globalLockAuthority;
-	
-	this.lockAuthority.locked(locks, origCB, _.bind(fn, this));
-};
-
 
 exports.BusComponent = BusComponent;
 exports.provide      = provide;

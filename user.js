@@ -134,7 +134,7 @@ UserDB.prototype.logout = buscomponent.provideQUA('logout', function(query, user
 	});
 });
 
-UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', function(query, user, access, cb_) {
+UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', function(query, user, access, cb) {
 	query.startindex = parseInt(query.startindex) || 0;
 	query.endindex = parseInt(query.endindex) || (1 << 20);
 	
@@ -142,7 +142,7 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 		query.since = 0;
 	
 	if (parseInt(query.since) != query.since)
-		return cb_('format-error');
+		return cb('format-error');
 	
 	var likestringWhere = '';
 	var likestringUnit = [];
@@ -169,33 +169,29 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 	}
 	
-	this.locked(['valuehistory'], cb_, function(cb) {
-		this.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
-			'tradecount != 0 as hastraded, ' + 
-			'u.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
-			'u.wprov_sum + u.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
-			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) / (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
-			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) - (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
-			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
-			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name, ' +
-			'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
-			join + /* needs query.since parameter */
-			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
-			likestringWhere +
-			'LIMIT ?, ?', 
-			[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(ranking) {
-				cb('get-ranking-success', {'result': ranking});
-			});
-	});
+	this.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
+		'tradecount != 0 as hastraded, ' + 
+		'u.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
+		'u.wprov_sum + u.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
+		'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) / (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
+		'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) - (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
+		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
+		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name, ' +
+		'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
+		join + /* needs query.since parameter */
+		'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
+		likestringWhere +
+		'LIMIT ?, ?', 
+		[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(ranking) {
+			cb('get-ranking-success', {'result': ranking});
+		});
 });
 
-UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', function(query, user, access, cb_) {
+UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', function(query, user, access, cb) {
 	this.getServerConfig(function(cfg) {
 	
 	if (query.lookfor == '$self')
 		query.lookfor = user.id;
-	
-	this.locked(['valuehistory'], cb_, function(cb) {
 	
 	var columns = (access.has('userdb') ? [
 		'u.*'
@@ -285,7 +281,6 @@ UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', f
 				});
 			});
 		});
-	});
 	});
 	});
 });
@@ -388,7 +383,7 @@ UserDB.prototype.changeOptions = buscomponent.provideQUAX('client-change-options
 	this.updateUser(query, 'change', user, access, xdata, cb);
 });
 
-UserDB.prototype.resetUser = buscomponent.provideQUA('client-reset-user', function(query, user, access, cb_) {
+UserDB.prototype.resetUser = buscomponent.provideQUA('client-reset-user', function(query, user, access, cb) {
 	this.getServerConfig(function(cfg) {
 		if (!cfg.resetAllowed && !access.has('userdb'))
 			return cb('permission-denied');
@@ -396,7 +391,6 @@ UserDB.prototype.resetUser = buscomponent.provideQUA('client-reset-user', functi
 		assert.ok(user);
 		assert.ok(access);
 		
-		this.locked(['userdb', 'depotstocks'], cb_, function(cb) {
 		this.query('DELETE FROM depot_stocks WHERE userid = ?', [user.uid], function() {
 		this.query('UPDATE users SET freemoney = 1000000000, totalvalue = 1000000000, ' +
 			'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
@@ -414,7 +408,6 @@ UserDB.prototype.resetUser = buscomponent.provideQUA('client-reset-user', functi
 					});
 				});
 			});
-		});
 		});
 		});
 	});
@@ -510,10 +503,8 @@ UserDB.prototype.createInviteLink = buscomponent.provideQUA('createInviteLink', 
 	});
 });
 
-UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
+UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 	this.getServerConfig(function(cfg) {
-	
-	this.locked(['userdb'], cb_, function(cb) {
 		
 	var uid = user !== null ? user.id : null;
 	if (!data.name || !data.email) {
@@ -544,16 +535,27 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 	
 	var betakey = data.betakey ? data.betakey.toString().split('-') : [0,0];
 	
-	this.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
+	this.getConnection(function(conn) {
+	conn.query('START TRANSACTION', [], function() {
+		
+	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[data.email, data.name, uid], function(res) {
-	this.query('SELECT `key` FROM betakeys WHERE `id` = ?',
+	conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
 		[betakey[0]], function(βkey) {
 		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && type == 'register' && !access.has('userdb')) {
-			cb('reg-beta-necessary');
+			conn.query('COMMIT', [], function() {
+				conn.release();
+				cb('reg-beta-necessary');
+			});
+			
 			return;
 		}
 		
 		if (res.length > 0 && res[0].id !== uid) {
+			conn.query('COMMIT', [], function() {
+				conn.release();
+			});
+			
 			if (res[0].name.toLowerCase() == data.name.toLowerCase())
 				cb('reg-name-already-present');
 			else if (res[0].email.toLowerCase() == data.email.toLowerCase())
@@ -580,6 +582,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 				}
 				
 				var updateCB = _.bind(function(res) {
+					conn.query('COMMIT', [], function() {
+						conn.release();
+					});
+					
 					if (uid === null)
 						uid = res.insertId;
 					
@@ -596,7 +602,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
-						this.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?,' +
+						conn.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?,' +
 						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traditye = ? '+
 						'WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.email, data.email == user.email,
@@ -605,19 +611,19 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 						
 						if (data.name != user.name) {
 							this.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': user.name, 'newname': data.name}});
-							this.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
+							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
 						}
 						
 						if (data.school != user.school) {
 							if (data.school == null)
-								this.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
+								conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
 							else
-								this.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
+								conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
 									'VALUES(?, ?, ' + (access.has('schooldb') ? '0' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
 									[uid, data.school, data.school]);
 							
 							if (user.school != null) 
-								this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, user.school]);
+								conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, user.school]);
 						}
 
 						if (data.wprovision != user.wprovision || data.lprovision != user.lprovision)
@@ -628,57 +634,55 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 						if (data.desc != user.desc)
 							this.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid});
 					} else {
-						this.locked(['depotstocks'], updateCB, function(cb) {
-							if (data.betakey)
-								this.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
-							
-							var inv = {};
-							_.bind(data.invitekey ? function(cont) {
-								this.query('SELECT * FROM invitelink WHERE `key` = ?', [data.invitekey], function(invres) {
-									if (invres.length == 0)
-										cont();
-									
-									assert.equal(invres.length, 1);
-									
-									inv = invres[0];
-									if (inv.schoolid && !data.school || parseInt(data.school) == parseInt(inv.schoolid)) {
-										data.school = inv.schoolid;
-										inv.__schoolverif__ = 1;
-									}
-									
-									gainUIDCBs.push(_.bind(function() {
-										this.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
-									}, this));
-									
+						if (data.betakey)
+							conn.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
+						
+						var inv = {};
+						_.bind(data.invitekey ? function(cont) {
+							conn.query('SELECT * FROM invitelink WHERE `key` = ?', [data.invitekey], function(invres) {
+								if (invres.length == 0)
 									cont();
-								});
-							} : function(cont) {
+								
+								assert.equal(invres.length, 1);
+								
+								inv = invres[0];
+								if (inv.schoolid && !data.school || parseInt(data.school) == parseInt(inv.schoolid)) {
+									data.school = inv.schoolid;
+									inv.__schoolverif__ = 1;
+								}
+								
+								gainUIDCBs.push(_.bind(function() {
+									conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
+								}, this));
+								
 								cont();
-							}, this)(_.bind(function() {
-								this.query('INSERT INTO users ' +
-									'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
-									'traditye, street, zipcode, town, registertime, wprovision, lprovision)' +
-									'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?)',
-									[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
-									data.email, (inv.email && inv.email == data.email) ? 1 : 0,
-									data.traditye?1:0, data.street, data.zipcode, data.town,
-									cfg.defaultWProvision, cfg.defaultLProvision],
-								function(res) {
-									uid = res.insertId;
-									this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
-									this.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
-										['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(cb, this, res));
-										
-									if (data.school) {
-										this.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
-											'VALUES(?, ?, ' + 
-											(inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
-											', UNIX_TIMESTAMP())',
-											[uid, data.school, data.school]);
-									}
-								});
-							}, this));
-						});
+							});
+						} : function(cont) {
+							cont();
+						}, this)(_.bind(function() {
+							conn.query('INSERT INTO users ' +
+								'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
+								'traditye, street, zipcode, town, registertime, wprovision, lprovision)' +
+								'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?)',
+								[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
+								data.email, (inv.email && inv.email == data.email) ? 1 : 0,
+								data.traditye?1:0, data.street, data.zipcode, data.town,
+								cfg.defaultWProvision, cfg.defaultLProvision],
+							function(res) {
+								uid = res.insertId;
+								this.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
+								conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
+									['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(updateCB, this, res));
+									
+								if (data.school) {
+									conn.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
+										'VALUES(?, ?, ' + 
+										(inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
+										', UNIX_TIMESTAMP())',
+										[uid, data.school, data.school]);
+								}
+							});
+						}, this));
 					}
 				}, this);
 				
@@ -690,10 +694,12 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 			
 			if (res.length == 0 && data.school !== null) {
 				if (parseInt(data.school) == data.school || !data.school) {
+					conn.query('COMMIT', function() { conn.release(); });
+					
 					cb('reg-unknown-school');
 					return;
 				} else {
-					this.query('INSERT INTO schools (name,path) VALUES(?,CONCAT("/",MD5(?)))', [data.school, data.school], schoolAddedCB);
+					conn.query('INSERT INTO schools (name,path) VALUES(?,CONCAT("/",MD5(?)))', [data.school, data.school], schoolAddedCB);
 				}
 			} else {
 				if (data.school !== null) {
@@ -706,11 +712,12 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb_) {
 		};
 		
 		if (data.school !== null) {
-			this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [data.school], schoolLookupCB);
+			conn.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [data.school], schoolLookupCB);
 		} else {
 			_.bind(schoolLookupCB,this)([]);
 		}
 	
+	});
 	});
 	});
 	});
@@ -772,8 +779,7 @@ UserDB.prototype.watchlistShow = buscomponent.provideQUA('client-watchlist-show'
 	});
 });
 
-UserDB.prototype.getChat = buscomponent.provideQUA('client-chat-get', function(query, user, access, cb_) {
-	this.locked(['chat'], cb_, function(cb) {
+UserDB.prototype.getChat = buscomponent.provideQUA('client-chat-get', function(query, user, access, cb) {
 	var whereString = '';
 	var params = [];
 	
@@ -882,11 +888,9 @@ UserDB.prototype.getChat = buscomponent.provideQUA('client-chat-get', function(q
 			});
 		}, this));
 	});
-	});
 });
 
-UserDB.prototype.addUserToChat = buscomponent.provideQUA('client-chat-adduser', function(query, user, access, cb_) {
-	this.locked(['chat'], cb_, function(cb) {
+UserDB.prototype.addUserToChat = buscomponent.provideQUA('client-chat-adduser', function(query, user, access, cb) {
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
 		return cb('format-error');
 	
@@ -926,7 +930,6 @@ UserDB.prototype.addUserToChat = buscomponent.provideQUA('client-chat-adduser', 
 				cb('chat-adduser-success');
 			});
 		});
-	});
 	});
 });
 

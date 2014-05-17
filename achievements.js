@@ -41,43 +41,41 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 			if (dbver >= achievementEntry.version)
 				return;
 		}
+	
+		if (_.difference(achievementEntry.prereqAchievements, _.keys(userAchievements)).length > 0)
+			return; // not all prereqs fulfilled
 		
-		this.locked(achievementEntry.checkLocks, null, function(cb) {
-			if (_.difference(achievementEntry.prereqAchievements, _.keys(userAchievements)).length > 0)
-				return; // not all prereqs fulfilled
+		(
+			(_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
+				function(uid, userAchievements, db, cb) { cb(true); } : 
+				_.bind(achievementEntry.check, achievementEntry)
+		)(uid, userAchievements, cfg, this, _.bind(function(hasBeenAchieved) {
+			if (!hasBeenAchieved)
+				return;
 			
-			(
-				(_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
-					function(uid, userAchievements, db, cb) { cb(true); } : 
-					_.bind(achievementEntry.check, achievementEntry)
-			)(uid, userAchievements, cfg, this, _.bind(function(hasBeenAchieved) {
-				if (!hasBeenAchieved)
-					return;
-				
-				this.query('REPLACE INTO achievements (userid, 	achname, xp, version) VALUES (?, ?, ?, ?)', 
-					[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version], function(res) {
-					this.feed({
-						type: 'achievement',
-						srcuser: uid,
-						targetid: res.insertId,
-						json: {
-							achname: achievementEntry.name,
-							xp: achievementEntry.xp
-						}
-					});
-					
-					process.nextTick(_.bind(function() {
-						_.each(this.achievementList, _.bind(function(ae) {
-							// look for achievements of which we have changed the prereq/implicating achievements list
-							if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
-								return -1;
-							
-							this.checkAchievement(ae, uid);
-						}, this));
-					}, this));
+			this.query('REPLACE INTO achievements (userid, 	achname, xp, version) VALUES (?, ?, ?, ?)', 
+				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version], function(res) {
+				this.feed({
+					type: 'achievement',
+					srcuser: uid,
+					targetid: res.insertId,
+					json: {
+						achname: achievementEntry.name,
+						xp: achievementEntry.xp
+					}
 				});
-			}, this));
-		});
+				
+				process.nextTick(_.bind(function() {
+					_.each(this.achievementList, _.bind(function(ae) {
+						// look for achievements of which we have changed the prereq/implicating achievements list
+						if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
+							return -1;
+						
+						this.checkAchievement(ae, uid);
+					}, this));
+				}, this));
+			});
+		}, this));
 	}, this));
 	
 	});
@@ -98,7 +96,6 @@ AchievementsDB.prototype.registerObserver = function(achievementEntry) {
 AchievementsDB.prototype.registerAchievements = function(list) {
 	list = _.map(list, function(achievementEntry) {
 		var e = _.defaults(achievementEntry, {
-			checkLocks: [],
 			requireAchievementInfo: [],
 			prereqAchievements: [],
 			implicatingAchievements: []

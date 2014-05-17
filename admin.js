@@ -57,18 +57,23 @@ AdminDB.prototype.impersonateUser = buscomponent.provideQUA('client-impersonate-
 	});
 }));
 
-AdminDB.prototype.deleteUser = buscomponent.provideQUA('client-delete-user', _reqpriv('userdb', function(query, user, access, cb_) {
+AdminDB.prototype.deleteUser = buscomponent.provideQUA('client-delete-user', _reqpriv('userdb', function(query, user, access, cb) {
 	if (user.id == query.uid)
-		return cb_('delete-user-self-notallowed');
+		return cb('delete-user-self-notallowed');
 	
-	this.locked(['userdb'], cb_, function(cb) {
-		this.query('DELETE FROM sessions WHERE uid = ?', [query.uid], function() {
-		this.query('DELETE FROM schoolmembers WHERE uid = ?', [query.uid], function() {
-		this.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [query.uid, query.uid], function() {
-		this.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), ' +
+	this.getConnection(function(conn) {
+		conn.query('START TRANSACTION', [], function() {
+		conn.query('DELETE FROM sessions WHERE uid = ?', [query.uid], function() {
+		conn.query('DELETE FROM schoolmembers WHERE uid = ?', [query.uid], function() {
+		conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [query.uid, query.uid], function() {
+		conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), ' +
 		'fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, realnamepublish=0, `desc`="", wprovision=0, lprovision=0, ' + 
 		'street="", zipcode="", town="", traditye=0, deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [query.uid, query.uid], function() {
-			cb('delete-user-success');
+			conn.query('COMMIT', [], function() {
+				conn.release();
+				cb('delete-user-success');
+			});
+		});
 		});
 		});
 		});
@@ -118,17 +123,15 @@ AdminDB.prototype.renameSchool = buscomponent.provideQUA('client-rename-school',
 	});
 }));
 
-AdminDB.prototype.joinSchools = buscomponent.provideQUA('client-join-schools', _reqpriv('schooldb', function(query, user, access, cb_) {
-	this.locked(['userdb'], cb_, function(cb) {
-		this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [query.masterschool], function(r) {
-			assert.equal(r.length, 1);
-			if ((r[0].c == 0 && query.masterschool != null) || query.masterschool == query.subschool)
-				return cb('join-schools-notfound');
-			
-			this.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [query.masterschool, query.subschool], function() {
-				this.query('DELETE FROM schools WHERE id = ?', [query.subschool], function() {
-					cb('join-schools-success');
-				});
+AdminDB.prototype.joinSchools = buscomponent.provideQUA('client-join-schools', _reqpriv('schooldb', function(query, user, access, cb) {
+	this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [query.masterschool], function(r) {
+		assert.equal(r.length, 1);
+		if ((r[0].c == 0 && query.masterschool != null) || query.masterschool == query.subschool)
+			return cb('join-schools-notfound');
+		
+		this.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [query.masterschool, query.subschool], function() {
+			this.query('DELETE FROM schools WHERE id = ?', [query.subschool], function() {
+				cb('join-schools-success');
 			});
 		});
 	});

@@ -68,20 +68,12 @@ StocksDB.prototype.updateRankingInformation = function(cb) {
 }
 
 StocksDB.prototype.updateValueHistory = function(cb) {
-	this.locked(['valuehistory'], cb, _.bind(function(cb) {
-		var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
-		this.query('INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT id, ' + copyFields + ', UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
-	}, this));
+	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
+	this.query('INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT id, ' + copyFields + ', UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
 }
 
 StocksDB.prototype.dailyCallback = function(cb) {
 	cb = cb || function() {};
-
-	/*this.locked(['valuehistory'], null, _.bind(function(exitlock) {
-		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time + 21600*2 AND FLOOR(va.time/21600)=FLOOR(vb.time/21600) WHERE va.time < UNIX_TIMESTAMP() -  10*86400 AND va.time > UNIX_TIMESTAMP() - 14*86400', [], function() {
-		this.query('DELETE va FROM valuehistory AS va JOIN valuehistory AS vb ON va.userid=vb.userid AND va.time > vb.time AND va.time < vb.time +  1200*2 AND FLOOR(va.time/ 1200)=FLOOR(vb.time/ 1200) WHERE va.time < UNIX_TIMESTAMP() -  2*86400 AND va.time > UNIX_TIMESTAMP() -  6*86400', [], exitlock);
-		});
-	}, this));*/
 	
 	this.query('UPDATE stocks SET daystartvalue = bid', [], cb);
 }
@@ -132,12 +124,9 @@ var lprovMin = 'LEAST(ds.provision_lwm, s.bid)';
 var lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
 var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 
-StocksDB.prototype.updateProvisions = function (cb_) {
-	this.locked(['depotstocks'], cb_, function(cb) {
-	
+StocksDB.prototype.updateProvisions = function (cb) {
 	this.getConnection(function (conn) {
-	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function() {
-		
+	conn.query('START TRANSACTION', [], function() {
 		conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, '+
 			wprovFees+' AS wfees, '+wprovMax+' AS wmax, '+
@@ -176,16 +165,13 @@ StocksDB.prototype.updateProvisions = function (cb_) {
 		});
 	});
 	});
-	});
 };
 
-StocksDB.prototype.updateLeaderMatrix = function(cb_) {
+StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	this.getServerConfig(function(cfg) {
 	
-	this.locked(['depotstocks'], cb_, function(cb) {
-	
 	this.getConnection(function (conn) {
-	conn.query('START TRANSACTION WITH CONSISTENT SNAPSHOT', [], function() {
+	conn.query('START TRANSACTION', [], function() {
 	conn.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	conn.query(
 		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, freemoney, users.wprov_sum + users.lprov_sum AS prov_sum FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
@@ -284,7 +270,6 @@ StocksDB.prototype.updateLeaderMatrix = function(cb_) {
 			});
 			}, i), this)();
 		}
-	});
 	});
 	});
 	});
@@ -415,7 +400,6 @@ StocksDB.prototype.sellAll = buscomponent.provideQUA('sellAll', function(query, 
 		for (var i = 0; i < res.length; ++i) {
 			var depotentry = res[i];
 			this.buyStock({
-				__override_unlocked__: true,
 				amount: -depotentry.amount,
 				leader: user.id
 			}, {id: depotentry.userid}, access, function() {
@@ -426,15 +410,17 @@ StocksDB.prototype.sellAll = buscomponent.provideQUA('sellAll', function(query, 
 	});
 });
 
-StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', function(query, user, access, cb_) {
+StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', function(query, user, access, cb) {
 	this.getServerConfig(function(cfg) {
 	assert.ok(user);
 	assert.ok(access);
-	this.locked(query.__override_unlocked__ ? [] : ['depotstocks'], cb_, function(cb) {	
+	
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	
-	this.query('SELECT s.*, '+
+	this.getConnection(function(conn) {
+	
+	conn.query('SELECT s.*, '+
 		'SUM(ds.amount) AS amount, '+
 		'SUM(ds.amount * s.lastvalue) AS money, '+
 		'AVG(s.bid - ds.provision_hwm) AS hwmdiff, '+
@@ -444,8 +430,11 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		'LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id '+
 		'LEFT JOIN users AS l ON s.leader = l.id AND ds.userid != l.id '+
 		'WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
-		if (res.length == 0 || res[0].lastvalue == 0)
+		if (res.length == 0 || res[0].lastvalue == 0) {
+			conn.release();
 			return cb('stock-buy-stock-not-found');
+		}
+		
 		assert.equal(res.length, 1);
 		
 		var r = res[0];
@@ -454,6 +443,8 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		if (r.amount === null) r.amount = 0;
 		
 		if (!this.stockExchangeIsOpen(r.exchange, cfg) && !(access.has('stocks') && query.forceNow)) {
+			conn.release();
+			
 			if (!query.__is_delayed__) {
 				query.retainUntilCode = 'stock-buy-success';
 				this.request({name: 'client-dquery', 
@@ -471,31 +462,43 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			}
 		}
 		
-		if (r.lid && !access.has('email_verif'))
+		if (r.lid && !access.has('email_verif')) {
+			conn.release();
 			return cb('stock-buy-email-not-verif');
+		}
 		
 		var amount = parseInt(query.amount);
-		if (amount < -r.amount || amount != amount)
+		if (amount < -r.amount || amount != amount) {
+			conn.release();
 			return cb('stock-buy-not-enough-stocks');
+		}
 		
 		var ta_value = amount > 0 ? r.ask : r.bid;
 		
 		assert.ok(r.ask >= 0);
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
-		this.query('SELECT freemoney, totalvalue FROM users WHERE id = ?', [user.id], function(ures) {
+		conn.query('SELECT freemoney, totalvalue FROM users WHERE id = ?', [user.id], function(ures) {
 		assert.equal(ures.length, 1);
 		var price = amount * ta_value;
-		if (price > ures[0].freemoney && price >= 0)
+		if (price > ures[0].freemoney && price >= 0) {
+			conn.release();
 			return cb('stock-buy-out-of-money');
-		this.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
+		}
+		
+		conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
 			[r.name, user.id, r.amount], function(ohr) {
 		var tradedToday = ohr[0].amount || 0;
 		
-		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0)
+		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0) {
+			conn.release();
 			return cb('stock-buy-single-paper-share-exceed');
-		if (Math.abs(amount) + tradedToday > r.pieces)
+		}
+		
+		if (Math.abs(amount) + tradedToday > r.pieces) {
+			conn.release();
 			return cb('stock-buy-over-pieces-limit');
+		}
 		
 		if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0)) && r.lid) {
 			var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
@@ -514,7 +517,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		
 		var fee = Math.max(Math.abs(cfg['transaction-fee-perc'] * price), cfg['transaction-fee-min']);
 		
-		this.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
+		conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
 			'VALUES(?,?,?,?,UNIX_TIMESTAMP(),?,?,?,?,?)',
 			[user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount], function(oh_res) {
 		this.feed({
@@ -531,21 +534,23 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		var perfv = amount >= 0 ? 'bought' : 'sold';
 		var perffull = perfn + '_' + perfv;
 		
-		this.query('UPDATE users SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
+		conn.query('UPDATE users SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
 			perffull + '=' + perffull + ' + ABS(?) ' +
 			' WHERE id = ?', [price+fee, fee, price, user.id], function() {
 		if (r.amount == null) {
-			this.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?)', 
+			conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?)', 
 				[user.id, r.id, amount, price, ta_value], function() {
+				conn.release();
 				cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 			});
 		} else {
-			this.query('UPDATE depot_stocks SET ' +
+			conn.query('UPDATE depot_stocks SET ' +
 				'amount = amount + ?, buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
 				'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
 				'provision_lwm = (provision_lwm * amount + ?) / (amount + ?) ' +
 				'WHERE userid = ? AND stockid = ?', 
 				[amount, price, price, amount, price, amount, user.id, r.id], function() {
+				conn.release();
 				cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 			});
 		}

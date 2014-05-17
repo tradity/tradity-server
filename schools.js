@@ -139,8 +139,8 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cfg, cb) {
 
 SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQUA('client-get-school-info', function(query, user, access, cb) {
 	this.getServerConfig(function(cfg) {
-		this.loadSchoolInfo(query.lookfor, user, access, cfg, function(results) {
-			cb(code, {'result': results});
+		this.loadSchoolInfo(query.lookfor, user, access, cfg, function(code, result) {
+			cb(code, {'result': result});
 		});
 	});
 });
@@ -253,13 +253,15 @@ SchoolsDB.prototype.publishBanner = buscomponent.provideQUA('client-school-publi
 	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';
 	
-	_reqschooladm(_.bind(FileStorageDB.publish, FileStorageDB), false, this)(query, user, access, cb);
+	_reqschooladm(function(query, user, access, cb) {
+		this.request('client-publish', {query: query, user: user, access: access}, cb);
+	}, false, this)(query, user, access, cb);
 });
 
 SchoolsDB.prototype.createInviteLink = buscomponent.provideQUA('client-create-invite-link', function(query, user, access, cb) {
-	_reqschooladm(_.bind(function(query, user, access, cb) {
+	_reqschooladm(function(query, user, access, cb) {
 		this.request({name: 'createInviteLink', query: query, user: user, access: access}, cb);
-	}, UserDB), true, this)(query, user, access, cb);
+	}, true, this)(query, user, access, cb);
 });
 
 exports.SchoolsDB = SchoolsDB;

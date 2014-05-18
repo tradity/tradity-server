@@ -24,7 +24,7 @@ StocksDB.prototype.onBusConnect = function() {
 	});
 };
 
-StocksDB.prototype.stocksFilter = function(rec, cfg) {
+StocksDB.prototype.stocksFilter = function(cfg, rec) {
 	return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == cfg.requireCurrency;
 };
 

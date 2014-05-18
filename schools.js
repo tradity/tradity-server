@@ -259,15 +259,15 @@ SchoolsDB.prototype.publishBanner = buscomponent.provideQUA('client-school-publi
 	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';
 	
-	_reqschooladm(function(query, user, access, cb) {
+	_reqschooladm(_.bind(function(query, user, access, cb) {
 		this.request('client-publish', {query: query, user: user, access: access}, cb);
-	}, false, this)(query, user, access, cb);
+	}, this), false, this)(query, user, access, cb);
 });
 
 SchoolsDB.prototype.createInviteLink = buscomponent.provideQUA('client-create-invite-link', function(query, user, access, cb) {
-	_reqschooladm(function(query, user, access, cb) {
+	_reqschooladm(_.bind(function(query, user, access, cb) {
 		this.request({name: 'createInviteLink', query: query, user: user, access: access}, cb);
-	}, true, this)(query, user, access, cb);
+	}, this), true, this)(query, user, access, cb);
 });
 
 exports.SchoolsDB = SchoolsDB;

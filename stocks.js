@@ -76,7 +76,7 @@ StocksDB.prototype.updateRankingInformation = function(cb) {
 }
 
 StocksDB.prototype.updateValueHistory = function(cb) {
-	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
+	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold, ticks';
 	this.query('INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT id, ' + copyFields + ', UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
 }
 

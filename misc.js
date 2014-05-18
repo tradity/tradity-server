@@ -24,6 +24,7 @@ MiscDB.prototype.prod = buscomponent.provideQUA('client-prod', function(query, u
 		return cb('prod-not-allowed');
 		
 	var starttime = new Date().getTime();
+	
 	this.request({name: 'regularCallbackUser', query: query}, function() {
 		var userdbtime = new Date().getTime();
 		this.request({name: 'regularCallbackStocks', query: query}, function() {

@@ -5,6 +5,31 @@ var assert = require('assert');
 
 var AchievementList = [];
 
+var dailyLoginAchievements = _.range(2,21); 
+
+for (var i = 0; i < dailyLoginAchievements.length; ++i) {
+	(function() {
+		var count = dailyLoginAchievements[i];
+		var prevCount = i == 0 ? null : dailyLoginAchievements[i-1];
+		
+		AchievementList.push({
+			name: 'DAILY_LOGIN_DAYS_' + count,
+			fireOn: { 'client-get-user-info': function (ev, db, cb) { cb(ev.lookfor && parseInt(ev.lookfor) == ev.lookfor ? [parseInt(ev.lookfor)] : []); } },
+			xp: 100,
+			check: function(uid, userAchievements, cfg, db, cb) {
+				db.query('SELECT MAX(daycount) AS maxdaycount FROM ' +
+					'(SELECT @s := IF(t - @r = 0, 0, @s+1) AS daycount, @r := t FROM' +
+						'(SELECT time, MAX(ticks) AS t ' +
+						'FROM valuehistory WHERE userid = ? GROUP BY FLOOR(time/86400)) AS dayticks, ' +
+					'(SELECT @r := 0, @s := 0) AS cbase) AS dx', [uid],
+					function(res) { cb(res[0].maxdaycount >= count); });
+			},
+			version: -1,
+			prereqAchievements: prevCount ? [ 'DAILY_LOGIN_DAYS_' + prevCount ] : []
+		});
+	})();
+}
+
 var tradeCountAchievements = [1, 2, 5, 11, 23, 49, 101, 251]
 
 for (var i = 0; i < tradeCountAchievements.length; ++i) {

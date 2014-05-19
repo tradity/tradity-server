@@ -14,7 +14,6 @@ function ConnectionData(socket) {
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.cdid = new Date().getTime() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
 	this.access = new Access();
-	this.registeredEventHandlers = [];
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
 	this.mostRecentEventTime = 0;
@@ -29,12 +28,6 @@ function ConnectionData(socket) {
 	socket.on('disconnect', this.disconnected_);
 }
 util.inherits(ConnectionData, buscomponent.BusComponent);
-
-ConnectionData.prototype.onBusConnect = function() {
-	this.regListenerBound('push', this.push);
-	this.regListenerBound('push-events', this.pushEvents);
-	this.regListenerBound('shutdown', this.shutdown);
-};
 
 ConnectionData.prototype.toString = function() {
 	return JSON.stringify(_.pick(this, 'user', 'remoteip', 'hsheaders', 'cdid', 'access', 'lastInfoPush', 'mostRecentEventTime'));
@@ -61,12 +54,12 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	}, this));
 };
 
-ConnectionData.prototype.push = function(data) {
+ConnectionData.prototype.push = buscomponent.listener('push', function(data) {
 	if (data.type != 'stock-update')
 		this.wrapForReply(data, function(r) { this.socket.emit('push', r); });
 	
 	this.pushSelfInfo();
-};
+});
 
 ConnectionData.prototype.pushSelfInfo = function() {
 	if (!this.user)
@@ -87,7 +80,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 	});
 };
 
-ConnectionData.prototype.pushEvents = function() {
+ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', function() {
 	if (this.pushEventsTimer || !this.user || !this.user.uid)
 		return;
 	
@@ -98,7 +91,7 @@ ConnectionData.prototype.pushEvents = function() {
 		this.pushEventsTimer = null;
 		this.fetchEvents({since: this.mostRecentEventTime, count: null});
 	}, this), 1000);
-};
+});
 
 ConnectionData.prototype.response = function(data) {	
 	this.wrapForReply(data, function(r) { this.socket.emit('response', r) });
@@ -198,18 +191,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 	});
 });
 
-ConnectionData.prototype.regListenerBound = function(event, fn) {
-	var boundListener = _.bind(fn, this);
-	this.registeredEventHandlers.push([event, boundListener]);
-	this.on(event, boundListener, true); // set raw = true, so we can remove the listener later
-};
-
 ConnectionData.prototype.disconnected = buscomponent.errorWrap(function() {
-	for (var i = 0; i < this.registeredEventHandlers.length; ++i) {
-		var e = this.registeredEventHandlers[i];
-		this.removeListener(e[0], e[1]);
-	}
-	
 	this.socket.removeListener('query', this.query_);
 	this.socket.removeListener('disconnect', this.disconnected_);
 	
@@ -223,12 +205,12 @@ ConnectionData.prototype.close = function() {
 	this.socket.disconnect();
 };
 
-ConnectionData.prototype.shutdown = function() {
+ConnectionData.prototype.shutdown = buscomponent.listener('shutdown', function() {
 	this.isShuttingDown = true;
 	
 	if (this.unansweredCount == 0)
 		this.close();
-};
+});
 
 ConnectionData.prototype.wrapForReply = function(obj, cb) {
 	cb = _.bind(cb, this);

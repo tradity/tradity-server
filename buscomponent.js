@@ -12,6 +12,8 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 	
 	this.bus = bus;
 	this.componentName = componentName;
+	this.unansweredBusRequests = 0;
+	this.wantsUnplug = false;
 	
 	this.registerProviders();
 	_.bind(this.onBusConnect, this)();
@@ -21,10 +23,14 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 BusComponent.prototype.unplugBus = function() {
 	assert.ok(this.bus);
 	
-	this.unregisterProviders();
-	this.bus = null;
-	this.componentName = null;
-	this.inited = false;
+	this.wantsUnplug = true;
+	
+	if (this.unansweredBusRequests == 0) {
+		this.unregisterProviders();
+		this.bus = null;
+		this.componentName = null;
+		this.inited = false;
+	}
 };
 
 BusComponent.prototype.imprint = function(obj) {
@@ -39,11 +45,18 @@ BusComponent.prototype.imprint = function(obj) {
 };
 
 BusComponent.prototype.request = function(req, onReply) {
-	onReply = onReply || function () {};
+	onReply = _.bind(onReply || function () {}, this);
 	assert.ok(this.bus);
 	assert.ok(req);
 	
-	this.bus.request(this.imprint(req), _.bind(onReply, this));
+	this.unansweredBusRequests++;
+	this.bus.request(this.imprint(req), _.bind(function() {
+		this.unansweredBusRequests--;
+		if (this.wantsUnplug)
+			this.unplugBus();
+		
+		onReply.apply(this, arguments);
+	}, this));
 };
 
 BusComponent.prototype.removeListener = function(event, listener) {

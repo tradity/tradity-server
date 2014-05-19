@@ -54,7 +54,7 @@ DelayedQueriesDB.prototype.loadDelayedQueries = function() {
 	});
 };
 
-DelayedQueriesDB.prototype.listDelayQueries = buscomponent.provideQUA('dquery-list', function(query, user, access, cb) {
+DelayedQueriesDB.prototype.listDelayQueries = buscomponent.provideQUA('client-dquery-list', function(query, user, access, cb) {
 	cb('dquery-list-success', {
 		'results': (_.chain(this.queries).values()
 			.filter(function(q) { return q.userinfo.id == user.id; })
@@ -63,7 +63,7 @@ DelayedQueriesDB.prototype.listDelayQueries = buscomponent.provideQUA('dquery-li
 	});
 });
 
-DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQUA('dquery-remove', function(query, user, access, cb) {
+DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQUA('client-dquery-remove', function(query, user, access, cb) {
 	var queryid = query.queryid;
 	if (this.queries[queryid] && this.queries[queryid].userinfo.id == user.id) {
 		this.removeQuery(this.queries[queryid]);

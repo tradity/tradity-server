@@ -30,7 +30,7 @@ AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievem
 
 AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, userAchievements_) {
 	assert.equal(uid, parseInt(uid));
-	assert.ok(!uid.length);
+	assert.ok(!uid.splice);
 	
 	uid = parseInt(uid);
 	

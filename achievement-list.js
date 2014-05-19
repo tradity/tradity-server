@@ -14,11 +14,14 @@ for (var i = 0; i < dailyLoginAchievements.length; ++i) {
 		
 		AchievementList.push({
 			name: 'DAILY_LOGIN_DAYS_' + count,
-			fireOn: { 'client-get-user-info': function (ev, db, cb) { cb(ev.lookfor && parseInt(ev.lookfor) == ev.lookfor ? [parseInt(ev.lookfor)] : []); } },
+			fireOn: { 'client-get-user-info': function (ev, db, cb) {
+				var lf = ev.query.lookfor;
+				cb((lf && parseInt(lf) == lf ? [parseInt(lf)] : []).concat(ev.user ? [ev.user.id] : []));
+			} },
 			xp: 100,
 			check: function(uid, userAchievements, cfg, db, cb) {
 				db.query('SELECT MAX(daycount) AS maxdaycount FROM ' +
-					'(SELECT @s := IF(t - @r = 0, 0, @s+1) AS daycount, @r := t FROM' +
+					'(SELECT @s := IF(t - @r = 0, 0, @s+1) AS daycount, @r := t FROM ' +
 						'(SELECT time, MAX(ticks) AS t ' +
 						'FROM valuehistory WHERE userid = ? GROUP BY FLOOR(time/86400)) AS dayticks, ' +
 					'(SELECT @r := 0, @s := 0) AS cbase) AS dx', [uid],

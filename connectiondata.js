@@ -192,17 +192,27 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 });
 
 ConnectionData.prototype.disconnected = buscomponent.errorWrap(function() {
-	this.socket.removeListener('query', this.query_);
-	this.socket.removeListener('disconnect', this.disconnected_);
+	if (this.socket) {
+		this.socket.removeListener('query', this.query_);
+		this.socket.removeListener('disconnect', this.disconnected_);
+	}
 	
-	this.request({name: 'deleteConnectionData', id: this.cdid}, function() {
-		this.unplugBus();
-		this.socket = null;
-	});
+	if (this.bus) {
+		this.request({name: 'deleteConnectionData', id: this.cdid}, function() {
+			this.unplugBus();
+			this.socket = null;
+		});
+	} else {
+		// make sure we don't have a bus because we don't *want* one
+		assert.ok(this.wantsUnplug);
+	}
 });
 
 ConnectionData.prototype.close = function() {
-	this.socket.disconnect();
+	if (this.socket)
+		this.socket.disconnect();
+	else // disconnected would also be called via socket.disconnect()
+		this.disconnected();
 };
 
 ConnectionData.prototype.shutdown = buscomponent.listener('shutdown', function() {

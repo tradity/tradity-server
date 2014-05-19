@@ -94,6 +94,9 @@ AchievementsDB.prototype.registerObserver = function(achievementEntry) {
 	_.each(achievementEntry.fireOn, _.bind(function(checkCallback, eventName) {
 		this.on(eventName, _.bind(function(data) {
 			_.bind(checkCallback, achievementEntry)(data, this, _.bind(function(userIDs) {
+				assert.ok(userIDs);
+				assert.notEqual(typeof userIDs.length, 'undefined');
+				
 				_.each(userIDs, _.bind(function(uid) {
 					this.checkAchievement(achievementEntry, uid);
 				}, this));

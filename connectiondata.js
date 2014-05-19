@@ -86,10 +86,11 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
 		return;
 	
 	this.pushEventsTimer = setTimeout(_.bind(function() {
+		this.pushEventsTimer = null;
+		
 		if (this.socket === null)
 			return;
 		
-		this.pushEventsTimer = null;
 		this.fetchEvents({since: this.mostRecentEventTime, count: null});
 	}, this), 1000);
 });

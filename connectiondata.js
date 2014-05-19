@@ -62,11 +62,12 @@ ConnectionData.prototype.push = buscomponent.listener('push', function(data) {
 });
 
 ConnectionData.prototype.pushSelfInfo = function() {
-	if (!this.user)
+	if (!this.user || !this.socket)
 		return;
 	
+	assert.ok(this.bus);
+	
 	this.getServerConfig(function(cfg) {
-		
 		var curUnixTime = new Date().getTime();
 		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 			this.lastInfoPush = curUnixTime;

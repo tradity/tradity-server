@@ -131,10 +131,10 @@ BusComponent.prototype.registerProviders = function() {
 	for (var i in this) {
 		if (this[i] && this[i].isProvider) {
 			// create and store a bound version so it can be removed later
-			if (!this[i].requestCBBound)
-				this[i].requestCBBound = _.bind(this[i].requestCB, this);
+			if (!this[i+'-bound'])
+				this[i+'-bound'] = _.bind(this[i].requestCB, this);
 			
-			this.on(this[i].providedRequest, this[i].requestCBBound, true); // true -> raw listener / no extra binding
+			this.on(this[i].providedRequest, this[i+'-bound'], true); // true -> raw listener / no extra binding
 		}
 	}
 };
@@ -142,9 +142,9 @@ BusComponent.prototype.registerProviders = function() {
 BusComponent.prototype.unregisterProviders = function() {
 	for (var i in this) {
 		if (this[i] && this[i].isProvider) {
-			assert.ok(this[i].requestCBBound);
+			assert.ok(this[i+'-bound']);
 			
-			this.removeListener(this[i].providedRequest, this[i].requestCBBound);
+			this.removeListener(this[i].providedRequest, this[i+'-bound']);
 		}
 	}
 };

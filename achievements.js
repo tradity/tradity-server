@@ -29,6 +29,9 @@ AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievem
 });
 
 AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, userAchievements_) {
+	assert.strictEqual(uid, parseInt(uid));
+	assert.ok(!uid.length);
+	
 	this.getServerConfig(function(cfg) {
 	
 	(userAchievements_ ? function(cont) {

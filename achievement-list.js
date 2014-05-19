@@ -143,7 +143,7 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 AchievementList.push({
 	name: 'CHAT_PARTICIPANTS_5',
 	fireOn: {
-		'feed-chat-start': function (ev, db, cb) { cb([ev.endpoints]); },
+		'feed-chat-start': function (ev, db, cb) { cb(ev.endpoints); },
 		'feed-chat-user-added': function (ev, db, cb) { cb(_.union([ev.addedUser], _.pluck(ev.endpoints, 'uid'))); }
 	},
 	xp: 100,

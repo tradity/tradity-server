@@ -32,6 +32,8 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 	assert.strictEqual(uid, parseInt(uid));
 	assert.ok(!uid.length);
 	
+	uid = parseInt(uid);
+	
 	this.getServerConfig(function(cfg) {
 	
 	(userAchievements_ ? function(cont) {

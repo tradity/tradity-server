@@ -67,7 +67,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 			if (!hasBeenAchieved)
 				return;
 			
-			this.query('REPLACE INTO achievements (userid, 	achname, xp, version) VALUES (?, ?, ?, ?)', 
+			this.query('REPLACE INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
 				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version], function(res) {
 				this.feed({
 					type: 'achievement',

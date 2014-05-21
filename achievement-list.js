@@ -18,7 +18,7 @@ for (var i = 0; i < dailyLoginAchievements.length; ++i) {
 				var lf = ev.query.lookfor;
 				cb((lf && parseInt(lf) == lf ? [parseInt(lf)] : []).concat(ev.user ? [ev.user.id] : []));
 			} },
-			xp: 30 + 10 * count[i],
+			xp: 30 + 10 * count,
 			check: function(uid, userAchievements, cfg, db, cb) {
 				db.query('SELECT MAX(daycount) AS maxdaycount FROM ' +
 					'(SELECT @s := IF(t - @r = 0, 0, @s+1) AS daycount, @r := t FROM ' +

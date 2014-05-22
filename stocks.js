@@ -553,7 +553,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			conn.query('UPDATE users SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
 				perffull + '=' + perffull + ' + ABS(?) ' +
 				' WHERE id = ?', [price+fee, fee, price, user.id], function() {
-			if (r.amount == null) {
+			if (r.amount == 0) {
 				conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?)', 
 					[user.id, r.id, amount, price, ta_value], function() {
 					commit();

@@ -122,9 +122,10 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['rep
 		conncb({
 			query: _.bind(function(q, data, cb) {
 				data = data || [];
-				this.timeQueryWrap(_.bind(cn.query, cn), connid, function(f) {
+				this.timeQueryWrap(_.bind(cn.query, cn), connid, _.bind(function(f) {
+					this.emit('dbBoundQueryLog', q, data);
 					f(q, data, this.queryCallback(cb, q, data));
-				});
+				}, this));
 			}, this),
 			release: _.bind(function() {
 				cn.release();

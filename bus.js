@@ -14,7 +14,7 @@ function Bus () {
 	this.unanswered = {};
 	
 	this.log = [];
-	this.logSize = 256;
+	this.logSize = 4096;
 	this.debugOutput = false;
 }
 

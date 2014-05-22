@@ -525,8 +525,8 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
 			var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
 
-			assert.ok(wprovPay >= 0);
-			assert.ok(lprovPay <= 0);
+			if (wprovPay < 0) wprovPay = 0;
+			if (lprovPay > 0) lprovPay = 0;
 			
 			var totalprovPay = wprovPay + lprovPay;
 			

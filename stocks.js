@@ -143,7 +143,11 @@ StocksDB.prototype.updateProvisions = function (cb) {
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
 			'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
 		function(dsr) {
-			if (!dsr.length) return cb();
+			if (!dsr.length) {
+				conn.query('COMMIT', [], function() { conn.release(); });
+				return cb();
+			}
+			
 			var complete = 0;
 			for (var j = 0; j < dsr.length; ++j) {
 				_.bind(_.partial(function(j) {

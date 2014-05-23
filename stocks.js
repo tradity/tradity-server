@@ -606,13 +606,15 @@ StocksDB.prototype.getTradeInfo = buscomponent.provideQUA('client-get-trade-info
 			if (oh_res.length == 0)
 				return cb('get-trade-info-notfound');
 			var r = oh_res[0];
-			if (r.uid != user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < cfg.delayOrderHistTime))
+			
+			assert.ok(r.userid);
+			if (r.userid != user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < cfg.delayOrderHistTime) && !access.has('stocks'))
 				return cb('get-trade-delayed-history');
 			this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml '+
 				'FROM ecomments AS c '+
 				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
 				'LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [r.eventid], function(comments) {
-				cb('get-trade-info-succes', {'trade': r, 'comments': comments});
+				cb('get-trade-info-success', {'trade': r, 'comments': comments});
 			});
 		});
 	});

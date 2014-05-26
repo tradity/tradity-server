@@ -261,7 +261,7 @@ UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', f
 					'LEFT JOIN users AS u ON oh.leader = u.id ' + 
 					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
-					[xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid) ? cfg.delayOrderHistTime : 0], function(orders) {
+					[xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid && !access.has('stocks')) ? cfg.delayOrderHistTime : 0], function(orders) {
 					this.query('SELECT * FROM achievements WHERE userid = ?', [xuser.uid], function(achievements) {
 						this.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
 							this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
@@ -524,10 +524,11 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 	
 	data.giv_name = data.giv_name || '';
 	data.fam_name = data.fam_name || '';
-	data.wprovision = data.wprovision || 15;
-	data.lprovision = data.lprovision || 0;
+	data.wprovision = data.wprovision || cfg.defaultWProvision;
+	data.lprovision = data.lprovision || cfg.defaultLProvision;
 	
-	if (data.wprovision < 5 || data.wprovision > 30 || data.lprovision < 0 || data.lprovision > 100) 
+	if (data.wprovision < cfg.minWProvision || data.wprovision > cfg.maxWProvision ||
+	    data.lprovision < cfg.minLProvision || data.lprovision > cfg.maxLProvision) 
 		return cb('invalid-provision');
 	
 	if (!data.school) // e. g., empty string

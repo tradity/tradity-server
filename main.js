@@ -121,13 +121,13 @@ function worker() {
 
 	var loadComponents = [
 		'./errorhandler.js', './emailsender.js', './dbbackend.js', './feed.js', './user.js', './admin.js', 
-		'./schools.js', './stocks.js', './fsdb.js', './achievements.js', './dqueries.js', './misc.js'
+		'./schools.js', './stocks.js', './fsdb.js', './achievements.js', './dqueries.js', './misc.js', './template-loader.js'
 	];
 
 	for (var i = 0; i < loadComponents.length; ++i) {
 		var c = require(loadComponents[i]);
 		for (var j in c) 
-			if (c[j] && c[j].prototype.setBus) 
+			if (c[j] && c[j].prototype.setBus)
 				new c[j]().setBus(mainBus, loadComponents[i].replace(/\.[^.]+$/, '').replace(/[^\w]/g, ''));
 	}
 

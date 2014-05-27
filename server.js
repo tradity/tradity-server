@@ -12,6 +12,7 @@ var ConnectionData = require('./connectiondata.js').ConnectionData;
 function SoTradeServer () {
 	this.httpServer = null;
 	this.io = null;
+	this.store = null;
 	this.clients = [];
 	this.isShuttingDown = false;
 }
@@ -32,6 +33,9 @@ SoTradeServer.prototype.start = function() {
 			this.io.enable('browser client gzip');
 			this.io.set('log level', 1);
 		}, this));
+		
+		this.io.configure(_.bind(cfg.configureSocketIO || function() {}, this, sio, cfg));
+		assert.ok(this.store);
 		
 		this.io.sockets.on('connection', _.bind(this.connectionHandler, this));
 	});
@@ -81,7 +85,12 @@ SoTradeServer.prototype.shutdown = buscomponent.listener('shutdown', function() 
 	if (this.clients.length == 0) {
 		this.emit('masterShutdown');
 		this.httpServer.close();
+		this.store.destroy();
 		this.unplugBus();
+		
+		setTimeout(function() {
+			process.exit(0);
+		}, 2000);
 	}
 });
 

@@ -14,7 +14,8 @@
 		"underscore": ">=1.6.0",
 		"lapack": "*",
 		"datejs": "*",
-		"iconv": "*"
+		"iconv": "*",
+		"lzma-native": ">=0.0.3"
 	},
 	"preferGlobal": false,
 	"private": true

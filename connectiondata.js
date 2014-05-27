@@ -1,9 +1,9 @@
 (function () { "use strict";
 
 var _ = require('underscore');
+var lzma = require('lzma-native');
 var util = require('util');
 var assert = require('assert');
-var spawn = require('child_process').spawn;
 var buscomponent = require('./buscomponent.js');
 var Access = require('./access.js').Access;
 
@@ -232,13 +232,10 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 	(s.length > 20480 && this.lzmaSupport ? function(cont) {
 		var buflist = [];
 		
-		// would be cool to have this as a library, but as it stands,
-		// there is no native lzma library for Node.js,
-		// and subprocess piping just seems to be the fastest option
-		var lzma = spawn('lzma', ['-3']); 
-		lzma.stdout.on('data', function(data) { buflist.push(data); });
-		lzma.stdout.on('end', function() { cont(Buffer.concat(buflist).toString('base64'), 'lzma'); });
-		lzma.stdin.end(s);
+		var encoder = lzma.createStream('aloneEncoder', {preset: 3});
+		encoder.on('data', function(data) { buflist.push(data); });
+		encoder.on('end', function() { cont(Buffer.concat(buflist).toString('base64'), 'lzma'); });
+		encoder.end(s);
 	} : function(cont) {
 		cont(s, 'raw');
 	})(function(result, encoding) {

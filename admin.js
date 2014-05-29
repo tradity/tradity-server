@@ -153,6 +153,21 @@ AdminDB.prototype.getUserLogins = buscomponent.provideQUA('client-get-user-login
 	});
 }));
 
+AdminDB.prototype.getTicksStatistics = buscomponent.provideQUA('client-get-ticks-statistics', _reqpriv('userdb', function(query, user, access, cb) {
+	var now = Math.floor(new Date().getTime() / 1000);
+	var todayStart = now - now % 86400;
+	var ndays = parseInt(query.ndays) || 365;
+	var timespanStart = todayStart - ndays * 86400;
+	var dt = 300;
+	
+	this.query('SELECT FLOOR(time/?)*? AS timeindex, SUM(ticks) AS ticksum, COUNT(ticks) AS tickcount ' +
+		'FROM valuehistory ' +
+		'GROUP BY timeindex',
+		[dt, dt, dt, timespanStart, todayStart], function(res) {
+		cb('get-ticks-statistics-success', {results: res});
+	});
+}));
+
 exports.AdminDB = AdminDB;
 
 })();

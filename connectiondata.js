@@ -50,13 +50,20 @@ ConnectionData.prototype.fetchEvents = function(query) {
 			this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
 		}, this));
 
-		this.wrapForReply({pushes: evlist}, function(r) { this.socket.emit('push-container', r) });
+		this.wrapForReply({pushes: evlist}, function(r) {
+			if (this.socket)
+				this.socket.emit('push-container', r)
+		});
 	}, this));
 };
 
 ConnectionData.prototype.push = buscomponent.listener('push', function(data) {
-	if (data.type != 'stock-update')
-		this.wrapForReply(data, function(r) { this.socket.emit('push', r); });
+	if (data.type != 'stock-update') {
+		this.wrapForReply(data, function(r) {
+			if (this.socket)
+				this.socket.emit('push', r);
+		});
+	}
 	
 	this.pushSelfInfo();
 });
@@ -95,8 +102,11 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
 	}, this), 1000);
 });
 
-ConnectionData.prototype.response = function(data) {	
-	this.wrapForReply(data, function(r) { this.socket.emit('response', r) });
+ConnectionData.prototype.response = function(data) {
+	this.wrapForReply(data, function(r) {
+		if (this.socket)
+			this.socket.emit('response', r) 
+	});
 	
 	if (this.isShuttingDown)
 		this.shutdown();

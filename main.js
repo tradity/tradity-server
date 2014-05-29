@@ -76,7 +76,7 @@ if (cluster.isWorker) {
 		});
 		
 		cluster.on('exit', function(worker, code, signal) {
-			console.warn('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal);
+			console.warn('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
 			
 			if (!shuttingDown) {
 				console.log('respawning');

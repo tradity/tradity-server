@@ -15,9 +15,30 @@ function SoTradeServer () {
 	this.store = null;
 	this.clients = [];
 	this.isShuttingDown = false;
+	this.creationTime = new Date().getTime() / 1000;
+	
+	this.deadQueryCount = 0;
+	this.deadQueryLZMACount = 0;
+	this.deadQueryLZMAUsedCount = 0;
+	this.connectionCount = 0;
 }
 
 util.inherits(SoTradeServer, buscomponent.BusComponent);
+
+SoTradeServer.prototype.gatherServerStatistics = buscomponent.listener('getServerStatistics', function() {
+	this.emit('pushServerStatistics', {
+		pid: process.pid,
+		creationTime: this.creationTime,
+		clients: _.map(this.clients, function(x) { return x.stats(); }),
+		bus: this.bus.stats(),
+		msgCount: this.msgCount,
+		msgLZMACount: this.msgLZMACount,
+		connectionCount: this.connectionCount,
+		deadQueryCount: this.deadQueryCount,
+		deadQueryLZMACount: this.deadQueryLZMACount,
+		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount
+	});
+});
 
 SoTradeServer.prototype.start = function() {
 	this.getServerConfig(function(cfg) {
@@ -64,6 +85,8 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
 SoTradeServer.prototype.connectionHandler = function(socket) {
 	assert.ok(this.bus);
 	
+	this.connectionCount++;
+	
 	var d = new ConnectionData(socket);
 	assert.ok(d.cdid);
 	d.setBus(this.bus, 'cdata-' + d.cdid);
@@ -71,7 +94,12 @@ SoTradeServer.prototype.connectionHandler = function(socket) {
 };
 
 SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id', 'reply'], function(id, cb) {
-	this.clients = _.reject(this.clients, function(client) { return client.cdid == id; });
+	var removeClient = _.find(this.clients, function(client) { return client.cdid == id; });
+	
+	this.clients = _.without(this.clients, removeClient);
+	this.deadQueryCount         += removeClient.queryCount;
+	this.deadQueryLZMACount     += removeClient.queryLZMACount;
+	this.deadQueryLZMAUsedCount += removeClient.queryLZMAUsedCount;
 	
 	if (this.isShuttingDown)
 		this.shutdown();

@@ -20,6 +20,11 @@ function ConnectionData(socket) {
 	this.socket = socket;
 	this.isShuttingDown = false;
 	this.unansweredCount = 0;
+	this.pushesServerStatistics = false;
+	
+	this.queryCount = 0;
+	this.queryLZMACount = 0;
+	this.queryLZMAUsedCount = 0;
 	
 	this.query_ = _.bind(this.query, this);
 	this.disconnected_ = _.bind(this.disconnected, this);
@@ -28,6 +33,20 @@ function ConnectionData(socket) {
 	socket.on('disconnect', this.disconnected_);
 }
 util.inherits(ConnectionData, buscomponent.BusComponent);
+
+ConnectionData.prototype.stats = function() {
+	return {
+		lzma: this.lzmaSupport,
+		user: this.user ? { name: this.user.name, uid: this.user.uid } : null,
+		lastInfoPush: this.lastInfoPush,
+		mostRecentEventTime: this.mostRecentEventTime,
+		queryCount: this.queryCount,
+		queryLZMACount: this.queryLZMACount,
+		queryLZMAUsedCount: this.queryLZMAUsedCount,
+		ip: this.remoteip,
+		unanswered: this.unansweredCount
+	};
+};
 
 ConnectionData.prototype.toString = function() {
 	return JSON.stringify(_.pick(this, 'user', 'remoteip', 'hsheaders', 'cdid', 'access', 'lastInfoPush', 'mostRecentEventTime'));
@@ -56,6 +75,13 @@ ConnectionData.prototype.fetchEvents = function(query) {
 		});
 	}, this));
 };
+
+ConnectionData.prototype.pushServerStatistics = buscomponent.listener('pushServerStatistics', function(data) {
+	if (this.pushesServerStatistics) {
+		data.type = 'push-server-statistics';
+		this.push(data);
+	}
+});
 
 ConnectionData.prototype.push = buscomponent.listener('push', function(data) {
 	if (data.type != 'stock-update') {
@@ -129,8 +155,11 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 	
 	query = sanitizeQuery(query);
 	
-	if (query.lzma)
+	this.queryCount++;
+	if (query.lzma) {
+		this.queryLZMACount++;
 		this.lzmaSupport = true;
+	}
 	
 	var hadUser = this.user ? true : false;
 	
@@ -178,6 +207,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 				});
 			} else if (extra == 'logout') {
 				this.user = null;
+				this.pushesServerStatistics = false;
 				this.access = new Access();
 			}
 		}, this);
@@ -239,7 +269,9 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 	
 	var s = JSON.stringify(obj);
 	
-	(s.length > 20480 && this.lzmaSupport ? function(cont) {
+	_.bind(s.length > 20480 && this.lzmaSupport ? function(cont) {
+		this.queryLZMAUsedCount++;
+		
 		var buflist = [];
 		
 		var encoder = lzma.createStream('aloneEncoder', {preset: 3});
@@ -248,7 +280,7 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 		encoder.end(s);
 	} : function(cont) {
 		cont(s, 'raw');
-	})(function(result, encoding) {
+	}, this)(function(result, encoding) {
 		cb({
 			s: result,
 			e: encoding,

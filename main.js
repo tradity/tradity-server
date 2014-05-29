@@ -29,7 +29,7 @@ for (var i = 0; i < forwardSignals.length; ++i) {
 	process.on(forwardSignals[i], function() { mainBus.emit('shutdown'); });
 }
 
-var sharedEvents = ['shutdown'];
+var sharedEvents = ['shutdown', 'getServerStatistics', 'pushServerStatistics'];
 
 var authorizationKey;
 
@@ -44,7 +44,7 @@ if (cluster.isWorker) {
 			mainBus.emit(msg.evname, msg.evdata);
 	});
 	
-	for (var i = 0; i < sharedEvents.length; ++i) {
+	for (var i = 0; i < sharedEvents.length; ++i) { (function() {
 		var evname = sharedEvents[i];
 		mainBus.on(evname, function(data) {
 			data = data || {};
@@ -53,7 +53,7 @@ if (cluster.isWorker) {
 			
 			process.send({evname: evname, evdata: data});
 		});
-	}
+	})(); }
 	
 	worker();
 } else {
@@ -94,7 +94,7 @@ if (cluster.isWorker) {
 			});
 		}
 		
-		for (var i = 0; i < sharedEvents.length; ++i) {
+		for (var i = 0; i < sharedEvents.length; ++i) { (function() {
 			var evname = sharedEvents[i];
 			mainBus.on(evname, function(data) {
 				data = data || {};
@@ -106,7 +106,7 @@ if (cluster.isWorker) {
 				for (var j = 0; j < workers.length; ++j)
 					workers[j].send({evname: evname, evdata: data});
 			});
-		}
+		})(); }
 	} else {
 		worker();
 	}

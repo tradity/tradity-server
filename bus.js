@@ -13,6 +13,7 @@ function Bus () {
 	
 	this.unanswered = {};
 	
+	this.msgCount = 0;
 	this.log = [];
 	this.logSize = 4096;
 	this.debugOutput = false;
@@ -21,6 +22,8 @@ function Bus () {
 util.inherits(Bus, events.EventEmitter);
 
 Bus.prototype.emit = function(name, data) {
+	++this.msgCount;
+	
 	this.log.push([name, data]);
 	if (this.log.length > this.logSize)
 		this.log.shift();
@@ -72,6 +75,10 @@ Bus.prototype.unansweredRequests = function() {
 
 Bus.prototype.registerComponent = function(name) {
 	this.components.push(name);
+};
+
+Bus.prototype.stats = function() {
+	return {msgCount: this.msgCount, logEntries: this.log.length };
 };
 
 exports.Bus = Bus;

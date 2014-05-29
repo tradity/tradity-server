@@ -14,14 +14,20 @@ function AdminDB () {
 }
 util.inherits(AdminDB, buscomponent.BusComponent);
 
-function _reqpriv (required, f) {
+function _reqpriv_x (required, f) {
 	var requiredPermission = required;
-	return function(query, user, access, cb) {
+	return function(query, user, access, xdata, cb) {
 		if (user === null || !access.has(requiredPermission))
 			cb('permission-denied');
 		else
-			return _.bind(f,this)(query, user, access, cb);
+			return _.bind(f, this)(query, user, access, xdata, cb);
 	};
+}
+
+function _reqpriv (required, f) {
+	return _reqpriv_x(required, function(query, user, access, xdata, cb) {
+		return _.bind(f, this)(query, user, access, cb = xdata);
+	});
 }
 
 AdminDB.prototype.listAllUsers = buscomponent.provideQUA('client-list-all-users', _reqpriv('userdb', function(query, user, access, cb) {
@@ -166,6 +172,14 @@ AdminDB.prototype.getTicksStatistics = buscomponent.provideQUA('client-get-ticks
 		[dt, dt, dt, timespanStart, todayStart], function(res) {
 		cb('get-ticks-statistics-success', {results: res});
 	});
+}));
+
+AdminDB.prototype.getServerStatistics = buscomponent.provideQUAX('client-get-server-statistics', _reqpriv_x('userdb', function(query, user, access, xdata, cb) {
+	xdata.pushesServerStatistics = true;
+	
+	this.emit('getServerStatistics');
+	
+	cb('get-server-statistics-success');
 }));
 
 exports.AdminDB = AdminDB;

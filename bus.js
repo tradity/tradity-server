@@ -78,7 +78,7 @@ Bus.prototype.registerComponent = function(name) {
 };
 
 Bus.prototype.stats = function() {
-	return {msgCount: this.msgCount, logEntries: this.log.length };
+	return {msgCount: this.msgCount, logEntries: this.log.length, unanswered: _.keys(this.unansweredRequests()).length};
 };
 
 exports.Bus = Bus;

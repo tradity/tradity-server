@@ -44,6 +44,8 @@ ConnectionData.prototype.stats = function() {
 		queryLZMACount: this.queryLZMACount,
 		queryLZMAUsedCount: this.queryLZMAUsedCount,
 		ip: this.remoteip,
+		xff: this.hsheaders['x-forwarded-for'],
+		xrip: this.hsheaders['x-real-ip'],
 		unanswered: this.unansweredCount
 	};
 };

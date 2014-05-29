@@ -212,13 +212,12 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 			}
 		}, this);
 		
+		this.unansweredCount++;
 		if (this.isShuttingDown) {
 			cb('server-shutting-down');
 		} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 && this.user === null && !this.access.has('login_override')) {
 			cb('not-logged-in');
 		} else {
-			this.unansweredCount++;
-			
 			this.request({
 				name: 'client-' + query.type,
 				query: query,

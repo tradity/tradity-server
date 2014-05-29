@@ -193,7 +193,7 @@ UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', f
 	if (query.lookfor == '$self')
 		query.lookfor = user.id;
 	
-	var columns = (access.has('userdb') ? [
+	var columns = (access.has('userdb') || query.lookfor == user.id ? [
 		'u.*'
 	] : [
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',

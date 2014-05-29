@@ -255,7 +255,7 @@ SchoolsDB.prototype.listSchools = buscomponent.provideQUA('client-list-schools',
 	);
 });
 
-SchoolsDB.prototype.publishBanner = buscomponent.provideQUA('client-school-publish-banner', function(query, user, access, FileStorageDB, cb) {
+SchoolsDB.prototype.publishBanner = buscomponent.provideQUA('client-school-publish-banner', function(query, user, access, cb) {
 	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';
 	

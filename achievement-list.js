@@ -33,7 +33,7 @@ for (var i = 0; i < dailyLoginAchievements.length; ++i) {
 	})();
 }
 
-var tradeCountAchievements = {1: 100, 2: 0, 5: 250, 10: 350, 25: 500, 50: 700, 100: 1000, 250: 1200};
+var tradeCountAchievements = {1: 100, 2: 0, 5: 250, 10: 500, 25: 500, 50: 700, 100: 1000, 250: 1200};
 var tcaKeys = _.keys(tradeCountAchievements);
 
 for (var i = 0; i < tcaKeys.length; ++i) {

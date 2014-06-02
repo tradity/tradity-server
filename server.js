@@ -28,6 +28,7 @@ util.inherits(SoTradeServer, buscomponent.BusComponent);
 SoTradeServer.prototype.gatherServerStatistics = buscomponent.listener('getServerStatistics', function() {
 	this.emit('pushServerStatistics', {
 		pid: process.pid,
+		isBackgroundWorker: process.isBackgroundWorker,
 		creationTime: this.creationTime,
 		clients: _.map(this.clients, function(x) { return x.stats(); }),
 		bus: this.bus.stats(),

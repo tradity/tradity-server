@@ -142,6 +142,8 @@ if (cluster.isWorker) {
 }
 
 function worker(isBackgroundWorker) {
+	process.isBackgroundWorker = isBackgroundWorker;
+	
 	var loadComponents = [
 		'./errorhandler.js', './emailsender.js', './dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './user.js'
 	].concat(isBackgroundWorker ? [

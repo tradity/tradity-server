@@ -190,7 +190,7 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', function(query, user, access, cb) {
 	this.getServerConfig(function(cfg) {
 	
-	if (query.lookfor == '$self')
+	if (query.lookfor == '$self' && user)
 		query.lookfor = user.id;
 	
 	var columns = (access.has('userdb') || query.lookfor == user.id ? [

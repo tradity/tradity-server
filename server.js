@@ -101,19 +101,21 @@ SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectio
 	this.deadQueryLZMACount     += removeClient.queryLZMACount;
 	this.deadQueryLZMAUsedCount += removeClient.queryLZMAUsedCount;
 	
+	cb();
+	
 	if (this.isShuttingDown)
 		this.shutdown();
-	
-	cb();
 });
 
-SoTradeServer.prototype.shutdown = buscomponent.listener('shutdown', function() {
+SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'globalShutdown'], function() {
 	this.isShuttingDown = true;
 	
 	if (this.clients.length == 0) {
-		this.emit('masterShutdown');
-		this.httpServer.close();
-		this.store.destroy();
+		this.emit('localMasterShutdown');
+		if (this.httpServer)
+			this.httpServer.close();
+		if (this.store)
+			this.store.destroy();
 		this.unplugBus();
 		
 		setTimeout(function() {

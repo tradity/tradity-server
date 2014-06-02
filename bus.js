@@ -4,10 +4,12 @@ var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
 var events = require('events');
+var os = require('os');
+var hash = require('mhash').hash;
 
 function Bus () {
 	this.curId = 0;
-	this.reservedEvents = ['request', 'response'];
+	this.busId = this.determineBusID();
 	
 	this.setMaxListeners(0);
 	
@@ -21,7 +23,13 @@ function Bus () {
 
 util.inherits(Bus, events.EventEmitter);
 
+Bus.prototype.determineBusID = function() {
+	// return hash of network interfaces, hostname, process id, current time
+	return hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' + os.hostname() + '|' + process.pid + '|' + Date.now()).substr(0, 12);
+};
+
 Bus.prototype.emit = function(name, data) {
+	JSON.stringify(data);
 	++this.msgCount;
 	
 	this.log.push([name, data]);
@@ -29,7 +37,7 @@ Bus.prototype.emit = function(name, data) {
 		this.log.shift();
 	
 	if (this.debugOutput)
-		console.debug('emit', name, data);
+		console.log('emit', name, data);
 	
 	return events.EventEmitter.prototype.emit.apply(this, [name, data]);
 };
@@ -44,28 +52,26 @@ Bus.prototype.request = function(req, onReply) {
 	
 	onReply = onReply || function() {};
 	
-	req.requestId = ++this.curId;
+	req.requestId = this.busId + '-' + (++this.curId);
 	
-	if (this.listeners(req.name).length == 0 && !req.acceptDrop) {
-		if (req.onDrop)
-			return req.onDrop();
-		else
-			return this.emit('error', new Error('Rejecting bus request because there are no listeners for "' + req.name + '"'));
-	} else {
-		this.unanswered[req.requestId] = req;
-	}
+	this.unanswered[req.requestId] = req;
 	
-	req.reply = _.bind(function() {
-		var args = Array.prototype.slice.call(arguments);
-		this.emit('response', args, req);
+	var responseListener = _.bind(function(resp) {
+		assert.ok(resp.replyTo);
+		if (resp.replyTo != req.requestId)
+			return;
 		
+		var args = resp.arguments;
 		args.push(req);
+		
 		delete this.unanswered[req.requestId];
 		
-		onReply.apply(this, arguments);
+		onReply.apply(this, args);
+		this.removeListener(req.name + '-resp', responseListener);
 	}, this);
 	
-	this.emit('request', req);
+	this.on(req.name + '-resp', responseListener);
+	
 	this.emit(req.name, req);
 };
 

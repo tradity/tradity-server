@@ -15,8 +15,8 @@ function DelayedQueriesDB () {
 util.inherits(DelayedQueriesDB, buscomponent.BusComponent);
 
 DelayedQueriesDB.prototype.onBusConnect = function() {
-	this.on('push', function(ev) {
-		if (ev.type == 'stock-update' && this.neededStocks['s-'+ev.stockid]) {
+	this.on('stock-update', function(ev) {
+		if (this.neededStocks['s-'+ev.stockid]) {
 			_.each(this.neededStocks['s-'+ev.stockid], _.bind(function(entryid) {
 				this.checkAndExecute(this.queries[entryid]);
 			}, this));

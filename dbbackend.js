@@ -24,15 +24,15 @@ Database.prototype._init = function(cb) {
 		/*
 		 * Note: We don't set isShuttingDown = true here.
 		 * This happens so we can actually resurrect the database connection
-		 * during the shutdown process, so other components can complete
-		 * any work in progress.
+		 * during the shutdown process temporarily, so other components can complete
+		 * any remaining work in progress.
 		 */
 		
 		cb();
 	});
 };
 
-Database.prototype.shutdown = buscomponent.listener('masterShutdown', function() {
+Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', function() {
 	this.isShuttingDown = true;
 	
 	if (this.connectionPool && this.openQueries == 0) {

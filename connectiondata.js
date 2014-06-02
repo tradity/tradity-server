@@ -50,8 +50,12 @@ ConnectionData.prototype.stats = function() {
 	};
 };
 
+ConnectionData.prototype.pickTextFields = function() {
+	return _.pick(this, 'user', 'remoteip', 'hsheaders', 'cdid', 'access', 'lastInfoPush', 'mostRecentEventTime');
+};
+
 ConnectionData.prototype.toString = function() {
-	return JSON.stringify(_.pick(this, 'user', 'remoteip', 'hsheaders', 'cdid', 'access', 'lastInfoPush', 'mostRecentEventTime'));
+	return JSON.stringify(this.pickTextFields());
 };
 
 ConnectionData.uniqueCount = 0;
@@ -85,16 +89,14 @@ ConnectionData.prototype.pushServerStatistics = buscomponent.listener('pushServe
 	}
 });
 
-ConnectionData.prototype.push = buscomponent.listener('push', function(data) {
-	if (data.type != 'stock-update') {
-		this.wrapForReply(data, function(r) {
-			if (this.socket)
-				this.socket.emit('push', r);
-		});
-	}
+ConnectionData.prototype.push = function(data) {
+	this.wrapForReply(data, function(r) {
+		if (this.socket)
+			this.socket.emit('push', r);
+	});
 	
 	this.pushSelfInfo();
-});
+};
 
 ConnectionData.prototype.pushSelfInfo = function() {
 	if (!this.user || !this.socket)
@@ -106,7 +108,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 		var curUnixTime = new Date().getTime();
 		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 			this.lastInfoPush = curUnixTime;
-			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, user: this.user, access: this.access, xdata: this}, _.bind(function(info) {
+			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, user: this.user, access: this.access, xdata: this.pickTextFields()}, _.bind(function(info) {
 				if (!info) // wtf?
 					return this.emit('error', new Error('no user on $self in info push handler'));
 				info.type = 'self-info';
@@ -220,13 +222,24 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 		} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 && this.user === null && !this.access.has('login_override')) {
 			cb('not-logged-in');
 		} else {
+			switch (query.type) {
+				case 'get-server-statistics':
+					if (!this.access.has('userdb'))
+						return cb('permission-denied');
+					this.pushesServerStatistics = true;
+					this.emit('getServerStatistics');
+					return cb('get-server-statistics-success');
+				case 'fetch-events':
+					this.fetchEvents(query);
+					return cb('fetching-events');
+			}
+			
 			this.request({
 				name: 'client-' + query.type,
 				query: query,
 				user: this.user,
 				access: this.access,
-				xdata: this,
-				onDrop: function() { cb('unknown-query-type'); }
+				xdata: this.pickTextFields()
 			}, cb);
 		}
 		
@@ -258,7 +271,7 @@ ConnectionData.prototype.close = function() {
 		this.disconnected();
 };
 
-ConnectionData.prototype.shutdown = buscomponent.listener('shutdown', function() {
+ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'globalShutdown'], function() {
 	this.isShuttingDown = true;
 	
 	if (this.unansweredCount == 0)

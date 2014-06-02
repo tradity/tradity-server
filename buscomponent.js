@@ -1,6 +1,7 @@
 (function () { "use strict";
 
 var assert = require('assert');
+var Access = require('./access.js').Access;
 var _ = require('underscore');
 
 function BusComponent () {
@@ -35,10 +36,8 @@ BusComponent.prototype.unplugBus = function() {
 
 BusComponent.prototype.imprint = function(obj) {
 	obj = _.clone(obj);
-	assert.ok(!obj.senderComponent);
 	assert.ok(!obj.senderComponentName);
 	
-	obj.senderComponent = this;
 	obj.senderComponentName = this.componentName;
 	
 	return obj;
@@ -107,6 +106,14 @@ function provide(name, args, fn) {
 	fn.providedRequest = name;
 	
 	fn.requestCB = function(data) {
+		data.reply = _.bind(function() {
+			var args = Array.prototype.slice.call(arguments);
+			this.emit(name + '-resp', { arguments: args, replyTo: data.requestId });
+		}, this);
+		
+		if (data.access && !data.access.has)
+			data.access = Access.fromJSON(data.access);
+		
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)
 			passArgs.push(data[args[i]]);
@@ -134,7 +141,11 @@ BusComponent.prototype.registerProviders = function() {
 			if (!this[i+'-bound'])
 				this[i+'-bound'] = _.bind(this[i].requestCB, this);
 			
-			this.on(this[i].providedRequest, this[i+'-bound'], true); // true -> raw listener / no extra binding
+			var requests = Array.isArray(this[i].providedRequest) ? this[i].providedRequest : [this[i].providedRequest];
+			
+			_.each(requests, _.bind(function(r) {
+				this.on(r, this[i+'-bound'], true); // true -> raw listener / no extra binding
+			}, this));
 		}
 	}
 };
@@ -144,7 +155,11 @@ BusComponent.prototype.unregisterProviders = function() {
 		if (this[i] && this[i].isProvider) {
 			assert.ok(this[i+'-bound']);
 			
-			this.removeListener(this[i].providedRequest, this[i+'-bound']);
+			var requests = Array.isArray(this[i].providedRequest) ? this[i].providedRequest : [this[i].providedRequest];
+			
+			_.each(requests, _.bind(function(r) {
+				this.removeListener(r, this[i+'-bound']);
+			}, this));
 		}
 	}
 };

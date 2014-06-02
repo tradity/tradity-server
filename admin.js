@@ -52,7 +52,8 @@ AdminDB.prototype.evalCode = buscomponent.provideQUA('client-eval-code', _reqpri
 }));
 
 AdminDB.prototype.shutdown = buscomponent.provideQUA('client-shutdown', _reqpriv('server', function(query, user, access, cb) {
-	this.emit('shutdown');
+	this.emit('globalShutdown');
+	this.emit('localShutdown');
 	
 	cb('shutdown-success');
 }));
@@ -172,14 +173,6 @@ AdminDB.prototype.getTicksStatistics = buscomponent.provideQUA('client-get-ticks
 		[dt, dt, dt, timespanStart, todayStart], function(res) {
 		cb('get-ticks-statistics-success', {results: res});
 	});
-}));
-
-AdminDB.prototype.getServerStatistics = buscomponent.provideQUAX('client-get-server-statistics', _reqpriv_x('userdb', function(query, user, access, xdata, cb) {
-	xdata.pushesServerStatistics = true;
-	
-	this.emit('getServerStatistics');
-	
-	cb('get-server-statistics-success');
 }));
 
 exports.AdminDB = AdminDB;

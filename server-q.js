@@ -42,7 +42,7 @@ if (query.timeout) {
 	}, query.timeout * 1000);
 }
 
-socket.on('connect', function() {	
+socket.on('connect', function() {
 	var emit = function (e, d) { query.quiet || console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('push', function (data) {
 		console.log('incoming/push', JSON.stringify(data, null, 2));

@@ -268,8 +268,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 							
 							for (var j = 0; j < res.length; ++j) {
 								process.nextTick(_.bind(_.partial(function(r) {
-									r.type = 'stock-update';
-									this.emit('push', r);
+									this.emit('stock-update', r);
 								}, res[j]), this));
 							}
 							
@@ -304,8 +303,7 @@ StocksDB.prototype.updateRecord = function(rec) {
 		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) >= LENGTH(?), name, ?), exchange = ?, pieces = ?',
 		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.pieces,
 		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], function() {
-			this.emit('push', {
-				'type': 'stock-update',
+			this.emit('stock-update', {
 				'stockid': rec.symbol,
 				'lastvalue': rec.lastTradePrice * 10000,
 				'ask': rec.ask * 10000,
@@ -369,6 +367,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQUA('client-stock-search',
 		
 		var externalStocks = _.pluck(res2, 'stockid');
 
+		// 12 ~ ISIN, 6 ~ WAN
 		if ([12,6].indexOf(str.length) != -1)
 			externalStocks.push(str.toUpperCase());
 		

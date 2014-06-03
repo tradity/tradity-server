@@ -11,6 +11,8 @@ function MiscDB () {
 util.inherits(MiscDB, buscomponent.BusComponent);
 
 MiscDB.prototype.getOwnOptions = buscomponent.provideQUA('client-get-own-options', function(query, user, access, cb) {
+	assert.ok(user);
+	
 	var r = _.clone(user);
 	delete r.pwhash;
 	delete r.pwsalt;

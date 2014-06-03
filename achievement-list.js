@@ -106,7 +106,7 @@ for (var i = 0; i < rcaKeys.length; ++i) {
 					'WHERE il.uid = ?', [uid], function(res) {
 					assert.equal(res.length, 1);
 					
-					return res[0].invitecount >= count;
+					cb(res[0].invitecount >= count);
 				});
 			},
 			version: 0,
@@ -115,7 +115,7 @@ for (var i = 0; i < rcaKeys.length; ++i) {
 	})();
 }
 
-var commentCountAchievements = [[1, 1, 50], [5, 2, 150], [15, 10, 250], [50, 25, 750], [100, 50, 1001], [5, 1, 50]];
+var commentCountAchievements = [[1, 1, 50], [5, 1, 50], [5, 2, 150], [15, 10, 250], [50, 25, 750], [100, 50, 1001]];
 
 for (var i = 0; i < commentCountAchievements.length; ++i) {
 	(function() {
@@ -139,7 +139,7 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 					'AND (SELECT type FROM events WHERE events.eventid=ecomments.eventid) != "chat-start"', [uid], function(res) {
 					assert.equal(res.length, 1);
 					
-					return res[0].c >= counts[0] && res[0].cd >= counts[1];
+					cb(res[0].c >= counts[0] && res[0].cd >= counts[1]);
 				});
 			},
 			version: 0,

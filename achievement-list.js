@@ -139,7 +139,7 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 					'AND (SELECT type FROM events WHERE events.eventid=ecomments.eventid) != "chat-start"', [uid], function(res) {
 					assert.equal(res.length, 1);
 					
-					return res[0].c >= counts[0] && res[0].dc >= counts[1];
+					return res[0].c >= counts[0] && res[0].cd >= counts[1];
 				});
 			},
 			version: 0,

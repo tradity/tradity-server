@@ -227,7 +227,17 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 					if (!this.access.has('userdb'))
 						return cb('permission-denied');
 					this.pushesServerStatistics = true;
+					
 					this.emit('getServerStatistics');
+					var interval = setInterval(_.bind(function() {
+						if (this.bus && this.socket && this.pushServerStatistics) {
+							this.emit('getServerStatistics');
+						} else {
+							clearInterval(interval);
+							interval = null;
+						}
+					}, this), 10000);
+					
 					return cb('get-server-statistics-success');
 				case 'fetch-events':
 					this.fetchEvents(query);

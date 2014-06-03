@@ -539,7 +539,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 	this.getConnection(function(conn) {
 	conn.query('START TRANSACTION', [], function() {
 		
-	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND NOT email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
+	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[data.email, data.name, uid], function(res) {
 	conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
 		[betakey[0]], function(βkey) {

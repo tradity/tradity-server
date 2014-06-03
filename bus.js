@@ -29,7 +29,6 @@ Bus.prototype.determineBusID = function() {
 };
 
 Bus.prototype.emit = function(name, data) {
-	JSON.stringify(data);
 	++this.msgCount;
 	
 	this.log.push([name, data]);

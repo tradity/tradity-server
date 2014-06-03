@@ -127,6 +127,9 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 				prevCounts = p;
 		}
 		
+		counts = counts.slice(0, 2);
+		prevCounts = prevCounts.slice(0, 2);
+		
 		AchievementList.push({
 			name: 'COMMENT_COUNT_' + counts.join('_'),
 			fireOn: { 'feed-comment': function (ev, db, cb) { cb([ev.srcuser]); } },
@@ -140,7 +143,7 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 				});
 			},
 			version: 0,
-			prevCounts: prevCounts ? [ 'COMMENT_COUNT' + prevCounts.join('_') ] : []
+			prevCounts: prevCounts ? [ 'COMMENT_COUNT_' + prevCounts.join('_') ] : []
 		});
 	})();
 }

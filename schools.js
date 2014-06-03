@@ -145,6 +145,12 @@ SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQUA('client-get-school-i
 	});
 });
 
+SchoolsDB.prototype.schoolExists = buscomponent.provideQUA('client-school-exists', function(query, user, access, cb) {
+	this.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [query.lookfor], function(res) {
+		cb('school-exists-success', {exists: res.length > 0, path: res.length > 0 ? res[0].path : null});
+	});
+});
+
 SchoolsDB.prototype.changeDescription = buscomponent.provideQUA('client-school-change-description', _reqschooladm(function(query, user, access, cb) {
 	this.query('UPDATE schools SET descpage = ? WHERE id = ?', [query.descpage, query.schoolid], function() {
 		cb('school-change-description-success');

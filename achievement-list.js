@@ -128,7 +128,7 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 		}
 		
 		counts = counts.slice(0, 2);
-		prevCounts = prevCounts.slice(0, 2);
+		prevCounts = prevCounts ? prevCounts.slice(0, 2) : null;
 		
 		AchievementList.push({
 			name: 'COMMENT_COUNT_' + counts.join('_'),

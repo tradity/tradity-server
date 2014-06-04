@@ -229,6 +229,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 					this.pushesServerStatistics = true;
 					
 					this.emit('getServerStatistics');
+					
 					var interval = setInterval(_.bind(function() {
 						if (this.bus && this.socket && this.pushServerStatistics) {
 							this.emit('getServerStatistics');

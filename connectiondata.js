@@ -167,7 +167,15 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 	
 	var hadUser = this.user ? true : false;
 	
+	assert.ok(this.bus);
+	assert.ok(this.socket);
+	
 	this.request({name: 'loadSessionUser', key: query.key}, function(user) {
+		if (!this.bus) {
+			assert.ok(!this.socket);
+			return;
+		}
+		
 		this.request({name: 'getAuthorizationKey'}, function(authorizationKey) {
 		
 		var access = new Access();

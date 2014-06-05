@@ -272,7 +272,7 @@ AchievementList.push({
 	xp: 150,
 	check: function(uid, userAchievements, cfg, db, cb) {
 		db.query('SELECT COUNT(*) AS imgcount FROM httpresources WHERE user = ? AND role = "profile.image"', [uid], 
-			function(res) { cb(res[0].imgcount > 1); });
+			function(res) { cb(res[0].imgcount >= 1); });
 	},
 	version: 0
 });

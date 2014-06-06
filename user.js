@@ -700,7 +700,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 					cb('reg-unknown-school');
 					return;
 				} else {
-					conn.query('INSERT INTO schools (name,path) VALUES(?,CONCAT("/",MD5(?)))', [data.school, data.school], schoolAddedCB);
+					conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",MD5(?)))', [data.school, data.school], schoolAddedCB);
 				}
 			} else {
 				if (data.school !== null) {

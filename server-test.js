@@ -8,7 +8,7 @@ var _ = require('underscore');
 
 var cfg = require('./config.js').config;
 
-var socket = sio.connect('http://' + cfg.wshost + ':' + cfg.wsport);
+var socket = sio.connect('http://' + cfg.wshost + ':' + cfg.wsports[0]);
 var authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString();
 var key = '';
 var schoolid = 'Musterschule';

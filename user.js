@@ -604,10 +604,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {
 					if (type == 'change') {
 						conn.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traditye = ? '+
+						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traditye = ?, skipwalkthrough = ? '+
 						'WHERE id = ?',
 						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.email, data.email == user.email,
-						data.birthday, data.desc, data.wprovision, data.lprovision, data.street, data.zipcode, data.town, data.traditye?1:0, uid],
+						data.birthday, data.desc, data.wprovision, data.lprovision, data.street, data.zipcode, data.town, data.traditye?1:0, uid, data.skipwalkthrough?1:0],
 						updateCB);
 						
 						if (data.name != user.name) {
@@ -768,12 +768,13 @@ UserDB.prototype.watchlistRemove = buscomponent.provideQUA('client-watchlist-rem
 });
 
 UserDB.prototype.watchlistShow = buscomponent.provideQUA('client-watchlist-show', function(query, user, access, cb) {
-	this.query('SELECT stocks.*, stocks.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
+	this.query('SELECT s.*, s.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
 		'lastusetime AS lastactive, IF(rw.watched IS NULL, 0, 1) AS friends ' +
 		'FROM watchlists AS w ' +
-		'JOIN stocks ON w.watched = stocks.id ' +
-		'LEFT JOIN users ON users.id = stocks.leader ' + 
-		'LEFT JOIN watchlists AS rw ON rw.watched = w.watcher AND rw.watcher = stocks.leader ' +
+		'JOIN stocks AS s ON w.watched = s.id ' +
+		'JOIN stocks AS rs ON rs.leader = w.watcher ' +
+		'LEFT JOIN users ON users.id = s.leader ' +
+		'LEFT JOIN watchlists AS rw ON rw.watched = rs.id AND rw.watcher = s.leader ' +
 		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
 		'WHERE w.watcher = ?', [user.id], function(res) {
 		cb('watchlist-show-success', {'results': res});

@@ -10,8 +10,8 @@ var Access = require('./access.js').Access;
 function ConnectionData(socket) {
 	this.lzmaSupport = false;
 	this.user = null;
-	this.remoteip = socket.handshake.address.address;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
+	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
 	this.cdid = new Date().getTime() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
 	this.access = new Access();
 	this.pushEventsTimer = null;

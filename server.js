@@ -6,6 +6,8 @@ var assert = require('assert');
 var http = require('http');
 var url = require('url');
 var sio = require('socket.io');
+var sioRedis = require('socket.io-redis');
+var redis = require('redis');
 var buscomponent = require('./buscomponent.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
@@ -41,23 +43,16 @@ SoTradeServer.prototype.gatherServerStatistics = buscomponent.listener('getServe
 	});
 });
 
-SoTradeServer.prototype.start = function() {
+SoTradeServer.prototype.start = function(port) {
 	this.getServerConfig(function(cfg) {
 		this.httpServer = http.createServer();
 		this.httpServer.on('request', _.bind(this.handleHTTPRequest, this));
-		this.httpServer.listen(cfg.wsport, cfg.wshost);
+		this.httpServer.listen(port, cfg.wshost);
 		
-		this.io = sio.listen(this.httpServer);
+		this.io = sio.listen(this.httpServer, _.bind(cfg.configureSocketIO, this)(sio, cfg));
 		
-		this.io.configure('production', _.bind(function() {
-			this.io.enable('browser client minification');
-			this.io.enable('browser client etag');
-			this.io.enable('browser client gzip');
-			this.io.set('log level', 1);
-		}, this));
-		
-		this.io.configure(_.bind(cfg.configureSocketIO || function() {}, this, sio, cfg));
-		assert.ok(this.store);
+		this.store = redis.createClient(cfg.redis.port, cfg.redis.host, cfg.redis);
+		this.io.adapter(sioRedis({pubClient: this.store, subClient: this.store}));
 		
 		this.io.sockets.on('connection', _.bind(this.connectionHandler, this));
 	});
@@ -116,7 +111,7 @@ SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'glob
 		if (this.httpServer)
 			this.httpServer.close();
 		if (this.store)
-			this.store.destroy();
+			this.store.unref();
 		this.unplugBus();
 		
 		setTimeout(function() {

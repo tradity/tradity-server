@@ -34,6 +34,12 @@ function ConnectionData(socket) {
 }
 util.inherits(ConnectionData, buscomponent.BusComponent);
 
+ConnectionData.prototype.onBusConnect = function() {
+	this.getServerConfig(function(cfg) {
+		this.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig)});
+	});
+};
+
 ConnectionData.prototype.stats = function() {
 	return {
 		lzma: this.lzmaSupport,

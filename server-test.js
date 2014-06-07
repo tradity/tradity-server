@@ -285,12 +285,12 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'pong');
 				assert.equal(data.uid, null);
 				emit('query', {
-					type: 'get-config',
-					id: 'get-config'
+					type: 'server-config',
+					id: 'server-config'
 				});
 				break;
-			case 'get-config':
-				assert.equal(data.code, 'get-config-success');
+			case 'server-config':
+				assert.equal(data.code, 'server-config-success');
 				assert.ok(data.config);
 				assert.ok(data.config.normalLoginTime);
 				emit('query', {

@@ -29,9 +29,9 @@ MiscDB.prototype.ping = buscomponent.provideQUA('client-ping', function(query, u
 	cb('pong', {'uid': user ? user.uid : null});
 });
 
-MiscDB.prototype.clientGetConfig = buscomponent.provide('client-get-config', ['reply'], function(cb) {
+MiscDB.prototype.clientGetConfig = buscomponent.provide('client-server-config', ['reply'], function(cb) {
 	this.getServerConfig(function(cfg) {
-		cb('get-config-success', {'config': _.pick(cfg, cfg.clientconfig)});
+		cb('server-config-success', {'config': _.pick(cfg, cfg.clientconfig)});
 	});
 });
 

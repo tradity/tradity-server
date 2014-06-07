@@ -257,7 +257,9 @@ UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', f
 					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
 					[xuser.uid, (xuser.delayorderhist && xuser.uid != user.uid && !access.has('stocks')) ? cfg.delayOrderHistTime : 0], function(orders) {
-					this.query('SELECT * FROM achievements WHERE userid = ?', [xuser.uid], function(achievements) {
+					this.query('SELECT * FROM achievements ' +
+						'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
+						'WHERE userid = ?', [xuser.uid], function(achievements) {
 						this.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid], function(values) {
 							this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
 								'FROM ecomments AS c ' + 

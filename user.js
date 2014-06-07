@@ -936,14 +936,15 @@ UserDB.prototype.addUserToChat = buscomponent.provideQUA('client-chat-adduser', 
 });
 
 UserDB.prototype.listAllChats = buscomponent.provideQUA('client-list-all-chats', function(query, user, access, cb) {
-	this.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, ' +
+	this.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
 		'eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +
 		'JOIN chats AS c ON c.chatid = cmi.chatid ' +
 		'JOIN chatmembers AS cm ON cm.chatid = c.chatid ' +
 		'JOIN users AS u ON cm.userid = u.id ' +
+		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
 		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
-		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
+		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" ' +
 		'WHERE cmi.userid = ?', [user.id], function(res) {
 		var ret = {};
 		
@@ -953,7 +954,7 @@ UserDB.prototype.listAllChats = buscomponent.provideQUA('client-list-all-chats',
 				ret[res[i].chatid].members = [];
 			}
 			
-			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername});
+			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername, profilepic: res[i].profilepic});
 		}
 		
 		cb('list-all-chats-success', {chats: ret});

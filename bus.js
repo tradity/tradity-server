@@ -51,7 +51,9 @@ Bus.prototype.request = function(req, onReply) {
 	
 	onReply = onReply || function() {};
 	
-	req.requestId = this.busId + '-' + (++this.curId);
+	var requestId = this.busId + '-' + (++this.curId);
+	req.requestId = requestId;
+	var reqName = req.name;
 	
 	this.unanswered[req.requestId] = req;
 	
@@ -60,13 +62,10 @@ Bus.prototype.request = function(req, onReply) {
 		if (resp.replyTo != req.requestId)
 			return;
 		
-		var args = resp.arguments;
-		args.push(req);
+		delete this.unanswered[requestId];
 		
-		delete this.unanswered[req.requestId];
-		
-		onReply.apply(this, args);
-		this.removeListener(req.name + '-resp', responseListener);
+		onReply.apply(this, resp.arguments);
+		this.removeListener(reqName + '-resp', responseListener);
 	}, this);
 	
 	this.on(req.name + '-resp', responseListener);

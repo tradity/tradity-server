@@ -212,6 +212,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 			obj['is-reply-to'] = query.id;
 			obj['_t_sdone'] = now;
 			obj['_t_srecv'] = recvTime;
+			
 			this.response(obj);
 			
 			if (extra == 'repush') {

@@ -111,6 +111,15 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQUA('feedFetchEvent
 	});
 });
 
+FeedControllerDB.prototype.markAsSeen = buscomponent.provideQUA('client-mark-as-seen', function(query, user, access, cb) {
+	if (parseInt(query.eventid) != query.eventid)
+		return cb('format-error');
+	
+	this.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [query.eventid, user.id], function() {
+		cb('mark-as-seen-success');
+	});
+});
+
 FeedControllerDB.prototype.commentEvent = buscomponent.provideQUA('client-comment', function(query, user, access, cb) {
 	if (!query.comment)
 		return cb('format-error');

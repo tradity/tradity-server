@@ -7,6 +7,7 @@ var buscomponent = require('./buscomponent.js');
 
 function AchievementsDB () {
 	this.achievementList = [];
+	this.clientAchievements = [];
 };
 
 util.inherits(AchievementsDB, buscomponent.BusComponent);
@@ -15,6 +16,12 @@ AchievementsDB.prototype.onBusConnect = function() {
 	this.request({name: 'getAchievementList'}, function(al) {
 		assert.ok(al);
 		this.registerAchievements(al);
+	});
+	
+	this.request({name: 'getClientAchievementList'}, function(al) {
+		assert.ok(al);
+		this.clientAchievements = al;
+		this.markClientAchievements();
 	});
 };
 
@@ -130,7 +137,36 @@ AchievementsDB.prototype.registerAchievements = function(list) {
 		
 		this.registerObserver(achievementEntry);
 	}, this));
+	
+	this.markClientAchievements();
 };
+
+AchievementsDB.prototype.markClientAchievements = function(list) {
+	_.each(this.achievementList, _.bind(function(ach) {
+		ach.isClientAchievement = (this.clientAchievements.indexOf(ach.name) != -1);
+	}, this));
+};
+
+AchievementsDB.prototype.listAchievements = buscomponent.provideQUA('client-list-all-achievements', function(query, user, access, cb) {
+	cb('list-all-achievements-success', {result: this.achievementList});
+}),
+
+AchievementsDB.prototype.clientAchievement = buscomponent.provideQUA('client-achievement', function(query, user, access, cb) {
+	if (query.name)
+		query.name = query.name.toString();
+	
+	if (!query.name)
+		return cb('format-error');
+	
+	if (this.clientAchievements.indexOf(query.name) == -1)
+		return cb('achievement-unknown-name');
+	
+	this.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [user.id, query.name], function() {
+		this.emit('clientside-achievement', {srcuser: user.id, name: query.name});
+		
+		cb('achievement-success');
+	});
+});
 
 exports.AchievementsDB = AchievementsDB;
 

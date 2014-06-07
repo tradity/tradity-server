@@ -6,6 +6,7 @@ var hash = require('mhash').hash;
 var crypto = require('crypto');
 var assert = require('assert');
 var buscomponent = require('./buscomponent.js');
+var Access = require('./access.js').Access;
 
 function UserDB () {
 }
@@ -89,14 +90,8 @@ UserDB.prototype.login = buscomponent.provideQUAX('client-login', function(query
 	var pw = query.pw;
 	var stayloggedin = query.stayloggedin;
 	
-	this.query('SELECT * FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL', [name, name], function(res) {
+	this.query('SELECT * FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 		if (res.length == 0) {
-			cb('login-badname');
-			return;
-		}
-		
-		if (res.length > 1) {
-			this.emit('error', new Error('more than one username returned when searching for: ' + name));
 			cb('login-badname');
 			return;
 		}
@@ -289,11 +284,16 @@ UserDB.prototype.regularCallback = buscomponent.provide('regularCallbackUser', [
 	cb = cb || function() {};
 	
 	this.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []);
-	this.query('SELECT id, path FROM schools AS p WHERE ' +
+	this.query('SELECT p.id, p.path, users.access FROM schools AS p ' +
+		'JOIN events ON events.type="school-create" AND events.targetid = p.id ' +
+		'JOIN users ON users.id = events.srcuser ' +
+		'WHERE ' +
 		'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
 		'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0', [], function(r) {
 		for (var i = 0; i < r.length; ++i) {
-			if (r[i].path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly))
+			var access = Access.fromJSON(r[i].access);
+			
+			if (!access.has('schooldb') || (r[i].path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly)))
 				this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
 		}
 		

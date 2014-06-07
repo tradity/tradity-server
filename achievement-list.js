@@ -50,7 +50,8 @@ for (var i = 0; i < tcaKeys.length; ++i) {
 					function(res) { cb(res[0].tradecount >= count); });
 			},
 			version: 0,
-			prereqAchievements: prevCount ? [ 'TRADE_COUNT_' + prevCount ] : []
+			prereqAchievements: prevCount ? [ 'TRADE_COUNT_' + prevCount ] : [],
+			category: 'TRADING'
 		});
 	})();
 }
@@ -143,10 +144,31 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 				});
 			},
 			version: 0,
-			prevCounts: prevCounts ? [ 'COMMENT_COUNT_' + prevCounts.join('_') ] : []
+			prereqAchievements: prevCounts ? [ 'COMMENT_COUNT_' + prevCounts.join('_') ] : []
 		});
 	})();
 }
+
+var ClientAchievements = [['LEARNING_GREEN_INVESTMENTS', 100]];
+
+for (var i = 0; i < ClientAchievements.length; ++i) { (function() {
+	var achievement = ClientAchievements[i];
+	
+	AchievementList.push({
+		name: achievement[0],
+		fireOn: { 'clientside-achievement': function (ev, db, cb) { cb(ev.name == achievement[0] ? [ev.srcuser] : []); } },
+		xp: achievement[1],
+		check: function(uid, userAchievements, cfg, db, cb) {
+			db.query('SELECT COUNT(*) AS c FROM achievements_client WHERE userid = ? AND achname = ?', [uid, achievement[0]], function(res) {
+				assert.equal(res.length, 1);
+				
+				cb(res[0].c > 0);
+			});
+		},
+		version: 0,
+		prereqAchievements: []
+	});
+})(); }
 
 AchievementList.push({
 	name: 'CHAT_PARTICIPANTS_5',
@@ -171,24 +193,8 @@ AchievementList.push({
 			function(res) { cb(res[0].tradecount >= 1); });
 	},
 	version: 0,
-	prereqAchievements: ['TRADE_COUNT_1']
-});
-
-AchievementList.push({
-	name: 'TRADE_STOCKNAME_AZ',
-	fireOn: { 'feed-trade': function (ev, db, cb) { cb([ev.srcuser]); } },
-	xp: 250,
-	check: function(uid, userAchievements, cfg, db, cb) {
-		db.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND stockname LIKE "A%"', [uid], function(resA) {
-			if (resA[0].tradecount == 0) 
-				return cb(false);
-			db.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND stockname LIKE "Z%"', [uid], function(resZ) {
-				cb(resZ[0].tradecount > 0) 
-			});
-		});
-	},
-	version: 0,
-	prereqAchievements: ['TRADE_COUNT_1']
+	prereqAchievements: ['TRADE_COUNT_1'],
+	category: 'TRADING'
 });
 
 AchievementList.push({
@@ -205,7 +211,8 @@ AchievementList.push({
 		});
 	},
 	version: 0,
-	prereqAchievements: ['TRADE_COUNT_2']
+	prereqAchievements: ['TRADE_COUNT_2'],
+	category: 'TRADING'
 });
 
 AchievementList.push({
@@ -217,7 +224,8 @@ AchievementList.push({
 			function(res) { cb(res[0].tradecount > 0); });
 	},
 	version: 0,
-	prereqAchievements: ['TRADE_COUNT_2']
+	prereqAchievements: ['TRADE_COUNT_2'],
+	category: 'TRADING'
 });
 
 AchievementList.push({
@@ -229,7 +237,8 @@ AchievementList.push({
 			function(res) { cb(res[0].tradecount > 0); });
 	},
 	version: 0,
-	prereqAchievements: ['TRADE_COUNT_2']
+	prereqAchievements: ['TRADE_COUNT_2'],
+	category: 'TRADING'
 });
 
 AchievementList.push({
@@ -246,7 +255,8 @@ AchievementList.push({
 			function(res) { cb(res[0].tradecount > 0); });
 	},
 	version: 0,
-	prereqAchievements: ['TRADE_COUNT_2']
+	prereqAchievements: ['TRADE_COUNT_2'],
+	category: 'TRADING'
 });
 
 AchievementList.push({
@@ -263,7 +273,8 @@ AchievementList.push({
 			function(res) { cb(res[0].tradecount > 0); });
 	},
 	version: 0,
-	prereqAchievements: ['TRADE_COUNT_2']
+	prereqAchievements: ['TRADE_COUNT_2'],
+	category: 'TRADING'
 });
 
 AchievementList.push({
@@ -274,7 +285,8 @@ AchievementList.push({
 		db.query('SELECT COUNT(*) AS imgcount FROM httpresources WHERE user = ? AND role = "profile.image"', [uid], 
 			function(res) { cb(res[0].imgcount >= 1); });
 	},
-	version: 0
+	version: 0,
+	category: 'LEADER'
 });
 
 AchievementList.push({
@@ -287,7 +299,8 @@ AchievementList.push({
 			cb(res[0].wprovision != cfg.defaultWProvision);
 		});
 	},
-	version: 0
+	version: 0,
+	category: 'LEADER'
 });
 
 AchievementList.push({
@@ -300,7 +313,8 @@ AchievementList.push({
 			cb(res[0].lprovision != cfg.defaultLProvision);
 		});
 	},
-	version: 0
+	version: 0,
+	category: 'LEADER'
 });
 
 AchievementList.push({
@@ -313,9 +327,11 @@ AchievementList.push({
 			cb(res[0].desc != '');
 		});
 	},
-	version: 0
+	version: 0,
+	category: 'LEADER'
 });
 
 exports.AchievementList = AchievementList;
+exports.ClientAchievements = _.pluck(ClientAchievements, 0);
 
 })();

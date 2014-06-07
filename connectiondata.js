@@ -66,7 +66,7 @@ ConnectionData.prototype.toString = function() {
 
 ConnectionData.uniqueCount = 0;
 
-ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod', 'ping', 'get-config', 'school-exists'];
+ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod', 'ping', 'school-exists', 'server-config'];
 
 ConnectionData.prototype.fetchEvents = function(query) {
 	if (!this.user)

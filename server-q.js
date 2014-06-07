@@ -45,7 +45,7 @@ if (query.timeout) {
 socket.on('connect', function() {
 	var emit = function (e, d) { query.quiet || console.log('outgoing', e, d); socket.emit(e, d); }
 	socket.on('push', function (data) {
-		console.log('incoming/push', JSON.stringify(data, null, 2));
+		query.quiet || console.log('incoming/push', JSON.stringify(data, null, 2));
 	});
 	
 	socket.on('response', function (data) {

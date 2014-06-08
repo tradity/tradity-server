@@ -316,7 +316,7 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 		
 		var encoder = lzma.createStream('aloneEncoder', {preset: 3});
 		encoder.on('data', function(data) { buflist.push(data); });
-		encoder.on('end', function() { cont(Buffer.concat(buflist).toString('base64'), 'lzma'); });
+		encoder.on('end', function() { cont(Buffer.concat(buflist), 'lzma'); });
 		encoder.end(s);
 	} : function(cont) {
 		cont(s, 'raw');

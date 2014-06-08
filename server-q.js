@@ -23,7 +23,7 @@ var query = {
 };
 
 for (var i = 1; i < options.length; ++i) {
-	var p = options[i].match(/-{0,2}(\w+)=(\S+)/);
+	var p = options[i].match(/-{0,2}(\w+)=(.+)/);
 	
 	var value = p[2];
 	if (value == 'false') value = false;

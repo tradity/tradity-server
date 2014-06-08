@@ -3,9 +3,22 @@ From: tech@tradity.de
 Subject: Tradity Registrierung („${username}“)
 To: ${email}
 
-<p>Um deine Registrierung zu vollenden, klicke bitte auf diesen Link:
-<a href="${url}">${url}</a></p>
-<p>Um gewinnberechtigt zu sein und am Ende der Wettbewerbsphase ein Teilnahmezertifikat zu erhalten, 
-gib bitte unter dem Menüpunkt „Einstellungen“ deinen Vor- und Nachnamen an.</p>
-<p>Wir wünschen dir viel Spaß und Erfolg!</p><p>Das Tradity Team</p>
-<p>Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>
+<p>
+Hallo ${username}, <br />
+Ich freue mich, dass Du bei Staffel 2 von Tradity dabei bist. Dein Account wurde erfolgreich eingerichtet. <br />
+Um Deine Registrierung für das Börsenspiel Tradity zu vollenden, gewinnberechtigt zu sein und die „Social Trading“-Funktion freizuschalten,
+bestätige bitte Deine E-Mail-Adresse: <a href="${url}">${url}</a>
+</p>
+
+<p>
+Ich und das gesamte Tradity-Team wünschen Dir viel Erfolg und drücken Dir die Daumen!
+Sollte irgendwas nicht in Ordnung sein oder solltest Du Fragen oder Anregungen haben, schreibe uns gern eine Mail an <a href="mailto:tech@tradity.de">tech@tradity.de</a>.
+Wir kümmern uns dann umgehend darum.
+</p>
+
+<p>
+Ba Khai <br />
+für das Tradity-Team
+</p>
+
+<p style="font-size: 80%; color:grey">Falls du diese E-Mail zufällig erhalten hast, darfst du sie einfach ignorieren.</p>

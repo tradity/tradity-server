@@ -137,16 +137,23 @@ AdminDB.prototype.renameSchool = buscomponent.provideQUA('client-rename-school',
 }));
 
 AdminDB.prototype.joinSchools = buscomponent.provideQUA('client-join-schools', _reqpriv('schooldb', function(query, user, access, cb) {
-	this.query('SELECT COUNT(*) AS c FROM schools WHERE id = ?', [query.masterschool], function(r) {
-		assert.equal(r.length, 1);
-		if ((r[0].c == 0 && query.masterschool != null) || query.masterschool == query.subschool)
+	this.query('SELECT path FROM schools WHERE id = ?', [query.masterschool], function(mr) {
+	this.query('SELECT path FROM schools WHERE id = ?', [query.subschool], function(sr) {
+		assert.ok(mr.length <= 1);
+		assert.ok(sr.length <= 1);
+		if ((mr.length == 0 && query.masterschool != null) || sr.length == 0 || mr[0].path == sr[0].path)
 			return cb('join-schools-notfound');
+		if (parentPath(mr[0].path) != parentPath(sr[0].path))
+			return cb('join-schools-diff-parent');
 		
 		this.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [query.masterschool, query.subschool], function() {
+		this.query('DELETE FROM schooladmins WHERE schoolid = ?', [query.subschool], function() {
 			this.query('DELETE FROM schools WHERE id = ?', [query.subschool], function() {
 				cb('join-schools-success');
 			});
 		});
+		});
+	});
 	});
 }));
 

@@ -321,7 +321,7 @@ StocksDB.prototype.updateRecord = function(rec) {
 StocksDB.prototype.searchStocks = buscomponent.provideQUA('client-stock-search', function(query, user, access, cb) {
 	this.getServerConfig(function(cfg) {
 	var str = query.name;
-	if (str.length < 3)
+	if (!str || str.length < 3)
 		return cb('stock-search-too-short');
 	
 	var handleResults = _.bind(function(results) {

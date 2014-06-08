@@ -215,7 +215,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 			
 			this.response(obj);
 			
-			if (extra == 'repush') {
+			if (extra == 'repush' && this.bus && this.socket) {
 				this.lastInfoPush = 0;
 				
 				this.request({name: 'loadSessionUser', key: query.key}, function(newUser) {

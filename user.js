@@ -587,20 +587,20 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 				var updateCB = _.bind(function(res) {
 					conn.query('COMMIT', [], function() {
 						conn.release();
-					});
 					
-					if (uid === null)
-						uid = res.insertId;
-					
-					assert.ok(uid != null);
-					
-					for (var i = 0; i < gainUIDCBs.length; ++i)
-						gainUIDCBs[i]();
+						if (uid === null)
+							uid = res.insertId;
+						
+						assert.ok(uid != null);
+						
+						for (var i = 0; i < gainUIDCBs.length; ++i)
+							gainUIDCBs[i]();
 
-					if ((user && data.email == user.email) || (access.has('userdb') && data.nomail))
-						cb('reg-success', {uid: uid}, 'repush');
-					else 
-						this.sendRegisterEmail(data, access, uid, xdata, cb);
+						if ((user && data.email == user.email) || (access.has('userdb') && data.nomail))
+							cb('reg-success', {uid: uid}, 'repush');
+						else 
+							this.sendRegisterEmail(data, access, uid, xdata, cb);
+					});
 				}, this);
 				
 				var onPWGenerated = _.bind(function(pwsalt, pwhash) {

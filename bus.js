@@ -59,7 +59,7 @@ Bus.prototype.request = function(req, onReply) {
 	
 	var responseListener = _.bind(function(resp) {
 		assert.ok(resp.replyTo);
-		if (resp.replyTo != req.requestId)
+		if (resp.replyTo != requestId)
 			return;
 		
 		delete this.unanswered[requestId];

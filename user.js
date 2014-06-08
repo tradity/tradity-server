@@ -295,7 +295,7 @@ UserDB.prototype.regularCallback = buscomponent.provide('regularCallbackUser', [
 		for (var i = 0; i < r.length; ++i) {
 			var access = Access.fromJSON(r[i].access);
 			
-			if (!access.has('schooldb') || (r[i].path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly)))
+			if (!access.has('schooldb') && (r[i].path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly)))
 				this.query('DELETE FROM schools WHERE id = ?', [r[i].id]);
 		}
 		

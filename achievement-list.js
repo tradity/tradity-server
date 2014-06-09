@@ -28,7 +28,8 @@ for (var i = 0; i < dailyLoginAchievements.length; ++i) {
 					function(res) { cb(res[0].maxdaycount >= count); });
 			},
 			version: 0,
-			prereqAchievements: prevCount ? [ 'DAILY_LOGIN_DAYS_' + prevCount ] : []
+			prereqAchievements: prevCount ? [ 'DAILY_LOGIN_DAYS_' + prevCount ] : [],
+			category: 'SOCIAL'
 		});
 	})();
 }
@@ -73,7 +74,8 @@ for (var i = 0; i < ftcaKeys.length; ++i) {
 					function(res) { cb(res[0].tradecount >= count); });
 			},
 			version: 0,
-			prereqAchievements: prevCount ? [ 'TRADE_FOLLOWER_COUNT_' + prevCount ] : []
+			prereqAchievements: prevCount ? [ 'TRADE_FOLLOWER_COUNT_' + prevCount ] : [],
+			category: 'FOLLOWER'
 		});
 	})();
 }
@@ -111,7 +113,8 @@ for (var i = 0; i < rcaKeys.length; ++i) {
 				});
 			},
 			version: 0,
-			prereqAchievements: prevCount ? [ 'REFERRAL_COUNT_' + prevCount ] : []
+			prereqAchievements: prevCount ? [ 'REFERRAL_COUNT_' + prevCount ] : [],
+			category: 'SOCIAL'
 		});
 	})();
 }
@@ -144,7 +147,8 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 				});
 			},
 			version: 0,
-			prereqAchievements: prevCounts ? [ 'COMMENT_COUNT_' + prevCounts.join('_') ] : []
+			prereqAchievements: prevCounts ? [ 'COMMENT_COUNT_' + prevCounts.join('_') ] : [],
+			category: 'SOCIAL'
 		});
 	})();
 }
@@ -166,7 +170,8 @@ for (var i = 0; i < ClientAchievements.length; ++i) { (function() {
 			});
 		},
 		version: 0,
-		prereqAchievements: []
+		prereqAchievements: [],
+		category: 'LEARNING'
 	});
 })(); }
 
@@ -181,7 +186,8 @@ AchievementList.push({
 		db.query('SELECT MAX((SELECT COUNT(*) FROM chatmembers WHERE chatid = cm.chatid)) AS membercount FROM `chatmembers` AS cm WHERE userid = ?', [uid],
 			function(res) { cb(res[0].membercount >= 5); });
 	},
-	version: 0
+	version: 0,
+	category: 'SOCIAL'
 });
 
 AchievementList.push({

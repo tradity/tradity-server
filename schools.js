@@ -208,7 +208,10 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQUA('client-create-school
 			assert.equal(r.length, 1);
 			if (r[0].c == 1 || !query.schoolname.trim() || 
 				!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
-				conn.release();
+				conn.query('ROLLBACK', function() {
+					conn.release();
+				});
+				
 				return cb('create-school-already-exists');
 			}
 			
@@ -216,7 +219,10 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQUA('client-create-school
 				conn.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
 					this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': user.id});
 					
-					conn.release();
+					conn.query('COMMIT', function() {
+						conn.release();
+					});
+					
 					cb('create-school-success');
 				});
 			}, this);
@@ -226,7 +232,10 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQUA('client-create-school
 			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
 				assert.equal(r.length, 1);
 				if (r[0].c != 1) {
-					conn.release();
+					conn.query('ROLLBACK', function() {
+						conn.release();
+					});
+					
 					return cb('create-school-missing-parent');
 				}
 				

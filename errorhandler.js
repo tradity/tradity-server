@@ -24,7 +24,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 		
 		try {
 			if (this.bus)
-				opt.text += '\n' + util.inspect(this.bus.log.reverse(), {depth: 3});
+				opt.text += '\n' + util.inspect(this.bus.log.reverse(), {depth: 2});
 		} catch(e) { console.error(e); }
 				
 		console.error(opt.text);

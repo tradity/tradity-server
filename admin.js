@@ -18,7 +18,7 @@ function _reqpriv_x (required, f) {
 	var requiredPermission = required;
 	return function(query, user, access, xdata, cb) {
 		if (user === null || !access.has(requiredPermission))
-			cb('permission-denied');
+			(cb ? cb : xdata)('permission-denied');
 		else
 			return _.bind(f, this)(query, user, access, xdata, cb);
 	};

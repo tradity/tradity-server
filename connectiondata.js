@@ -114,9 +114,10 @@ ConnectionData.prototype.pushSelfInfo = function() {
 		var curUnixTime = new Date().getTime();
 		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 			this.lastInfoPush = curUnixTime;
-			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, user: this.user, access: this.access, xdata: this.pickTextFields()}, _.bind(function(info) {
-				if (!info) // wtf?
-					return this.emit('error', new Error('no user on $self in info push handler'));
+			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, user: this.user, access: this.access, xdata: this.pickTextFields()}, _.bind(function(code, info) {
+				assert.ok(code == 'get-user-info-success');
+				assert.ok(info);
+				
 				info.type = 'self-info';
 				this.push(info);
 			}, this));

@@ -559,12 +559,10 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 				conn.release();
 			});
 			
-			if (res[0].name.toLowerCase() == data.name.toLowerCase())
-				cb('reg-name-already-present');
-			else if (res[0].email.toLowerCase() == data.email.toLowerCase())
+			if (res[0].email.toLowerCase() == data.email.toLowerCase())
 				cb('reg-email-already-present');
 			else
-				this.emit('error', new Error('db returned bad email/name match: ' + [res[0].name, res[0].email, data.name, data.email, type]));
+				cb('reg-name-already-present');
 			return;
 		}
 		

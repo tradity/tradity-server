@@ -121,7 +121,7 @@ AdminDB.prototype.notifyAll = buscomponent.provideQUA('client-notify-all', _reqp
 
 AdminDB.prototype.renameSchool = buscomponent.provideQUA('client-rename-school', _reqpriv('schooldb', function(query, user, access, cb) {
 	this.query('SELECT path FROM schools WHERE id = ?', [query.schoolid], function(r) {
-		if (r.length == 0 || (query.schoolpath && parentPath(r[0].path) != parentPath(query.schoolpath)))
+		if (r.length == 0)
 			return cb('rename-school-notfound');
 		
 		this.query('UPDATE schools SET name = ? WHERE id = ?', [query.schoolname, query.schoolid], function() {

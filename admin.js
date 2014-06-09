@@ -141,9 +141,10 @@ AdminDB.prototype.joinSchools = buscomponent.provideQUA('client-join-schools', _
 	this.query('SELECT path FROM schools WHERE id = ?', [query.subschool], function(sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);
-		if ((mr.length == 0 && query.masterschool != null) || sr.length == 0 || mr[0].path == sr[0].path)
+		
+		if (sr.length == 0 || ((mr.length == 0 || mr[0].path == sr[0].path) && query.masterschool != null))
 			return cb('join-schools-notfound');
-		if (parentPath(mr[0].path) != parentPath(sr[0].path))
+		if (mr.length > 0 && parentPath(mr[0].path) != parentPath(sr[0].path))
 			return cb('join-schools-diff-parent');
 		
 		this.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [query.masterschool, query.subschool], function() {

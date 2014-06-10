@@ -690,7 +690,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 				if (data.password)
 					this.generatePWKey(data.password, onPWGenerated);
 				else
-					onPWGenerated(user.pwsalt, user.pwhash);				
+					onPWGenerated(user.pwsalt, user.pwhash);
 			};
 			
 			if (res.length == 0 && data.school !== null) {

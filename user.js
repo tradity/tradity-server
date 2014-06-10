@@ -950,7 +950,7 @@ UserDB.prototype.listAllChats = buscomponent.provideQUA('client-list-all-chats',
 		
 		for (var i = 0; i < res.length; ++i) {
 			if (!ret[res[i].chatid]) {
-				ret[res[i].chatid] = _.pick(res[i], 'chatid', 'creator', 'creatorname');
+				ret[res[i].chatid] = _.pick(res[i], 'chatid', 'creator', 'creatorname', 'chatstartevent');
 				ret[res[i].chatid].members = [];
 			}
 			

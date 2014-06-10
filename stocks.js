@@ -564,9 +564,10 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 				});
 			} else {
 				conn.query('UPDATE depot_stocks SET ' +
-					'amount = amount + ?, buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
+					'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
 					'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
-					'provision_lwm = (provision_lwm * amount + ?) / (amount + ?) ' +
+					'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
+					'amount = amount + ? ' +
 					'WHERE userid = ? AND stockid = ?', 
 					[amount, price, price, amount, price, amount, user.id, r.id], function() {
 					commit();

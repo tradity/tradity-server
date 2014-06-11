@@ -39,9 +39,9 @@ function _reqschooladm (f, soft, scdb, status) {
 
 SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['user', 'access', 'status', 'schoolid', 'reply'],
 	function(user, access, status, schoolid, cb) {
-		
+	
 	(parseInt(schoolid) == schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
-		this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
+		this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [schoolid], function(res) {
 			if (res.length == 0)
 				return cb(false, null);
 			

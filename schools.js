@@ -12,49 +12,53 @@ function SchoolsDB () {
 
 util.inherits(SchoolsDB, buscomponent.BusComponent);
 
-function adminlistContainsUser(admins, user) {
-	return _.chain(admins).filter(function(a) { return a.status == 'admin' && a.adminid == user.id; }).value().length == 0;
-}
-
-function _reqschooladm (f, soft, scdb) {
-	var soft = soft || false;
+function _reqschooladm (f, soft, scdb, status) {
+	soft = soft || false;
 	
 	return function(query, user, access, cb) {
-		(parseInt(query.schoolid) == query.schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
-			var dbquery = null;
-			if (this && this.query) dbquery = _.bind(this.query, this);
-			if (scdb && scdb.query) dbquery = _.bind(scdb.query, scdb);
+		var forward = _.bind(function() { return _.bind(f, this)(query, user, access, cb); }, this);
+		
+		if (soft && !query.schoolid)
+			return forward();
+		
+		var lsa = null;
+		if (this && this.bus) lsa = this;
+		if (scdb && scdb.bus) lsa = scdb;
+		
+		assert.ok(lsa);
+		
+		lsa.request({name: 'isSchoolAdmin', user: user, access: access, status: status, schoolid: query.schoolid}, function(ok) {
+			if (!ok)
+				return cb('permission-denied');
 			
-			assert.ok(dbquery);
-			
-			dbquery('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
-				if (res.length == 0)
-					query.schoolid = null;
-				else
-					query.schoolid = res[0].id;
-				
-				cont();
-			});
-		}, this))(_.bind(function() {
-			var forward = _.bind(function() { return _.bind(f, this)(query, user, access, cb); }, this);
-			if (access.has('schooldb') || (soft && !query.schoolid))
-				return forward();
-			
-			var lsa = null;
-			if (this && this.loadSchoolAdmins) lsa = _.bind(this.loadSchoolAdmins, this);
-			if (scdb && scdb.loadSchoolAdmins) lsa = _.bind(scdb.loadSchoolAdmins, scdb);
-			
-			assert.ok(lsa);
-			
-			lsa(query.schoolid, function(adminlist) {
-				if (adminlistContainsUser(adminlist, user))
-					cb('permission-denied');
-				else
-					forward();
-			});
-		}, this));
+			forward();
+		});
 	};
 }
+
+SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['user', 'access', 'status', 'schoolid', 'reply'],
+	function(user, access, status, schoolid, cb) {
+	if (access.has('schooldb'))
+		return cb(true);
+		
+	(parseInt(schoolid) == schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
+		this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
+			if (res.length == 0)
+				return cb(false);
+			
+			assert.equal(res.length, 1);
+			
+			schoolid = res[0].id;
+			cont();
+		});
+	}, this))(_.bind(function() {
+		status = status || ['admin', 'xadmin'];
+		
+		this.loadSchoolAdmins(schoolid, function(admins) {
+			cb (_.chain(admins).filter(function(a) { return status.indexOf(a.status) != -1 && a.adminid == user.id; }).value().length != 0);
+		});
+	}, this));
+});
 
 SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 	this.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +

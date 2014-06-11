@@ -158,28 +158,32 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 		likestringUnit = likestringUnit.concat([likestring, likestring, likestring]);
 	}
 	
-	if (query.schoolid) {
+	_.bind(query.schoolid ? function(cont) {
 		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
 		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
-	}
-	
-	this.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
-		'tradecount != 0 as hastraded, ' + 
-		'u.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
-		'u.wprov_sum + u.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
-		'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) / (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
-		'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) - (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
-		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name, ' +
-		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name, ' +
-		'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
-		join + /* needs query.since parameter */
-		'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
-		likestringWhere +
-		'LIMIT ?, ?', 
-		[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(ranking) {
-			cb('get-ranking-success', {'result': ranking});
+		
+		lsa.request({name: 'isSchoolAdmin', user: user, access: access, status: ['xadmin'], schoolid: query.schoolid}, function(ok) {
+			cont(ok);
 		});
+	} : function(cont) { cont(access.has('userdb')); }, this)(_.bind(function(fulldata) {
+		this.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
+			'tradecount != 0 as hastraded, ' + 
+			'u.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
+			'u.wprov_sum + u.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
+			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) / (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
+			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) - (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
+			(fulldata ? '' : 'IF(realnamepublish != 0,giv_name,NULL) AS ') + ' giv_name, ' +
+			(fulldata ? '' : 'IF(realnamepublish != 0,fam_name,NULL) AS ') + ' fam_name, ' +
+			'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
+			join + /* needs query.since parameter */
+			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
+			likestringWhere +
+			'LIMIT ?, ?', 
+			[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(ranking) {
+				cb('get-ranking-success', {'result': ranking});
+			});
+	}, this));
 });
 
 UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', function(query, user, access, cb) {

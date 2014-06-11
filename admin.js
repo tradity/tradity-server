@@ -124,19 +124,25 @@ AdminDB.prototype.renameSchool = buscomponent.provideQUA('client-rename-school',
 		if (r.length == 0)
 			return cb('rename-school-notfound');
 
-		this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath ? parentPath(query.schoolpath) : '/'], function(pr) {
+		this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath || '/')], function(pr) {
 			assert.equal(pr.length, 1);
-			if (pr[0].c !== (query.schoolpath ? 1 : 0))
+			if (pr[0].c !== (parentPath(query.schoolpath || '/') != '/' ? 1 : 0))
 				return cb('rename-school-notfound');
 			
-			this.query('UPDATE schools SET name = ? WHERE id = ?', [query.schoolname, query.schoolid], function() {
-				if (query.schoolpath) {
-					this.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?', [r[0].path, query.schoolpath, r[0].path + '/%', r[0].path], function() {
+			this.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath ? query.schoolpath : '/'], function(er) {
+				assert.equal(er.length, 1);
+				if (query.schoolpath && er[0].c == 1)
+					return cb('rename-school-already-exists');
+				
+				this.query('UPDATE schools SET name = ? WHERE id = ?', [query.schoolname, query.schoolid], function() {
+					if (query.schoolpath) {
+						this.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?', [r[0].path, query.schoolpath, r[0].path + '/%', r[0].path], function() {
+							cb('rename-school-success');
+						});
+					} else {
 						cb('rename-school-success');
-					});
-				} else {
-					cb('rename-school-success');
-				}
+					}
+				});
 			});
 		});
 	});

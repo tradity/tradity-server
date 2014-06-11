@@ -72,10 +72,8 @@ Access.prototype.drop = function(area) {
 		return this.dropAny();
 	
 	var index;
-	while ((index = this.areas.indexOf(area)) != -1) {
-		console.log(this.areas, index, area);
+	while ((index = this.areas.indexOf(area)) != -1)
 		this.areas.splice(index, 1);
-	}
 };
 
 Access.prototype.dropAny = function(area) {

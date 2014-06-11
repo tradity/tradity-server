@@ -462,6 +462,11 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
+		if (r.lid && !access.has('email_verif')) {
+			rollback();
+			return cb('stock-buy-email-not-verif');
+		}
+		
 		if (!this.stockExchangeIsOpen(r.exchange, cfg) && !(access.has('stocks') && query.forceNow)) {
 			rollback();
 			
@@ -480,11 +485,6 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			} else {
 				return cb('stock-buy-sxnotopen');
 			}
-		}
-		
-		if (r.lid && !access.has('email_verif')) {
-			rollback();
-			return cb('stock-buy-email-not-verif');
 		}
 		
 		var amount = parseInt(query.amount);

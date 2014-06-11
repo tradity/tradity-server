@@ -27,10 +27,11 @@ function _reqschooladm (f, soft, scdb, status) {
 		
 		assert.ok(lsa);
 		
-		lsa.request({name: 'isSchoolAdmin', user: user, access: access, status: status, schoolid: query.schoolid}, function(ok) {
+		lsa.request({name: 'isSchoolAdmin', user: user, access: access, status: status, schoolid: query.schoolid}, function(ok, schoolid) {
 			if (!ok)
 				return cb('permission-denied');
 			
+			query.schoolid = schoolid;
 			forward();
 		});
 	};
@@ -38,13 +39,11 @@ function _reqschooladm (f, soft, scdb, status) {
 
 SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['user', 'access', 'status', 'schoolid', 'reply'],
 	function(user, access, status, schoolid, cb) {
-	if (access.has('schooldb'))
-		return cb(true);
 		
 	(parseInt(schoolid) == schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
 		this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [query.schoolid], function(res) {
 			if (res.length == 0)
-				return cb(false);
+				return cb(false, null);
 			
 			assert.equal(res.length, 1);
 			
@@ -52,10 +51,13 @@ SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['user
 			cont();
 		});
 	}, this))(_.bind(function() {
+		if (access.has('schooldb'))
+			return cb(true, schoolid);
+			
 		status = status || ['admin', 'xadmin'];
 		
 		this.loadSchoolAdmins(schoolid, function(admins) {
-			cb (_.chain(admins).filter(function(a) { return status.indexOf(a.status) != -1 && a.adminid == user.id; }).value().length != 0);
+			cb(_.chain(admins).filter(function(a) { return status.indexOf(a.status) != -1 && a.adminid == user.id; }).value().length != 0, schoolid);
 		});
 	}, this));
 });

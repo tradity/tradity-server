@@ -163,7 +163,7 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
 		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
 		
-		lsa.request({name: 'isSchoolAdmin', user: user, access: access, status: ['xadmin'], schoolid: query.schoolid}, function(ok) {
+		this.request({name: 'isSchoolAdmin', user: user, access: access, status: ['xadmin'], schoolid: query.schoolid}, function(ok) {
 			cont(ok);
 		});
 	} : function(cont) { cont(access.has('userdb')); }, this)(_.bind(function(fulldata) {

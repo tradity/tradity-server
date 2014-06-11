@@ -462,7 +462,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (r.lid && !access.has('email_verif')) {
+		if (/__LEADER_(\d+)__/.test(query.stockid) && !access.has('email_verif')) {
 			rollback();
 			return cb('stock-buy-email-not-verif');
 		}

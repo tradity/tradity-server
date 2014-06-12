@@ -223,7 +223,7 @@ UserDB.prototype.getUserInfo = buscomponent.provideQUA('client-get-user-info', f
 		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" '+
 		'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" '+
 		'WHERE u.id = ? OR u.name = ?', 
-		[Date.parse('last sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
+		[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
 			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb('get-user-info-notfound');

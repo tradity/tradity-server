@@ -15,7 +15,7 @@
 		"node-redis": "*",
 		"underscore": ">=1.6.0",
 		"lapack": "*",
-		"datejs": "*",
+		"datejs": "1.0.0",
 		"iconv": "*",
 		"redis": "*",
 		"lzma-native": ">=0.0.3"

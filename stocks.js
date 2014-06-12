@@ -184,18 +184,25 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	
 	this.getConnection(function (conn) {
 	conn.query('START TRANSACTION', [], function() {
-	conn.query('SELECT userid AS uid FROM depot_stocks UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
+	conn.query('SELECT userid AS uid FROM depot_stocks ' +
+		'UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
 	conn.query(
-		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, freemoney, users.wprov_sum + users.lprov_sum AS prov_sum FROM depot_stocks AS ds LEFT JOIN stocks AS s ' +
-		'ON s.leader IS NULL AND s.id = ds.stockid LEFT JOIN users ON ds.userid = users.id GROUP BY uid ' +
-		'UNION SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum FROM users WHERE (SELECT COUNT(*) FROM depot_stocks WHERE userid=users.id)=0', [], function(res_static) {
+		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
+		'freemoney, users.wprov_sum + users.lprov_sum AS prov_sum ' +
+		'FROM depot_stocks AS ds ' +
+		'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
+		'LEFT JOIN users ON ds.userid = users.id ' +
+		'GROUP BY uid ' +
+		'UNION SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
+		'FROM users WHERE (SELECT COUNT(*) FROM depot_stocks WHERE userid = users.id) = 0', [],
+		function(res_static) {
 	conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		var users_inv = [];
 		for (var k = 0; k < users.length; ++k)
 			users_inv[users[k]] = k;
-				
+		
 		var n = users.length;
 		if (n == 0)
 			return cb();
@@ -252,7 +259,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 			_.bind(_.partial(function(i) {
 			assert.notStrictEqual(X[i],  null);
 			assert.notStrictEqual(Xa[i], null);
-			assert.equal(X[i],  X[i]); // If you don't understand this, search the www for good JS books and buy one.
+			assert.equal(X[i],  X[i]);
 			assert.equal(Xa[i], Xa[i]);
 			
 			var lv  = X[i] / 100;

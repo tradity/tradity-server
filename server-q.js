@@ -8,10 +8,6 @@ var _ = require('underscore');
 
 var cfg = require('./config.js').config;
 
-var socket = sio.connect('http://' + cfg.wshost + ':' + cfg.wsports[0]);
-var authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString();
-var key = '';
-
 var options = process.argv.splice(2);
 
 assert.ok(options.length > 0);
@@ -34,6 +30,10 @@ for (var i = 1; i < options.length; ++i) {
 	
 	query[p[1]] = value;
 }
+
+var socket = sio.connect('http://' + (query.wshost || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
+var authorizationKey = fs.readFileSync(query.authFile || cfg['auth-key-file']).toString();
+var key = '';
 
 if (query.timeout) {
 	setTimeout(function() {

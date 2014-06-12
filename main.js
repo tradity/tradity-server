@@ -39,6 +39,11 @@ for (var i = 0; i < forwardSignals.length; ++i) {
 	process.on(forwardSignals[i], function() { mainBus.emit('globalShutdown'); });
 }
 
+assert.ok(cfg.busDumpFile);
+process.on('SIGUSR2', function() {
+	fs.writeFileSync(cfg.busDumpFile, 'Log:\n\n' + JSON.stringify(mainBus.log) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
+});
+
 var sharedEvents = [
 	'globalShutdown', 'getServerStatistics', 'pushServerStatistics',
 	// dqueries + prod

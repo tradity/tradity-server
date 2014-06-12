@@ -431,13 +431,14 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 	
 	this.getConnection(function(conn) {
 	
-	conn.query('START TRANSACTION', [], function() {
+	conn.query('SET autocommit = 0; ' +
+	'LOCK TABLES depot_stocks AS ds WRITE, users AS l WRITE, users AS f WRITE, stocks AS s READ, orderhistory WRITE;', [], function() {
 	var commit = function() {
-		conn.query('COMMIT', [], function() { conn.release(); });
+		conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
 	};
 	
 	var rollback = function() {
-		conn.query('ROLLBACK', [], function() { conn.release(); });
+		conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
 	};
 		
 	conn.query('SELECT s.*, ' +
@@ -498,7 +499,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		assert.ok(r.ask >= 0);
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
-		conn.query('SELECT freemoney, totalvalue FROM users WHERE id = ?', [user.id], function(ures) {
+		conn.query('SELECT freemoney, totalvalue FROM users AS f WHERE id = ?', [user.id], function(ures) {
 		assert.equal(ures.length, 1);
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0) {
@@ -529,8 +530,8 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			
 			var totalprovPay = wprovPay + lprovPay;
 			
-			conn.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, user.id], function() {
-				conn.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+			conn.query('UPDATE users AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, user.id], function() {
+				conn.query('UPDATE users AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid], cont);
 			});
 		} : function(cont) { cont(); }, this)(_.bind(function() {
@@ -553,19 +554,19 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			var perfv = amount >= 0 ? 'bought' : 'sold';
 			var perffull = perfn + '_' + perfv;
 			
-			conn.query('UPDATE users SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
+			conn.query('UPDATE users AS f SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
 				perffull + '=' + perffull + ' + ABS(?) ' +
 				' WHERE id = ?', [price+fee, fee, price, user.id], function() {
 			if (r.amount == 0) {
 				assert.ok(amount >= 0);
 				
-				conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
+				conn.query('INSERT INTO depot_stocks AS ds (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 					[user.id, r.id, amount, price, ta_value, ta_value], function() {
 					commit();
 					cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 				});
 			} else {
-				conn.query('UPDATE depot_stocks SET ' +
+				conn.query('UPDATE depot_stocks AS ds SET ' +
 					'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
 					'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
 					'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +

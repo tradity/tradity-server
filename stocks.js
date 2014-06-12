@@ -432,7 +432,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 	this.getConnection(function(conn) {
 	
 	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks AS ds WRITE, users AS l WRITE, users AS f WRITE, stocks AS s READ, orderhistory WRITE;', [], function() {
+	'LOCK TABLES depot_stocks WRITE, users AS l WRITE, users AS f WRITE, stocks AS s READ, orderhistory WRITE;', [], function() {
 	var commit = function() {
 		conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
 	};
@@ -442,14 +442,14 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 	};
 		
 	conn.query('SELECT s.*, ' +
-		'SUM(ds.amount) AS amount, ' +
-		'SUM(ds.amount * s.lastvalue) AS money, ' +
-		'AVG(s.bid - ds.provision_hwm) AS hwmdiff, ' +
-		'AVG(s.bid - ds.provision_lwm) AS lwmdiff, ' +
+		'SUM(depot_stocks.amount) AS amount, ' +
+		'SUM(depot_stocks.amount * s.lastvalue) AS money, ' +
+		'AVG(s.bid - depot_stocks.provision_hwm) AS hwmdiff, ' +
+		'AVG(s.bid - depot_stocks.provision_lwm) AS lwmdiff, ' +
 		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
 		'FROM stocks AS s ' +
-		'LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id ' +
-		'LEFT JOIN users AS l ON s.leader = l.id AND ds.userid != l.id ' +
+		'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = s.id ' +
+		'LEFT JOIN users AS l ON s.leader = l.id AND depot_stocks.userid != l.id ' +
 		'WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			rollback();
@@ -560,13 +560,13 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			if (r.amount == 0) {
 				assert.ok(amount >= 0);
 				
-				conn.query('INSERT INTO depot_stocks AS ds (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
+				conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 					[user.id, r.id, amount, price, ta_value, ta_value], function() {
 					commit();
 					cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 				});
 			} else {
-				conn.query('UPDATE depot_stocks AS ds SET ' +
+				conn.query('UPDATE depot_stocks SET ' +
 					'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
 					'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
 					'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +

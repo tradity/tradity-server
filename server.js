@@ -92,10 +92,12 @@ SoTradeServer.prototype.connectionHandler = function(socket) {
 SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id', 'reply'], function(id, cb) {
 	var removeClient = _.find(this.clients, function(client) { return client.cdid == id; });
 	
-	this.clients = _.without(this.clients, removeClient);
-	this.deadQueryCount         += removeClient.queryCount;
-	this.deadQueryLZMACount     += removeClient.queryLZMACount;
-	this.deadQueryLZMAUsedCount += removeClient.queryLZMAUsedCount;
+	if (removeClient) {
+		this.clients = _.without(this.clients, removeClient);
+		this.deadQueryCount         += removeClient.queryCount;
+		this.deadQueryLZMACount     += removeClient.queryLZMACount;
+		this.deadQueryLZMAUsedCount += removeClient.queryLZMAUsedCount;
+	}
 	
 	cb();
 	

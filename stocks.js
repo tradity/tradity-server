@@ -432,23 +432,23 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 	this.getConnection(function(conn) {
 	
 	conn.query('START TRANSACTION', [], function() {
-		var commit = function() {
-			conn.query('COMMIT', [], function() { conn.release(); });
-		};
+	var commit = function() {
+		conn.query('COMMIT', [], function() { conn.release(); });
+	};
+	
+	var rollback = function() {
+		conn.query('ROLLBACK', [], function() { conn.release(); });
+	};
 		
-		var rollback = function() {
-			conn.query('ROLLBACK', [], function() { conn.release(); });
-		};
-		
-	conn.query('SELECT s.*, '+
-		'SUM(ds.amount) AS amount, '+
-		'SUM(ds.amount * s.lastvalue) AS money, '+
-		'AVG(s.bid - ds.provision_hwm) AS hwmdiff, '+
-		'AVG(s.bid - ds.provision_lwm) AS lwmdiff, '+
-		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision '+
-		'FROM stocks AS s '+
-		'LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id '+
-		'LEFT JOIN users AS l ON s.leader = l.id AND ds.userid != l.id '+
+	conn.query('SELECT s.*, ' +
+		'SUM(ds.amount) AS amount, ' +
+		'SUM(ds.amount * s.lastvalue) AS money, ' +
+		'AVG(s.bid - ds.provision_hwm) AS hwmdiff, ' +
+		'AVG(s.bid - ds.provision_lwm) AS lwmdiff, ' +
+		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
+		'FROM stocks AS s ' +
+		'LEFT JOIN depot_stocks AS ds ON ds.userid = ? AND ds.stockid = s.id ' +
+		'LEFT JOIN users AS l ON s.leader = l.id AND ds.userid != l.id ' +
 		'WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			rollback();
@@ -557,6 +557,8 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 				perffull + '=' + perffull + ' + ABS(?) ' +
 				' WHERE id = ?', [price+fee, fee, price, user.id], function() {
 			if (r.amount == 0) {
+				assert.ok(amount >= 0);
+				
 				conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
 					[user.id, r.id, amount, price, ta_value, ta_value], function() {
 					commit();

@@ -60,7 +60,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(cb) {
 	
 	var db = this;
 	this.connectionPool.getConnection(function(err, conn) {
-		if (conn === null)
+		if (conn == null)
 			return cb(err, null);
 		
 		cb(err, {

@@ -7,6 +7,7 @@ var crypto = require('crypto');
 var assert = require('assert');
 var buscomponent = require('./buscomponent.js');
 var Access = require('./access.js').Access;
+require('datejs');
 
 function UserDB () {
 }

@@ -310,6 +310,9 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 	
 	var s = JSON.stringify(obj);
 	
+	if (!this.socket)
+		this.lzmaSupport = false;
+	
 	_.bind(s.length > 20480 && this.lzmaSupport ? function(cont) {
 		this.queryLZMAUsedCount++;
 		

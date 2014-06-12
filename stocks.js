@@ -571,7 +571,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 					'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
 					'amount = amount + ? ' +
 					'WHERE userid = ? AND stockid = ?', 
-					[amount, price, price, amount, price, amount, user.id, r.id], function() {
+					[price, price, amount, price, amount, amount, user.id, r.id], function() {
 					commit();
 					cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 				});

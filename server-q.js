@@ -32,7 +32,7 @@ for (var i = 1; i < options.length; ++i) {
 }
 
 var socket = sio.connect('http://' + (query.wshost || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
-var authorizationKey = fs.readFileSync(query.authFile || cfg['auth-key-file']).toString();
+var authorizationKey = fs.readFileSync(query.authfile || cfg['auth-key-file']).toString();
 var key = '';
 
 if (query.timeout) {

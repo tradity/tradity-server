@@ -18,6 +18,7 @@
 		"datejs": "1.0.0",
 		"iconv": "*",
 		"redis": "*",
+		"unionfind": "*",
 		"lzma-native": ">=0.0.3"
 	},
 	"preferGlobal": false,

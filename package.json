@@ -15,7 +15,7 @@
 		"node-redis": "*",
 		"underscore": ">=1.6.0",
 		"lapack": "*",
-		"datejs": "1.0.0",
+		"datejs": "1.0.0-rc1",
 		"iconv": "*",
 		"redis": "*",
 		"unionfind": "*",

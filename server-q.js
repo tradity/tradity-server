@@ -14,8 +14,7 @@ assert.ok(options.length > 0);
 
 var query = {
 	type: options[0],
-	id: 'server-q-query',
-	authorizationKey: authorizationKey
+	id: 'server-q-query'
 };
 
 for (var i = 1; i < options.length; ++i) {
@@ -34,6 +33,8 @@ for (var i = 1; i < options.length; ++i) {
 var socket = sio.connect('http://' + (query.wshost || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
 var authorizationKey = fs.readFileSync(query.authfile || cfg['auth-key-file']).toString();
 var key = '';
+
+query.authorizationKey = authorizationKey;
 
 if (query.timeout) {
 	setTimeout(function() {

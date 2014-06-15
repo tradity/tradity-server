@@ -544,25 +544,32 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 	var betakey = data.betakey ? data.betakey.toString().split('-') : [0,0];
 	
 	this.getConnection(function(conn) {
-	conn.query('START TRANSACTION', [], function() {
-		
+	conn.query('SET autocommit = 0; ' +
+		'LOCK TABLES users WRITE, stocks WRITE, betakeys WRITE, inviteaccept WRITE, invitelink READ' +
+		(query.school ? ', schoolmembers WRITE, schools WRITE, schooladmins WRITE' : '') + ';', [], function() {
+	
+	var commit = _.bind(function(cb) {
+		cb = _.bind(cb, this) || function() {};
+		conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); cb(); });
+	}, this);
+	
+	var rollback = function() {
+		conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
+	};
+	
 	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[data.email, data.name, uid], function(res) {
 	conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
 		[betakey[0]], function(βkey) {
 		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && type == 'register' && !access.has('userdb')) {
-			conn.query('COMMIT', [], function() {
-				conn.release();
-				cb('reg-beta-necessary');
-			});
+			rollback();
+			cb('reg-beta-necessary');
 			
 			return;
 		}
 		
 		if (res.length > 0 && res[0].id !== uid) {
-			conn.query('COMMIT', [], function() {
-				conn.release();
-			});
+			rollback();
 			
 			if (res[0].email.toLowerCase() == data.email.toLowerCase())
 				cb('reg-email-already-present');
@@ -588,7 +595,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 				}
 				
 				var updateCB = _.bind(function(res) {
-					conn.query('COMMIT', [], function() {
+					commit(function() {
 						conn.release();
 					
 						if (uid === null)
@@ -700,7 +707,7 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 			
 			if (res.length == 0 && data.school !== null) {
 				if (parseInt(data.school) == data.school || !data.school) {
-					conn.query('COMMIT', function() { conn.release(); });
+					rollback();
 					
 					cb('reg-unknown-school');
 					return;

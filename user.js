@@ -545,8 +545,8 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 	
 	this.getConnection(function(conn) {
 	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES users WRITE, stocks WRITE, betakeys WRITE, inviteaccept WRITE, invitelink READ' +
-		(data.school ? ', schoolmembers WRITE, schools WRITE, schooladmins WRITE' : '') + ';', [], function() {
+		'LOCK TABLES users WRITE, stocks WRITE, betakeys WRITE, inviteaccept WRITE, invitelink READ, schoolmembers WRITE, schooladmins WRITE' +
+		(data.school ? ', schools WRITE' : '') + ';', [], function() {
 	
 	var commit = _.bind(function(cb) {
 		cb = _.bind(cb, this) || function() {};

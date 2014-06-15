@@ -596,8 +596,6 @@ UserDB.prototype.updateUser = function(data, type, user, access, xdata, cb) {
 				
 				var updateCB = _.bind(function(res) {
 					commit(function() {
-						conn.release();
-					
 						if (uid === null)
 							uid = res.insertId;
 						

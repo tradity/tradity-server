@@ -452,7 +452,8 @@ StocksDB.prototype.sellAll = buscomponent.provideQUA('sellAll', function(query, 
 			var depotentry = res[i];
 			this.buyStock({
 				amount: -depotentry.amount,
-				leader: user.id
+				leader: user.id,
+				__force_now__: true
 			}, {id: depotentry.userid}, access, function() {
 				if (++complete == res.length) 
 					cb();
@@ -482,15 +483,15 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 	};
 		
 	conn.query('SELECT s.*, ' +
-		'SUM(depot_stocks.amount) AS amount, ' +
-		'SUM(depot_stocks.amount * s.lastvalue) AS money, ' +
-		'AVG(s.bid - depot_stocks.provision_hwm) AS hwmdiff, ' +
-		'AVG(s.bid - depot_stocks.provision_lwm) AS lwmdiff, ' +
+		'depot_stocks.amount AS amount, ' +
+		'depot_stocks.amount * s.lastvalue AS money, ' +
+		's.bid - depot_stocks.provision_hwm AS hwmdiff, ' +
+		's.bid - depot_stocks.provision_lwm AS lwmdiff, ' +
 		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
 		'FROM stocks AS s ' +
 		'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = s.id ' +
 		'LEFT JOIN users AS l ON s.leader = l.id AND depot_stocks.userid != l.id ' +
-		'WHERE s.stockid = ? GROUP BY s.id', [user.id, query.stockid], function(res) {
+		'WHERE s.stockid = ?', [user.id, query.stockid], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			rollback();
 			return cb('stock-buy-stock-not-found');
@@ -503,12 +504,12 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (/__LEADER_(\d+)__/.test(query.stockid) && !access.has('email_verif')) {
+		if (/__LEADER_(\d+)__/.test(query.stockid) && !access.has('email_verif') && !query.__force_now__) {
 			rollback();
 			return cb('stock-buy-email-not-verif');
 		}
 		
-		if (!this.stockExchangeIsOpen(r.exchange, cfg) && !(access.has('stocks') && query.forceNow)) {
+		if (!this.stockExchangeIsOpen(r.exchange, cfg) && !(access.has('stocks') && query.forceNow) && !query.__force_now__) {
 			rollback();
 			
 			if (!query.__is_delayed__) {
@@ -551,12 +552,12 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			[r.name, user.id, r.amount], function(ohr) {
 		var tradedToday = ohr[0].amount || 0;
 		
-		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0) {
+		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !access.has('stocks')) {
 			rollback();
 			return cb('stock-buy-single-paper-share-exceed');
 		}
 		
-		if (Math.abs(amount) + tradedToday > r.pieces) {
+		if (Math.abs(amount) + tradedToday > r.pieces && !access.has('stocks') && !query.__force_now__) {
 			rollback();
 			return cb('stock-buy-over-pieces-limit');
 		}

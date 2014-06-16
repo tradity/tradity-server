@@ -170,6 +170,17 @@ AdminDB.prototype.joinSchools = buscomponent.provideQUA('client-join-schools', _
 	});
 }));
 
+AdminDB.prototype.getFollowers = buscomponent.provideQUA('client-get-followers', _reqpriv('userdb', function(query, user, access, cb) {
+	this.query('SELECT u.name, u.id, ds.* ' +
+		'FROM stocks AS s ' +
+		'JOIN depot_stocks AS ds ON ds.stockid = s.id ' +
+		'JOIN users AS u ON ds.userid = u.id ' +
+		'WHERE s.leader = ?', [query.uid], function(res) {
+		
+		cb('get-followers-success', {results: res});
+	});
+}));
+
 AdminDB.prototype.getUserLogins = buscomponent.provideQUA('client-get-user-logins', _reqpriv('userdb', function(query, user, access, cb) {
 	this.query('SELECT * FROM logins WHERE uid = ?', [query.uid], function(res) {
 		_.each(res, function(e) {

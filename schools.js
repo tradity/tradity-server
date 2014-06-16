@@ -281,7 +281,7 @@ SchoolsDB.prototype.publishBanner = buscomponent.provideQUA('client-school-publi
 	query.role = 'schools.banner';
 	
 	_reqschooladm(_.bind(function(query, user, access, cb) {
-		this.request('client-publish', {query: query, user: user, access: access}, cb);
+		this.request({name: 'client-publish', query: query, user: user, access: access}, cb);
 	}, this), false, this)(query, user, access, cb);
 });
 

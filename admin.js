@@ -1,7 +1,7 @@
 (function () { "use strict";
 	
 function parentPath(x) {
-	var match = x.match(/(\/[\w_-]+)+\/[\w_-]+$/);
+	var match = x.match(/((\/[\w_-]+)+)\/[\w_-]+$/);
 	return match ? match[1] : '/';
 }
 

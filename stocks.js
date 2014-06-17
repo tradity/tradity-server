@@ -338,6 +338,8 @@ StocksDB.prototype.updateRecord = function(rec) {
 	if (rec.lastTradePrice == 0) // happens with API sometimes.
 		return;
 	
+	assert.notStrictEqual(rec.pieces, null);
+	
 	this.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange, pieces) VALUES '+
 		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
 		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) >= LENGTH(?), name, ?), exchange = ?, pieces = ?',

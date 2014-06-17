@@ -145,7 +145,12 @@ Database.prototype.queryCallback = function(cb, query, data) {
 				err + '\nCaused by ' + querydesc
 			) : err);
 		} else if (cb) {
-			_.bind(cb, this)(res);
+			try {
+				_.bind(cb, this)(res);
+			} catch (e) {
+				this.query('ROLLBACK; SET autocommit = 1');
+				this.emit('error', e);
+			}
 		}
 	}, this);
 };

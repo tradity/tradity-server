@@ -503,6 +503,8 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		
 		var r = res[0];
 		
+		var hadDepotStocksEntry = (r.amount !== null);
+		
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
@@ -600,7 +602,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			conn.query('UPDATE users AS f SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
 				perffull + '=' + perffull + ' + ABS(?) ' +
 				' WHERE id = ?', [price+fee, fee, price, user.id], function() {
-			if (r.amount == 0) {
+			if (!hadDepotStocksEntry) {
 				assert.ok(amount >= 0);
 				
 				conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 

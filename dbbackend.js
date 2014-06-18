@@ -63,16 +63,33 @@ Database.prototype._getConnection = buscomponent.needsInit(function(cb) {
 		if (conn == null)
 			return cb(err, null);
 		
+		var release = function() {
+			db.openQueries--;
+			
+			if (db.openQueries == 0 && db.isShuttingDown)
+				db.shutdown();
+			
+			return conn.release();
+		};
+		
 		cb(err, {
-			query: _.bind(conn.query, conn),
-			release: function() {
-				db.openQueries--;
-				
-				if (db.openQueries == 0 && db.isShuttingDown)
-					db.shutdown();
-				
-				return conn.release();
-			}
+			query: function(q, args, cb) {
+				conn.query(q, args, function(err, res) {
+					var exception = null;
+					try {
+						cb(err, res);
+					} catch (e) {
+						exception = e;
+					}
+					
+					if (err || exception) {
+						conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+						release();
+						if (exception)
+							this.emit('error', exception);
+					}
+				});
+			}, release: release
 		});
 	});
 });
@@ -81,33 +98,10 @@ Database.prototype.escape = buscomponent.needsInit(function(str) {
 	return this.dbmod.escape(str);
 });
 
-Database.prototype.timeQueryWrap = function(fn, connid, wrapCb) {
-	wrapCb = _.bind(wrapCb, this);
-	
-	this.getServerConfig(function(cfg) {
-		if (cfg && cfg.timeQueries) {
-			wrapCb(_.bind(function(query, data, cb) {
-				var tStart = new Date().getTime();
-				
-				fn(query, data, _.bind(function() {
-					var tEnd = new Date().getTime();
-					this.message('queryTiming', 'Query ' + connid + ' ' + query.substr(0, 60) + ' took ' + (tEnd - tStart) + ' ms');
-					
-					cb.apply(this, arguments);
-				}, this));
-			}, this));
-		} else {
-			wrapCb(_.bind(fn, this));
-		}
-	});
-};
-
 Database.prototype.query = buscomponent.provide('dbQuery', ['query', 'args', 'reply'], function(query, data, cb) {
 	data = data || [];
 	
-	this.timeQueryWrap(_.bind(this._query, this), '*', _.bind(function(f) {
-		f(query, data, this.queryCallback(cb, query, data));
-	}, this));
+	this._query(query, data, this.queryCallback(cb, query, data));
 });
 
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['reply'], function(conncb) {
@@ -122,10 +116,9 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['rep
 		conncb({
 			query: _.bind(function(q, data, cb) {
 				data = data || [];
-				this.timeQueryWrap(_.bind(cn.query, cn), connid, _.bind(function(f) {
-					this.emit('dbBoundQueryLog', [q, data]);
-					f(q, data, this.queryCallback(cb, q, data));
-				}, this));
+				
+				this.emit('dbBoundQueryLog', [q, data]);
+				cn.query(q, data, this.queryCallback(cb, q, data));
 			}, this),
 			release: _.bind(function() {
 				cn.release();
@@ -145,12 +138,7 @@ Database.prototype.queryCallback = function(cb, query, data) {
 				err + '\nCaused by ' + querydesc
 			) : err);
 		} else if (cb) {
-			try {
-				_.bind(cb, this)(res);
-			} catch (e) {
-				this.query('ROLLBACK; SET autocommit = 1');
-				this.emit('error', e);
-			}
+			_.bind(cb, this)(res);
 		}
 	}, this);
 };

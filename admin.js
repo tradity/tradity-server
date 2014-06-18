@@ -199,7 +199,7 @@ AdminDB.prototype.getTicksStatistics = buscomponent.provideQUA('client-get-ticks
 	var dt = 300;
 	
 	this.query('SELECT FLOOR(time/?)*? AS timeindex, SUM(ticks) AS ticksum, COUNT(ticks) AS tickcount ' +
-		'FROM valuehistory ' +
+		'FROM tickshistory ' +
 		'GROUP BY timeindex',
 		[dt, dt, dt, timespanStart, todayStart], function(res) {
 		cb('get-ticks-statistics-success', {results: res});

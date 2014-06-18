@@ -77,8 +77,10 @@ StocksDB.prototype.updateRankingInformation = function(cb) {
 }
 
 StocksDB.prototype.updateValueHistory = function(cb) {
-	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold, ticks';
-	this.query('INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT id, ' + copyFields + ', UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
+	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
+	this.query('INSERT INTO tickshistory (userid, ticks, time) SELECT id, ticks, UNIX_TIMESTAMP() FROM users', [], function() {
+		this.query('INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT id, ' + copyFields + ', UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
+	});
 }
 
 StocksDB.prototype.dailyCallback = function(cb) {

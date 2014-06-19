@@ -554,8 +554,12 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			return cb('stock-buy-out-of-money');
 		}
 		
+		assert.ok(r.stockid);
+		
 		conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
-			[r.name, user.id, r.amount], function(ohr) {
+			[r.stockid, user.id, r.amount], function(ohr) {
+		assert.equal(ohr.length, 1);
+		
 		var tradedToday = ohr[0].amount || 0;
 		
 		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !access.has('stocks')) {

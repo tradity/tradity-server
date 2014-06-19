@@ -4,5 +4,5 @@ From: ${sendermail}
 Subject: Tradity Einladung („${sendername}“)
 To: ${email}
 
-<p>Der Benutzer „${sendername}“ hat dich zum Börsenspiel Tradity eingeladen.
+<p>Der Benutzer „${sendername}“ hat Dich zum Börsenspiel Tradity eingeladen.
 <a href="${url}">Klicke hier, um mitzuspielen.</a></p>

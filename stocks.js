@@ -368,6 +368,8 @@ StocksDB.prototype.searchStocks = buscomponent.provideQUA('client-stock-search',
 	if (!str || str.length < 3)
 		return cb('stock-search-too-short');
 	
+	str = str.trim();
+	
 	var handleResults = _.bind(function(results) {
 		results = _.uniq(results, false, function(r) { return r.stockid; });
 		var symbols = _.pluck(results, 'stockid');
@@ -554,8 +556,12 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			return cb('stock-buy-out-of-money');
 		}
 		
+		assert.ok(r.stockid);
+		
 		conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
-			[r.name, user.id, r.amount], function(ohr) {
+			[r.stockid, user.id, r.amount], function(ohr) {
+		assert.equal(ohr.length, 1);
+		
 		var tradedToday = ohr[0].amount || 0;
 		
 		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !access.has('stocks')) {

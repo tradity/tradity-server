@@ -46,8 +46,9 @@ Database.prototype._query = buscomponent.needsInit(function(query, args, cb) {
 	this._getConnection(function(err, connection) {
 		if (err)
 			return cb(err, null);
-		connection.query(query, args, function() {
-			connection.release();
+		connection.query(query, args, function(err) {
+			if (!err) // release will be handled by connection management
+				connection.release();
 			cb.apply(this, arguments);
 		});
 	});

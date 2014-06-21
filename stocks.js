@@ -69,7 +69,7 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 StocksDB.prototype.updateRankingInformation = function(cb) {
 	cb = cb || function() {};
 	
-	this.query('UPDATE users SET '+
+	this.query('UPDATE users SET ' +
 		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
 		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
 		this.updateValueHistory(cb);

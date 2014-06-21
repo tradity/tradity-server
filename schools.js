@@ -115,7 +115,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, user, access, cfg, cb) {
 				s.comments = comments;
 				s.subschools = subschools;
 				s.usercount = usercount[0].usercount;
-								
+				
 				this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
 					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +

@@ -137,7 +137,8 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 
 StocksDB.prototype.updateProvisions = function (cb) {
 	this.getConnection(function (conn) {
-	conn.query('START TRANSACTION', [], function() {
+	conn.query('SET autocommit = 0; ' +
+	'LOCK TABLES depot_stocks AS ds WRITE, users AS l WRITE, users AS f WRITE, stocks AS s READ;', [], function() {
 		conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, '+
 			wprovFees+' AS wfees, '+wprovMax+' AS wmax, '+
@@ -147,7 +148,7 @@ StocksDB.prototype.updateProvisions = function (cb) {
 			'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
 		function(dsr) {
 			if (!dsr.length) {
-				conn.query('COMMIT', [], function() { conn.release(); });
+				conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
 				return cb();
 			}
 			
@@ -160,15 +161,15 @@ StocksDB.prototype.updateProvisions = function (cb) {
 					var dsid = dsr[j].dsid;
 					var totalfees = dsr[j].wfees + dsr[j].lfees;
 					
-					conn.query('UPDATE depot_stocks SET ' +
+					conn.query('UPDATE depot_stocks AS ds SET ' +
 						'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
 						'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
 						'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
-					conn.query('UPDATE users SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalfees, totalfees, dsr[j].fid], function() {
-					conn.query('UPDATE users SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+					conn.query('UPDATE users AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalfees, totalfees, dsr[j].fid], function() {
+					conn.query('UPDATE users AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 						[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
 						if (++complete == dsr.length) 
-							conn.query('COMMIT', [], function() {
+							conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() {
 								conn.release();
 								cb();
 							});
@@ -188,19 +189,20 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 	this.getServerConfig(function(cfg) {
 	
 	this.getConnection(function (conn) {
-	conn.query('START TRANSACTION', [], function() {
-	conn.query('SELECT userid AS uid FROM depot_stocks ' +
-		'UNION SELECT leader AS uid FROM stocks WHERE leader IS NOT NULL', [], function(users) {
+	conn.query('SET autocommit = 0; ' +
+		'LOCK TABLES depot_stocks AS ds READ, users WRITE, stocks AS s WRITE;', [], function() {
+	conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
+		'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', [], function(users) {
 	conn.query(
 		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
 		'freemoney, users.wprov_sum + users.lprov_sum AS prov_sum ' +
 		'FROM depot_stocks AS ds ' +
 		'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
 		'LEFT JOIN users ON ds.userid = users.id ' +
-		'GROUP BY uid ' +
-		'UNION SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
-		'FROM users WHERE (SELECT COUNT(*) FROM depot_stocks WHERE userid = users.id) = 0', [],
-		function(res_static) {
+		'GROUP BY uid ', [], function(res_static) {
+	conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
+		'FROM users WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users.id) = 0', [], function(res_static2) {
+		res_static = res_static.concat(res_static2);
 	conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
@@ -296,11 +298,11 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 				var lv  = X[i] / 100;
 				var lva = Math.max(Xa[i] / 100, 10000);
 				
-				conn.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?',
+				conn.query('UPDATE stocks AS s SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?',
 					[(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]], function() {
 				conn.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_sum[i], cusers[i]], function() {
 					if (++complete == users.length) {
-						conn.query('COMMIT', [], function() {
+						conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() {
 							conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
 								[users[i]], function(res) {
 								conn.release();
@@ -323,6 +325,7 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 				}, this, i)();
 			}
 		}, this)(); }
+	});
 	});
 	});
 	});

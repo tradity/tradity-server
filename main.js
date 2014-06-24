@@ -99,6 +99,30 @@ if (cluster.isWorker) {
 		return freePorts[0];
 	};
 	
+	var registerWorker = function(w) {
+		w.on('message', function(msg) {
+			if (!msg.evdata || !msg.evdata._originPID || msg.evdata._originPID == process.pid || msg.evdata._seenByMaster)
+				return;
+			
+			if (sharedEvents.indexOf(msg.evname) != -1)
+				mainBus.emit(msg.evname, msg.evdata);
+		});
+		
+		for (var i = 0; i < sharedEvents.length; ++i) { (function() {
+			var evname = sharedEvents[i];
+			mainBus.on(evname, function(data) {
+				data = data || {};
+				
+				if (!data._originPID)
+					data._originPID = process.pid;
+				data._seenByMaster = true;
+				
+				if (w.state != 'dead')
+					w.send({evname: evname, evdata: data});
+			});
+		})(); }
+	};
+	
 	var forkBackgroundWorker = function() {
 		var bw = cluster.fork();
 		workers.push(bw);
@@ -109,6 +133,8 @@ if (cluster.isWorker) {
 		
 		bwpid = bw.process.pid;
 		assert.ok(bwpid);
+		
+		registerWorker(bw);
 	};
 	
 	var forkStandardWorker = function() {
@@ -118,6 +144,8 @@ if (cluster.isWorker) {
 		w.on('online', function() {
 			w.send({cmd: 'startStandardWorker', port: getFreePort(w.process.pid)});
 		});
+		
+		registerWorker(w);
 	};
 	
 	forkBackgroundWorker();
@@ -142,32 +170,6 @@ if (cluster.isWorker) {
 				forkStandardWorker();
 		}
 	});
-	
-	for (var i = 0; i < workers.length; ++i) { 
-		workers[i].on('message', function(msg) {
-			if (!msg.evdata || !msg.evdata._originPID || msg.evdata._originPID == process.pid || msg.evdata._seenByMaster)
-				return;
-			
-			if (sharedEvents.indexOf(msg.evname) != -1)
-				mainBus.emit(msg.evname, msg.evdata);
-		});
-	}
-	
-	for (var i = 0; i < sharedEvents.length; ++i) { (function() {
-		var evname = sharedEvents[i];
-		mainBus.on(evname, function(data) {
-			data = data || {};
-			
-			if (!data._originPID)
-				data._originPID = process.pid;
-			data._seenByMaster = true;
-			
-			for (var j = 0; j < workers.length; ++j) {
-				if (workers[j].state != 'dead')
-					workers[j].send({evname: evname, evdata: data});
-			}
-		});
-	})(); }
 }
 
 function worker() {

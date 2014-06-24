@@ -41,7 +41,7 @@ for (var i = 0; i < forwardSignals.length; ++i) {
 
 assert.ok(cfg.busDumpFile);
 process.on('SIGUSR2', function() {
-	fs.writeFileSync(cfg.busDumpFile, 'Log:\n\n' + JSON.stringify(mainBus.log) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
+	fs.writeFileSync(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid), 'Log:\n\n' + JSON.stringify(mainBus.log) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
 });
 
 var sharedEvents = [

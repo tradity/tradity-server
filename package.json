@@ -19,7 +19,7 @@
 		"iconv": "*",
 		"redis": "*",
 		"unionfind": "*",
-		"lzma-native": ">=0.0.3"
+		"lzma-native": ">=0.1.1"
 	},
 	"preferGlobal": false,
 	"private": true

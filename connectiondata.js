@@ -29,6 +29,11 @@ function ConnectionData(socket) {
 	this.query_ = _.bind(this.query, this);
 	this.disconnected_ = _.bind(this.disconnected, this);
 	
+	this.versionInfo = {
+		minimum: 1
+		current: 1
+	};
+	
 	socket.on('query', this.query_);
 	socket.on('disconnect', this.disconnected_);
 }
@@ -36,7 +41,7 @@ util.inherits(ConnectionData, buscomponent.BusComponent);
 
 ConnectionData.prototype.onBusConnect = function() {
 	this.getServerConfig(function(cfg) {
-		this.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig)});
+		this.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig), 'versionInfo': this.versionInfo});
 	});
 };
 

@@ -30,7 +30,7 @@ function ConnectionData(socket) {
 	this.disconnected_ = _.bind(this.disconnected, this);
 	
 	this.versionInfo = {
-		minimum: 1
+		minimum: 1,
 		current: 1
 	};
 	

@@ -133,9 +133,13 @@ UserDB.prototype.logout = buscomponent.provideQUA('logout', function(query, user
 UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', function(query, user, access, cb) {
 	query.startindex = parseInt(query.startindex) || 0;
 	query.endindex = parseInt(query.endindex) || (1 << 20);
+	query.since = parseInt(query.since);
+	query.upto = parseInt(query.upto);
 	
 	if (!query.since)
 		query.since = 0;
+	if (!query.upto)
+		query.upto = new Date().getTime()/1000;
 	
 	if (parseInt(query.since) != query.since)
 		return cb('format-error');
@@ -148,7 +152,10 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 		'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
 		'JOIN valuehistory AS past_va ON past_va.userid = u.id ' +
 		'JOIN (SELECT userid, MIN(time) AS t FROM valuehistory WHERE time > ? GROUP BY userid) AS past_locator_va ' +
-			'ON past_va.userid = past_locator_va.userid AND past_va.time = past_locator_va.t ';
+			'ON past_va.userid = past_locator_va.userid AND past_va.time = past_locator_va.t ' +
+		'JOIN valuehistory AS now_va ON now_va.userid = u.id ' +
+		'JOIN (SELECT userid, MAX(time) AS t FROM valuehistory WHERE time < ? GROUP BY userid) AS now_locator_va ' +
+			'ON now_va.userid = now_locator_va.userid AND now_va.time = now_locator_va.t ';
 			
 	if (!query.includeAll) 
 		likestringWhere += ' AND email_verif != 0 ';
@@ -170,10 +177,10 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 	} : function(cont) { cont(access.has('userdb')); }, this)(_.bind(function(fulldata) {
 		this.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
 			'tradecount != 0 as hastraded, ' + 
-			'u.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
-			'u.wprov_sum + u.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
-			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) / (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
-			'((u.fperf_cur + u.fperf_sold - past_va.fperf_sold) - (u.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
+			'now_va.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
+			'now_va.wprov_sum + now_va.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
+			'((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) / (now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
+			'((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) - (now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
 			(fulldata ? '' : 'IF(realnamepublish != 0,giv_name,NULL) AS ') + ' giv_name, ' +
 			(fulldata ? '' : 'IF(realnamepublish != 0,fam_name,NULL) AS ') + ' fam_name, ' +
 			'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
@@ -181,7 +188,7 @@ UserDB.prototype.getRanking = buscomponent.provideQUA('client-get-ranking', func
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere +
 			'LIMIT ?, ?', 
-			[query.since].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(ranking) {
+			[query.since, query.upto].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]), function(ranking) {
 				cb('get-ranking-success', {'result': ranking});
 			});
 	}, this));

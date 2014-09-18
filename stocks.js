@@ -230,6 +230,9 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 		}
 		
 		var sgesvTotalTime = 0;
+		var updateQuery = '';
+		var updateParams = [];
+		
 		for (var ci_ in components) { _.bind(function() {
 			var ci = ci_;
 			var cusers = components[ci];
@@ -298,30 +301,30 @@ StocksDB.prototype.updateLeaderMatrix = function(cb) {
 				var lv  = X[i] / 100;
 				var lva = Math.max(Xa[i] / 100, 10000);
 				
-				conn.query('UPDATE stocks AS s SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?',
-					[(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]], function() {
-				conn.query('UPDATE users SET totalvalue = ? WHERE id = ?', [X[i] + prov_sum[i], cusers[i]], function() {
-					if (++complete == users.length) {
-						conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() {
-							conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
-								[users[i]], function(res) {
-								conn.release();
-								
-								var lmuEnd = new Date().getTime();
-								console.log('sgesv in ' + sgesvTotalTime + ' ms, lm update in ' + (lmuEnd - lmuStart) + ' ms');
-								
-								for (var j = 0; j < res.length; ++j) {
-									process.nextTick(_.bind(_.partial(function(r) {
-										this.emit('stock-update', r);
-									}, res[j]), this));
-								}
-								
-								cb();
-							});
+				updateQuery += 'UPDATE stocks AS s SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?;';
+				updateParams = updateParams.concat([(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]]);
+				updateQuery += 'UPDATE users SET totalvalue = ? WHERE id = ?;';
+				updateParams = updateParams.concat([X[i] + prov_sum[i], cusers[i]]);
+				
+				if (++complete == users.length) {
+					conn.query(updateQuery + 'COMMIT; UNLOCK TABLES; SET autocommit = 1;', updateParams, function() {
+						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
+							[users[i]], function(res) {
+							conn.release();
+							
+							var lmuEnd = new Date().getTime();
+							console.log('sgesv in ' + sgesvTotalTime + ' ms, lm update in ' + (lmuEnd - lmuStart) + ' ms');
+							
+							for (var j = 0; j < res.length; ++j) {
+								process.nextTick(_.bind(_.partial(function(r) {
+									this.emit('stock-update', r);
+								}, res[j]), this));
+							}
+							
+							cb();
 						});
-					}
-				});
-				});
+					});
+				}
 				}, this, i)();
 			}
 		}, this)(); }

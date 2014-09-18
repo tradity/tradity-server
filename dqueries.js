@@ -222,7 +222,7 @@ DelayedQueriesDB.prototype.removeQuery = function(query) {
 	});
 };
 
-DelayedQueriesDB.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['ctx', 'reply'], function(ctx.user, cb) {
+DelayedQueriesDB.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['ctx', 'reply'], function(ctx, cb) {
 	var toBeDeleted = [];
 	for (var queryid in this.queries) {
 		var q = this.queries[queryid];

@@ -19,7 +19,7 @@ QContext.fromJSON = function(j) {
 		return ctx;
 	
 	ctx.user = j.user || null;
-	ctx.access = Access.fromJSON(access);
+	ctx.access = Access.fromJSON(j.access);
 	return ctx;
 };
 

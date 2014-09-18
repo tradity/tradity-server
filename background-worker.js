@@ -13,7 +13,7 @@ util.inherits(BackgroundWorker, buscomponent.BusComponent);
 BackgroundWorker.prototype.prod = buscomponent.provideQT('client-prod', function(query, ctx, cb) {
 	assert.ok(ctx.access);
 	
-	if (ctx.has('server') == -1)
+	if (ctx.access.has('server') == -1)
 		return cb('prod-not-allowed');
 		
 	var starttime = new Date().getTime();

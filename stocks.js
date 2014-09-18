@@ -29,7 +29,7 @@ StocksDB.prototype.stocksFilter = function(cfg, rec) {
 	return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == cfg.requireCurrency;
 };
 
-StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'reply'], function(query, cb) {
+StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
 	cb = cb || function() {};
 		
 	var rcbST = new Date().getTime();
@@ -368,7 +368,7 @@ StocksDB.prototype.updateRecord = function(rec) {
 	);
 }
 
-StocksDB.prototype.searchStocks = buscomponent.provideQUA('client-stock-search', function(query, user, access, cb) {
+StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx, cb) {
 	this.getServerConfig(function(cfg) {
 	var str = query.name;
 	if (!str || str.length < 3)
@@ -453,9 +453,9 @@ StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOp
 	return res;
 });
 
-StocksDB.prototype.sellAll = buscomponent.provideQUA('sellAll', function(query, user, access, cb) {
+StocksDB.prototype.sellAll = buscomponent.provideQT('sellAll', function(query, ctx, cb) {
 	/* assume lock already present */
-	this.query('SELECT s.*, ds.* FROM stocks AS s JOIN depot_stocks AS ds ON ds.stockid = s.id WHERE s.leader = ?', [user.id], function(res) {
+	this.query('SELECT s.*, ds.* FROM stocks AS s JOIN depot_stocks AS ds ON ds.stockid = s.id WHERE s.leader = ?', [ctx.user.id], function(res) {
 		if (res.length == 0)
 			return cb();
 		
@@ -464,9 +464,9 @@ StocksDB.prototype.sellAll = buscomponent.provideQUA('sellAll', function(query, 
 			var depotentry = res[i];
 			this.buyStock({
 				amount: -depotentry.amount,
-				leader: user.id,
+				leader: ctx.user.id,
 				__force_now__: true
-			}, {id: depotentry.userid}, access, function() {
+			}, {id: depotentry.userid}, ctx.access, function() {
 				if (++complete == res.length) 
 					cb();
 			});
@@ -474,10 +474,10 @@ StocksDB.prototype.sellAll = buscomponent.provideQUA('sellAll', function(query, 
 	});
 });
 
-StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', function(query, user, access, cb) {
+StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', function(query, ctx, cb) {
 	this.getServerConfig(function(cfg) {
-	assert.ok(user);
-	assert.ok(access);
+	assert.ok(ctx.user);
+	assert.ok(ctx.access);
 	
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
@@ -503,7 +503,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		'FROM stocks AS s ' +
 		'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = s.id ' +
 		'LEFT JOIN users AS l ON s.leader = l.id AND depot_stocks.userid != l.id ' +
-		'WHERE s.stockid = ?', [user.id, query.stockid], function(res) {
+		'WHERE s.stockid = ?', [ctx.user.id, query.stockid], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			rollback();
 			return cb('stock-buy-stock-not-found');
@@ -518,19 +518,18 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (/__LEADER_(\d+)__/.test(query.stockid) && !access.has('email_verif') && !query.__force_now__) {
+		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !query.__force_now__) {
 			rollback();
 			return cb('stock-buy-email-not-verif');
 		}
 		
-		if (!this.stockExchangeIsOpen(r.exchange, cfg) && !(access.has('stocks') && query.forceNow) && !query.__force_now__) {
+		if (!this.stockExchangeIsOpen(r.exchange, cfg) && !(ctx.access.has('stocks') && query.forceNow) && !query.__force_now__) {
 			rollback();
 			
 			if (!query.__is_delayed__) {
 				query.retainUntilCode = 'stock-buy-success';
 				this.request({name: 'client-dquery', 
-					user: user,
-					access: access,
+					ctx: ctx,
 					query: { 
 						condition: 'stock::' + r.stockid + '::exchange-open > 0',
 						query: query,
@@ -554,7 +553,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		assert.ok(r.ask >= 0);
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
-		conn.query('SELECT freemoney, totalvalue FROM users AS f WHERE id = ?', [user.id], function(ures) {
+		conn.query('SELECT freemoney, totalvalue FROM users AS f WHERE id = ?', [ctx.user.id], function(ures) {
 		assert.equal(ures.length, 1);
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0) {
@@ -565,17 +564,17 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 		assert.ok(r.stockid);
 		
 		conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
-			[r.stockid, user.id, r.amount], function(ohr) {
+			[r.stockid, ctx.user.id, r.amount], function(ohr) {
 		assert.equal(ohr.length, 1);
 		
 		var tradedToday = ohr[0].amount || 0;
 		
-		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !access.has('stocks')) {
+		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !ctx.access.has('stocks')) {
 			rollback();
 			return cb('stock-buy-single-paper-share-exceed');
 		}
 		
-		if (Math.abs(amount) + tradedToday > r.pieces && !access.has('stocks') && !query.__force_now__) {
+		if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !query.__force_now__) {
 			rollback();
 			return cb('stock-buy-over-pieces-limit');
 		}
@@ -589,7 +588,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			
 			var totalprovPay = wprovPay + lprovPay;
 			
-			conn.query('UPDATE users AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, user.id], function() {
+			conn.query('UPDATE users AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, ctx.user.id], function() {
 				conn.query('UPDATE users AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid], cont);
 			});
@@ -598,11 +597,11 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			
 			conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
 				'VALUES(?,?,?,?,UNIX_TIMESTAMP(),?,?,?,?,?)',
-				[user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount], function(oh_res) {
+				[ctx.user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount], function(oh_res) {
 			this.feed({
 				'type': 'trade',
 				'targetid': oh_res.insertId,
-				'srcuser': user.id,
+				'srcuser': ctx.user.id,
 				'json': {'__delay__': !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
 				'feedusers': r.leader ? [r.leader] : []
 			});
@@ -615,12 +614,12 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 			
 			conn.query('UPDATE users AS f SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
 				perffull + '=' + perffull + ' + ABS(?) ' +
-				' WHERE id = ?', [price+fee, fee, price, user.id], function() {
+				' WHERE id = ?', [price+fee, fee, price, ctx.user.id], function() {
 			if (!hadDepotStocksEntry) {
 				assert.ok(amount >= 0);
 				
 				conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
-					[user.id, r.id, amount, price, ta_value, ta_value], function() {
+					[ctx.user.id, r.id, amount, price, ta_value, ta_value], function() {
 					commit();
 					cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 				});
@@ -631,7 +630,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 					'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
 					'amount = amount + ? ' +
 					'WHERE userid = ? AND stockid = ?', 
-					[price, price, amount, price, amount, amount, user.id, r.id], function() {
+					[price, price, amount, price, amount, amount, ctx.user.id, r.id], function() {
 					commit();
 					cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 				});
@@ -647,18 +646,18 @@ StocksDB.prototype.buyStock = buscomponent.provideQUA('client-stock-buy', functi
 	});
 });
 
-StocksDB.prototype.stocksForUser = buscomponent.provideQUA('client-list-own-depot', function(query, user, access, cb) {
+StocksDB.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot', function(query, ctx, cb) {
 	this.query('SELECT '+
 		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, '+
 		's.stockid AS stockid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, '+
 		'users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
-		[user.id], function(results) {
+		[ctx.user.id], function(results) {
 		cb('list-own-depot-success', {'results': results});
 	});
 });
 
-StocksDB.prototype.getTradeInfo = buscomponent.provideQUA('client-get-trade-info', function(query, user, access, cb) {
+StocksDB.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx, cb) {
 	this.getServerConfig(function(cfg) {
 		this.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh '+
 			'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
@@ -670,7 +669,7 @@ StocksDB.prototype.getTradeInfo = buscomponent.provideQUA('client-get-trade-info
 			var r = oh_res[0];
 			
 			assert.ok(r.userid);
-			if (r.userid != user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < cfg.delayOrderHistTime) && !access.has('stocks'))
+			if (r.userid != ctx.user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
 				return cb('get-trade-delayed-history');
 			this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml '+
 				'FROM ecomments AS c '+

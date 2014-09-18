@@ -25,10 +25,10 @@ AchievementsDB.prototype.onBusConnect = function() {
 	});
 };
 
-AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['user', 'reply'], function(user, cb) {
-	this.query('SELECT * FROM achievements WHERE userid = ?', [user.id], function(userAchievements) {
+AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
+	this.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id], function(userAchievements) {
 		_.each(this.achievementList, _.bind(function(achievementEntry) {
-			this.checkAchievement(achievementEntry, user.id, userAchievements);
+			this.checkAchievement(achievementEntry, ctx.user.id, userAchievements);
 		}, this));
 		
 		cb();
@@ -147,11 +147,11 @@ AchievementsDB.prototype.markClientAchievements = function(list) {
 	}, this));
 };
 
-AchievementsDB.prototype.listAchievements = buscomponent.provideQUA('client-list-all-achievements', function(query, user, access, cb) {
+AchievementsDB.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx, cb) {
 	cb('list-all-achievements-success', {result: this.achievementList});
 }),
 
-AchievementsDB.prototype.clientAchievement = buscomponent.provideQUA('client-achievement', function(query, user, access, cb) {
+AchievementsDB.prototype.clientAchievement = buscomponent.provideQT('client-achievement', function(query, ctx, cb) {
 	if (query.name)
 		query.name = query.name.toString();
 	
@@ -161,8 +161,8 @@ AchievementsDB.prototype.clientAchievement = buscomponent.provideQUA('client-ach
 	if (this.clientAchievements.indexOf(query.name) == -1)
 		return cb('achievement-unknown-name');
 	
-	this.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [user.id, query.name], function() {
-		this.emit('clientside-achievement', {srcuser: user.id, name: query.name});
+	this.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
+		this.emit('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
 		cb('achievement-success');
 	});

@@ -1,7 +1,7 @@
 (function () { "use strict";
 
 var assert = require('assert');
-var Access = require('./access.js').Access;
+var qctx = require('./qctx.js');
 var _ = require('underscore');
 
 function BusComponent () {
@@ -111,8 +111,8 @@ function provide(name, args, fn) {
 			this.emit(name + '-resp', { arguments: args, replyTo: data.requestId });
 		}, this);
 		
-		if (data.access && !data.access.has)
-			data.access = Access.fromJSON(data.access);
+		if (data.ctx && !data.ctx.toJSON)
+			data.ctx = qctx.fromJSON(data.ctx);
 		
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)
@@ -131,8 +131,8 @@ function listener(name, fn) {
 	return fn;
 };
 
-function provideQUA(name, fn)  { return provide(name, ['query', 'user', 'access', 'reply'], fn); };
-function provideQUAX(name, fn) { return provide(name, ['query', 'user', 'access', 'xdata', 'reply'], fn); };
+function provideQT(name, fn)  { return provide(name, ['query', 'ctx', 'reply'], fn); };
+function provideQTX(name, fn) { return provide(name, ['query', 'ctx', 'xdata', 'reply'], fn); };
 
 BusComponent.prototype.registerProviders = function() {
 	for (var i in this) {
@@ -192,8 +192,8 @@ function errorWrap (fn) {
 exports.BusComponent = BusComponent;
 exports.provide      = provide;
 exports.listener     = listener;
-exports.provideQUA   = provideQUA;
-exports.provideQUAX  = provideQUAX;
+exports.provideQT    = provideQT;
+exports.provideQTX  = provideQTX;
 exports.needsInit    = needsInit;
 exports.errorWrap    = errorWrap;
 

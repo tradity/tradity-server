@@ -94,7 +94,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 	});
 });
 
-FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', function(query, user, access, cb) {
+FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', function(query, ctx, cb) {
 	this.getServerConfig(function(cfg) {
 	
 	var content = query.content;
@@ -105,10 +105,10 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 	
 	if (query.base64)
 		content = new Buffer(query.content, 'base64');
-	this.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [user ? user.id : null], function(res) {
+	this.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null], function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
-		if (!access.has('filesystem')) {
+		if (!ctx.access.has('filesystem')) {
 			if (content.length + total > cfg.fsdb.userquota)
 				return cb('publish-quota-exceed');
 			if (cfg.fsdb.allowroles.indexOf(query.role) == -1)
@@ -125,11 +125,11 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 					var match = query.content.match(p.regex);
 					if (match) {
 						if (typeof p.requireAccess == 'function') {
-							hasRequiredAccess = p.requireAccess(user, access, match);
+							hasRequiredAccess = p.requireAccess(ctx, match);
 						} else {
 							hasRequiredAccess = p.requireAccess.length == 0;
 							for (var i = 0; i < p.requireAccess.length; ++i) {
-								if (access.has(p.requireAccess[i])) {
+								if (ctx.access.has(p.requireAccess[i])) {
 									hasRequiredAccess = true;
 									break;
 								}
@@ -151,19 +151,19 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 		var filehash = hash('md5', content + new Date().getTime().toString());
 		query.name = query.name || filehash;
 		
-		var filename = (user ? user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
+		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = _.bind(function() {
 			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[user ? user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
+				[ctx.user ? ctx.user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
 				
-				if (user) {
+				if (ctx.user) {
 					this.feed({
 						'type': 'file-publish',
 						'targetid': res.insertId,
-						'srcuser': user.id
+						'srcuser': ctx.user.id
 					});
 				}
 				
@@ -171,7 +171,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 			});
 		}, this);
 		
-		if (uniqrole && user && !(access.has('filesystem') && query.retainOldFiles)) {
+		if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';
 			var dataarr = [query.role];
 			
@@ -180,7 +180,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 				sql += 'AND `' + fieldname + '` = ? ';
 				
 				switch (fieldname) {
-					case 'user': dataarr.push(user.id); break;
+					case 'user': dataarr.push(ctx.user.id); break;
 					case 'groupassoc': dataarr.push(query.__groupassoc__); break;
 					default: this.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
 				}

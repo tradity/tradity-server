@@ -3,6 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 var buscomponent = require('./buscomponent.js');
 
@@ -54,18 +55,18 @@ DelayedQueriesDB.prototype.loadDelayedQueries = function() {
 	});
 };
 
-DelayedQueriesDB.prototype.listDelayQueries = buscomponent.provideQUA('client-dquery-list', function(query, user, access, cb) {
+DelayedQueriesDB.prototype.listDelayQueries = buscomponent.provideQT('client-dquery-list', function(query, ctx, cb) {
 	cb('dquery-list-success', {
 		'results': (_.chain(this.queries).values()
-			.filter(function(q) { return q.userinfo.id == user.id; })
+			.filter(function(q) { return q.userinfo.id == ctx.user.id; })
 			.map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
 			.value())
 	});
 });
 
-DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQUA('client-dquery-remove', function(query, user, access, cb) {
+DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQT('client-dquery-remove', function(query, ctx, cb) {
 	var queryid = query.queryid;
-	if (this.queries[queryid] && this.queries[queryid].userinfo.id == user.id) {
+	if (this.queries[queryid] && this.queries[queryid].userinfo.id == ctx.user.id) {
 		this.removeQuery(this.queries[queryid]);
 		cb('dquery-remove-success');
 	} else {
@@ -73,7 +74,7 @@ DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQUA('client-dqu
 	}
 });
 
-DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQUA('client-dquery', function(query, user, access, cb) {
+DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dquery', function(query, ctx, cb) {
 	cb = cb || function() {};
 	
 	var qstr = null;
@@ -89,10 +90,10 @@ DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQUA('client-dqu
 		cb('unknown-query-type');
 	
 	this.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
-		[query.condition, qstr, JSON.stringify(user), access.toJSON()], function(r) {
+		[query.condition, qstr, JSON.stringify(ctx.user), ctx.access.toJSON()], function(r) {
 		query.queryid = r.insertId;
-		query.userinfo = user;
-		query.accessinfo = access;
+		query.userinfo = ctx.user;
+		query.accessinfo = ctx.access;
 		cb('dquery-success', {'queryid': query.queryid});
 		this.addQuery(query);
 	});
@@ -195,7 +196,12 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 
 DelayedQueriesDB.prototype.executeQuery = function(query) {
 	query.query.__is_delayed__ = true;
-	this.request({name: 'client-' + query.query.type, query: query.query, user: query.userinfo, access: query.accessinfo}, function(code) {
+	this.request({
+			name: 'client-' + query.query.type,
+			query: query.query,
+			ctx: new qctx.QContext({user: query.userinfo, access: query.accessinfo})
+		}, function(code)
+	{
 		var json = query.query.dquerydata || {};
 		json.result = code;
 		if (!query.query.retainUntilCode || query.query.retainUntilCode == code) {
@@ -216,11 +222,11 @@ DelayedQueriesDB.prototype.removeQuery = function(query) {
 	});
 };
 
-DelayedQueriesDB.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['user', 'reply'], function(user, cb) {
+DelayedQueriesDB.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['ctx', 'reply'], function(ctx.user, cb) {
 	var toBeDeleted = [];
 	for (var queryid in this.queries) {
 		var q = this.queries[queryid];
-		if (q.userinfo.id == user.id || (q.query.leader == user.id))
+		if (q.userinfo.id == ctx.user.id || (q.query.leader == ctx.user.id))
 			toBeDeleted.push(q);
 	}
 	

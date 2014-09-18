@@ -10,10 +10,10 @@ function BackgroundWorker () {
 }
 util.inherits(BackgroundWorker, buscomponent.BusComponent);
 
-BackgroundWorker.prototype.prod = buscomponent.provideQUA('client-prod', function(query, user, access, cb) {
-	assert.ok(access);
+BackgroundWorker.prototype.prod = buscomponent.provideQT('client-prod', function(query, ctx, cb) {
+	assert.ok(ctx.access);
 	
-	if (access.has('server') == -1)
+	if (ctx.has('server') == -1)
 		return cb('prod-not-allowed');
 		
 	var starttime = new Date().getTime();

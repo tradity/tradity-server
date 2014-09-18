@@ -78,7 +78,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'reply']
 	});
 });
 
-FeedControllerDB.prototype.fetchEvents = buscomponent.provideQUA('feedFetchEvents', function(query, user, access, cb) {
+FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx, cb) {
 	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, '+
@@ -96,11 +96,11 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQUA('feedFetchEvent
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification" ' +
 		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
-		[user.uid, query ? query.since : 0, query && query.count !== null ? query.count : 100000], function(r) {
+		[ctx.user.uid, query ? query.since : 0, query && query.count !== null ? query.count : 100000], function(r) {
 		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
-				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__) && user.uid != ev.srcuser)
+				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__) && ctx.user.uid != ev.srcuser)
 					return null;
 				ev = _.extend(ev, json);
 			}
@@ -111,16 +111,16 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQUA('feedFetchEvent
 	});
 });
 
-FeedControllerDB.prototype.markAsSeen = buscomponent.provideQUA('client-mark-as-seen', function(query, user, access, cb) {
+FeedControllerDB.prototype.markAsSeen = buscomponent.provideQT('client-mark-as-seen', function(query, ctx, cb) {
 	if (parseInt(query.eventid) != query.eventid)
 		return cb('format-error');
 	
-	this.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [query.eventid, user.id], function() {
+	this.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [query.eventid, ctx.user.id], function() {
 		cb('mark-as-seen-success');
 	});
 });
 
-FeedControllerDB.prototype.commentEvent = buscomponent.provideQUA('client-comment', function(query, user, access, cb) {
+FeedControllerDB.prototype.commentEvent = buscomponent.provideQT('client-comment', function(query, ctx, cb) {
 	if (!query.comment)
 		return cb('format-error');
 	
@@ -156,11 +156,11 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideQUA('client-commen
 		}
 		
 		this.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
-			[query.eventid, user.id, query.comment, query.ishtml && access.has('comments') ? 1 : 0], function(res) {
+			[query.eventid, ctx.user.id, query.comment, query.ishtml && ctx.access.has('comments') ? 1 : 0], function(res) {
 			this.feed({
 				type: 'comment',
 				targetid: res.insertId,
-				srcuser: user.id,
+				srcuser: ctx.user.id,
 				feedusers: feedusers,
 				feedschool: feedschool,
 				feedchat: feedchat,

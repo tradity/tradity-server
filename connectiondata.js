@@ -5,15 +5,15 @@ var lzma = require('lzma-native');
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./buscomponent.js');
+var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
 function ConnectionData(socket) {
+	this.ctx = new qctx.QContext();
 	this.lzmaSupport = false;
-	this.user = null;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
 	this.cdid = new Date().getTime() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
-	this.access = new Access();
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
 	this.mostRecentEventTime = 0;
@@ -48,7 +48,7 @@ ConnectionData.prototype.onBusConnect = function() {
 ConnectionData.prototype.stats = function() {
 	return {
 		lzma: this.lzmaSupport,
-		user: this.user ? { name: this.user.name, uid: this.user.uid } : null,
+		user: this.ctx.user ? { name: this.ctx.user.name, uid: this.ctx.user.uid } : null,
 		lastInfoPush: this.lastInfoPush,
 		mostRecentEventTime: this.mostRecentEventTime,
 		queryCount: this.queryCount,
@@ -62,7 +62,7 @@ ConnectionData.prototype.stats = function() {
 };
 
 ConnectionData.prototype.pickTextFields = function() {
-	return _.pick(this, 'user', 'remoteip', 'hsheaders', 'cdid', 'access', 'lastInfoPush', 'mostRecentEventTime');
+	return _.pick(this, 'ctx', 'remoteip', 'hsheaders', 'cdid', 'lastInfoPush', 'mostRecentEventTime');
 };
 
 ConnectionData.prototype.toString = function() {
@@ -74,14 +74,14 @@ ConnectionData.uniqueCount = 0;
 ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod', 'ping', 'school-exists', 'server-config'];
 
 ConnectionData.prototype.fetchEvents = function(query) {
-	if (!this.user)
+	if (!this.ctx.user)
 		return; // no user – no events.
 	
 	// possibly push info 
 	this.pushSelfInfo();
 	
 	// fetch regular events
-	this.request({name: 'feedFetchEvents', query: query, user: this.user, access: this.access}, _.bind(function(evlist) {
+	this.request({name: 'feedFetchEvents', query: query, ctx: this.ctx}, _.bind(function(evlist) {
 		_.each(evlist, _.bind(function(ev) {
 			this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
 		}, this));
@@ -110,7 +110,7 @@ ConnectionData.prototype.push = function(data) {
 };
 
 ConnectionData.prototype.pushSelfInfo = function() {
-	if (!this.user || !this.socket)
+	if (!this.ctx.user || !this.socket)
 		return;
 	
 	assert.ok(this.bus);
@@ -119,7 +119,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 		var curUnixTime = new Date().getTime();
 		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 			this.lastInfoPush = curUnixTime;
-			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, user: this.user, access: this.access, xdata: this.pickTextFields()}, _.bind(function(code, info) {
+			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, ctx: this.ctx, xdata: this.pickTextFields()}, _.bind(function(code, info) {
 				assert.ok(code == 'get-user-info-success');
 				assert.ok(info);
 				
@@ -131,7 +131,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 };
 
 ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', function() {
-	if (this.pushEventsTimer || !this.user || !this.user.uid)
+	if (this.pushEventsTimer || !this.ctx.user || !this.ctx.user.uid)
 		return;
 	
 	this.pushEventsTimer = setTimeout(_.bind(function() {
@@ -155,7 +155,7 @@ ConnectionData.prototype.response = function(data) {
 };
 
 ConnectionData.prototype.onUserConnected = function() {
-	this.request({name: 'checkAchievements', user: this.user});
+	this.request({name: 'checkAchievements', ctx: this.ctx});
 };
 
 ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
@@ -177,7 +177,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 		this.lzmaSupport = true;
 	}
 	
-	var hadUser = this.user ? true : false;
+	var hadUser = this.ctx.user ? true : false;
 	
 	assert.ok(this.bus);
 	assert.ok(this.socket);
@@ -194,19 +194,19 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 		if (user != null) 
 			access.update(Access.fromJSON(user.access));
 		
-		this.access.update(access);
+		this.ctx.access.update(access);
 		
 		if (query.authorizationKey == authorizationKey) {
 			console.log('Received query with master authorization of type', query.type);
-			this.access.grantAny();
+			this.ctx.access.grantAny();
 			if (user == null && query.uid != null)
 				user = {uid: query.uid, id: query.uid};
 		}
 		
-		this.user = user;
-		this.access[['grant', 'drop'][this.user && this.user.email_verif ? 0 : 1]]('email_verif');
+		this.ctx.user = user;
+		this.ctx.access[['grant', 'drop'][this.ctx.user && this.ctx.user.email_verif ? 0 : 1]]('email_verif');
 		
-		if (!hadUser && this.user != null)
+		if (!hadUser && this.ctx.user != null)
 			this.onUserConnected();
 		
 		var cb = _.bind(function(code, obj, extra) {
@@ -226,26 +226,29 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 				
 				this.request({name: 'loadSessionUser', key: query.key}, function(newUser) {
 					if (newUser)
-						this.user = newUser;
+						this.ctx.user = newUser;
 					
 					this.pushSelfInfo();
 				});
 			} else if (extra == 'logout') {
-				this.user = null;
+				this.ctx.user = null;
 				this.pushesServerStatistics = false;
-				this.access = new Access();
+				this.ctx.access = new Access();
 			}
 		}, this);
 		
 		this.unansweredCount++;
 		if (this.isShuttingDown) {
 			cb('server-shutting-down');
-		} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 && this.user === null && !this.access.has('login_override')) {
+		} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
+			this.ctx.user === null &&
+			!this.ctx.access.has('login_override'))
+		{
 			cb('not-logged-in');
 		} else {
 			switch (query.type) {
 				case 'get-server-statistics':
-					if (!this.access.has('userdb'))
+					if (!this.ctx.access.has('userdb'))
 						return cb('permission-denied');
 					this.pushesServerStatistics = true;
 					
@@ -269,8 +272,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 			this.request({
 				name: 'client-' + query.type,
 				query: query,
-				user: this.user,
-				access: this.access,
+				ctx: this.ctx,
 				xdata: this.pickTextFields()
 			}, cb);
 		}

@@ -16,7 +16,7 @@ for (var i = 0; i < dailyLoginAchievements.length; ++i) {
 			name: 'DAILY_LOGIN_DAYS_' + count,
 			fireOn: { 'client-get-user-info': function (ev, db, cb) {
 				var lf = ev.query.lookfor;
-				cb((lf && parseInt(lf) == lf ? [parseInt(lf)] : []).concat(ev.user ? [ev.user.id] : []));
+				cb((lf && parseInt(lf) == lf ? [parseInt(lf)] : []).concat(ev.ctx.user ? [ev.ctx.user.id] : []));
 			} },
 			xp: 30 + 10 * count,
 			check: function(uid, userAchievements, cfg, db, cb) {

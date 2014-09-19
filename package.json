@@ -8,7 +8,7 @@
 		"xml2js": "*",
 		"mhash": "*",
 		"mysql": "*",
-		"nodemailer": "*",
+		"nodemailer": "~0.7",
 		"socket.io": "1.0.4",
 		"socket.io-client": "1.0.4",
 		"socket.io-redis": "0.1.3",

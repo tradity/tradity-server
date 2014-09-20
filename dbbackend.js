@@ -42,13 +42,15 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
 	}
 });
 
-Database.prototype._query = buscomponent.needsInit(function(query, args, cb) {
+Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'reply'],
+	buscomponent.needsInit(function(query, args, cb)
+{
 	this._getConnection(true, function(connection) {
-		connection.query(query, args, function() {
+		connection.query(query, args || [], function() {
 			cb.apply(this, arguments);
 		});
 	});
-});
+}));
 
 Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, cb) {
 	assert.ok (this.connectionPool);
@@ -113,12 +115,6 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 
 Database.prototype.escape = buscomponent.needsInit(function(str) {
 	return this.dbmod.escape(str);
-});
-
-Database.prototype.query = buscomponent.provide('dbQuery', ['query', 'args', 'reply'], function(query, data, cb) {
-	data = data || [];
-	
-	this._query(query, data, cb);
 });
 
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['reply'], function(conncb) {

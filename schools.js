@@ -44,7 +44,7 @@ SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx'
 	function(ctx, status, schoolid, cb) {
 	
 	(parseInt(schoolid) == schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
-		this.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [schoolid], function(res) {
+		ctx.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [schoolid], function(res) {
 			if (res.length == 0)
 				return cb(false, null);
 			
@@ -59,14 +59,14 @@ SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx'
 			
 		status = status || ['admin', 'xadmin'];
 		
-		this.loadSchoolAdmins(schoolid, function(admins) {
+		this.loadSchoolAdmins(schoolid, ctx, function(admins) {
 			cb(_.chain(admins).filter(function(a) { return status.indexOf(a.status) != -1 && a.adminid == ctx.user.id; }).value().length != 0, schoolid);
 		});
 	}, this));
 });
 
-SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
-	this.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +
+SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
+	ctx.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +
 		'FROM schools AS c ' +
 		'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
 		'JOIN schooladmins AS sa ON sa.schoolid = p.id ' +
@@ -75,7 +75,7 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, cb) {
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
-	this.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
+	ctx.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
 		'FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
 		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
@@ -96,16 +96,16 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 			
 		assert.ok(s.config);
 		
-		this.loadSchoolAdmins(s.id, function(admins) {
+		this.loadSchoolAdmins(s.id, ctx, function(admins) {
 			s.admins = admins;
 			
-			this.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%'], function(subschools) {
-			this.query('SELECT COUNT(uid) AS usercount ' +
+			ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%'], function(subschools) {
+			ctx.query('SELECT COUNT(uid) AS usercount ' +
 				'FROM schoolmembers AS sm '+
 				'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
 				'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
 				'WHERE p.id = ?', [s.id], function(usercount) {
-			this.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
+			ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
 				'FROM ecomments AS c '+
 				'LEFT JOIN users AS u ON c.commenter = u.id ' +
 				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
@@ -116,7 +116,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 				s.subschools = subschools;
 				s.usercount = usercount[0].usercount;
 				
-				this.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
+				ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
 					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 					'FROM orderhistory AS oh ' +
@@ -155,25 +155,25 @@ SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-in
 });
 
 SchoolsDB.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx, cb) {
-	this.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [query.lookfor], function(res) {
+	ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [query.lookfor], function(res) {
 		cb('school-exists-success', {exists: res.length > 0, path: res.length > 0 ? res[0].path : null});
 	});
 });
 
 SchoolsDB.prototype.changeDescription = buscomponent.provideQT('client-school-change-description', _reqschooladm(function(query, ctx, cb) {
-	this.query('UPDATE schools SET descpage = ? WHERE id = ?', [query.descpage, query.schoolid], function() {
+	ctx.query('UPDATE schools SET descpage = ? WHERE id = ?', [query.descpage, query.schoolid], function() {
 		cb('school-change-description-success');
 	});
 }));
 
 SchoolsDB.prototype.changeMemberStatus = buscomponent.provideQT('client-school-change-member-status', _reqschooladm(function(query, ctx, cb) {
-	this.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?', [query.schoolid, query.uid], function() {
+	ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?', [query.schoolid, query.uid], function() {
 		if (query.status == 'member') {
-			this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
+			ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
 				cb('school-change-member-status-success');
 			});
 		} else {
-			this.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', [query.schoolid, query.uid, query.status], function() {
+			ctx.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', [query.schoolid, query.uid, query.status], function() {
 				cb('school-change-member-status-success');
 			});
 		}
@@ -181,7 +181,7 @@ SchoolsDB.prototype.changeMemberStatus = buscomponent.provideQT('client-school-c
 }));
 
 SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete-comment', _reqschooladm(function(query, ctx, cb) {
-	this.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
+	ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
 		'JOIN events AS e ON e.eventid = c.eventid ' +
 		'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
 		[query.commentid, query.schoolid], function(res) {
@@ -190,7 +190,7 @@ SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
-		this.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
+		ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
 			[this.readTemplate('comment-deleted-by-group-admin.html'), query.commentid], function() {
 			cb('school-delete-comment-success');
 		});
@@ -198,9 +198,9 @@ SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete
 }));
 
 SchoolsDB.prototype.kickUser = buscomponent.provideQT('client-school-kick-user', _reqschooladm(function(query, ctx, cb) {
-	this.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
+	ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
 		[query.uid, query.schoolid], function() {
-		this.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
+		ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
 			[query.uid, query.schoolid], function() {
 			cb('school-kick-user-success');
 		});
@@ -211,7 +211,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	
-	this.getConnection(function(conn) {
+	ctx.getConnection(function(conn) {
 		conn.query('START TRANSACTION', [], function() {
 		conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
 			assert.equal(r.length, 1);
@@ -226,7 +226,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 			
 			var createCB = _.bind(function() {
 				conn.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
-					this.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': ctx.user.id});
+					ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': ctx.user.id});
 					
 					conn.query('COMMIT', function() {
 						conn.release();
@@ -270,7 +270,7 @@ SchoolsDB.prototype.listSchools = buscomponent.provideQT('client-list-schools', 
 		params = params.concat([likestring, likestring]);
 	}
 	
-	this.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
+	ctx.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
 		where +
 		'GROUP BY schools.id', params, function(results) {

@@ -9,7 +9,7 @@ var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
 function ConnectionData(socket) {
-	this.ctx = new qctx.QContext();
+	this.ctx = new qctx.QContext({parentComponent: this});
 	this.lzmaSupport = false;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
@@ -31,8 +31,8 @@ function ConnectionData(socket) {
 	this.queryLZMACount = 0;
 	this.queryLZMAUsedCount = 0;
 	
-	this.query_ = _.bind(this.query, this);
-	this.disconnected_ = _.bind(this.disconnected, this);
+	this.query_ = _.bind(this.queryHandler, this);
+	this.disconnected_ = _.bind(this.disconnectedHandler, this);
 	
 	this.versionInfo = {
 		minimum: 1,
@@ -163,7 +163,7 @@ ConnectionData.prototype.onUserConnected = function() {
 	this.request({name: 'checkAchievements', ctx: this.ctx});
 };
 
-ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
+ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 	var recvTime = new Date().getTime();
 	
 	// sanitize by removing everything enclosed in '__'s
@@ -187,7 +187,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 	assert.ok(this.bus);
 	assert.ok(this.socket);
 	
-	this.request({name: 'loadSessionUser', key: query.key}, function(user) {
+	this.request({name: 'loadSessionUser', key: query.key, ctx: this.ctx}, function(user) {
 		if (!this.bus) {
 			assert.ok(!this.socket);
 			return;
@@ -227,7 +227,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 			if (extra == 'repush' && this.bus && this.socket) {
 				this.lastInfoPush = 0;
 				
-				this.request({name: 'loadSessionUser', key: query.key}, function(newUser) {
+				this.request({name: 'loadSessionUser', key: query.key, ctx: this.ctx}, function(newUser) {
 					if (newUser)
 						this.ctx.user = newUser;
 					
@@ -288,7 +288,7 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 	});
 });
 
-ConnectionData.prototype.disconnected = buscomponent.errorWrap(function() {
+ConnectionData.prototype.disconnectedHandler = buscomponent.errorWrap(function() {
 	if (this.socket) {
 		this.socket.removeListener('query', this.query_);
 		this.socket.removeListener('disconnect', this.disconnected_);
@@ -308,8 +308,8 @@ ConnectionData.prototype.disconnected = buscomponent.errorWrap(function() {
 ConnectionData.prototype.close = function() {
 	if (this.socket)
 		this.socket.disconnect();
-	else // disconnected would also be called via socket.disconnect()
-		this.disconnected();
+	else // disconnectedHandler would also be called via socket.disconnect()
+		this.disconnectedHandler();
 };
 
 ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'globalShutdown'], function() {

@@ -1,26 +1,40 @@
 (function () { "use strict";
 
 var Access = require('./access.js').Access;
+var buscomponent = require('./buscomponent.js');
 
-var QContext = function(obj) {
+QContext.objCount = 0;
+function QContext(obj) {
 	obj = obj || {};
 	this.user = obj.user || null;
 	this.access = obj.access || new Access();
 	this.properties = {};
+	
+	if (obj.parentComponent)
+		this.setBus(obj.parentComponent.bus, obj.parentComponent.componentName + '-' + (QContext.objCount++));
 };
 
+util.inherits(ConnectionData, buscomponent.BusComponent);
+
 QContext.prototype.toJSON = function() {
-	return { user: this.user, access: this.access };
+	return { user: this.user, access: this.access, properties: properties };
 };
 
 exports.fromJSON =
-QContext.fromJSON = function(j) {
-	var ctx = new QContext();
+QContext.fromJSON = function(j, parentComponent) {
+	var ctx = new QContext({parentComponent: parentComponent});
 	if (!j)
 		return ctx;
 	
 	ctx.user = j.user || null;
 	ctx.access = Access.fromJSON(j.access);
+	ctx.properties = j.properties || {};
+	
+	_.each(ctx.properties, function(value, key) {
+		if (!value.access)
+			value.access = function() { return false; };
+	});
+	
 	return ctx;
 };
 
@@ -51,6 +65,20 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
 		this.properties[name].value = value;
 	else
 		throw new Error('Access for changing property ' + name + ' not granted');
+};
+
+QContext.prototype.feed = function(data, onEventId) { this.request({name: 'feed', data: data, ctx: this}, onEventId || function() {}); };
+QContext.prototype.query = function(query, args, cb) { this.request({name: 'dbQuery', query: query, args: args}, cb); };
+
+QContext.prototype.getConnection = function(cb) {
+	this.request({name: 'dbGetConnection'}, function(conn) {
+		cb({
+			release: _.bind(conn.release, conn),
+			query: _.bind(function(query, args, cb) {
+				conn.query(query, args, _.bind(cb || function() {}, this));
+			}, this)
+		});
+	}); 
 };
 
 exports.QContext = QContext;

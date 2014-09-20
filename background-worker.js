@@ -18,9 +18,9 @@ BackgroundWorker.prototype.prod = buscomponent.provideQT('client-prod', function
 		
 	var starttime = new Date().getTime();
 	
-	this.request({name: 'regularCallbackUser', query: query}, function() {
+	this.request({name: 'regularCallbackUser', query: query, ctx: ctx}, function() {
 		var userdbtime = new Date().getTime();
-		this.request({name: 'regularCallbackStocks', query: query}, function() {
+		this.request({name: 'regularCallbackStocks', query: query, ctx: ctx}, function() {
 			cb('prod-ready', {'utime': userdbtime - starttime, 'stime': new Date().getTime() - userdbtime});
 		});
 	});

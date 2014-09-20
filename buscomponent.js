@@ -86,20 +86,6 @@ BusComponent.prototype.message = function(name, msg, level) {
 };
 
 BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
-BusComponent.prototype.query = function(query, args, cb) { this.request({name: 'dbQuery', query: query, args: args}, cb); };
-
-BusComponent.prototype.getConnection = function(cb) {
-	this.request({name: 'dbGetConnection'}, function(conn) {
-		cb({
-			release: _.bind(conn.release, conn),
-			query: _.bind(function(query, args, cb) {
-				conn.query(query, args, _.bind(cb || function() {}, this));
-			}, this)
-		});
-	}); 
-};
-
-BusComponent.prototype.feed = function(data, onEventId) { this.request({name: 'feed', data: data}, onEventId || function() {}); };
 
 function provide(name, args, fn) {
 	fn.isProvider = true;
@@ -112,7 +98,7 @@ function provide(name, args, fn) {
 		}, this);
 		
 		if (data.ctx && !data.ctx.toJSON)
-			data.ctx = qctx.fromJSON(data.ctx);
+			data.ctx = qctx.fromJSON(data.ctx, this);
 		
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)

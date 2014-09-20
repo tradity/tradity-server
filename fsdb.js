@@ -6,6 +6,7 @@ var http = require('http');
 var https = require('https');
 var assert = require('assert');
 var hash = require('mhash').hash;
+var qctx = require('./qctx.js');
 var buscomponent = require('./buscomponent.js');
 
 function FileStorageDB () {
@@ -13,6 +14,7 @@ function FileStorageDB () {
 util.inherits(FileStorageDB, buscomponent.BusComponent);
 
 FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
+	var ctx = new qctx.QContext({parentComponent: this});
 	this.getServerConfig(function(cfg) {
 	
 	var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
@@ -22,7 +24,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 	
 	var filename = fsmatch[fsmatch.length - 1];
 	
-	this.query('SELECT * FROM httpresources WHERE name = ?', [filename], function(rows) {
+	ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename], function(rows) {
 		if (rows.length == 0) {
 			res.writeHead(404, {'Content-Type': 'text/plain'});
 			res.end('Not found');
@@ -105,7 +107,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 	
 	if (query.base64)
 		content = new Buffer(query.content, 'base64');
-	this.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null], function(res) {
+	ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null], function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
 		if (!ctx.access.has('filesystem')) {
@@ -155,12 +157,12 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = _.bind(function() {
-			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
+			ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
 				[ctx.user ? ctx.user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
 				
 				if (ctx.user) {
-					this.feed({
+					ctx.feed({
 						'type': 'file-publish',
 						'targetid': res.insertId,
 						'srcuser': ctx.user.id
@@ -186,7 +188,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 				}
 			}
 			
-			this.query(sql, dataarr, continueAfterDelPrevious);
+			ctx.query(sql, dataarr, continueAfterDelPrevious);
 		} else {
 			continueAfterDelPrevious();
 		}

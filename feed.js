@@ -10,7 +10,7 @@ function FeedControllerDB () {
 
 util.inherits(FeedControllerDB, buscomponent.BusComponent);
 
-FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'reply'], function(data, onEventId) {
+FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
 	assert.ok(data.type);
 	assert.ok(data.type.length);
 	assert.ok(data.srcuser);
@@ -23,7 +23,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'reply']
 		this.emit('feed-' + data.type, data);
 	}, this));
 	
-	this.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
+	ctx.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
 		[data.type, data.targetid, data.srcuser, json], function(r) {
 		var eventid = r.insertId;
 		onEventId(eventid);
@@ -72,14 +72,14 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'reply']
 			params = [eventid];
 		}
 		
-		this.query(query, params, function() {
+		ctx.query(query, params, function() {
 			this.emit('push-events');
 		});
 	});
 });
 
 FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx, cb) {
-	this.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
+	ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, '+
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky, url AS profilepic, ' +
@@ -115,7 +115,7 @@ FeedControllerDB.prototype.markAsSeen = buscomponent.provideQT('client-mark-as-s
 	if (parseInt(query.eventid) != query.eventid)
 		return cb('format-error');
 	
-	this.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [query.eventid, ctx.user.id], function() {
+	ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [query.eventid, ctx.user.id], function() {
 		cb('mark-as-seen-success');
 	});
 });
@@ -124,7 +124,7 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideQT('client-comment
 	if (!query.comment)
 		return cb('format-error');
 	
-	this.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
+	ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
 		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?', [query.eventid], function(res) {
 		if (res.length == 0)
 			return cb('comment-notfound');
@@ -155,9 +155,9 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideQT('client-comment
 				break;
 		}
 		
-		this.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
+		ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
 			[query.eventid, ctx.user.id, query.comment, query.ishtml && ctx.access.has('comments') ? 1 : 0], function(res) {
-			this.feed({
+			ctx.feed({
 				type: 'comment',
 				targetid: res.insertId,
 				srcuser: ctx.user.id,
@@ -165,7 +165,7 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideQT('client-comment
 				feedschool: feedschool,
 				feedchat: feedchat,
 				noFollowers: noFollowers
-			}, function() {});
+			});
 			cb('comment-success');
 		});
 	});

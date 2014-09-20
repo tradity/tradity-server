@@ -3,6 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
+var qctx = require('./qctx.js');
 var buscomponent = require('./buscomponent.js');
 
 function AchievementsDB () {
@@ -26,9 +27,9 @@ AchievementsDB.prototype.onBusConnect = function() {
 };
 
 AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
-	this.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id], function(userAchievements) {
+	ctx.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id], function(userAchievements) {
 		_.each(this.achievementList, _.bind(function(achievementEntry) {
-			this.checkAchievement(achievementEntry, ctx.user.id, userAchievements);
+			this.checkAchievement(achievementEntry, ctx, userAchievements);
 		}, this));
 		
 		cb();
@@ -36,6 +37,9 @@ AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievem
 });
 
 AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, userAchievements_) {
+	assert.ok(ctx.user);
+	
+	var uid = ctx.user.id;
 	assert.equal(uid, parseInt(uid));
 	assert.ok(!uid.splice);
 	
@@ -49,7 +53,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 		var lookfor = achievementEntry.requireAchievementInfo;
 		lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
 		
-		this.query('SELECT * FROM achievements WHERE userid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
+		ctx.query('SELECT * FROM achievements WHERE userid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
 			[uid].splice(0).concat(lookfor), cont);
 	}, this))(_.bind(function(userAchievements) {
 		userAchievements = _.chain(userAchievements).map(function(a) { return [a.achname, a]; }).object().value();
@@ -74,9 +78,9 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 			if (!hasBeenAchieved)
 				return;
 			
-			this.query('REPLACE INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
+			ctx.query('REPLACE INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
 				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version], function(res) {
-				this.feed({
+				ctx.feed({
 					type: 'achievement',
 					srcuser: uid,
 					targetid: res.insertId,
@@ -92,7 +96,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 						if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
 							return -1;
 						
-						this.checkAchievement(ae, uid);
+						this.checkAchievement(ae, ctx);
 					}, this));
 				}, this));
 			});
@@ -110,7 +114,7 @@ AchievementsDB.prototype.registerObserver = function(achievementEntry) {
 				assert.notEqual(typeof userIDs.length, 'undefined');
 				
 				_.each(userIDs, _.bind(function(uid) {
-					this.checkAchievement(achievementEntry, uid);
+					this.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: this}));
 				}, this));
 			}, this));
 		}, this));
@@ -161,7 +165,7 @@ AchievementsDB.prototype.clientAchievement = buscomponent.provideQT('client-achi
 	if (this.clientAchievements.indexOf(query.name) == -1)
 		return cb('achievement-unknown-name');
 	
-	this.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
+	ctx.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
 		this.emit('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
 		cb('achievement-success');

@@ -413,7 +413,7 @@ UserDB.prototype.resetUser = buscomponent.provideQT('client-reset-user', functio
 			'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
 			'wprov_sum = 0, lprov_sum = 0 ' + 
 			'WHERE id = ?', [ctx.user.uid], function() {
-			this.request({name: 'sellAll', query: query, user: ctx.user, access: ctx.access}, function() {
+			this.request({name: 'sellAll', query: query, ctx: ctx}, function() {
 				this.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
 					'daystartvalue = 10000000, weekstartvalue = 10000000, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [ctx.user.uid], function() {
 					this.query('DELETE FROM valuehistory WHERE userid = ?', [ctx.user.uid], function() {

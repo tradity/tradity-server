@@ -454,7 +454,6 @@ StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOp
 });
 
 StocksDB.prototype.sellAll = buscomponent.provideQT('sellAll', function(query, ctx, cb) {
-	/* assume lock already present */
 	this.query('SELECT s.*, ds.* FROM stocks AS s JOIN depot_stocks AS ds ON ds.stockid = s.id WHERE s.leader = ?', [ctx.user.id], function(res) {
 		if (res.length == 0)
 			return cb();

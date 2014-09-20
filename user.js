@@ -235,10 +235,11 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, query.lookfor], function(users) {
 		if (users.length == 0)
 			return cb('get-user-info-notfound');
+		
 		var xuser = users[0];
 		xuser.isSelf = (ctx.user && xuser.uid == ctx.user.uid);
 		if (xuser.isSelf) 
-			xuser.access = access.toArray();
+			xuser.access = ctx.access.toArray();
 		
 		assert.ok(xuser.registerevent);
 		

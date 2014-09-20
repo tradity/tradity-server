@@ -6,7 +6,7 @@ var QContext = function(obj) {
 	obj = obj || {};
 	this.user = obj.user || null;
 	this.access = obj.access || new Access();
-	this.props = {};
+	this.properties = {};
 };
 
 QContext.prototype.toJSON = function() {
@@ -25,11 +25,11 @@ QContext.fromJSON = function(j) {
 };
 
 QContext.prototype.addProperty = function(propInfo) {
-	this.props[propInfo.name] = propInfo;
+	this.properties[propInfo.name] = propInfo;
 };
 
 QContext.prototype.getProperty = function(name) {
-	return this.props[name].value;
+	return this.properties[name].value;
 };
 
 QContext.prototype.setProperty = function(name, value, hasAccess) {

@@ -224,8 +224,6 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 			obj['_t_sdone'] = now;
 			obj['_t_srecv'] = recvTime;
 			
-			this.response(obj);
-			
 			if (extra == 'repush' && this.bus && this.socket) {
 				this.lastInfoPush = 0;
 				
@@ -240,6 +238,8 @@ ConnectionData.prototype.query = buscomponent.errorWrap(function(query) {
 				this.ctx.setProperty('pushesServerStatistics', false, true);
 				this.ctx.access = new Access();
 			}
+			
+			this.response(obj);
 		}, this);
 		
 		this.unansweredCount++;

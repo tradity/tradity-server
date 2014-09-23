@@ -1,9 +1,10 @@
 (function () { "use strict";
 
 var Access = require('./access.js').Access;
+var util = require('util');
 var buscomponent = require('./buscomponent.js');
+var _ = require('underscore');
 
-QContext.objCount = 0;
 function QContext(obj) {
 	obj = obj || {};
 	this.user = obj.user || null;
@@ -11,10 +12,10 @@ function QContext(obj) {
 	this.properties = {};
 	
 	if (obj.parentComponent)
-		this.setBus(obj.parentComponent.bus, obj.parentComponent.componentName + '-' + (QContext.objCount++));
+		this.setBusFromParent(obj.parentComponent);
 };
 
-util.inherits(ConnectionData, buscomponent.BusComponent);
+util.inherits(QContext, buscomponent.BusComponent);
 
 QContext.prototype.toJSON = function() {
 	return { user: this.user, access: this.access, properties: properties };

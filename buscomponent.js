@@ -1,11 +1,16 @@
 (function () { "use strict";
 
 var assert = require('assert');
-var qctx = require('./qctx.js');
 var _ = require('underscore');
+
+// load qctx at runtime to prevent cycle
+var qctx_ = null;
+var qctx = function() { if (qctx_) return qctx_; else return qctx_ = require('./qctx.js'); };
 
 function BusComponent () {
 }
+
+BusComponent.objCount = 0;
 
 BusComponent.prototype.setBus = function(bus, componentName) {
 	assert.ok(bus);
@@ -19,6 +24,12 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 	this.registerProviders();
 	_.bind(this.onBusConnect, this)();
 	return this;
+};
+
+BusComponent.prototype.setBusFromParent = function(component) {
+	assert.ok(component.bus);
+	
+	this.setBus(component.bus, component.componentName + '-' + (BusComponent.objCount++));
 };
 
 BusComponent.prototype.unplugBus = function() {
@@ -98,7 +109,7 @@ function provide(name, args, fn) {
 		}, this);
 		
 		if (data.ctx && !data.ctx.toJSON)
-			data.ctx = qctx.fromJSON(data.ctx, this);
+			data.ctx = qctx().fromJSON(data.ctx, this);
 		
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)

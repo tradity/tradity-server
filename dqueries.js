@@ -154,7 +154,7 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 				if (_.indexOf(stocks, stockid) == -1)
 					stocks.push(stockid);
 				switch(fieldname) {
-	-				case 'exchange-open':
+					case 'exchange-open':
 						cchecks.push(_.bind(function(ctx, cb) {
 							ctx.query('SELECT exchange FROM stocks WHERE stockid = ?', [stockid], function(r) {
 								if (r.length == 0)

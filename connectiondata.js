@@ -9,7 +9,7 @@ var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
 function ConnectionData(socket) {
-	this.ctx = new qctx.QContext({parentComponent: this});
+	this.ctx = new qctx.QContext();
 	this.lzmaSupport = false;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
@@ -45,6 +45,8 @@ function ConnectionData(socket) {
 util.inherits(ConnectionData, buscomponent.BusComponent);
 
 ConnectionData.prototype.onBusConnect = function() {
+	this.ctx.setBusFromParent(this);
+	
 	this.getServerConfig(function(cfg) {
 		this.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig), 'versionInfo': this.versionInfo});
 	});

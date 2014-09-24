@@ -53,7 +53,7 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 			self.updateRankingInformation(ctx, function() {
 				if (query.weekly) {
 					self.weeklyCallback(ctx, function() {
-						self.dailyCallback(xcb);
+						self.dailyCallback(ctx, xcb);
 					});
 				} if (query.daily) {
 					self.dailyCallback(ctx, xcb);
@@ -64,7 +64,7 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 		};
 		
 		if (query.provisions)
-			self.updateProvisions(provcb);
+			self.updateProvisions(ctx, provcb);
 		else
 			provcb();
 	});
@@ -80,7 +80,7 @@ StocksDB.prototype.updateRankingInformation = function(ctx, cb) {
 	ctx.query('UPDATE users SET ' +
 		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
 		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
-		self.updateValueHistory(cb);
+		self.updateValueHistory(ctx, cb);
 	});	
 }
 

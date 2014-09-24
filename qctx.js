@@ -18,7 +18,7 @@ function QContext(obj) {
 util.inherits(QContext, buscomponent.BusComponent);
 
 QContext.prototype.toJSON = function() {
-	return { user: this.user, access: this.access, properties: properties };
+	return { user: this.user, access: this.access, properties: this.properties };
 };
 
 exports.fromJSON =

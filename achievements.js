@@ -40,7 +40,7 @@ AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievem
 	});
 });
 
-AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, userAchievements_) {
+AchievementsDB.prototype.checkAchievement = function(achievementEntry, ctx, userAchievements_) {
 	var self = this;
 	
 	assert.ok(ctx.user);
@@ -78,9 +78,9 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 		
 		(
 			(_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
-				function(uid, userAchievements, db, cb) { cb(true); } : 
+				function(uid, userAchievements, ctx, cb) { cb(true); } : 
 				_.bind(achievementEntry.check, achievementEntry)
-		)(uid, userAchievements, cfg, self, function(hasBeenAchieved) {
+		)(uid, userAchievements, cfg, ctx, function(hasBeenAchieved) {
 			if (!hasBeenAchieved)
 				return;
 			
@@ -107,22 +107,24 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 				});
 			});
 		});
-	}));
+	});
 	
 	});
 };
 
 AchievementsDB.prototype.registerObserver = function(achievementEntry) {
 	var self = this;
+	
+	var ctx = new qctx.QContext({parentComponent: self});
 
 	_.each(achievementEntry.fireOn, function(checkCallback, eventName) {
 		self.on(eventName, function(data) {
-			_.bind(checkCallback, achievementEntry)(data, self, function(userIDs) {
+			_.bind(checkCallback, achievementEntry)(data, ctx, function(userIDs) {
 				assert.ok(userIDs);
 				assert.notEqual(typeof userIDs.length, 'undefined');
 				
 				_.each(userIDs, function(uid) {
-					this.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: self}));
+					self.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: self}));
 				});
 			});
 		});

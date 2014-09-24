@@ -242,7 +242,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 					
 					cb('create-school-success');
 				});
-			});
+			};
 			
 			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
 				createCB();

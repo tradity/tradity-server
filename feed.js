@@ -11,6 +11,8 @@ function FeedControllerDB () {
 util.inherits(FeedControllerDB, buscomponent.BusComponent);
 
 FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
+	var self = this;
+	
 	assert.ok(data.type);
 	assert.ok(data.type.length);
 	assert.ok(data.srcuser);
@@ -18,10 +20,10 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 	var json = JSON.stringify(data.json ? data.json : {});
 	data = _.extend(data, data.json);
 	
-	process.nextTick(_.bind(function() {
-		this.emit('feedevent', data);
-		this.emit('feed-' + data.type, data);
-	}, this));
+	process.nextTick(function() {
+		self.emit('feedevent', data);
+		self.emit('feed-' + data.type, data);
+	});
 	
 	ctx.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
 		[data.type, data.targetid, data.srcuser, json], function(r) {
@@ -61,7 +63,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 			 
 			for (var i = 0; i < additional.length; ++i) {
 				if (parseInt(additional[i]) != additional[i])
-					return this.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
+					return self.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
 				
 				subselects.push('SELECT ?,?');
 				params = params.concat([eventid, additional[i]]);
@@ -73,7 +75,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 		}
 		
 		ctx.query(query, params, function() {
-			this.emit('push-events');
+			self.emit('push-events');
 		});
 	});
 });

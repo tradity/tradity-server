@@ -16,6 +16,7 @@ util.inherits(AdminDB, buscomponent.BusComponent);
 
 function _reqpriv_x (required, f) {
 	var requiredPermission = required;
+	
 	return function(query, ctx, xdata, cb) {
 		if (ctx.user === null || !ctx.access.has(requiredPermission))
 			(cb ? cb : xdata)('permission-denied');

@@ -14,29 +14,35 @@ function AchievementsDB () {
 util.inherits(AchievementsDB, buscomponent.BusComponent);
 
 AchievementsDB.prototype.onBusConnect = function() {
-	this.request({name: 'getAchievementList'}, function(al) {
+	var self = this;
+	
+	self.request({name: 'getAchievementList'}, function(al) {
 		assert.ok(al);
-		this.registerAchievements(al);
+		self.registerAchievements(al);
 	});
 	
-	this.request({name: 'getClientAchievementList'}, function(al) {
+	self.request({name: 'getClientAchievementList'}, function(al) {
 		assert.ok(al);
-		this.clientAchievements = al;
-		this.markClientAchievements();
+		self.clientAchievements = al;
+		self.markClientAchievements();
 	});
 };
 
 AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
+	var self = this;
+	
 	ctx.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id], function(userAchievements) {
-		_.each(this.achievementList, _.bind(function(achievementEntry) {
-			this.checkAchievement(achievementEntry, ctx, userAchievements);
-		}, this));
+		_.each(self.achievementList, function(achievementEntry) {
+			self.checkAchievement(achievementEntry, ctx, userAchievements);
+		});
 		
 		cb();
 	});
 });
 
 AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, userAchievements_) {
+	var self = this;
+	
 	assert.ok(ctx.user);
 	
 	var uid = ctx.user.id;
@@ -45,23 +51,23 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 	
 	uid = parseInt(uid);
 	
-	this.getServerConfig(function(cfg) {
+	self.getServerConfig(function(cfg) {
 	
 	(userAchievements_ ? function(cont) {
 		cont(userAchievements_);
-	} : _.bind(function(cont) {
+	} : function(cont) {
 		var lookfor = achievementEntry.requireAchievementInfo;
 		lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
 		
 		ctx.query('SELECT * FROM achievements WHERE userid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
 			[uid].splice(0).concat(lookfor), cont);
-	}, this))(_.bind(function(userAchievements) {
+	})(function(userAchievements) {
 		userAchievements = _.chain(userAchievements).map(function(a) { return [a.achname, a]; }).object().value();
 		
 		if (userAchievements[achievementEntry.name]) {
 			var dbver = userAchievements[achievementEntry.name].version;
 			if (dbver > achievementEntry.version)
-				this.emit('error', new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
+				self.emit('error', new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
 			
 			if (dbver >= achievementEntry.version)
 				return;
@@ -74,7 +80,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 			(_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
 				function(uid, userAchievements, db, cb) { cb(true); } : 
 				_.bind(achievementEntry.check, achievementEntry)
-		)(uid, userAchievements, cfg, this, _.bind(function(hasBeenAchieved) {
+		)(uid, userAchievements, cfg, self, function(hasBeenAchieved) {
 			if (!hasBeenAchieved)
 				return;
 			
@@ -90,38 +96,42 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, uid, user
 					}
 				});
 				
-				process.nextTick(_.bind(function() {
-					_.each(this.achievementList, _.bind(function(ae) {
+				process.nextTick(function() {
+					_.each(self.achievementList, function(ae) {
 						// look for achievements of which we have changed the prereq/implicating achievements list
 						if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
 							return -1;
 						
-						this.checkAchievement(ae, ctx);
-					}, this));
-				}, this));
+						self.checkAchievement(ae, ctx);
+					});
+				});
 			});
-		}, this));
-	}, this));
+		});
+	}));
 	
 	});
 };
 
 AchievementsDB.prototype.registerObserver = function(achievementEntry) {
-	_.each(achievementEntry.fireOn, _.bind(function(checkCallback, eventName) {
-		this.on(eventName, _.bind(function(data) {
-			_.bind(checkCallback, achievementEntry)(data, this, _.bind(function(userIDs) {
+	var self = this;
+
+	_.each(achievementEntry.fireOn, function(checkCallback, eventName) {
+		self.on(eventName, function(data) {
+			_.bind(checkCallback, achievementEntry)(data, self, function(userIDs) {
 				assert.ok(userIDs);
 				assert.notEqual(typeof userIDs.length, 'undefined');
 				
-				_.each(userIDs, _.bind(function(uid) {
-					this.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: this}));
-				}, this));
-			}, this));
-		}, this));
-	}, this));
+				_.each(userIDs, function(uid) {
+					this.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: self}));
+				});
+			});
+		});
+	});
 };
 
 AchievementsDB.prototype.registerAchievements = function(list) {
+	var self = this;
+	
 	list = _.map(list, function(achievementEntry) {
 		var e = _.defaults(achievementEntry, {
 			requireAchievementInfo: [],
@@ -134,21 +144,23 @@ AchievementsDB.prototype.registerAchievements = function(list) {
 		return e;
 	});
 	
-	this.achievementList = this.achievementList.concat(list);
+	self.achievementList = self.achievementList.concat(list);
 	
-	_.each(list, _.bind(function(achievementEntry) {
+	_.each(list, function(achievementEntry) {
 		assert.notStrictEqual(achievementEntry.version, null);
 		
-		this.registerObserver(achievementEntry);
-	}, this));
+		self.registerObserver(achievementEntry);
+	});
 	
-	this.markClientAchievements();
+	self.markClientAchievements();
 };
 
 AchievementsDB.prototype.markClientAchievements = function(list) {
-	_.each(this.achievementList, _.bind(function(ach) {
-		ach.isClientAchievement = (this.clientAchievements.indexOf(ach.name) != -1);
-	}, this));
+	var self = this;
+	
+	_.each(self.achievementList, function(ach) {
+		ach.isClientAchievement = (self.clientAchievements.indexOf(ach.name) != -1);
+	});
 };
 
 AchievementsDB.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx, cb) {
@@ -156,17 +168,19 @@ AchievementsDB.prototype.listAchievements = buscomponent.provideQT('client-list-
 }),
 
 AchievementsDB.prototype.clientAchievement = buscomponent.provideQT('client-achievement', function(query, ctx, cb) {
+	var self = this;
+	
 	if (query.name)
 		query.name = query.name.toString();
 	
 	if (!query.name)
 		return cb('format-error');
 	
-	if (this.clientAchievements.indexOf(query.name) == -1)
+	if (self.clientAchievements.indexOf(query.name) == -1)
 		return cb('achievement-unknown-name');
 	
 	ctx.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
-		this.emit('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
+		self.emit('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
 		cb('achievement-success');
 	});

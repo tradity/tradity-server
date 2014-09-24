@@ -14,8 +14,10 @@ function FileStorageDB () {
 util.inherits(FileStorageDB, buscomponent.BusComponent);
 
 FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
-	var ctx = new qctx.QContext({parentComponent: this});
-	this.getServerConfig(function(cfg) {
+	var self = this;
+	
+	var ctx = new qctx.QContext({parentComponent: self});
+	self.getServerConfig(function(cfg) {
 	
 	var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
 	
@@ -46,11 +48,11 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 			'X-Sotrade-Proxied': r.proxy
 		};
 		
-		_.bind(r.proxy ? function(cont) {
+		(r.proxy ? function(cont) {
 			var proxyURL = r.content.toString('utf8');
 			
 			var httpx = proxyURL.match(/^https/) ? https : http;
-			var preq = httpx.request(proxyURL, _.bind(function(pres) {
+			var preq = httpx.request(proxyURL, function(pres) {
 				var pheaders = _.pick(pres.headers, 'cache-control', 'expires', 'last-modified', 'source-age', 'content-type');
 				
 				_.each(pheaders, function(value, key) {
@@ -58,9 +60,9 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 				});
 				
 				cont(pres.statusCode, function(res) { pres.pipe(res); });
-			}, this));
+			});
 		
-			preq.on('error', _.bind(function(e) { this.emit('error', e); }, this));
+			preq.on('error', function(e) { self.emit('error', e); });
 			
 			if (req.headers['if-modified-since'])
 				preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
@@ -80,7 +82,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 				
 				cont(200, function(res) { res.end(r.content) });
 			}
-		}, this)(_.bind(function (status, finalize) {
+		})(function (status, finalize) {
 			finalize = finalize || function(res) { res.end(); };
 			
 			if (r.headers)
@@ -88,7 +90,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 			
 			res.writeHead(status, headers);
 			finalize(res);
-		}, this));
+		});
 	});
 	
 	cb(true);
@@ -97,6 +99,8 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 });
 
 FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', function(query, ctx, cb) {
+	var self = this;
+	
 	this.getServerConfig(function(cfg) {
 	
 	var content = query.content;
@@ -107,6 +111,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 	
 	if (query.base64)
 		content = new Buffer(query.content, 'base64');
+	
 	ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null], function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
@@ -156,7 +161,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 			
-		var continueAfterDelPrevious = _.bind(function() {
+		var continueAfterDelPrevious = function() {
 			ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
 				[ctx.user ? ctx.user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
@@ -171,7 +176,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 				
 				return cb('publish-success', null, 'repush');
 			});
-		}, this);
+		};
 		
 		if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';
@@ -184,7 +189,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 				switch (fieldname) {
 					case 'user': dataarr.push(ctx.user.id); break;
 					case 'groupassoc': dataarr.push(query.__groupassoc__); break;
-					default: this.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
+					default: self.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
 				}
 			}
 			

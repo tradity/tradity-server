@@ -15,15 +15,17 @@ function StocksDB () {
 util.inherits(StocksDB, buscomponent.BusComponent);
 
 StocksDB.prototype.onBusConnect = function() {
+	var self = this;
+	
 	this.request({name: 'getStockQuoteLoader'}, function(ql) {
 		assert.ok(ql);
 		
-		this.quoteLoader = ql;
+		self.quoteLoader = ql;
 		
-		var ctx = new qctx.QContext({parentComponent: this});
-		this.quoteLoader.on('record', _.bind(function(rec) {
-			this.updateRecord(ctx, rec);
-		}, this));
+		var ctx = new qctx.QContext({parentComponent: self});
+		self.quoteLoader.on('record', function(rec) {
+			self.updateRecord(ctx, rec);
+		});
 	});
 };
 
@@ -32,49 +34,53 @@ StocksDB.prototype.stocksFilter = function(cfg, rec) {
 };
 
 StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
+	var self = this;
+	
 	cb = cb || function() {};
 		
 	var rcbST = new Date().getTime();
 	
-	var xcb = _.bind(function() {
+	var xcb = function() {
 		var rcbET = new Date().getTime();
 		console.log('StocksDB rcb in ' + (rcbET - rcbST) + ' ms');
 		cb();
-	}, this);
+	};
 	
-	this.cleanUpUnusedStocks(ctx, _.bind(function() {
-	this.updateStockValues(ctx, _.bind(function() {
-	this.updateLeaderMatrix(ctx, _.bind(function() {
-		var provcb = _.bind(function() {
-			this.updateRankingInformation(ctx, _.bind(function() {
+	self.cleanUpUnusedStocks(ctx, function() {
+	self.updateStockValues(ctx, function() {
+	self.updateLeaderMatrix(ctx, function() {
+		var provcb = function() {
+			self.updateRankingInformation(ctx, function() {
 				if (query.weekly) {
-					this.weeklyCallback(ctx, _.bind(function() {
-						this.dailyCallback(xcb);
-					}, this));
+					self.weeklyCallback(ctx, function() {
+						self.dailyCallback(xcb);
+					});
 				} if (query.daily) {
-					this.dailyCallback(ctx, xcb);
+					self.dailyCallback(ctx, xcb);
 				} else {
 					xcb();
 				}
-			}, this));
-		}, this);
+			});
+		};
 		
 		if (query.provisions)
-			this.updateProvisions(provcb);
+			self.updateProvisions(provcb);
 		else
 			provcb();
-	}, this));
-	}, this));
-	}, this));
+	});
+	});
+	});
 });
 
 StocksDB.prototype.updateRankingInformation = function(ctx, cb) {
+	var self = this;
+	
 	cb = cb || function() {};
 	
 	ctx.query('UPDATE users SET ' +
 		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
 		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
-		this.updateValueHistory(cb);
+		self.updateValueHistory(cb);
 	});	
 }
 
@@ -110,12 +116,14 @@ StocksDB.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 }
 
 StocksDB.prototype.updateStockValues = function(ctx, cb) {
-	this.getServerConfig(function(cfg) {
+	var self = this;
+	
+	self.getServerConfig(function(cfg) {
 		ctx.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
 		[cfg.lrutimeLimit, cfg.refetchLimit], function(res) {
 			var stocklist = _.pluck(res, 'stockid');
 			
-			this.request({name: 'neededStocksDQ'}, function(dqNeededStocks) {
+			self.request({name: 'neededStocksDQ'}, function(dqNeededStocks) {
 				stocklist = _.union(stocklist, dqNeededStocks);
 				
 				stocklist = _.filter(stocklist, function(s) {
@@ -123,7 +131,7 @@ StocksDB.prototype.updateStockValues = function(ctx, cb) {
 				});
 				
 				if (stocklist.length > 0)
-					this.quoteLoader.loadQuotes(stocklist, _.bind(this.stocksFilter, this, cfg));
+					self.quoteLoader.loadQuotes(stocklist, _.bind(self.stocksFilter, self, cfg));
 				cb();
 			});
 		});
@@ -156,7 +164,7 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 			
 			var complete = 0;
 			for (var j = 0; j < dsr.length; ++j) {
-				_.bind(_.partial(function(j) {
+				_.partial(function(j) {
 					assert.ok(dsr[j].wfees >= 0);
 					assert.ok(dsr[j].lfees <= 0);
 					
@@ -178,7 +186,7 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 					});
 					});
 					});
-				}, j), this)();
+				}, j)();
 			}
 		});
 	});
@@ -186,9 +194,11 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 };
 
 StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
+	var self = this;
+	
 	var lmuStart = new Date().getTime();
 	
-	this.getServerConfig(function(cfg) {
+	self.getServerConfig(function(cfg) {
 	
 	ctx.getConnection(function (conn) {
 	conn.query('SET autocommit = 0; ' +
@@ -235,7 +245,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 		var updateQuery = '';
 		var updateParams = [];
 		
-		for (var ci_ in components) { _.bind(function() {
+		for (var ci_ in components) { (function() {
 			var ci = ci_;
 			var cusers = components[ci];
 			var n = cusers.length;
@@ -282,7 +292,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 			var sgesvST = new Date().getTime();
 			var res = lapack.sgesv(A, B);
 			if (!res) {
-				this.emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
+				self.emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
 				return;
 			}
 			var sgesvET = new Date().getTime();
@@ -319,17 +329,17 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 							
 							for (var j = 0; j < res.length; ++j) {
 								process.nextTick(_.bind(_.partial(function(r) {
-									this.emit('stock-update', r);
-								}, res[j]), this));
+									self.emit('stock-update', r);
+								}, res[j]), self));
 							}
 							
 							cb();
 						});
 					});
 				}
-				}, this, i)();
+				}, self, i)();
 			}
-		}, this)(); }
+		})(); }
 	});
 	});
 	});
@@ -341,6 +351,8 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 }
 
 StocksDB.prototype.updateRecord = function(ctx, rec) {
+	var self = this;
+	
 	if (rec.failure)
 		return;
 	
@@ -355,7 +367,7 @@ StocksDB.prototype.updateRecord = function(ctx, rec) {
 		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) >= LENGTH(?), name, ?), exchange = ?, pieces = ?',
 		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.pieces,
 		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], function() {
-			this.emit('stock-update', {
+			self.emit('stock-update', {
 				'stockid': rec.symbol,
 				'lastvalue': rec.lastTradePrice * 10000,
 				'ask': rec.ask * 10000,
@@ -371,6 +383,8 @@ StocksDB.prototype.updateRecord = function(ctx, rec) {
 }
 
 StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx, cb) {
+	var self = this;
+	
 	this.getServerConfig(function(cfg) {
 	var str = query.name;
 	if (!str || str.length < 3)
@@ -378,7 +392,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 	
 	str = str.trim();
 	
-	var handleResults = _.bind(function(results) {
+	var handleResults = function(results) {
 		results = _.uniq(results, false, function(r) { return r.stockid; });
 		var symbols = _.pluck(results, 'stockid');
 		
@@ -388,7 +402,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 		}
 		
 		cb('stock-search-success', {results: results});
-	}, this);
+	};
 	
 	var leadertest = str.match(/__LEADER_(\d+)__/);
 	var lid = -1;
@@ -400,7 +414,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 		'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
 		'FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
 	ctx.query('SELECT *, 0 AS wprovision, 0 AS lprovision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
-		var externalSearchResultHandler = _.bind(function(res3) {
+		var externalSearchResultHandler = function(res3) {
 			var results = _.union(res1, _.map(res3, function(r) {
 				return {
 					'stockid': r.symbol,
@@ -417,7 +431,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 				};
 			}));
 			handleResults(results);
-		}, this);
+		};
 		
 		var externalStocks = _.pluck(res2, 'stockid');
 
@@ -428,7 +442,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 		if (externalStocks.length == 0)
 			externalSearchResultHandler([]);
 		else
-			this.quoteLoader.loadQuotesList(externalStocks, _.bind(this.stocksFilter, this, cfg), externalSearchResultHandler);
+			self.quoteLoader.loadQuotesList(externalStocks, _.bind(self.stocksFilter, self, cfg), externalSearchResultHandler);
 	});
 	});
 	});
@@ -456,6 +470,8 @@ StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOp
 });
 
 StocksDB.prototype.sellAll = buscomponent.provideQT('sellAll', function(query, ctx, cb) {
+	var self = this;
+	
 	ctx.query('SELECT s.*, ds.* FROM stocks AS s JOIN depot_stocks AS ds ON ds.stockid = s.id WHERE s.leader = ?', [ctx.user.id], function(res) {
 		if (res.length == 0)
 			return cb();
@@ -463,7 +479,7 @@ StocksDB.prototype.sellAll = buscomponent.provideQT('sellAll', function(query, c
 		var complete = 0;
 		for (var i = 0; i < res.length; ++i) {
 			var depotentry = res[i];
-			this.buyStock({
+			self.buyStock({
 				amount: -depotentry.amount,
 				leader: ctx.user.id,
 				__force_now__: true
@@ -476,7 +492,10 @@ StocksDB.prototype.sellAll = buscomponent.provideQT('sellAll', function(query, c
 });
 
 StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', function(query, ctx, cb) {
+	var self = this;
+	
 	this.getServerConfig(function(cfg) {
+	
 	assert.ok(ctx.user);
 	assert.ok(ctx.access);
 	
@@ -524,7 +543,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', functio
 			return cb('stock-buy-email-not-verif');
 		}
 		
-		if (!this.stockExchangeIsOpen(r.exchange, cfg) && !(ctx.access.has('stocks') && query.forceNow) && !query.__force_now__) {
+		if (!self.stockExchangeIsOpen(r.exchange, cfg) && !(ctx.access.has('stocks') && query.forceNow) && !query.__force_now__) {
 			rollback();
 			
 			if (!query.__is_delayed__) {
@@ -580,7 +599,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', functio
 			return cb('stock-buy-over-pieces-limit');
 		}
 		
-		_.bind(amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0)) && r.lid ? function(cont) {
+		(amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0)) && r.lid ? function(cont) {
 			var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
 			var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
 
@@ -593,7 +612,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', functio
 				conn.query('UPDATE users AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid], cont);
 			});
-		} : function(cont) { cont(); }, this)(_.bind(function() {
+		} : function(cont) { cont(); })(function() {
 			var fee = Math.max(Math.abs(cfg['transaction-fee-perc'] * price), cfg['transaction-fee-min']);
 			
 			conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
@@ -638,7 +657,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', functio
 			}
 			});
 			});
-		}, this));
+		});
 		});
 		});
 	});

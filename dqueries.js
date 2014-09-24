@@ -16,13 +16,14 @@ function DelayedQueriesDB () {
 util.inherits(DelayedQueriesDB, buscomponent.BusComponent);
 
 DelayedQueriesDB.prototype.onBusConnect = function() {
+	var self = this;
 	var ctx = new qctx.QContext({parentComponent: this});
 	
 	this.on('stock-update', function(ev) {
-		if (this.neededStocks['s-'+ev.stockid]) {
-			_.each(this.neededStocks['s-'+ev.stockid], _.bind(function(entryid) {
-				this.checkAndExecute(ctx, this.queries[entryid]);
-			}, this));
+		if (self.neededStocks['s-'+ev.stockid]) {
+			_.each(self.neededStocks['s-'+ev.stockid], function(entryid) {
+				self.checkAndExecute(ctx, self.queries[entryid]);
+			});
 		}
 	});
 	
@@ -39,22 +40,27 @@ DelayedQueriesDB.prototype.getNeededStocks = buscomponent.provide('neededStocksD
 });
 
 DelayedQueriesDB.prototype.checkAndExecute = function(ctx, query) {
-	query.check(ctx, _.bind(function(condmatch) {
+	var self = this;
+	
+	query.check(ctx, function(condmatch) {
 		if (!condmatch)
 			return;
-		this.executeQuery(query);
-	}, this));
+		self.executeQuery(query);
+	});
 };
 
 DelayedQueriesDB.prototype.loadDelayedQueries = function() {
-	var ctx = new qctx.QContext({parentComponent: this});
+	var self = this;
+	
+	var ctx = new qctx.QContext({parentComponent: self});
+	
 	ctx.query('SELECT * FROM dqueries', [], function(r) {
-		_.each(r, _.bind(function(res) {
+		_.each(r, function(res) {
 			res.query = JSON.parse(res.query);
 			res.userinfo = JSON.parse(res.userinfo);
 			res.accessinfo = Access.fromJSON(res.accessinfo);
-			this.addQuery(ctx, res);
-		},this));
+			self.addQuery(ctx, res);
+		});
 	});
 };
 
@@ -78,19 +84,21 @@ DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQT('client-dque
 });
 
 DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dquery', function(query, ctx, cb) {
+	var self = this;
+	
 	cb = cb || function() {};
 	
 	var qstr = null;
 	try {
-		this.parseCondition(ctx, query.condition);
+		self.parseCondition(ctx, query.condition);
 		qstr = JSON.stringify(query.query);
 	} catch (e) {
-		this.emit('error', e);
+		self.emit('error', e);
 		return cb('format-error');
 	}
 	
 	if (this.queryTypes.indexOf(query.query.type) == -1)
-		cb('unknown-query-type');
+		self('unknown-query-type');
 	
 	ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
 		[query.condition, qstr, JSON.stringify(ctx.user), ctx.access.toJSON()], function(r) {
@@ -98,7 +106,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dque
 		query.userinfo = ctx.user;
 		query.accessinfo = ctx.access;
 		cb('dquery-success', {'queryid': query.queryid});
-		this.addQuery(ctx, query);
+		self.addQuery(ctx, query);
 	});
 });
 
@@ -203,9 +211,11 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 };
 
 DelayedQueriesDB.prototype.executeQuery = function(query) {
-	var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: this});
+	var self = this;
+	
+	var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: self});
 	query.query.__is_delayed__ = true;
-	this.request({
+	self.request({
 		name: 'client-' + query.query.type,
 		query: query.query,
 		ctx: ctx
@@ -213,20 +223,22 @@ DelayedQueriesDB.prototype.executeQuery = function(query) {
 		var json = query.query.dquerydata || {};
 		json.result = code;
 		if (!query.query.retainUntilCode || query.query.retainUntilCode == code) {
-			ctx.feed({'type': 'dquery-exec', 'targetid':null, 'srcuser': query.userinfo.id, 'json': json, 'noFollowers': true});
-			this.removeQuery(query, ctx);
+			ctx.feed({'type': 'dquery-exec', 'targetid': null, 'srcuser': query.userinfo.id, 'json': json, 'noFollowers': true});
+			self.removeQuery(query, ctx);
 		}
 	});
 };
 
 DelayedQueriesDB.prototype.removeQuery = function(query, ctx) {
+	var self = this;
+	
 	ctx.query('DELETE FROM dqueries WHERE queryid = ?', [query.queryid], function() {
-		delete this.queries[query.queryid];
-		_.each(query.neededStocks, _.bind(function(stock) {
-			this.neededStocks['s-'+stock] = _.without(this.neededStocks['s-'+stock], query.queryid);
-			if (this.neededStocks['s-'+stock].length == 0)
-				delete this.neededStocks['s-'+stock];
-		}, this));
+		delete self.queries[query.queryid];
+		_.each(query.neededStocks, function(stock) {
+			self.neededStocks['s-'+stock] = _.without(self.neededStocks['s-'+stock], query.queryid);
+			if (self.neededStocks['s-'+stock].length == 0)
+				delete self.neededStocks['s-'+stock];
+		});
 	});
 };
 

@@ -75,9 +75,9 @@ QContext.prototype.getConnection = function(cb) {
 	this.request({name: 'dbGetConnection'}, function(conn) {
 		cb({
 			release: _.bind(conn.release, conn),
-			query: _.bind(function(query, args, cb) {
-				conn.query(query, args, _.bind(cb || function() {}, this));
-			}, this)
+			query: function(query, args, cb) {
+				conn.query(query, args, (cb || function() {}));
+			}
 		});
 	}); 
 };

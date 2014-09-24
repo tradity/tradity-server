@@ -41,9 +41,11 @@ function _reqschooladm (f, soft, scdb, status) {
 }
 
 SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 'status', 'schoolid', 'reply'],
-	function(ctx, status, schoolid, cb) {
+	function(ctx, status, schoolid, cb)
+{
+	var self = this;
 	
-	(parseInt(schoolid) == schoolid ? function(cont) { cont(); } : _.bind(function(cont) {
+	(parseInt(schoolid) == schoolid ? function(cont) { cont(); } : function(cont) {
 		ctx.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [schoolid], function(res) {
 			if (res.length == 0)
 				return cb(false, null);
@@ -53,16 +55,16 @@ SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx'
 			schoolid = res[0].id;
 			cont();
 		});
-	}, this))(_.bind(function() {
+	})(function() {
 		if (ctx.access.has('schooldb'))
 			return cb(true, schoolid);
 			
 		status = status || ['admin', 'xadmin'];
 		
-		this.loadSchoolAdmins(schoolid, ctx, function(admins) {
+		self.loadSchoolAdmins(schoolid, ctx, function(admins) {
 			cb(_.chain(admins).filter(function(a) { return status.indexOf(a.status) != -1 && a.adminid == ctx.user.id; }).value().length != 0, schoolid);
 		});
-	}, this));
+	});
 });
 
 SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
@@ -75,6 +77,8 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
+	var self = this;
+	
 	ctx.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
 		'FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
@@ -96,7 +100,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 			
 		assert.ok(s.config);
 		
-		this.loadSchoolAdmins(s.id, ctx, function(admins) {
+		self.loadSchoolAdmins(s.id, ctx, function(admins) {
 			s.admins = admins;
 			
 			ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%'], function(subschools) {
@@ -124,7 +128,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = parentPath(s.path);
-						this.loadSchoolInfo(s.parentPath, ctx.user, ctx.access, cfg, _.bind(function(code, result) {
+						self.loadSchoolInfo(s.parentPath, ctx.user, ctx.access, cfg, function(code, result) {
 							assert.equal(code, 'get-school-info-success');
 							
 							s.parentSchool = result;
@@ -132,7 +136,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 							s.config = _.defaults(s.config, s.parentSchool.config, cfg.schoolConfigDefaults);
 							
 							cb('get-school-info-success', s);
-						}, this));
+						});
 					} else {
 						s.config = _.defaults(s.config, cfg.schoolConfigDefaults);
 						
@@ -147,8 +151,10 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 };
 
 SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info', function(query, ctx, cb) {
-	this.getServerConfig(function(cfg) {
-		this.loadSchoolInfo(query.lookfor, ctx, cfg, function(code, result) {
+	var self = this;
+	
+	self.getServerConfig(function(cfg) {
+		self.loadSchoolInfo(query.lookfor, ctx, cfg, function(code, result) {
 			cb(code, {'result': result});
 		});
 	});
@@ -181,6 +187,8 @@ SchoolsDB.prototype.changeMemberStatus = buscomponent.provideQT('client-school-c
 }));
 
 SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete-comment', _reqschooladm(function(query, ctx, cb) {
+	var self = this;
+	
 	ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
 		'JOIN events AS e ON e.eventid = c.eventid ' +
 		'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
@@ -191,7 +199,7 @@ SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
 		ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-			[this.readTemplate('comment-deleted-by-group-admin.html'), query.commentid], function() {
+			[self.readTemplate('comment-deleted-by-group-admin.html'), query.commentid], function() {
 			cb('school-delete-comment-success');
 		});
 	});
@@ -224,7 +232,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 				return cb('create-school-already-exists');
 			}
 			
-			var createCB = _.bind(function() {
+			var createCB = function() {
 				conn.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
 					ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': ctx.user.id});
 					
@@ -234,7 +242,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 					
 					cb('create-school-success');
 				});
-			}, this);
+			});
 			
 			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
 				createCB();

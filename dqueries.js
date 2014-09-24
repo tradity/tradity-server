@@ -90,7 +90,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dque
 	
 	var qstr = null;
 	try {
-		self.parseCondition(ctx, query.condition);
+		self.parseCondition(query.condition);
 		qstr = JSON.stringify(query.query);
 	} catch (e) {
 		self.emit('error', e);

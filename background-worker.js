@@ -10,17 +10,19 @@ function BackgroundWorker () {
 }
 util.inherits(BackgroundWorker, buscomponent.BusComponent);
 
-BackgroundWorker.prototype.prod = buscomponent.provideQUA('client-prod', function(query, user, access, cb) {
-	assert.ok(access);
+BackgroundWorker.prototype.prod = buscomponent.provideQT('client-prod', function(query, ctx, cb) {
+	var self = this;
 	
-	if (access.has('server') == -1)
+	assert.ok(ctx.access);
+	
+	if (ctx.access.has('server') == -1)
 		return cb('prod-not-allowed');
 		
 	var starttime = new Date().getTime();
 	
-	this.request({name: 'regularCallbackUser', query: query}, function() {
+	self.request({name: 'regularCallbackUser', query: query, ctx: ctx}, function() {
 		var userdbtime = new Date().getTime();
-		this.request({name: 'regularCallbackStocks', query: query}, function() {
+		self.request({name: 'regularCallbackStocks', query: query, ctx: ctx}, function() {
 			cb('prod-ready', {'utime': userdbtime - starttime, 'stime': new Date().getTime() - userdbtime});
 		});
 	});

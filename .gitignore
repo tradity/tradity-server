@@ -4,3 +4,4 @@ config.local.js
 node_modules
 output.log
 templates-compiled.js
+errors.log

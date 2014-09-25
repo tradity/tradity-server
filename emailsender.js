@@ -13,9 +13,11 @@ function MailerDB () {
 util.inherits(MailerDB, buscomponent.BusComponent);
 
 MailerDB.prototype._init = function(cb) {
+	var self = this;
+	
 	this.getServerConfig(function(cfg) {
-		this.mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
-		this.inited = true;
+		self.mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
+		self.inited = true;
 		cb();
 	});
 };

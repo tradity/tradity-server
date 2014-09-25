@@ -1,11 +1,16 @@
 (function () { "use strict";
 
 var assert = require('assert');
-var Access = require('./access.js').Access;
 var _ = require('underscore');
+
+// load qctx at runtime to prevent cycle
+var qctx_ = null;
+var qctx = function() { if (qctx_) return qctx_; else return qctx_ = require('./qctx.js'); };
 
 function BusComponent () {
 }
+
+BusComponent.objCount = 0;
 
 BusComponent.prototype.setBus = function(bus, componentName) {
 	assert.ok(bus);
@@ -19,6 +24,12 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 	this.registerProviders();
 	_.bind(this.onBusConnect, this)();
 	return this;
+};
+
+BusComponent.prototype.setBusFromParent = function(component) {
+	assert.ok(component.bus);
+	
+	this.setBus(component.bus, component.componentName + '-' + (BusComponent.objCount++));
 };
 
 BusComponent.prototype.unplugBus = function() {
@@ -86,20 +97,6 @@ BusComponent.prototype.message = function(name, msg, level) {
 };
 
 BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
-BusComponent.prototype.query = function(query, args, cb) { this.request({name: 'dbQuery', query: query, args: args}, cb); };
-
-BusComponent.prototype.getConnection = function(cb) {
-	this.request({name: 'dbGetConnection'}, function(conn) {
-		cb({
-			release: _.bind(conn.release, conn),
-			query: _.bind(function(query, args, cb) {
-				conn.query(query, args, _.bind(cb || function() {}, this));
-			}, this)
-		});
-	}); 
-};
-
-BusComponent.prototype.feed = function(data, onEventId) { this.request({name: 'feed', data: data}, onEventId || function() {}); };
 
 function provide(name, args, fn) {
 	fn.isProvider = true;
@@ -111,8 +108,8 @@ function provide(name, args, fn) {
 			this.emit(name + '-resp', { arguments: args, replyTo: data.requestId });
 		}, this);
 		
-		if (data.access && !data.access.has)
-			data.access = Access.fromJSON(data.access);
+		if (data.ctx && !data.ctx.toJSON)
+			data.ctx = qctx().fromJSON(data.ctx, this);
 		
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)
@@ -131,8 +128,8 @@ function listener(name, fn) {
 	return fn;
 };
 
-function provideQUA(name, fn)  { return provide(name, ['query', 'user', 'access', 'reply'], fn); };
-function provideQUAX(name, fn) { return provide(name, ['query', 'user', 'access', 'xdata', 'reply'], fn); };
+function provideQT(name, fn)  { return provide(name, ['query', 'ctx', 'reply'], fn); };
+function provideQTX(name, fn) { return provide(name, ['query', 'ctx', 'xdata', 'reply'], fn); };
 
 BusComponent.prototype.registerProviders = function() {
 	for (var i in this) {
@@ -192,8 +189,8 @@ function errorWrap (fn) {
 exports.BusComponent = BusComponent;
 exports.provide      = provide;
 exports.listener     = listener;
-exports.provideQUA   = provideQUA;
-exports.provideQUAX  = provideQUAX;
+exports.provideQT    = provideQT;
+exports.provideQTX  = provideQTX;
 exports.needsInit    = needsInit;
 exports.errorWrap    = errorWrap;
 

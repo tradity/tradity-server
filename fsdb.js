@@ -6,6 +6,7 @@ var http = require('http');
 var https = require('https');
 var assert = require('assert');
 var hash = require('mhash').hash;
+var qctx = require('./qctx.js');
 var buscomponent = require('./buscomponent.js');
 
 function FileStorageDB () {
@@ -13,7 +14,10 @@ function FileStorageDB () {
 util.inherits(FileStorageDB, buscomponent.BusComponent);
 
 FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
-	this.getServerConfig(function(cfg) {
+	var self = this;
+	
+	var ctx = new qctx.QContext({parentComponent: self});
+	self.getServerConfig(function(cfg) {
 	
 	var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
 	
@@ -22,7 +26,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 	
 	var filename = fsmatch[fsmatch.length - 1];
 	
-	this.query('SELECT * FROM httpresources WHERE name = ?', [filename], function(rows) {
+	ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename], function(rows) {
 		if (rows.length == 0) {
 			res.writeHead(404, {'Content-Type': 'text/plain'});
 			res.end('Not found');
@@ -44,11 +48,11 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 			'X-Sotrade-Proxied': r.proxy
 		};
 		
-		_.bind(r.proxy ? function(cont) {
+		(r.proxy ? function(cont) {
 			var proxyURL = r.content.toString('utf8');
 			
 			var httpx = proxyURL.match(/^https/) ? https : http;
-			var preq = httpx.request(proxyURL, _.bind(function(pres) {
+			var preq = httpx.request(proxyURL, function(pres) {
 				var pheaders = _.pick(pres.headers, 'cache-control', 'expires', 'last-modified', 'source-age', 'content-type');
 				
 				_.each(pheaders, function(value, key) {
@@ -56,9 +60,9 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 				});
 				
 				cont(pres.statusCode, function(res) { pres.pipe(res); });
-			}, this));
+			});
 		
-			preq.on('error', _.bind(function(e) { this.emit('error', e); }, this));
+			preq.on('error', function(e) { self.emit('error', e); });
 			
 			if (req.headers['if-modified-since'])
 				preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
@@ -78,7 +82,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 				
 				cont(200, function(res) { res.end(r.content) });
 			}
-		}, this)(_.bind(function (status, finalize) {
+		})(function (status, finalize) {
 			finalize = finalize || function(res) { res.end(); };
 			
 			if (r.headers)
@@ -86,7 +90,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 			
 			res.writeHead(status, headers);
 			finalize(res);
-		}, this));
+		});
 	});
 	
 	cb(true);
@@ -94,7 +98,9 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 	});
 });
 
-FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', function(query, user, access, cb) {
+FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', function(query, ctx, cb) {
+	var self = this;
+	
 	this.getServerConfig(function(cfg) {
 	
 	var content = query.content;
@@ -105,10 +111,11 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 	
 	if (query.base64)
 		content = new Buffer(query.content, 'base64');
-	this.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [user ? user.id : null], function(res) {
+	
+	ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null], function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
-		if (!access.has('filesystem')) {
+		if (!ctx.access.has('filesystem')) {
 			if (content.length + total > cfg.fsdb.userquota)
 				return cb('publish-quota-exceed');
 			if (cfg.fsdb.allowroles.indexOf(query.role) == -1)
@@ -125,11 +132,11 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 					var match = query.content.match(p.regex);
 					if (match) {
 						if (typeof p.requireAccess == 'function') {
-							hasRequiredAccess = p.requireAccess(user, access, match);
+							hasRequiredAccess = p.requireAccess(ctx, match);
 						} else {
 							hasRequiredAccess = p.requireAccess.length == 0;
 							for (var i = 0; i < p.requireAccess.length; ++i) {
-								if (access.has(p.requireAccess[i])) {
+								if (ctx.access.has(p.requireAccess[i])) {
 									hasRequiredAccess = true;
 									break;
 								}
@@ -151,27 +158,27 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 		var filehash = hash('md5', content + new Date().getTime().toString());
 		query.name = query.name || filehash;
 		
-		var filename = (user ? user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
+		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 			
-		var continueAfterDelPrevious = _.bind(function() {
-			this.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
+		var continueAfterDelPrevious = function() {
+			ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[user ? user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
+				[ctx.user ? ctx.user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
 				
-				if (user) {
-					this.feed({
+				if (ctx.user) {
+					ctx.feed({
 						'type': 'file-publish',
 						'targetid': res.insertId,
-						'srcuser': user.id
+						'srcuser': ctx.user.id
 					});
 				}
 				
 				return cb('publish-success', null, 'repush');
 			});
-		}, this);
+		};
 		
-		if (uniqrole && user && !(access.has('filesystem') && query.retainOldFiles)) {
+		if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';
 			var dataarr = [query.role];
 			
@@ -180,13 +187,13 @@ FileStorageDB.prototype.publish = buscomponent.provideQUA('client-publish', func
 				sql += 'AND `' + fieldname + '` = ? ';
 				
 				switch (fieldname) {
-					case 'user': dataarr.push(user.id); break;
+					case 'user': dataarr.push(ctx.user.id); break;
 					case 'groupassoc': dataarr.push(query.__groupassoc__); break;
-					default: this.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
+					default: self.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
 				}
 			}
 			
-			this.query(sql, dataarr, continueAfterDelPrevious);
+			ctx.query(sql, dataarr, continueAfterDelPrevious);
 		} else {
 			continueAfterDelPrevious();
 		}

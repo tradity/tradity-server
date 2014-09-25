@@ -11,6 +11,8 @@ function ErrorHandler() {
 util.inherits(ErrorHandler, buscomponent.BusComponent);
 
 ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
+	var self = this;
+	
 	if (!e)
 		return this.err(new Error('Error without Error object caught -- abort'), true);
 	
@@ -23,13 +25,13 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 			opt.text += e.stack + '\n';
 		
 		try {
-			if (this.bus)
-				opt.text += '\n' + util.inspect(this.bus.log.reverse(), {depth: 2});
+			if (self.bus)
+				opt.text += '\n' + util.inspect(self.bus.log.reverse(), {depth: 2});
 		} catch(e) { console.error(e); }
 				
 		console.error(opt.text);
 		
-		this.request({name: 'sendMail', opt: opt}, function (error, resp) {
+		self.request({name: 'sendMail', opt: opt}, function (error, resp) {
 			if (error)
 				this.err(error, true);
 		});

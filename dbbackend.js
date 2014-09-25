@@ -8,7 +8,7 @@ var buscomponent = require('./buscomponent.js');
 function Database () {
 	this.dbmod = null;
 	this.connectionPool = null;
-	this.openQueries = 0;
+	this.openConnections = 0;
 	this.isShuttingDown = false;
 }
 
@@ -19,7 +19,7 @@ Database.prototype._init = function(cb) {
 		this.dbmod = cfg['dbmod'] || require('mysql');
 		this.connectionPool = this.dbmod.createPool(cfg['db']);
 		this.inited = true;
-		this.openQueries = 0;
+		this.openConnections = 0;
 		
 		/*
 		 * Note: We don't set isShuttingDown = true here.
@@ -35,59 +35,77 @@ Database.prototype._init = function(cb) {
 Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', function() {
 	this.isShuttingDown = true;
 	
-	if (this.connectionPool && this.openQueries == 0) {
+	if (this.connectionPool && this.openConnections == 0) {
 		this.connectionPool.end();
 		this.connectionPool = null;
 		this.inited = false;
 	}
 });
 
-Database.prototype._query = buscomponent.needsInit(function(query, args, cb) {
-	this._getConnection(function(err, connection) {
-		if (err)
-			return cb(err, null);
-		connection.query(query, args, function(err) {
-			if (!err) // release will be handled by connection management
-				connection.release();
+Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'reply'],
+	buscomponent.needsInit(function(query, args, cb)
+{
+	this._getConnection(true, function(connection) {
+		connection.query(query, args || [], function() {
 			cb.apply(this, arguments);
 		});
 	});
-});
+}));
 
-Database.prototype._getConnection = buscomponent.needsInit(function(cb) {
+Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, cb) {
 	assert.ok (this.connectionPool);
 	
-	this.openQueries++;
+	this.openConnections++;
 	
 	var db = this;
 	this.connectionPool.getConnection(function(err, conn) {
-		if (conn == null)
-			return cb(err, null);
+		if (err)
+			this.emit('error', err);
+		
+		assert.ok(conn);
 		
 		var release = function() {
-			db.openQueries--;
+			db.openConnections--;
 			
-			if (db.openQueries == 0 && db.isShuttingDown)
+			if (db.openConnections == 0 && db.isShuttingDown)
 				db.shutdown();
 			
 			return conn.release();
 		};
 		
-		cb(err, {
+		cb({
 			query: function(q, args, cb) {
 				conn.query(q, args, function(err, res) {
 					var exception = null;
-					try {
-						cb(err, res);
-					} catch (e) {
-						exception = e;
+					
+					if (!err) {
+						try {
+							cb(res);
+						} catch (e) {
+							exception = e;
+						}
 					}
 					
 					if (err || exception) {
 						conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
-						release();
-						if (exception)
+						
+						// make sure that the error event is emitted -> release() will be called in next tick
+						process.nextTick(release);
+						
+						if (err) {
+							// query-related error
+							var datajson = JSON.stringify(args);
+							var querydesc = '<<' + query + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
+						
+							this.emit('error', query ? new Error(
+								err + '\nCaused by ' + querydesc
+							) : err);
+						} else {
+							// exception in callback
 							this.emit('error', exception);
+						}
+					} else if (autorelease) {
+						release();
 					}
 				});
 			}, release: release
@@ -99,17 +117,8 @@ Database.prototype.escape = buscomponent.needsInit(function(str) {
 	return this.dbmod.escape(str);
 });
 
-Database.prototype.query = buscomponent.provide('dbQuery', ['query', 'args', 'reply'], function(query, data, cb) {
-	data = data || [];
-	
-	this._query(query, data, this.queryCallback(cb, query, data));
-});
-
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['reply'], function(conncb) {
-	this._getConnection(_.bind(function(err, cn) {
-		if (err)
-			this.emit('error', err);
-			
+	this._getConnection(false, _.bind(function(cn) {
 		if (!this.dbconnid)
 			this.dbconnid = 0;
 		var connid = ++this.dbconnid;
@@ -119,7 +128,7 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['rep
 				data = data || [];
 				
 				this.emit('dbBoundQueryLog', [q, data]);
-				cn.query(q, data, this.queryCallback(cb, q, data));
+				cn.query(q, data, cb);
 			}, this),
 			release: _.bind(function() {
 				cn.release();
@@ -127,22 +136,6 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['rep
 		});
 	}, this));
 });
-
-Database.prototype.queryCallback = function(cb, query, data) {
-	return _.bind(function(err, res) {
-		var datajson = JSON.stringify(data);
-		
-		if (err) {
-			var querydesc = '<<' + query + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
-			
-			this.emit('error', query ? new Error(
-				err + '\nCaused by ' + querydesc
-			) : err);
-		} else if (cb) {
-			_.bind(cb, this)(res);
-		}
-	}, this);
-};
 
 exports.Database = Database;
 

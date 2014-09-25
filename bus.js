@@ -64,7 +64,12 @@ Bus.prototype.request = function(req, onReply) {
 		
 		delete this.unanswered[requestId];
 		
-		onReply.apply(this, resp.arguments);
+		try {
+			onReply.apply(this, resp.arguments);
+		} catch (e) {
+			this.emit('error', e);
+		}
+		
 		this.removeListener(reqName + '-resp', responseListener);
 	}, this);
 	

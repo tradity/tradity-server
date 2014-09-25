@@ -5,7 +5,7 @@ var _ = require('underscore');
 
 // load qctx at runtime to prevent cycle
 var qctx_ = null;
-var qctx = function() { if (qctx_) return qctx_; else return qctx_ = require('./qctx.js'); };
+var qctx = function() { if (qctx_) return qctx_; else return qctx_ = require('../qctx.js'); };
 
 function BusComponent () {
 }

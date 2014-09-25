@@ -5,7 +5,7 @@ var util = require('util');
 var hash = require('mhash').hash;
 var crypto = require('crypto');
 var assert = require('assert');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('bus/buscomponent.js');
 var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 require('datejs');

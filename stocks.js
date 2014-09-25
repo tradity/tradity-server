@@ -7,7 +7,7 @@ var assert = require('assert');
 var UnionFind = require('unionfind');
 require('datejs');
 var qctx = require('./qctx.js');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('bus/buscomponent.js');
 
 function StocksDB () {
 	this.quoteLoader = null;

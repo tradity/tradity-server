@@ -24,8 +24,9 @@ function Bus () {
 util.inherits(Bus, events.EventEmitter);
 
 Bus.prototype.determineBusID = function() {
-	// return hash of network interfaces, hostname, process id, current time
-	return hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' + os.hostname() + '|' + process.pid + '|' + Date.now()).substr(0, 12);
+	// return hostname and hash of network interfaces, process id, current time
+	return os.hostname() + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
+		process.pid + '|' + Date.now()).substr(0, 12);
 };
 
 Bus.prototype.emit = function(name, data) {

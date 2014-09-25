@@ -21,7 +21,7 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 		var pwhash = hash('sha256', pwsalt + pw);
 		cb(pwsalt, pwhash);
 	});
-}
+};
 
 UserDB.prototype.sendInviteEmail = function(data, cb) {
 	var self = this;

@@ -98,7 +98,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dque
 	}
 	
 	if (this.queryTypes.indexOf(query.query.type) == -1)
-		self('unknown-query-type');
+		return cb('unknown-query-type');
 	
 	ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
 		[query.condition, qstr, JSON.stringify(ctx.user), ctx.access.toJSON()], function(r) {

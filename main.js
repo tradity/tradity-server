@@ -7,6 +7,7 @@ var crypto = require('crypto');
 var os = require('os');
 var cluster = require('cluster');
 
+var qctx = require('./qctx.js');
 var cfg = require('./config.js').config;
 var bus = require('bus/bus.js');
 var buscomponent = require('bus/buscomponent.js');
@@ -21,6 +22,11 @@ afql.on('error', function(e) { mainBus.emit('error', e); });
 var bwpid = null;
 
 var mainBus = new bus.Bus();
+mainBus.addInputFilter(function(packet) {
+	if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)
+		packet.data.ctx = qctx.fromJSON(packet.data.ctx, this);
+});
+
 var manager = new buscomponent.BusComponent();
 manager.getServerConfig = buscomponent.provide('getServerConfig', ['reply'], function(reply) { reply(cfg); });
 manager.getAuthorizationKey = buscomponent.provide('getAuthorizationKey', ['reply'], function(reply) { reply(authorizationKey); });

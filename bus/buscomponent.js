@@ -3,12 +3,10 @@
 var assert = require('assert');
 var _ = require('underscore');
 
-// load qctx at runtime to prevent cycle
-// ideally, all qctx interaction would be handled via some plugin from outside the bus framework
-var qctx_ = null;
-var qctx = function() { if (qctx_) return qctx_; else return qctx_ = require('../qctx.js'); };
-
 function BusComponent () {
+	this.bus = null;
+	this.componentName = null;
+	this.wantsUnplug = false;
 }
 
 BusComponent.objCount = 0;
@@ -98,9 +96,6 @@ function provide(name, args, fn) {
 	fn.providedRequest = name;
 	
 	fn.requestCB = function(data) {
-		if (data.ctx && !data.ctx.toJSON)
-			data.ctx = qctx().fromJSON(data.ctx, this);
-		
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)
 			passArgs.push(data[args[i]]);

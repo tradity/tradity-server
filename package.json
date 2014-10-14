@@ -20,6 +20,7 @@
 		"iconv": "*",
 		"redis": "*",
 		"unionfind": "*",
+		"cytoscape": "*",
 		"lzma-native": ">=0.1.1"
 	},
 	"preferGlobal": false,

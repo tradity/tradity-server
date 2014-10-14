@@ -2,93 +2,52 @@
 
 var _ = require('underscore');
 var util = require('util');
-var assert = require('assert');
-var events = require('events');
-var os = require('os');
-var hash = require('mhash').hash;
+var localbusnode = require('./localbusnode.js');
 
-function Bus () {
-	this.curId = 0;
-	this.busId = this.determineBusID();
+function Bus() {
+	this.localBusNode = new localbusnode.LocalBusNode();
 	
 	this.setMaxListeners(0);
-	
-	this.unanswered = {};
-	
-	this.msgCount = 0;
-	this.log = [];
-	this.logSize = 4096;
-	this.debugOutput = false;
 }
 
 util.inherits(Bus, events.EventEmitter);
 
-Bus.prototype.determineBusID = function() {
-	// return hostname and hash of network interfaces, process id, current time
-	return os.hostname() + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
-		process.pid + '|' + Date.now()).substr(0, 12);
-};
-
+Bus.prototype.emitGlobal =
 Bus.prototype.emit = function(name, data) {
-	++this.msgCount;
-	
-	this.log.push([name, data]);
-	if (this.log.length > this.logSize)
-		this.log.shift();
-	
-	if (this.debugOutput)
-		console.log('emit', name, data);
-	
-	return events.EventEmitter.prototype.emit.apply(this, [name, data]);
+	...
 };
 
+Bus.prototype.emitLocal = function(name, data) {
+	...
+};
+
+Bus.prototype.requestNearest =
 Bus.prototype.request = function(req, onReply) {
-	assert.ok(req);
-	
-	req = _.clone(req);
-	assert.ok(req.name);
-	assert.ok(!req.requestId);
-	assert.ok(!req.reply);
-	
-	onReply = onReply || function() {};
-	
-	var requestId = this.busId + '-' + (++this.curId);
-	req.requestId = requestId;
-	var reqName = req.name;
-	
-	this.unanswered[req.requestId] = req;
-	
-	var responseListener = _.bind(function(resp) {
-		assert.ok(resp.replyTo);
-		if (resp.replyTo != requestId)
-			return;
-		
-		delete this.unanswered[requestId];
-		
-		try {
-			onReply.apply(this, resp.arguments);
-		} catch (e) {
-			this.emit('error', e);
-		}
-		
-		this.removeListener(reqName + '-resp', responseListener);
-	}, this);
-	
-	this.on(req.name + '-resp', responseListener);
-	
-	this.emit(req.name, req);
+	...
 };
 
-Bus.prototype.unansweredRequests = function() {
-	return this.unanswered;
+Bus.prototype.requestLocal = function(req, onReply) {
+	...
 };
 
-Bus.prototype.registerComponent = function(name) {
-	this.components.push(name);
+Bus.prototype.requestGlobal = function(req, onReply) {
+	...
+};
+
+Bus.prototype.removeListener = function(event, listener) {
+	...
+};
+
+Bus.prototype.on = function(event, listener, raw) {
+	...
+};
+
+Bus.prototype.once = function(event, listener) {
+	...
 };
 
 Bus.prototype.stats = function() {
-	return {msgCount: this.msgCount, logEntries: this.log.length, unanswered: _.keys(this.unansweredRequests()).length};
+	...
 };
 
 exports.Bus = Bus;

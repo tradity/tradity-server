@@ -9,8 +9,8 @@ var cluster = require('cluster');
 
 var qctx = require('./qctx.js');
 var cfg = require('./config.js').config;
-var bus = require('bus/bus.js');
-var buscomponent = require('bus/buscomponent.js');
+var bus = require('./bus/bus.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 var af = require('./arivafinance.js');
 var achievementList = require('./achievement-list.js');

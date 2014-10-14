@@ -8,7 +8,7 @@ var url = require('url');
 var sio = require('socket.io');
 var sioRedis = require('socket.io-redis');
 var redis = require('redis');
-var buscomponent = require('bus/buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
 function SoTradeServer () {

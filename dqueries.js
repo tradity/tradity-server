@@ -5,7 +5,7 @@ var util = require('util');
 var assert = require('assert');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
-var buscomponent = require('bus/buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function DelayedQueriesDB () {
 	this.queries = {};

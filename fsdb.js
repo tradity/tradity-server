@@ -7,7 +7,7 @@ var https = require('https');
 var assert = require('assert');
 var hash = require('mhash').hash;
 var qctx = require('./qctx.js');
-var buscomponent = require('bus/buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function FileStorageDB () {
 }

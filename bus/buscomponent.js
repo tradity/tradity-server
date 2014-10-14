@@ -81,7 +81,7 @@ BusComponent.prototype.on = function(event, listener) {
 
 BusComponent.prototype.once = function(event, listener) {
 	assert.ok(this.bus);
-	return this.bus.once(event, listener));
+	return this.bus.once(event, listener);
 };
 
 for (var emitType in {emit:0, emitLocal:0, emitGlobal:0})

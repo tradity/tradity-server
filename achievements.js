@@ -4,7 +4,7 @@ var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
 var qctx = require('./qctx.js');
-var buscomponent = require('bus/buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function AchievementsDB () {
 	this.achievementList = [];

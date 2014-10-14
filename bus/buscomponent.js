@@ -4,6 +4,7 @@ var assert = require('assert');
 var _ = require('underscore');
 
 // load qctx at runtime to prevent cycle
+// ideally, all qctx interaction would be handled via some plugin from outside the bus framework
 var qctx_ = null;
 var qctx = function() { if (qctx_) return qctx_; else return qctx_ = require('../qctx.js'); };
 
@@ -54,13 +55,14 @@ BusComponent.prototype.imprint = function(obj) {
 	return obj;
 };
 
-BusComponent.prototype.request = function(req, onReply) {
+for (var requestType in {request:0, requestNearest:0, requestLocal:0, requestGlobal:0})
+BusComponent.prototype[requestType] = function(req, onReply) {
 	onReply = _.bind(onReply || function () {}, this);
 	assert.ok(this.bus);
 	assert.ok(req);
 	
 	this.unansweredBusRequests++;
-	this.bus.request(this.imprint(req), _.bind(function() {
+	this.bus[requestType](this.imprint(req), _.bind(function() {
 		this.unansweredBusRequests--;
 		if (this.wantsUnplug)
 			this.unplugBus();
@@ -74,26 +76,19 @@ BusComponent.prototype.removeListener = function(event, listener) {
 	return this.bus.removeListener(event, listener);
 };
 
-BusComponent.prototype.on = function(event, listener, raw) {
+BusComponent.prototype.on = function(event, listener) {
 	assert.ok(this.bus);
-	return this.bus.on(event, raw ? listener : _.bind(listener, this));
+	return this.bus.on(event, listener);
 };
 
 BusComponent.prototype.once = function(event, listener) {
 	assert.ok(this.bus);
-	return this.bus.once(event, _.bind(listener, this));
+	return this.bus.once(event, listener));
 };
 
-BusComponent.prototype.emit = function() {
-	var args = Array.prototype.slice.call(arguments);
-	args.unshift(this.imprint(args.shift()));
-	return this.bus.emit.apply(this.bus, args);
-};
-
-BusComponent.prototype.message = function(name, msg, level) {
-	level = level || 'debug';
-	
-	this.emit({name: 'debug', message: msg, type: name, level: level});
+for (var emitType in {emit:0, emitLocal:0, emitGlobal:0})
+BusComponent.prototype[emitType] = function(name, data) {
+	return this.bus[emitType](name, data);
 };
 
 BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
@@ -103,11 +98,6 @@ function provide(name, args, fn) {
 	fn.providedRequest = name;
 	
 	fn.requestCB = function(data) {
-		data.reply = _.bind(function() {
-			var args = Array.prototype.slice.call(arguments);
-			this.emit(name + '-resp', { arguments: args, replyTo: data.requestId });
-		}, this);
-		
 		if (data.ctx && !data.ctx.toJSON)
 			data.ctx = qctx().fromJSON(data.ctx, this);
 		
@@ -141,7 +131,7 @@ BusComponent.prototype.registerProviders = function() {
 			var requests = Array.isArray(this[i].providedRequest) ? this[i].providedRequest : [this[i].providedRequest];
 			
 			_.each(requests, _.bind(function(r) {
-				this.on(r, this[i+'-bound'], true); // true -> raw listener / no extra binding
+				this.on(r, this[i+'-bound']);
 			}, this));
 		}
 	}
@@ -190,7 +180,7 @@ exports.BusComponent = BusComponent;
 exports.provide      = provide;
 exports.listener     = listener;
 exports.provideQT    = provideQT;
-exports.provideQTX  = provideQTX;
+exports.provideQTX   = provideQTX;
 exports.needsInit    = needsInit;
 exports.errorWrap    = errorWrap;
 

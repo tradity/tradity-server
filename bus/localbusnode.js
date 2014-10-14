@@ -15,7 +15,6 @@ function LocalBusNode () {
 	// End BusNode properties
 	
 	this.curId = 0;
-	this.components = [];
 	this.busGraph = cytoscape({
 		headless: true,
 		elements: [
@@ -53,6 +52,12 @@ function LocalBusNode () {
 }
 
 util.inherits(LocalBusNode, events.EventEmitter);
+
+LocalBusNode.prototype.determineBusID = function() {
+	// return hostname and hash of network interfaces, process id, current time
+	return os.hostname() + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
+		process.pid + '|' + Date.now()).substr(0, 12);
+};
 
 LocalBusNode.prototype.emitBusNodeInfo = function(transports) {
 	transports = transports || this.transports;
@@ -121,6 +126,8 @@ LocalBusNode.prototype.handleTransportNodeInfo = function(busnode) {
 LocalBusNode.prototype.handleBusPacket = function(packet) {
 	var self = this;
 	
+	self.msgCount++;
+	
 	assert.notEqual(packet.seenBy.indexOf(self.id), -1);
 	packet.seenBy.push(self.id);
 	
@@ -169,13 +176,13 @@ LocalBusNode.prototype.handleIncomingPacket = function(packet) {
 	
 	switch (packet.type) {
 		case 'event':
-			self.emit(packet.name, packet.data);
+			self.handleIncomingEmit(packet);
 			break;
 		case 'request':
-			self.handleIncomingRequest(packet.data, packet.sender);
+			self.handleIncomingRequest(packet);
 			break;
 		case 'response':
-			self.handleIncomingResponse(packet.data);
+			self.handleIncomingResponse(packet);
 			break;
 		default:
 			assert.fail(packet.name, 'event or request or response');
@@ -183,26 +190,34 @@ LocalBusNode.prototype.handleIncomingPacket = function(packet) {
 	}
 };
 
-LocalBusNode.prototype.determineBusID = function() {
-	// return hostname and hash of network interfaces, process id, current time
-	return os.hostname() + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
-		process.pid + '|' + Date.now()).substr(0, 12);
-};
-
-LocalBusNode.prototype.emit = function(name, data) {
-	this.msgCount++;
-	
-	data.srcNode = this.id;
-	
-	return events.EventEmitter.prototype.emit.apply(this, [name, data]);
+LocalBusNode.prototype.handleIncomingEmit = function(packet) {
+	return events.EventEmitter.prototype.emit.apply(this, [packet.name, packet.data]);
 };
 
 LocalBusNode.prototype.handleIncomingResponse = function(resp) {
-	...
+	assert.ok(resp.responseTo);
+	assert.ok(this.responseWaiters[resp.responseTo]);
+	
+	this.responseWaiters[resp.responseTo].handleResponse(resp);
 };
 
-LocalBusNode.prototype.handleIncomingRequest = function(req, sender) {
-	...
+LocalBusNode.prototype.handleIncomingRequest = function(req) {
+	assert.ok(req.name);
+	assert.ok(req.data);
+	assert.ok(!req.data.reply);
+	
+	req.data.reply = function() {
+		this.handleBusPacket({
+			sender: this.id,
+			seenBy: [],
+			recipients: [req.sender]
+			args: Array.prototype.slice.call(arguments),
+			responseTo: req.requestId
+			type: 'response'
+		});
+	};
+	
+	return events.EventEmitter.prototype.emit.apply(this, [req.name, req.data]);
 };
 
 LocalBusNode.prototype.expandScope = function(scope, eventType) {
@@ -218,10 +233,12 @@ LocalBusNode.prototype.expandScope = function(scope, eventType) {
 				break;
 			}
 			
+			// determine all nodes accepting our eventType
 			var possibleTargetNodes = this.busGraph.nodes().filter(function(i, e) {
 				return e.handledEvents.indexOf(eventType) != -1;
 			});
 			
+			// find nearest of these
 			var dijkstra = this.busGraph().elements().dijkstra(this.busGraph.getElementById(this.id), function(edge) {
 				return edge.weight;
 			});
@@ -241,7 +258,20 @@ LocalBusNode.prototype.expandScope = function(scope, eventType) {
 	return scope;
 };
 
-LocalBusNode.prototype.request = function(req, scope, onReply) {
+LocalBusNode.prototype.emit = function(name, data, scope) {
+	var recipients = this.expandScope(scope, name);
+	
+	this.handleBusPacket({
+		sender: this.id,
+		seenBy: [],
+		name: name,
+		data: data,
+		recipients: recipients,
+		type: 'event'
+	});
+};
+
+LocalBusNode.prototype.request = function(req, onReply, scope) {
 	assert.ok(req);
 	
 	req = _.clone(req);
@@ -280,14 +310,19 @@ LocalBusNode.prototype.request = function(req, scope, onReply) {
 			
 			// all responses in?
 			if (responsePackets.length != recipients.length) 
-				return; // wait longer
+				return; // wait until they are
 			
 			delete this.responseWaiters[requestId];
 			
 			try {
-				onReply.apply(this, ...
+				if (scope == 'nearest') {
+					assert.equal(responsePackets.length, 1);
+					
+					onReply.apply(this, responsePackets[0].arguments);
+				else
+					onReply(_.pluck(responsePackets, 'arguments'));
 			} catch (e) {
-				...
+				this.emit('error', e);
 			}
 		},
 		
@@ -299,8 +334,12 @@ LocalBusNode.prototype.request = function(req, scope, onReply) {
 	send();
 };
 
-LocalBusNode.prototype.registerComponent = function(name) {
-	this.components.push(name);
+LocalBusNode.prototype.stats = function() {
+	return {
+		unanswered: _.keys(this.responseWaiters).length,
+		msgCount: this.msgCount,
+		id: this.id
+	};
 };
 
 exports.LocalBusNode = LocalBusNode;

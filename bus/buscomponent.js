@@ -53,7 +53,9 @@ BusComponent.prototype.imprint = function(obj) {
 	return obj;
 };
 
-for (var requestType in {request:0, requestNearest:0, requestLocal:0, requestGlobal:0})
+for (var requestType_ in {request:0, requestNearest:0, requestLocal:0, requestGlobal:0})
+(function() { var requestType = requestType_;
+
 BusComponent.prototype[requestType] = function(req, onReply) {
 	onReply = _.bind(onReply || function () {}, this);
 	assert.ok(this.bus);
@@ -68,6 +70,8 @@ BusComponent.prototype[requestType] = function(req, onReply) {
 		onReply.apply(this, arguments);
 	}, this));
 };
+
+})();
 
 BusComponent.prototype.removeListener = function(event, listener) {
 	assert.ok(this.bus);
@@ -84,9 +88,16 @@ BusComponent.prototype.once = function(event, listener) {
 	return this.bus.once(event, listener);
 };
 
-for (var emitType in {emit:0, emitLocal:0, emitGlobal:0})
-BusComponent.prototype[emitType] = function(name, data) {
-	return this.bus[emitType](name, data);
+BusComponent.prototype.emit = function(name, data) {
+	return this.bus.emit(name, data);
+};
+
+BusComponent.prototype.emitLocal = function(name, data) {
+	return this.bus.emitLocal(name, data);
+};
+
+BusComponent.prototype.emitGlobal = function(name, data) {
+	return this.bus.emitGlobal(name, data);
 };
 
 BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };

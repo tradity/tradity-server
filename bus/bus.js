@@ -28,6 +28,14 @@ function Bus () {
 	
 	this.msgCount = 0;
 	
+	this.packetLog = [];
+	this.packetLogLength = 4096;
+	
+	this.transports = [];
+	
+	this.inputFilters = [];
+	this.outputFilters = [];
+	
 	this.on('newListener', function(data) {
 		if (this.handledEvents.indexOf(data.event) == -1) {
 			this.handledEvents.push(data.event);
@@ -45,11 +53,6 @@ function Bus () {
 			this.emit('busNodeRefusesEvent', {name: data.event});
 		}
 	});
-	
-	this.transports = [];
-	
-	this.inputFilters = [];
-	this.outputFilters = [];
 }
 
 util.inherits(Bus, events.EventEmitter);
@@ -124,12 +127,19 @@ Bus.prototype.handleTransportNodeInfo = function(busnode) {
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
 };
 
+Bus.prototype.logPacket = function(packet) {
+	this.packetLog.push(packet);
+	if (this.packetLog.length > this.packetLogLength)
+		this.packetLog.shift();
+};
+
 Bus.prototype.handleBusPacket = function(packet) {
 	var self = this;
 	
 	self.msgCount++;
+	self.logPacket(packet);
 	
-	assert.notEqual(packet.seenBy.indexOf(self.id), -1);
+	assert.equal(packet.seenBy.indexOf(self.id), -1);
 	packet.seenBy.push(self.id);
 	
 	var rootNode = self.busGraph.getElementById(self.id);
@@ -142,7 +152,9 @@ Bus.prototype.handleBusPacket = function(packet) {
 	var nextTransports = {};
 	
 	for (var i = 0; i < packet.recipients.length; ++i) {
-		var recpId = packet.recipients[i].id;
+		var recpId = packet.recipients[i];
+		assert.ok(recpId);
+		assert.ok(_.isString(recpId));
 		
 		if (recpId == self.id) {
 			self.handleIncomingPacket(packet);
@@ -205,13 +217,16 @@ Bus.prototype.handleIncomingResponse = function(resp) {
 };
 
 Bus.prototype.handleIncomingRequest = function(req) {
+	var self = this;
+	
 	assert.ok(req.name);
 	assert.ok(req.data);
 	assert.ok(!req.data.reply);
+	assert.ok(req.requestId);
 	
 	req.data.reply = function() {
-		this.handleBusPacket(this.filterOutput({
-			sender: this.id,
+		self.handleBusPacket(self.filterOutput({
+			sender: self.id,
 			seenBy: [],
 			recipients: [req.sender],
 			args: Array.prototype.slice.call(arguments),
@@ -220,7 +235,7 @@ Bus.prototype.handleIncomingRequest = function(req) {
 		}, 'response'));
 	};
 	
-	return events.EventEmitter.prototype.emit.apply(this, [req.name, req.data, 'request']);
+	return events.EventEmitter.prototype.emit.apply(self, [req.name, req.data, 'request']);
 };
 
 Bus.prototype.expandScope = function(scope, eventType) {
@@ -238,11 +253,11 @@ Bus.prototype.expandScope = function(scope, eventType) {
 			
 			// determine all nodes accepting our eventType
 			var possibleTargetNodes = this.busGraph.nodes().filter(function(i, e) {
-				return e.handledEvents.indexOf(eventType) != -1;
+				return e.data().handledEvents.indexOf(eventType) != -1;
 			});
 			
 			// find nearest of these
-			var dijkstra = this.busGraph().elements().dijkstra(this.busGraph.getElementById(this.id), function(edge) {
+			var dijkstra = this.busGraph.elements().dijkstra(this.busGraph.getElementById(this.id), function(edge) {
 				return edge.weight;
 			});
 			
@@ -297,37 +312,37 @@ Bus.prototype.requestGlobal = function(req, onReply) {
 };
 
 Bus.prototype.requestScoped = function(req, onReply, scope) {
+	var self = this;
+	
 	assert.ok(req);
 	
 	req = _.clone(req);
 	assert.ok(req.name);
-	assert.ok(!req.requestId);
 	assert.ok(!req.reply);
 	
 	onReply = onReply || function() {};
 	
-	var requestId = this.id + '-' + (++this.curId);
-	req.requestId = requestId;
-	
-	var recipients = this.expandScope(scope, req.name);
+	var requestId = self.id + '-' + (++self.curId);
+	var recipients = self.expandScope(scope, req.name);
 	
 	// scope is now array of target ids
-	assert.ok(_.isArray(scope));
+	assert.ok(_.isArray(recipients));
 	
-	var send = _.bind(function() { // inline function so code is in chronological order
-		this.handleBusPacket(this.filterOutput({
-			sender: this.id,
+	var send = function() { // inline function so code is in chronological order
+		self.handleBusPacket(self.filterOutput({
+			sender: self.id,
 			seenBy: [],
 			name: req.name,
 			data: req,
+			requestId: requestId,
 			recipients: recipients,
 			type: 'request',
 			singleResponse: scope == 'nearest'
 		}, 'request'));
-	}, this);
+	};
 	
 	var responsePackets = [];
-	this.responseWaiters[requestId] = {
+	self.responseWaiters[requestId] = {
 		handleResponse: function(responsePacket) {
 			assert.ok(responsePacket.sender);
 			
@@ -337,18 +352,18 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 			if (responsePackets.length != recipients.length) 
 				return; // wait until they are
 			
-			delete this.responseWaiters[requestId];
+			delete self.responseWaiters[requestId];
 			
 			try {
 				if (scope == 'nearest') {
 					assert.equal(responsePackets.length, 1);
 					
-					onReply.apply(this, responsePackets[0].arguments);
+					onReply.apply(self, responsePackets[0].arguments);
 				} else {
-					onReply(_.pluck(responsePackets, 'arguments'));
+					onReply(_.pluck(responsePackets, 'args'));
 				}
 			} catch (e) {
-				this.emit('error', e);
+				self.emit('error', e);
 			}
 		},
 		
@@ -377,8 +392,10 @@ Bus.prototype.filterOutput = function(packet, type) {
 };
 
 Bus.prototype.applyFilter = function(filterList, packet, type) {
-	for (var i = 0; i < filterList.length; ++i)
+	for (var i = 0; i < filterList.length; ++i) {
 		packet = filterList[i](packet, type);
+		assert.ok(packet);
+	}
 	
 	return packet;
 };

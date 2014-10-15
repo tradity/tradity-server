@@ -10,6 +10,7 @@ function ErrorHandler() {
 
 util.inherits(ErrorHandler, buscomponent.BusComponent);
 
+var x = 0;
 ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
 	var self = this;
 	
@@ -17,27 +18,29 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 		return this.err(new Error('Error without Error object caught -- abort'), true);
 	
 	this.getServerConfig(function(cfg) {
-		noemail = noemail || false;
-		
-		var opt = _.clone(cfg.mail['error-base']);
-		opt.text = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
-		if (e.stack)
-			opt.text += e.stack + '\n';
-		
 		try {
+			noemail = noemail || false;
+			
+			var opt = _.clone(cfg.mail['error-base']);
+			opt.text = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
+			if (e.stack)
+				opt.text += e.stack + '\n';
+			
 			if (self.bus)
-				opt.text += '\n' + util.inspect(self.bus.log.reverse(), {depth: 2});
-		} catch(e) { console.error(e); }
-				
-		console.error(opt.text);
-		
-		self.request({name: 'sendMail', opt: opt}, function (error, resp) {
-			if (error)
-				this.err(error, true);
-		});
-		
-		if (cfg.errorLogFile)
-			fs.appendFile(cfg.errorLogFile, opt.text, function() {});
+				opt.text += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
+					
+			console.error(opt.text);
+			
+			self.request({name: 'sendMail', opt: opt}, function (error, resp) {
+				if (error)
+					this.err(error, true);
+			});
+			
+			if (cfg.errorLogFile)
+				fs.appendFile(cfg.errorLogFile, opt.text, function() {});
+		} catch(e) {
+			console.error('ERROR WHILE HANDLING OTHER ERROR:\n', e);
+		}
 	});
 });
 

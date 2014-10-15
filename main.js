@@ -25,6 +25,8 @@ var mainBus = new bus.Bus();
 mainBus.addInputFilter(function(packet) {
 	if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)
 		packet.data.ctx = qctx.fromJSON(packet.data.ctx, this);
+	
+	return packet;
 });
 
 var manager = new buscomponent.BusComponent();

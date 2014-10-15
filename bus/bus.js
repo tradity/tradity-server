@@ -256,6 +256,9 @@ Bus.prototype.expandScope = function(scope, eventType) {
 				return e.data().handledEvents.indexOf(eventType) != -1;
 			});
 			
+			if (possibleTargetNodes.length == 0)
+				throw new Error('Nonexistent event/request type: ' + eventType);
+			
 			// find nearest of these
 			var dijkstra = this.busGraph.elements().dijkstra(this.busGraph.getElementById(this.id), function(edge) {
 				return edge.weight;

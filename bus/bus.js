@@ -36,21 +36,21 @@ function Bus () {
 	this.inputFilters = [];
 	this.outputFilters = [];
 	
-	this.on('newListener', function(data) {
-		if (this.handledEvents.indexOf(data.event) == -1) {
-			this.handledEvents.push(data.event);
+	this.on('newListener', function(event) {
+		if (this.handledEvents.indexOf(event) == -1) {
+			this.handledEvents.push(event);
 			
-			this.emit('busNodeAcceptsEvent', {name: data.event});
+			this.emit('busNodeAcceptsEvent', {name: event});
 		}
 	});
 	
-	this.on('removeListener', function(data) {
-		if (this.listeners(data.event).length == 0) {
-			this.handledEvents = _.without(this.handledEvents, data.event);
+	this.on('removeListener', function(event) {
+		if (this.listeners(event).length == 0) {
+			this.handledEvents = _.without(this.handledEvents, event);
 			
-			assert.ok(this.handledEvents.indexOf(data.event) == -1);
+			assert.ok(this.handledEvents.indexOf(event) == -1);
 			
-			this.emit('busNodeRefusesEvent', {name: data.event});
+			this.emit('busNodeRefusesEvent', {name: event});
 		}
 	});
 }
@@ -384,6 +384,10 @@ Bus.prototype.stats = function() {
 		msgCount: this.msgCount,
 		id: this.id
 	};
+};
+
+Bus.prototype.unansweredRequests = function() {
+	return _.keys(this.responseWaiters);
 };
 
 Bus.prototype.filterInput = function(packet, type) {

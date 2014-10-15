@@ -10,7 +10,6 @@ function ErrorHandler() {
 
 util.inherits(ErrorHandler, buscomponent.BusComponent);
 
-var x = 0;
 ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
 	var self = this;
 	
@@ -38,8 +37,8 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 			
 			if (cfg.errorLogFile)
 				fs.appendFile(cfg.errorLogFile, opt.text, function() {});
-		} catch(e) {
-			console.error('ERROR WHILE HANDLING OTHER ERROR:\n', e);
+		} catch(e2) {
+			console.error('ERROR WHILE HANDLING OTHER ERROR:\n', e2, 'during handling of\n', e);
 		}
 	});
 });

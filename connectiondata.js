@@ -278,12 +278,21 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 					return cb('fetching-events');
 			}
 			
-			this.request({
-				name: 'client-' + query.type,
-				query: query,
-				ctx: this.ctx,
-				xdata: this.pickTextFields()
-			}, cb);
+			try {
+				this.request({
+					name: 'client-' + query.type,
+					query: query,
+					ctx: this.ctx,
+					xdata: this.pickTextFields()
+				}, cb);
+			} catch (e) {
+				if (e.nonexistentType) {
+					cb('unknown-query-type');
+				} else {
+					cb('server-fail');
+					this.emit('error', e);
+				}
+			}
 		}
 		
 		});

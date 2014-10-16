@@ -60,7 +60,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 	var db = this;
 	this.connectionPool.getConnection(function(err, conn) {
 		if (err)
-			this.emit('error', err);
+			this.emitError(err);
 		
 		assert.ok(conn);
 		
@@ -97,12 +97,12 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 							var datajson = JSON.stringify(args);
 							var querydesc = '<<' + query + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
 						
-							this.emit('error', query ? new Error(
+							this.emitError(query ? new Error(
 								err + '\nCaused by ' + querydesc
 							) : err);
 						} else {
 							// exception in callback
-							this.emit('error', exception);
+							this.emitError(exception);
 						}
 					} else if (autorelease) {
 						release();
@@ -127,7 +127,8 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['rep
 			query: _.bind(function(q, data, cb) {
 				data = data || [];
 				
-				this.emit('dbBoundQueryLog', [q, data]);
+				// emitting this has the sole purpose of it showing up in the bus log
+				this.emitImmediate('dbBoundQueryLog', [q, data]);
 				cn.query(q, data, cb);
 			}, this),
 			release: _.bind(function() {

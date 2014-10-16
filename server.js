@@ -109,7 +109,7 @@ SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'glob
 	this.isShuttingDown = true;
 	
 	if (this.clients.length == 0) {
-		this.emit('localMasterShutdown');
+		this.emitImmediate('localMasterShutdown');
 		if (this.httpServer)
 			this.httpServer.close();
 		if (this.store)

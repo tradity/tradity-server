@@ -63,7 +63,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 			 
 			for (var i = 0; i < additional.length; ++i) {
 				if (parseInt(additional[i]) != additional[i])
-					return self.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
+					return self.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
 				
 				subselects.push('SELECT ?,?');
 				params = params.concat([eventid, additional[i]]);
@@ -75,7 +75,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 		}
 		
 		ctx.query(query, params, function() {
-			self.emit('push-events');
+			self.emitGlobal('push-events');
 		});
 	});
 });

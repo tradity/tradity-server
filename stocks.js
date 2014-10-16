@@ -292,7 +292,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 			var sgesvST = new Date().getTime();
 			var res = lapack.sgesv(A, B);
 			if (!res) {
-				self.emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
+				self.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
 				return;
 			}
 			var sgesvET = new Date().getTime();
@@ -329,7 +329,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 							
 							for (var j = 0; j < res.length; ++j) {
 								process.nextTick(_.bind(_.partial(function(r) {
-									self.emit('stock-update', r);
+									self.emitGlobal('stock-update', r);
 								}, res[j]), self));
 							}
 							
@@ -367,7 +367,7 @@ StocksDB.prototype.updateRecord = function(ctx, rec) {
 		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) >= LENGTH(?), name, ?), exchange = ?, pieces = ?',
 		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.pieces,
 		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], function() {
-			self.emit('stock-update', {
+			self.emitGlobal('stock-update', {
 				'stockid': rec.symbol,
 				'lastvalue': rec.lastTradePrice * 10000,
 				'ask': rec.ask * 10000,
@@ -454,7 +454,7 @@ StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOp
 	
 	var sxdata = cfg.stockExchanges[sxname];
 	if (!sxdata) {
-		this.emit('error', new Error('Unknown SX: ' + sxname));
+		this.emitError(new Error('Unknown SX: ' + sxname));
 		return false;
 	}
 

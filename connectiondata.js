@@ -290,7 +290,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 					cb('unknown-query-type');
 				} else {
 					cb('server-fail');
-					this.emit('error', e);
+					this.emitError(e);
 				}
 			}
 		}

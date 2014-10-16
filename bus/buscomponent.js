@@ -55,7 +55,7 @@ BusComponent.prototype.imprint = function(obj) {
 	return obj;
 };
 
-for (var requestType_ in {request:0, requestNearest:0, requestLocal:0, requestGlobal:0})
+for (var requestType_ in {request:0, requestImmediate:0, requestNearest:0, requestLocal:0, requestGlobal:0})
 (function() { var requestType = requestType_;
 
 BusComponent.prototype[requestType] = function(req, onReply) {
@@ -94,6 +94,10 @@ BusComponent.prototype.emit = function(name, data) {
 	return this.bus.emit(name, data);
 };
 
+BusComponent.prototype.emitImmediate = function(name, data) {
+	return this.bus.emitImmediate(name, data);
+};
+
 BusComponent.prototype.emitLocal = function(name, data) {
 	return this.bus.emitLocal(name, data);
 };
@@ -101,6 +105,10 @@ BusComponent.prototype.emitLocal = function(name, data) {
 BusComponent.prototype.emitGlobal = function(name, data) {
 	return this.bus.emitGlobal(name, data);
 };
+
+BusComponent.prototype.emitError = function(e) {
+	return this.bus.emitImmediate('error', e);
+}:
 
 BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
 

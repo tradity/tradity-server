@@ -62,7 +62,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 				cont(pres.statusCode, function(res) { pres.pipe(res); });
 			});
 		
-			preq.on('error', function(e) { self.emit('error', e); });
+			preq.on('error', function(e) { self.emitError(e); });
 			
 			if (req.headers['if-modified-since'])
 				preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
@@ -189,7 +189,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 				switch (fieldname) {
 					case 'user': dataarr.push(ctx.user.id); break;
 					case 'groupassoc': dataarr.push(query.__groupassoc__); break;
-					default: self.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
+					default: self.emitError(new Error('Unknown uniqrole field: ' + fieldname));
 				}
 			}
 			

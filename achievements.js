@@ -67,7 +67,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, ctx, user
 		if (userAchievements[achievementEntry.name]) {
 			var dbver = userAchievements[achievementEntry.name].version;
 			if (dbver > achievementEntry.version)
-				self.emit('error', new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
+				self.emitError(new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
 			
 			if (dbver >= achievementEntry.version)
 				return;
@@ -182,7 +182,7 @@ AchievementsDB.prototype.clientAchievement = buscomponent.provideQT('client-achi
 		return cb('achievement-unknown-name');
 	
 	ctx.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
-		self.emit('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
+		self.emitImmediate('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
 		cb('achievement-success');
 	});

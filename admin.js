@@ -54,7 +54,6 @@ AdminDB.prototype.evalCode = buscomponent.provideQT('client-eval-code', _reqpriv
 
 AdminDB.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv('server', function(query, ctx, cb) {
 	this.emit('globalShutdown');
-	this.emit('localShutdown');
 	
 	cb('shutdown-success');
 }));

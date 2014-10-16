@@ -15,7 +15,7 @@ TemplateLoaderDB.prototype.readTemplate = buscomponent.provide('readTemplate', [
 	var t = templates[template];
 	
 	if (!t) {
-		this.emit('error', new Error('Template not found: ' + template));
+		this.emitError(new Error('Template not found: ' + template));
 		return null;
 	}
 	
@@ -26,7 +26,7 @@ TemplateLoaderDB.prototype.readTemplate = buscomponent.provide('readTemplate', [
 	
 	var unresolved = t.match(/\$\{([^\}]*)\}/);
 	if (unresolved) {
-		this.emit('error', new Error('Unknown variable “' + unresolved[1] + '” in template ' + template));
+		this.emitError(new Error('Unknown variable “' + unresolved[1] + '” in template ' + template));
 		return null;
 	}
 	

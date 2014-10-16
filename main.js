@@ -16,10 +16,6 @@ var pt = require('./bus/processtransport.js');
 var af = require('./arivafinance.js');
 var achievementList = require('./achievement-list.js');
 
-var afql = new af.ArivaFinanceQuoteLoader();
-
-afql.on('error', function(e) { mainBus.emit('error', e); });
-
 var bwpid = null;
 
 var mainBus = new bus.Bus();
@@ -38,14 +34,18 @@ manager.getAchievementList = buscomponent.provide('getAchievementList', ['reply'
 manager.getClientAchievementList = buscomponent.provide('getClientAchievementList', ['reply'], function(reply) { reply(achievementList.ClientAchievements); });
 manager.setBus(mainBus);
 
+var afql = new af.ArivaFinanceQuoteLoader();
+
+afql.on('error', function(e) { manager.emitError(e); });
+
 process.on('uncaughtException', function(err) {
-	mainBus.emit('error', err);
-	mainBus.emit('localShutdown');
+	manager.emitError(err);
+	manager.emitImmediate('localShutdown');
 });
 
 var shutdownSignals = ['SIGTERM', 'SIGINT'];
 for (var i = 0; i < shutdownSignals.length; ++i) {
-	process.on(shutdownSignals[i], function() { mainBus.emit('globalShutdown'); });
+	process.on(shutdownSignals[i], function() { mainBus.emitLocal('globalShutdown'); });
 }
 
 assert.ok(cfg.busDumpFile);
@@ -125,7 +125,7 @@ if (cluster.isWorker) {
 		forkStandardWorker();
 	
 	var shuttingDown = false;
-	mainBus.on('globalShutdown', function() { mainBus.emit('localShutdown'); });
+	mainBus.on('globalShutdown', function() { mainBus.emitLocal('localShutdown'); });
 	mainBus.on('localShutdown', function() { shuttingDown = true; });
 	
 	cluster.on('exit', function(worker, code, signal) {

@@ -285,8 +285,11 @@ Bus.prototype.expandScope = function(scope, eventType) {
 				return e.data().handledEvents.indexOf(eventType) != -1;
 			});
 			
-			if (possibleTargetNodes.length == 0)
-				throw new Error('Nonexistent event/request type: ' + eventType);
+			if (possibleTargetNodes.length == 0) {
+				var e = new Error('Nonexistent event/request type: ' + eventType);
+				e.nonexistentType = true;
+				throw e;
+			}
 			
 			// find nearest of these
 			var dijkstra = this.busGraph.elements().dijkstra(this.busGraph.getElementById(this.id), function(edge) {
@@ -419,7 +422,9 @@ Bus.prototype.stats = function() {
 	return {
 		unanswered: _.keys(this.responseWaiters).length,
 		msgCount: this.msgCount,
-		id: this.id
+		id: this.id,
+		components: this.components,
+		busGraph: this.busGraph.json()
 	};
 };
 

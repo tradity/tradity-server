@@ -8,6 +8,7 @@ function ProcessTransport(processObject, weight) {
 	assert.ok(processObject);
 	
 	this.processObject = processObject;
+	this.isLocal = true;
 	this.weight = weight || 1;
 	
 	this.processObject.on('message', function(msg) {

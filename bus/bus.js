@@ -31,6 +31,7 @@ function Bus () {
 	this.packetLog = [];
 	this.packetLogLength = 4096;
 	
+	this.components = [];
 	this.transports = [];
 	
 	this.inputFilters = [];
@@ -81,6 +82,7 @@ Bus.prototype.emitBusNodeInfo = function(transports) {
  *    - signal "disconnect" to indicate disconnect
  *    - arbitrary signals for bus communication (prefixed with "bus::")
  *  - weight (int)
+ *  - isLocal (bool)
  * Properties that are set by bus:
  *  - source
  *  - target
@@ -259,9 +261,17 @@ Bus.prototype.handleIncomingRequest = function(req) {
 
 Bus.prototype.expandScope = function(scope, eventType) {
 	switch (scope) {
-		case 'local':
+		case 'immediate':
 			scope = [this.id];
 			break;
+		case 'local':
+			// select all nodes + local edges
+			var localizedGraph = this.busGraph.filter('node, edges[?isLocal]');
+			// find our connected component
+			var localNodes = localizedGraph.breadthFirstSearch(this.busGraph.getElementById(this.id)).path.filter('node');
+			
+			assert.ok(localNodes.length >= 1);
+			return localNodes.map(function(e) { return e.id(); });
 		case 'nearest':
 			// take a shortcut if we provide the relevant event ourselves
 			// this proably happens quite often
@@ -298,13 +308,17 @@ Bus.prototype.expandScope = function(scope, eventType) {
 	return scope;
 };
 
-Bus.prototype.emitGlobal =
-Bus.prototype.emit = function(name, data) {
+Bus.prototype.emit =
+Bus.prototype.emitGlobal = function(name, data) {
 	this.emitScoped(name, data, 'global');
 };
 
 Bus.prototype.emitLocal = function(name, data) {
 	this.emitScoped(name, data, 'local');
+};
+
+Bus.prototype.emitImmediate = function(name, data) {
+	this.emitScoped(name, data, 'immediate');
 };
 
 Bus.prototype.emitScoped = function(name, data, scope) {
@@ -323,6 +337,10 @@ Bus.prototype.emitScoped = function(name, data, scope) {
 Bus.prototype.requestNearest =
 Bus.prototype.request = function(req, onReply) {
 	this.requestScoped(req, onReply, 'nearest');
+};
+
+Bus.prototype.requestImmediate = function(req, onReply) {
+	this.requestScoped(req, onReply, 'immediate');
 };
 
 Bus.prototype.requestLocal = function(req, onReply) {
@@ -432,6 +450,14 @@ Bus.prototype.addInputFilter = function(filter) {
 
 Bus.prototype.addOutputFilter = function(filter) {
 	this.outputFilters.push(filter);
+};
+
+Bus.prototype.addComponent = function(componentName) {
+	this.components.push(componentName);
+};
+
+Bus.prototype.removeComponent = function(componentName) {
+	this.components = _.without(this.components, componentName);
 };
 
 exports.Bus = Bus;

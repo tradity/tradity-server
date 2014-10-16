@@ -11,6 +11,7 @@ var qctx = require('./qctx.js');
 var cfg = require('./config.js').config;
 var bus = require('./bus/bus.js');
 var buscomponent = require('./bus/buscomponent.js');
+var pt = require('./bus/processtransport.js');
 
 var af = require('./arivafinance.js');
 var achievementList = require('./achievement-list.js');
@@ -42,9 +43,9 @@ process.on('uncaughtException', function(err) {
 	mainBus.emit('localShutdown');
 });
 
-var forwardSignals = ['SIGTERM', 'SIGINT'];
-for (var i = 0; i < forwardSignals.length; ++i) {
-	process.on(forwardSignals[i], function() { mainBus.emit('globalShutdown'); });
+var shutdownSignals = ['SIGTERM', 'SIGINT'];
+for (var i = 0; i < shutdownSignals.length; ++i) {
+	process.on(shutdownSignals[i], function() { mainBus.emit('globalShutdown'); });
 }
 
 assert.ok(cfg.busDumpFile);
@@ -66,25 +67,7 @@ var authorizationKey;
 if (cluster.isWorker) {
 	authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString('ascii');
 	
-	
-	process.on('message', function(msg) {
-		if (!msg.evdata || !msg.evdata._originPID || msg.evdata._originPID == process.pid)
-			return;
-		
-		if (sharedEvents.indexOf(msg.evname) != -1)
-			mainBus.emit(msg.evname, msg.evdata);
-	});
-	
-	for (var i = 0; i < sharedEvents.length; ++i) { (function() {
-		var evname = sharedEvents[i];
-		mainBus.on(evname, function(data) {
-			data = data || {};
-			if (!data._originPID)
-				data._originPID = process.pid;
-			
-			process.send({evname: evname, evdata: data});
-		});
-	})(); }
+	mainBus.addTransport(new pt.ProcessTransport(process));
 	
 	worker();
 } else {
@@ -109,27 +92,7 @@ if (cluster.isWorker) {
 	};
 	
 	var registerWorker = function(w) {
-		w.on('message', function(msg) {
-			if (!msg.evdata || !msg.evdata._originPID || msg.evdata._originPID == process.pid || msg.evdata._seenByMaster)
-				return;
-			
-			if (sharedEvents.indexOf(msg.evname) != -1)
-				mainBus.emit(msg.evname, msg.evdata);
-		});
-		
-		for (var i = 0; i < sharedEvents.length; ++i) { (function() {
-			var evname = sharedEvents[i];
-			mainBus.on(evname, function(data) {
-				data = data || {};
-				
-				if (!data._originPID)
-					data._originPID = process.pid;
-				data._seenByMaster = true;
-				
-				if (w.state != 'dead')
-					w.send({evname: evname, evdata: data});
-			});
-		})(); }
+		mainBus.addTransport(new pt.ProcessTransport(w));
 	};
 	
 	var forkBackgroundWorker = function() {

@@ -67,7 +67,7 @@ Bus.prototype.emitBusNodeInfo = function(transports) {
 	transports = transports || this.transports;
 	
 	for (var i = 0; i < transports.length; ++i) {
-		transport[i].emit('busNodeInfo', {
+		transport[i].emit('bus::nodeInfo', {
 			id: this.id,
 			handledEvents: this.handledEvents,
 			graph: this.busGraph.json()
@@ -75,14 +75,30 @@ Bus.prototype.emitBusNodeInfo = function(transports) {
 	}
 }
 
+/*
+ * Transport API:
+ *  - provides EventEmitter API
+ *    - signal "disconnect" to indicate disconnect
+ *    - arbitrary signals for bus communication (prefixed with "bus::")
+ *  - weight (int)
+ * Properties that are set by bus:
+ *  - source
+ *  - target
+ *  - id
+ *  - msgCount
+ */
 Bus.prototype.addTransport = function(transport) {
 	var self = this;
 	
 	assert.ok(transport.weight || transport.weight === 0);
+	assert.equal(typeof transport.source, 'undefined');
+	assert.equal(typeof transport.target, 'undefined');
+	assert.equal(typeof transport.id, 'undefined');
+	assert.equal(typeof transport.msgCount, 'undefined');
 	
 	self.emitBusNodeInfo([transport]);
 	
-	transport.on('busNodeInfo', function(data) {
+	transport.on('bus::nodeInfo', function(data) {
 		if (data.id == self.id)
 			return;
 		
@@ -115,7 +131,10 @@ Bus.prototype.addTransport = function(transport) {
 		}
 	});
 	
-	transport.on('busPacket', function(p) {
+	transport.on('bus::packet', function(p) {
+		if (p.sender == this.id)
+			return;
+		
 		transport.msgCount++;
 		
 		self.handleBusPacket(p);
@@ -180,7 +199,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 		var packet_ = _.clone(packet);
 		packet_.recipients = nextTransports[i].recipients;
 		
-		transport.emit('busPacket', packet_);
+		transport.emit('bus::packet', packet_);
 	}
 };
 

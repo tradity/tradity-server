@@ -66,6 +66,7 @@ var authorizationKey;
 if (cluster.isWorker) {
 	authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString('ascii');
 	
+	
 	process.on('message', function(msg) {
 		if (!msg.evdata || !msg.evdata._originPID || msg.evdata._originPID == process.pid)
 			return;

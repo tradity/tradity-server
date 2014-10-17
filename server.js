@@ -39,7 +39,7 @@ SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get
 		connectionCount: this.connectionCount,
 		deadQueryCount: this.deadQueryCount,
 		deadQueryLZMACount: this.deadQueryLZMACount,
-		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount
+		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount,
 		now: new Date().getTime()
 	});
 });

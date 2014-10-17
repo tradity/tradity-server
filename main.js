@@ -81,8 +81,8 @@ if (cluster.isWorker) {
 		return freePorts[0];
 	};
 	
-	var registerWorker = function(w) {
-		mainBus.addTransport(new pt.ProcessTransport(w));
+	var registerWorker = function(w, done) {
+		mainBus.addTransport(new pt.ProcessTransport(w), done);
 	};
 	
 	var forkBackgroundWorker = function() {
@@ -90,13 +90,10 @@ if (cluster.isWorker) {
 		workers.push(bw);
 		
 		bw.on('online', function() {
-			bw.send({cmd: 'startBackgroundWorker'});
+			registerWorker(bw, function() {
+				bw.send({cmd: 'startBackgroundWorker'});
+			});
 		});
-		
-		bwpid = bw.process.pid;
-		assert.ok(bwpid);
-		
-		registerWorker(bw);
 	};
 	
 	var forkStandardWorker = function() {
@@ -104,10 +101,10 @@ if (cluster.isWorker) {
 		workers.push(w);
 		
 		w.on('online', function() {
-			w.send({cmd: 'startStandardWorker', port: getFreePort(w.process.pid)});
+			registerWorker(w, function() {
+				w.send({cmd: 'startStandardWorker', port: getFreePort(w.process.pid)});
+			});
 		});
-		
-		registerWorker(w);
 	};
 	
 	forkBackgroundWorker();

@@ -36,6 +36,7 @@ function Bus () {
 	
 	this.inputFilters = [];
 	this.outputFilters = [];
+	this.nonLoggedPacketNames = ['bus::nodeInfo'];
 	
 	this.on('newListener', function(event) {
 		if (this.handledEvents.indexOf(event) == -1) {
@@ -63,9 +64,7 @@ function Bus () {
 util.inherits(Bus, events.EventEmitter);
 
 Bus.prototype.toJSON = function() {
-	return _.pick(this,
-		'id', 'handledEvents', 'curId', 'msgCount',
-		'packetLog', 'packetLogLength', 'components');
+	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'components');
 };
 
 Bus.prototype.determineBusID = function() {
@@ -78,7 +77,7 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
 	var info = {
 		id: this.id,
 		handledEvents: this.handledEvents,
-		graph: JSON.stringify(this.busGraph.json())
+		graph: this.busGraph.json()
 	};
 	
 	// note that initial infos are transport events, whereas
@@ -195,12 +194,16 @@ Bus.prototype.addTransport = function(transport, done) {
 };
 
 Bus.prototype.handleTransportNodeInfo = function(busnode) {
-	this.busGraph = this.busGraph.union(cytoscape(JSON.parse(busnode.graph)));
+	this.busGraph = this.busGraph.union(cytoscape(busnode.graph));
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
 };
 
 Bus.prototype.logPacket = function(packet) {
+	if (this.nonLoggedPacketNames.indexOf(packet.name) != -1)
+		return;
+	
 	this.packetLog.push(packet);
+	
 	if (this.packetLog.length > this.packetLogLength)
 		this.packetLog.shift();
 };
@@ -371,7 +374,7 @@ Bus.prototype.expandScope = function(scope, eventType) {
 Bus.prototype.emit = function(name, data) {
 	// do not propagate events provided by EventEmitter
 	if (name == 'newListener' || name == 'removeListener')
-		return null;
+		return events.EventEmitter.prototype.emit.apply(this, [name, data]);
 	else
 		return this.emitGlobal(name, data);
 };

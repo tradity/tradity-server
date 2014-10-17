@@ -464,7 +464,7 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 	assert.ok(_.isArray(recipients));
 	
 	if (recipients.length == 0) {
-		var e = new Error('Nonexistent event/request type: ' + eventType);
+		var e = new Error('Nonexistent event/request type: ' + req.name);
 		e.nonexistentType = true;
 		throw e;
 	}

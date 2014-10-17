@@ -358,7 +358,7 @@ Bus.prototype.expandScope = function(scope, eventType) {
 			
 			scope = [_.min(possibleTargetNodes, function(e) {
 				return dijkstra.distanceTo(e);
-			})];
+			}).id()];
 			break;
 		case 'global':
 			scope = this.busGraph.nodes().map(function(e) { return e.id(); });

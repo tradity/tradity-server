@@ -19,15 +19,17 @@ var achievementList = require('./achievement-list.js');
 var bwpid = null;
 
 Error.stackTraceLimit = Infinity;
+
 var mainBus = new bus.Bus();
+var manager = new buscomponent.BusComponent();
+
 mainBus.addInputFilter(function(packet) {
 	if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)
-		packet.data.ctx = qctx.fromJSON(packet.data.ctx, this);
+		packet.data.ctx = qctx.fromJSON(packet.data.ctx, manager);
 	
 	return packet;
 });
 
-var manager = new buscomponent.BusComponent();
 manager.getServerConfig = buscomponent.provide('getServerConfig', ['reply'], function(reply) { reply(cfg); });
 manager.getAuthorizationKey = buscomponent.provide('getAuthorizationKey', ['reply'], function(reply) { reply(authorizationKey); });
 manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', ['reply'], function(reply) { reply(afql); });

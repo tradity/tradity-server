@@ -224,7 +224,6 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				});
 			} else if (extra == 'logout') {
 				this.ctx.user = null;
-				this.ctx.setProperty('pushesServerStatistics', false, true);
 				this.ctx.access = new Access();
 			}
 			

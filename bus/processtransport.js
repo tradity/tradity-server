@@ -6,21 +6,23 @@ var assert = require('assert');
 var util = require('util');
 
 function ProcessTransport(processObject, weight) {
+	var self = this;
+	
 	assert.ok(processObject);
 	
-	this.processObject = processObject;
-	this.isLocal = true;
-	this.weight = weight || 1;
+	self.processObject = processObject;
+	self.isLocal = true;
+	self.weight = weight || 1;
 	
-	this.processObject.on('message', function(msg) {
+	self.processObject.on('message', function(msg) {
 		if (msg.type != 'tmsg')
 			return;
 		
-		return events.EventEmitter.prototype.emit.apply(this, [msg.name, msg.data]);
+		return events.EventEmitter.prototype.emit.apply(self, [msg.name, msg.data]);
 	});
 	
-	this.processObject.on('disconnect', function() {
-		return events.EventEmitter.prototype.emit.apply(this, ['disconnect']);
+	self.processObject.on('disconnect', function() {
+		return events.EventEmitter.prototype.emit.apply(self, ['disconnect']);
 	});
 }
 

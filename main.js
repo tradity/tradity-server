@@ -59,9 +59,7 @@ var authorizationKey;
 if (cluster.isWorker) {
 	authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString('ascii');
 	
-	mainBus.addTransport(new pt.ProcessTransport(process));
-	
-	worker();
+	mainBus.addTransport(new pt.ProcessTransport(process), worker);
 } else {
 	assert.ok(cluster.isMaster);
 	

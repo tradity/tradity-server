@@ -109,8 +109,10 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
  *  - id
  *  - msgCount
  */
-Bus.prototype.addTransport = function(transport) {
+Bus.prototype.addTransport = function(transport, done) {
 	var self = this;
+	
+	done = done || function() {};
 	
 	assert.ok(transport.weight || transport.weight === 0);
 	assert.equal(typeof transport.source, 'undefined');
@@ -118,7 +120,22 @@ Bus.prototype.addTransport = function(transport) {
 	assert.equal(typeof transport.id, 'undefined');
 	assert.equal(typeof transport.msgCount, 'undefined');
 	
-	self.emitBusNodeInfo([transport], true);
+	transport.on('bus::handshakeA', function(id) {
+		if (id == self.id)
+			return;
+		
+		transport.emit('bus::handshakeB', self.id);
+		self.emitBusNodeInfo([transport], true);
+	});
+	
+	transport.on('bus::handshakeB', function(id) {
+		if (id == self.id)
+			return;
+		
+		self.emitBusNodeInfo([transport], true);
+	});
+	
+	transport.emit('bus::handshakeA', self.id);
 	
 	transport.on('bus::nodeInfoInitial', function(data) {
 		if (data.id == self.id)

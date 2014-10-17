@@ -18,6 +18,7 @@ var achievementList = require('./achievement-list.js');
 
 var bwpid = null;
 
+Error.stackTraceLimit = Infinity;
 var mainBus = new bus.Bus();
 mainBus.addInputFilter(function(packet) {
 	if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)

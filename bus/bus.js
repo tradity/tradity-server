@@ -41,7 +41,7 @@ function Bus () {
 		if (this.handledEvents.indexOf(event) == -1) {
 			this.handledEvents.push(event);
 			
-			this.emit('busNodeAcceptsEvent', {name: event});
+			this.emitBusNodeInfo();
 		}
 	});
 	
@@ -51,12 +51,22 @@ function Bus () {
 			
 			assert.ok(this.handledEvents.indexOf(event) == -1);
 			
-			this.emit('busNodeRefusesEvent', {name: event});
+			this.emitBusNodeInfo();
 		}
+	});
+	
+	this.on('bus::nodeInfo', function(data) {
+		this.handleTransportNodeInfo(data);
 	});
 }
 
 util.inherits(Bus, events.EventEmitter);
+
+Bus.prototype.toJSON = function() {
+	return _.pick(this,
+		'id', 'handledEvents', 'curId', 'msgCount',
+		'packetLog', 'packetLogLength', 'components');
+};
 
 Bus.prototype.determineBusID = function() {
 	// return hostname and hash of network interfaces, process id, current time
@@ -64,15 +74,25 @@ Bus.prototype.determineBusID = function() {
 		process.pid + '|' + Date.now()).substr(0, 12);
 };
 
-Bus.prototype.emitBusNodeInfo = function(transports) {
-	transports = transports || this.transports;
+Bus.prototype.emitBusNodeInfo = function(transports, initial) {
+	/* note that busGraph is converted to a JSON *string*
+	 * to prevent circular structures in the packet log */
 	
-	for (var i = 0; i < transports.length; ++i) {
-		transport[i].emit('bus::nodeInfo', {
-			id: this.id,
-			handledEvents: this.handledEvents,
-			graph: this.busGraph.json()
-		});
+	var info = {
+		id: this.id,
+		handledEvents: this.handledEvents,
+		graph: JSON.stringify(this.busGraph.json())
+	};
+	
+	// note that initial infos are transport events, whereas
+	// non-initial infos are bus events (and therefore bus packets)
+	if (!initial) {
+		transports = transports || this.transports;
+		
+		for (var i = 0; i < transports.length; ++i)
+			transports[i].emit('bus::nodeInfoInitial', info);
+	} else {
+		this.emit('bus::nodeInfo', info);
 	}
 }
 
@@ -98,9 +118,9 @@ Bus.prototype.addTransport = function(transport) {
 	assert.equal(typeof transport.id, 'undefined');
 	assert.equal(typeof transport.msgCount, 'undefined');
 	
-	self.emitBusNodeInfo([transport]);
+	self.emitBusNodeInfo([transport], true);
 	
-	transport.on('bus::nodeInfo', function(data) {
+	transport.on('bus::nodeInfoInitial', function(data) {
 		if (data.id == self.id)
 			return;
 		
@@ -151,7 +171,7 @@ Bus.prototype.addTransport = function(transport) {
 };
 
 Bus.prototype.handleTransportNodeInfo = function(busnode) {
-	this.busGraph = cytoscapeUnion(this.busGraph, busnode.graph);
+	this.busGraph = this.busGraph.union(cytoscape(JSON.parse(busnode.graph)));
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
 };
 
@@ -273,7 +293,7 @@ Bus.prototype.expandScope = function(scope, eventType) {
 			break;
 		case 'local':
 			// select all nodes + local edges, take our connected component and out of these the nodes
-			var localNodes = this.busGraph.filter('node, edges[?isLocal]')
+			var localNodes = this.busGraph.filter('node, edge[?isLocal]')
 				.connectedComponent(this.busGraph.getElementById(this.id))
 				.filter('node');
 			
@@ -318,7 +338,14 @@ Bus.prototype.expandScope = function(scope, eventType) {
 	return scope;
 };
 
-Bus.prototype.emit =
+Bus.prototype.emit = function(name, data) {
+	// do not propagate events provided by EventEmitter
+	if (name == 'newListener' || name == 'removeListener')
+		return null;
+	else
+		return this.emitGlobal(name, data);
+};
+
 Bus.prototype.emitGlobal = function(name, data) {
 	this.emitScoped(name, data, 'global');
 };
@@ -408,7 +435,7 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 				if (scope == 'nearest') {
 					assert.equal(responsePackets.length, 1);
 					
-					onReply.apply(self, responsePackets[0].arguments);
+					onReply.apply(self, responsePackets[0].args);
 				} else {
 					onReply(_.pluck(responsePackets, 'args'));
 				}
@@ -481,7 +508,7 @@ cytoscape('collection', 'connectedComponent', function(root) {
 
 /* cytoscape graph union extension */
 cytoscape('core', 'union', function(g2) {
-	var g2 = this;
+	var g1 = this;
 	
 	var elements = [];
 	g1 = g1.json();
@@ -491,6 +518,9 @@ cytoscape('core', 'union', function(g2) {
 	var lists = [g1.elements.nodes, g2.elements.nodes, g1.elements.edges, g2.elements.edges];
 	
 	for (var i = 0; i < lists.length; ++i) {
+		if (!lists[i])
+			continue;
+		
 		for (var j = 0; j < lists[i].length; ++j) {
 			var e = lists[i][j];
 			

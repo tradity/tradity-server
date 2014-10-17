@@ -195,7 +195,7 @@ AdminDB.prototype.getServerStatistics = buscomponent.provideQT('client-get-serve
 	this.requestGlobal({name: 'internal-get-server-statistics'}, function(replies) {
 		cb('get-server-statistics-success', {servers: replies});
 	});
-});
+}));
 
 AdminDB.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx, cb) {
 	var now = Math.floor(new Date().getTime() / 1000);

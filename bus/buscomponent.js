@@ -108,7 +108,7 @@ BusComponent.prototype.emitGlobal = function(name, data) {
 
 BusComponent.prototype.emitError = function(e) {
 	return this.bus.emitImmediate('error', e);
-}:
+};
 
 BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
 

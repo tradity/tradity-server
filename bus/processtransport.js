@@ -3,6 +3,7 @@
 var _ = require('underscore');
 var events = require('events');
 var assert = require('assert');
+var util = require('util');
 
 function ProcessTransport(processObject, weight) {
 	assert.ok(processObject);
@@ -23,7 +24,7 @@ function ProcessTransport(processObject, weight) {
 	});
 }
 
-util.inherits(Bus, events.EventEmitter);
+util.inherits(ProcessTransport, events.EventEmitter);
 
 ProcessTransport.prototype.emit = function(name, data) {
 	this.processObject.send({type: 'tmsg', name: name, data: data});

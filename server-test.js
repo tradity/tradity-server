@@ -286,7 +286,7 @@ socket.on('connect', function() {
 				assert.equal(data.uid, null);
 				emit('query', {
 					type: 'get-server-statistics',
-					id: 'get-server-statistics'
+					id: 'get-server-statistics',
 					authorizationKey: authorizationKey
 				});
 				break;

@@ -14,33 +14,49 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 	var self = this;
 	
 	if (!e)
-		return this.err(new Error('Error without Error object caught -- abort'), true);
+		return self.err(new Error('Error without Error object caught -- abort'), true);
 	
-	this.getServerConfig(function(cfg) {
+	var handler = function(cfg) {
 		try {
 			noemail = noemail || false;
 			
-			var opt = _.clone(cfg.mail['error-base']);
-			opt.text = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
+			var longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
 			if (e.stack)
-				opt.text += e.stack + '\n';
+				longErrorText += e.stack + '\n';
 			
-			if (self.bus)
-				opt.text += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
-					
-			console.error(opt.text);
+			if (self.bus) {
+				longErrorText += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
 			
-			self.request({name: 'sendMail', opt: opt}, function (error, resp) {
-				if (error)
-					this.err(error, true);
-			});
+				if (e.nonexistentType)
+					longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json());
+			}
 			
-			if (cfg.errorLogFile)
-				fs.appendFile(cfg.errorLogFile, opt.text, function() {});
+			console.error(longErrorText);
+			
+			if (cfg && cfg.mail) {
+				var opt = _.clone(cfg.mail['error-base']);
+				opt.text = longErrorText;
+				self.request({name: 'sendMail', opt: opt}, function (error, resp) {
+					if (error)
+						self.err(error, true);
+				});
+			} else {
+				console.warn('Could not send error mail due to missing config!');
+			}
+			
+			if (cfg && cfg.errorLogFile)
+				fs.appendFile(cfg.errorLogFile, longErrorText, function() {});
 		} catch(e2) {
-			console.error('ERROR WHILE HANDLING OTHER ERROR:\n', e2, 'during handling of\n', e);
+			console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
 		}
-	});
+	};
+	
+	try {
+		self.getServerConfig(handler);
+	} catch (e2) {
+		console.error('Could not get server config due to', e2);
+		handler();
+	}
 });
 
 exports.ErrorHandler = ErrorHandler;

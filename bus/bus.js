@@ -119,7 +119,7 @@ Bus.prototype.addTransport = function(transport) {
 			
 			transport.source = src;
 			transport.target = dst;
-			transport.id = nodeIDs.join('-');
+			transport.id = nodeIDs.join('-') + '-' + (++self.curId);
 			transport.msgCount = 0;
 			
 			self.busGraph.add({
@@ -140,6 +140,13 @@ Bus.prototype.addTransport = function(transport) {
 		transport.msgCount++;
 		
 		self.handleBusPacket(p);
+	});
+	
+	transport.on('disconnect', function() {
+		self.busGraph.remove(self.busGraph.getElementById(transport.id));
+		
+		// reload the graph, choosing only the current connected component
+		self.busGraph.load(self.busGraph.elements().connectedComponent(self.busGraph.getElementById(self.id)));
 	});
 };
 
@@ -265,10 +272,10 @@ Bus.prototype.expandScope = function(scope, eventType) {
 			scope = [this.id];
 			break;
 		case 'local':
-			// select all nodes + local edges
-			var localizedGraph = this.busGraph.filter('node, edges[?isLocal]');
-			// find our connected component
-			var localNodes = localizedGraph.breadthFirstSearch(this.busGraph.getElementById(this.id)).path.filter('node');
+			// select all nodes + local edges, take our connected component and out of these the nodes
+			var localNodes = this.busGraph.filter('node, edges[?isLocal]')
+				.connectedComponent(this.busGraph.getElementById(this.id))
+				.filter('node');
 			
 			assert.ok(localNodes.length >= 1);
 			return localNodes.map(function(e) { return e.id(); });
@@ -467,8 +474,12 @@ Bus.prototype.removeComponent = function(componentName) {
 
 exports.Bus = Bus;
 
+/* cytoscape connected component extension */
+cytoscape('collection', 'connectedComponent', function(root) {
+	return this.breadthFirstSearch(root).path.closedNeighborhood();
+});
 
-/* cytoscape graoh union extension */
+/* cytoscape graph union extension */
 cytoscape('core', 'union', function(g2) {
 	var g2 = this;
 	

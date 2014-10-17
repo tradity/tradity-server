@@ -21,8 +21,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 	data = _.extend(data, data.json);
 	
 	process.nextTick(function() {
-		self.emit('feedevent', data);
-		self.emit('feed-' + data.type, data);
+		self.emitGlobal('feed-' + data.type, data);
 	});
 	
 	ctx.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',

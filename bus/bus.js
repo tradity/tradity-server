@@ -27,6 +27,7 @@ function Bus () {
 	this.responseWaiters = {};
 	
 	this.msgCount = 0;
+	this.busNodeInfoQueued = false;
 	
 	this.packetLog = [];
 	this.packetLogLength = 4096;
@@ -42,7 +43,7 @@ function Bus () {
 		if (this.handledEvents.indexOf(event) == -1) {
 			this.handledEvents.push(event);
 			
-			this.emitBusNodeInfo();
+			this.emitBusNodeInfoSoon();
 		}
 	});
 	
@@ -52,7 +53,7 @@ function Bus () {
 			
 			assert.ok(this.handledEvents.indexOf(event) == -1);
 			
-			this.emitBusNodeInfo();
+			this.emitBusNodeInfoSoon();
 		}
 	});
 	
@@ -71,6 +72,20 @@ Bus.prototype.determineBusID = function() {
 	// return hostname and hash of network interfaces, process id, current time
 	return os.hostname() + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
 		process.pid + '|' + Date.now()).substr(0, 12);
+};
+
+Bus.prototype.emitBusNodeInfoSoon = function() {
+	var self = this;
+	
+	if (self.busNodeInfoQueued)
+		return;
+	self.busNodeInfoQueued = true;
+	
+	process.nextTick(function() {
+		self.busNodeInfoQueued = false;
+		
+		self.emitBusNodeInfo();
+	});
 };
 
 Bus.prototype.emitBusNodeInfo = function(transports, initial) {
@@ -165,7 +180,7 @@ Bus.prototype.addTransport = function(transport, done) {
 			
 			self.transports.push(transport);
 			
-			self.emitBusNodeInfo();
+			self.emitBusNodeInfoSoon();
 		}
 		
 		if (!doneCalled) {

@@ -96,6 +96,9 @@ if (cluster.isWorker) {
 				bw.send({cmd: 'startBackgroundWorker'});
 			});
 		});
+		
+		bwpid = bw.process.pid;
+		assert.ok(bwpid);
 	};
 	
 	var forkStandardWorker = function() {

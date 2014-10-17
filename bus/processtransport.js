@@ -28,6 +28,10 @@ function ProcessTransport(processObject, weight) {
 
 util.inherits(ProcessTransport, events.EventEmitter);
 
+ProcessTransport.prototype.toJSON = function() {
+	return _.omit(this, 'processObject');
+};
+
 ProcessTransport.prototype.emit = function(name, data) {
 	this.processObject.send({type: 'tmsg', name: name, data: data});
 	

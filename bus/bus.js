@@ -75,9 +75,6 @@ Bus.prototype.determineBusID = function() {
 };
 
 Bus.prototype.emitBusNodeInfo = function(transports, initial) {
-	/* note that busGraph is converted to a JSON *string*
-	 * to prevent circular structures in the packet log */
-	
 	var info = {
 		id: this.id,
 		handledEvents: this.handledEvents,
@@ -86,7 +83,7 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
 	
 	// note that initial infos are transport events, whereas
 	// non-initial infos are bus events (and therefore bus packets)
-	if (!initial) {
+	if (initial) {
 		transports = transports || this.transports;
 		
 		for (var i = 0; i < transports.length; ++i)
@@ -108,8 +105,11 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
  *  - target
  *  - id
  *  - msgCount
+ * It is also strongly recommended that transports have a toJSON() method
+ * that hides internal structures via blacklisting.
  */
 Bus.prototype.addTransport = function(transport, done) {
+	var doneCalled = false;
 	var self = this;
 	
 	done = done || function() {};
@@ -143,9 +143,9 @@ Bus.prototype.addTransport = function(transport, done) {
 		
 		self.handleTransportNodeInfo(data); // modifies busGraph property!
 		
-		var nodeIDs = [data.id, this.id].sort(); // sort for normalization
-		var src = self.busGraph.getElementById(nodeIDs[0].id);
-		var dst = self.busGraph.getElementById(nodeIDs[1].id);
+		var nodeIDs = [data.id, self.id].sort(); // sort for normalization
+		var src = self.busGraph.getElementById(nodeIDs[0]);
+		var dst = self.busGraph.getElementById(nodeIDs[1]);
 		
 		assert.ok(src && src.isNode());
 		assert.ok(dst && dst.isNode());
@@ -154,8 +154,8 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (!presentEdges.data()) {
 			// edge not present in graph -> add it
 			
-			transport.source = src;
-			transport.target = dst;
+			transport.source = nodeIDs[0];
+			transport.target = nodeIDs[1];
 			transport.id = nodeIDs.join('-') + '-' + (++self.curId);
 			transport.msgCount = 0;
 			
@@ -168,11 +168,18 @@ Bus.prototype.addTransport = function(transport, done) {
 			
 			self.emitBusNodeInfo();
 		}
+		
+		if (!doneCalled) {
+			doneCalled = true;
+			done();
+		}
 	});
 	
 	transport.on('bus::packet', function(p) {
-		if (p.sender == this.id)
+		if (p.seenBy.indexOf(self.id) != -1)
 			return;
+		
+		assert.notStrictEqual(p.sender, self.id);
 		
 		transport.msgCount++;
 		
@@ -212,17 +219,19 @@ Bus.prototype.handleBusPacket = function(packet) {
 	assert.ok(packet.recipients.length > 0);
 	
 	// provides dijkstra’s algorithm, starting with rootNode
-	var dijkstra = self.busGraph.elements().dijkstra(rootNode, function(edge) { return edge.weight; });
+	var dijkstra = self.busGraph.elements().dijkstra(rootNode, function(edge) { return edge.data().weight; });
 	
 	var nextTransports = {};
 	
+	var packetIsForSelf = false;
 	for (var i = 0; i < packet.recipients.length; ++i) {
 		var recpId = packet.recipients[i];
 		assert.ok(recpId);
 		assert.ok(_.isString(recpId));
 		
 		if (recpId == self.id) {
-			self.handleIncomingPacket(packet);
+			// defer handling, since we might have received a message which invalides the bus graph
+			packetIsForSelf = true;
 		} else {
 			var targetNode = self.busGraph.getElementById(recpId);
 			
@@ -230,11 +239,12 @@ Bus.prototype.handleBusPacket = function(packet) {
 			
 			var path = dijkstra.pathTo(targetNode);
 			assert.ok(path);
+			assert.ok(path.length >= 3); // at least source node, edge, target node
 			
 			// add recipient id to recipient list for this transport
 			var nextTransport = path[1].data();
 			if (nextTransports[nextTransport.id])
-				nextTransports[nextTransport.id].push(recpId);
+				nextTransports[nextTransport.id].recipients.push(recpId);
 			else
 				nextTransports[nextTransport.id] = {transport: nextTransport, recipients: [recpId]};
 		}
@@ -247,6 +257,9 @@ Bus.prototype.handleBusPacket = function(packet) {
 		
 		transport.emit('bus::packet', packet_);
 	}
+	
+	if (packetIsForSelf)
+		self.handleIncomingPacket(packet);
 };
 
 Bus.prototype.handleIncomingPacket = function(packet) {

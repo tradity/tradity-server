@@ -335,9 +335,13 @@ Bus.prototype.handleIncomingRequest = function(req) {
 };
 
 Bus.prototype.expandScope = function(scope, eventType) {
+	var eventTypeFilter = function(i, e) {
+		return e.isNode() && e.data().handledEvents.indexOf(eventType) != -1;
+	};
+	
 	switch (scope) {
 		case 'immediate':
-			scope = [this.id];
+			scope = this.handledEvents.indexOf(eventType) == -1 ? [] : [this.id];
 			break;
 		case 'local':
 			// select all nodes + local edges, take our connected component and out of these the nodes
@@ -346,7 +350,7 @@ Bus.prototype.expandScope = function(scope, eventType) {
 				.filter('node');
 			
 			assert.ok(localNodes.length >= 1);
-			return localNodes.map(function(e) { return e.id(); });
+			return localNodes.filter(eventTypeFilter).map(function(e) { return e.id(); });
 		case 'nearest':
 			// take a shortcut if we provide the relevant event ourselves
 			// this proably happens quite often
@@ -356,14 +360,11 @@ Bus.prototype.expandScope = function(scope, eventType) {
 			}
 			
 			// determine all nodes accepting our eventType
-			var possibleTargetNodes = this.busGraph.nodes().filter(function(i, e) {
-				return e.data().handledEvents.indexOf(eventType) != -1;
-			});
+			var possibleTargetNodes = this.busGraph.nodes().filter(eventTypeFilter);
 			
 			if (possibleTargetNodes.length == 0) {
-				var e = new Error('Nonexistent event/request type: ' + eventType);
-				e.nonexistentType = true;
-				throw e;
+				scope = [];
+				break;
 			}
 			
 			// find nearest of these
@@ -371,12 +372,16 @@ Bus.prototype.expandScope = function(scope, eventType) {
 				return edge.weight;
 			});
 			
-			scope = [_.min(possibleTargetNodes, function(e) {
+			var nearestId = _.min(possibleTargetNodes, function(e) {
 				return dijkstra.distanceTo(e);
-			}).id()];
+			}).id();
+			
+			assert.notStrictEqual(nearestId, this.id);
+			
+			scope = [nearestId];
 			break;
 		case 'global':
-			scope = this.busGraph.nodes().map(function(e) { return e.id(); });
+			scope = this.busGraph.filter(eventTypeFilter).map(function(e) { return e.id(); });
 			break;
 		default:
 			assert.ok(_.isArray(scope));
@@ -409,14 +414,19 @@ Bus.prototype.emitImmediate = function(name, data) {
 Bus.prototype.emitScoped = function(name, data, scope) {
 	var recipients = this.expandScope(scope, name);
 	
-	this.handleBusPacket(this.filterOutput({
+	var packet = this.filterOutput({
 		sender: this.id,
 		seenBy: [],
 		name: name,
 		data: data,
 		recipients: recipients,
 		type: 'event'
-	}, 'event'));
+	}, 'event');
+	
+	if (recipients.length != 0)
+		this.handleBusPacket(packet);
+	else
+		this.logPacket(packet);
 };
 
 Bus.prototype.requestNearest =
@@ -452,6 +462,12 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 	
 	// scope is now array of target ids
 	assert.ok(_.isArray(recipients));
+	
+	if (recipients.length == 0) {
+		var e = new Error('Nonexistent event/request type: ' + eventType);
+		e.nonexistentType = true;
+		throw e;
+	}
 	
 	var send = function() { // inline function so code is in chronological order
 		self.handleBusPacket(self.filterOutput({

@@ -197,6 +197,12 @@ AdminDB.prototype.getServerStatistics = buscomponent.provideQT('client-get-serve
 	});
 }));
 
+AdminDB.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log', _reqpriv('userdb', function(query, ctx, cb) {
+	/* The package log is mostly informal and not expected to be used for anything but debugging.
+	 * This means that circular structures in it may exist and JSON is simply not the way to go here. */ 
+	cb('show-packet-log-success', {result: util.inspect(this.bus.packetLog, null)});
+}));
+
 AdminDB.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx, cb) {
 	var now = Math.floor(new Date().getTime() / 1000);
 	var todayStart = now - now % 86400;

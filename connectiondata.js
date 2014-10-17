@@ -299,7 +299,16 @@ ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'glo
 ConnectionData.prototype.wrapForReply = function(obj, cb) {
 	cb = _.bind(cb, this);
 	
-	var s = JSON.stringify(obj);
+	var s;
+	try {
+		s = JSON.stringify(obj);
+	} catch (e) {
+		// Most likely, this was a circular data structure, so include that in the debug information
+		if (e.type == 'circular_structure')
+			return this.emitError(new Error('Circular JSON while wrapping for reply, cycle: ' + detectCycle(obj)));
+		else
+			return this.emitError(e);
+	}
 	
 	if (!this.socket)
 		this.lzmaSupport = false;
@@ -325,5 +334,29 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 };
 
 exports.ConnectionData = ConnectionData;
+
+function detectCycle(o) {
+	var seen = [];
+	
+	function dfs(o) {
+		if (o && typeof o == 'object') {
+			if (seen.indexOf(o) != -1)
+				return true;
+			
+			seen.push(o);
+			for (var key in o) {
+				if (o.hasOwnProperty(key)) {
+					var previousChain = dfs(o[key]);
+					if (previousChain)
+						return '.' + key + (previousChain === true ? '' : previousChain);
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	return dfs(o);
+}
 
 })();

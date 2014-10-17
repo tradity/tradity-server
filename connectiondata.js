@@ -21,12 +21,6 @@ function ConnectionData(socket) {
 	this.isShuttingDown = false;
 	this.unansweredCount = 0;
 	
-	this.ctx.addProperty({
-		name: 'pushesServerStatistics',
-		value: false,
-		access: 'userdb'
-	});
-	
 	this.queryCount = 0;
 	this.queryLZMACount = 0;
 	this.queryLZMAUsedCount = 0;
@@ -99,13 +93,6 @@ ConnectionData.prototype.fetchEvents = function(query) {
 		});
 	}, this));
 };
-
-ConnectionData.prototype.pushServerStatistics = buscomponent.listener('pushServerStatistics', function(data) {
-	if (this.ctx.getProperty('pushesServerStatistics')) {
-		data.type = 'push-server-statistics';
-		this.push(data);
-	}
-});
 
 ConnectionData.prototype.push = function(data) {
 	this.wrapForReply(data, function(r) {
@@ -253,29 +240,9 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		{
 			cb('not-logged-in');
 		} else {
-			switch (query.type) {
-				case 'get-server-statistics':
-					try {
-						this.ctx.setProperty('pushesServerStatistics', true);
-					} catch (e) {
-						return cb('permission-denied', e);
-					}
-					
-					this.emit('getServerStatistics');
-					
-					var interval = setInterval(_.bind(function() {
-						if (this.bus && this.socket && this.ctx.getProperty('pushServerStatistics')) {
-							this.emit('getServerStatistics');
-						} else {
-							clearInterval(interval);
-							interval = null;
-						}
-					}, this), 10000);
-					
-					return cb('get-server-statistics-success');
-				case 'fetch-events':
-					this.fetchEvents(query);
-					return cb('fetching-events');
+			if (query.type == 'fetch-events') {
+				this.fetchEvents(query);
+				return cb('fetching-events');
 			}
 			
 			try {

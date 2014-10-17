@@ -285,6 +285,14 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'pong');
 				assert.equal(data.uid, null);
 				emit('query', {
+					type: 'get-server-statistics',
+					id: 'get-server-statistics'
+					authorizationKey: authorizationKey
+				});
+				break;
+			case 'get-server-statistics':
+				assert.equal(data.code, 'get-server-statistics-success');
+				emit('query', {
 					type: 'server-config',
 					id: 'server-config'
 				});

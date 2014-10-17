@@ -27,8 +27,8 @@ function SoTradeServer () {
 
 util.inherits(SoTradeServer, buscomponent.BusComponent);
 
-SoTradeServer.prototype.gatherServerStatistics = buscomponent.listener('getServerStatistics', function() {
-	this.emit('pushServerStatistics', {
+SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get-server-statistics', ['reply'], function(cb) {
+	cb({
 		pid: process.pid,
 		isBackgroundWorker: process.isBackgroundWorker,
 		creationTime: this.creationTime,
@@ -40,6 +40,7 @@ SoTradeServer.prototype.gatherServerStatistics = buscomponent.listener('getServe
 		deadQueryCount: this.deadQueryCount,
 		deadQueryLZMACount: this.deadQueryLZMACount,
 		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount
+		now: new Date().getTime()
 	});
 });
 

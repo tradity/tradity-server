@@ -191,6 +191,12 @@ AdminDB.prototype.getUserLogins = buscomponent.provideQT('client-get-user-logins
 	});
 }));
 
+AdminDB.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx, cb) {
+	this.requestGlobal({name: 'internal-get-server-statistics'}, function(replies) {
+		cb('get-server-statistics-success', {servers: replies});
+	});
+});
+
 AdminDB.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx, cb) {
 	var now = Math.floor(new Date().getTime() / 1000);
 	var todayStart = now - now % 86400;

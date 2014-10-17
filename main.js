@@ -53,15 +53,6 @@ process.on('SIGUSR2', function() {
 	fs.writeFileSync(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid), 'Log:\n\n' + JSON.stringify(mainBus.packetLog) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
 });
 
-var sharedEvents = [
-	'globalShutdown', 'getServerStatistics', 'pushServerStatistics',
-	// dqueries + prod
-	'stock-update', 'client-prod', 'neededStocksDQ', 
-	'client-dquery-list', 'client-dquery-remove', 'client-dquery', 'dqueriesResetUser'
-];
-
-sharedEvents = _.union(sharedEvents, _.map(sharedEvents, function(e) { return e + '-resp'; }));
-
 var authorizationKey;
 
 if (cluster.isWorker) {

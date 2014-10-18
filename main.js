@@ -18,7 +18,7 @@ var achievementList = require('./achievement-list.js');
 
 var bwpid = null;
 
-Error.stackTraceLimit = Infinity;
+Error.stackTraceLimit = cfg.stackTraceLimit || 20;
 
 var mainBus = new bus.Bus();
 var manager = new buscomponent.BusComponent();

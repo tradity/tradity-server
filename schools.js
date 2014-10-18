@@ -292,13 +292,13 @@ SchoolsDB.prototype.publishBanner = buscomponent.provideQT('client-school-publis
 	query.role = 'schools.banner';
 	
 	_reqschooladm(_.bind(function(query, ctx, cb) {
-		this.request({name: 'client-publish', query: query, user: user, access: access}, cb);
+		this.request({name: 'client-publish', query: query, ctx: ctx}, cb);
 	}, this), false, this)(query, ctx, cb);
 });
 
 SchoolsDB.prototype.createInviteLink = buscomponent.provideQT('client-create-invite-link', function(query, ctx, cb) {
 	_reqschooladm(_.bind(function(query, ctx, cb) {
-		this.request({name: 'createInviteLink', query: query, user: user, access: access}, cb);
+		this.request({name: 'createInviteLink', query: query, ctx: ctx}, cb);
 	}, this), true, this)(query, ctx, cb);
 });
 

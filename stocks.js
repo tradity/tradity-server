@@ -219,6 +219,8 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		
+		var lmuFetchData = new Date().getTime();
+		
 		var users_inv = [];
 		for (var k = 0; k < users.length; ++k)
 			users_inv[users[k]] = k;
@@ -319,13 +321,18 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				updateParams = updateParams.concat([X[i] + prov_sum[i], cusers[i]]);
 				
 				if (++complete == users.length) {
+					var lmuComputationsComplete = new Date().getTime();
 					conn.query(updateQuery + 'COMMIT; UNLOCK TABLES; SET autocommit = 1;', updateParams, function() {
 						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
 							[users[i]], function(res) {
 							conn.release();
 							
 							var lmuEnd = new Date().getTime();
-							console.log('sgesv in ' + sgesvTotalTime + ' ms, lm update in ' + (lmuEnd - lmuStart) + ' ms');
+							console.log('lmu timing: ' +
+								sgesvTotalTime + ' ms sgesv total, ' +
+								(lmuEnd - lmuStart) + ' ms lmu total, ' +
+								(lmuFetchData - lmuStart) + ' ms fetching, ' +
+								(lmuEnd - lmuComputationsComplete) + ' ms writing');
 							
 							for (var j = 0; j < res.length; ++j) {
 								process.nextTick(_.bind(_.partial(function(r) {

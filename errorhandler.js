@@ -23,12 +23,14 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 			var longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
 			if (e.stack)
 				longErrorText += e.stack + '\n';
+			else // assume e is not actually an Error instance
+				longErrorText += util.inspect(e) + '\n';
 			
 			if (self.bus) {
 				longErrorText += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
 			
 				if (e.nonexistentType)
-					longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json());
+					longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
 			}
 			
 			console.error(longErrorText);

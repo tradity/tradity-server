@@ -97,7 +97,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 							var datajson = JSON.stringify(args);
 							var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
 						
-							self.emit('error', query ? new Error(
+							self.emit('error', q ? new Error(
 								err + '\nCaused by ' + querydesc
 							) : err);
 						} else {

@@ -60,7 +60,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 	
 	self.connectionPool.getConnection(function(err, conn) {
 		if (err)
-			self.emit('error', err);
+			return self.emit('error', err);
 		
 		assert.ok(conn);
 		
@@ -95,7 +95,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 						if (err) {
 							// query-related error
 							var datajson = JSON.stringify(args);
-							var querydesc = '<<' + query + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
+							var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
 						
 							self.emit('error', query ? new Error(
 								err + '\nCaused by ' + querydesc

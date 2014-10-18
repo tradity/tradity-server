@@ -155,10 +155,10 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 			}
 		}
 		
-		var filehash = hash('md5', content + new Date().getTime().toString());
+		var filehash = hash('md5', content + Date.now().toString());
 		query.name = query.name || filehash;
 		
-		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
+		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = function() {

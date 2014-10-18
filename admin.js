@@ -204,7 +204,7 @@ AdminDB.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log
 }));
 
 AdminDB.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx, cb) {
-	var now = Math.floor(new Date().getTime() / 1000);
+	var now = Math.floor(Date.now() / 1000);
 	var todayStart = now - now % 86400;
 	var ndays = parseInt(query.ndays) || 365;
 	var timespanStart = todayStart - ndays * 86400;

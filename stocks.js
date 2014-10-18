@@ -38,10 +38,10 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 	
 	cb = cb || function() {};
 		
-	var rcbST = new Date().getTime();
+	var rcbST = Date.now();
 	
 	var xcb = function() {
-		var rcbET = new Date().getTime();
+		var rcbET = Date.now();
 		console.log('StocksDB rcb in ' + (rcbET - rcbST) + ' ms');
 		cb();
 	};
@@ -196,7 +196,7 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 	var self = this;
 	
-	var lmuStart = new Date().getTime();
+	var lmuStart = Date.now();
 	
 	self.getServerConfig(function(cfg) {
 	
@@ -219,7 +219,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		
-		var lmuFetchData = new Date().getTime();
+		var lmuFetchData = Date.now();
 		
 		var users_inv = [];
 		for (var k = 0; k < users.length; ++k)
@@ -291,13 +291,13 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				A[f][l] -= amount / cfg.leaderValueShare;
 			}
 			
-			var sgesvST = new Date().getTime();
+			var sgesvST = Date.now();
 			var res = lapack.sgesv(A, B);
 			if (!res) {
 				self.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
 				return;
 			}
-			var sgesvET = new Date().getTime();
+			var sgesvET = Date.now();
 			sgesvTotalTime += sgesvET - sgesvST;
 			
 			var X =  _.pluck(res.X, 0);
@@ -321,13 +321,13 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				updateParams = updateParams.concat([X[i] + prov_sum[i], cusers[i]]);
 				
 				if (++complete == users.length) {
-					var lmuComputationsComplete = new Date().getTime();
+					var lmuComputationsComplete = Date.now();
 					conn.query(updateQuery + 'COMMIT; UNLOCK TABLES; SET autocommit = 1;', updateParams, function() {
 						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
 							[users[i]], function(res) {
 							conn.release();
 							
-							var lmuEnd = new Date().getTime();
+							var lmuEnd = Date.now();
 							console.log('lmu timing: ' +
 								sgesvTotalTime + ' ms sgesv total, ' +
 								(lmuEnd - lmuStart) + ' ms lmu total, ' +
@@ -696,7 +696,7 @@ StocksDB.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info'
 			var r = oh_res[0];
 			
 			assert.ok(r.userid);
-			if (r.userid != ctx.user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
+			if (r.userid != ctx.user.id && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
 				return cb('get-trade-delayed-history');
 			ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml '+
 				'FROM ecomments AS c '+

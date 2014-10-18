@@ -13,7 +13,7 @@ function ConnectionData(socket) {
 	this.lzmaSupport = false;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
-	this.cdid = new Date().getTime() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
+	this.cdid = Date.now() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
 	this.mostRecentEventTime = 0;
@@ -110,7 +110,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 	assert.ok(this.bus);
 	
 	this.getServerConfig(function(cfg) {
-		var curUnixTime = new Date().getTime();
+		var curUnixTime = Date.now();
 		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 			this.lastInfoPush = curUnixTime;
 			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, ctx: this.ctx, xdata: this.pickTextFields()}, _.bind(function(code, info) {
@@ -153,7 +153,7 @@ ConnectionData.prototype.onUserConnected = function() {
 };
 
 ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
-	var recvTime = new Date().getTime();
+	var recvTime = Date.now();
 	
 	// sanitize by removing everything enclosed in '__'s
 	var sanitizeQuery = function(q) {
@@ -206,7 +206,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		var cb = _.bind(function(code, obj, extra) {
 			this.unansweredCount--;
 			
-			var now = new Date().getTime();
+			var now = Date.now();
 			obj = obj || {};
 			obj['code'] = code;
 			obj['is-reply-to'] = query.id;
@@ -328,7 +328,7 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 		cb({
 			s: result,
 			e: encoding,
-			t: new Date().getTime()
+			t: Date.now()
 		});
 	});
 };

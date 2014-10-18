@@ -17,7 +17,7 @@ function SoTradeServer () {
 	this.store = null;
 	this.clients = [];
 	this.isShuttingDown = false;
-	this.creationTime = new Date().getTime() / 1000;
+	this.creationTime = Date.now() / 1000;
 	
 	this.deadQueryCount = 0;
 	this.deadQueryLZMACount = 0;
@@ -40,7 +40,7 @@ SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get
 		deadQueryCount: this.deadQueryCount,
 		deadQueryLZMACount: this.deadQueryLZMACount,
 		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount,
-		now: new Date().getTime()
+		now: Date.now()
 	});
 });
 

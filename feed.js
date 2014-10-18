@@ -101,7 +101,7 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents
 		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
-				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__) && ctx.user.uid != ev.srcuser)
+				if (json.__delay__ && (Date.now()/1000 - ev.eventtime < json.__delay__) && ctx.user.uid != ev.srcuser)
 					return null;
 				ev = _.extend(ev, json);
 			}

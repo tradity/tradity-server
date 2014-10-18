@@ -15,7 +15,7 @@ var schoolid = 'Musterschule';
 var schoolname = schoolid;
 
 socket.on('connect', function() {
-	var t = new Date().getTime() * (process.id | 0x100);
+	var t = Date.now() * (process.id | 0x100);
 	var email = t + '@invalid.invalid';
 	var password = 'musterpw' + t;
 	var ownUid = null;
@@ -251,7 +251,7 @@ socket.on('connect', function() {
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',
-					'condition': 'stock::DE000A1EWWW0::ask > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
+					'condition': 'stock::DE000A1EWWW0::ask > 0 ∧ time > ' + ((Date.now()/1000)+1),
 					'query': {
 						type: 'stock-buy',
 						id: 'stock-buy-delayed',

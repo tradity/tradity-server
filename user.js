@@ -148,7 +148,7 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 	if (!query.since)
 		query.since = 0;
 	if (!query.upto)
-		query.upto = new Date().getTime()/1000;
+		query.upto = Date.now()/1000;
 	
 	if (parseInt(query.since) != query.since)
 		return cb('format-error');

@@ -22,6 +22,10 @@ function Bus () {
 			}
 		]
 	});
+	this.ownNode = null;
+	this.dijkstra = null;
+	this.localNodes = null;
+	this.busGraphUpdated();
 	
 	this.setMaxListeners(0);
 	this.responseWaiters = {};
@@ -178,6 +182,8 @@ Bus.prototype.addTransport = function(transport, done) {
 				data: transport
 			});
 			
+			self.busGraphUpdated();
+			
 			self.transports.push(transport);
 			
 			self.emitBusNodeInfoSoon();
@@ -205,12 +211,35 @@ Bus.prototype.addTransport = function(transport, done) {
 		
 		// reload the graph, choosing only the current connected component
 		self.busGraph.load(self.busGraph.elements().connectedComponent(self.busGraph.getElementById(self.id)));
+		
+		self.busGraphUpdated();
 	});
 };
 
 Bus.prototype.handleTransportNodeInfo = function(busnode) {
 	this.busGraph = this.busGraph.union(cytoscape(busnode.graph));
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
+	
+	this.busGraphUpdated();
+};
+
+Bus.prototype.busGraphUpdated = function() {
+	this.ownNode = this.busGraph.getElementById(this.id);
+	
+	assert.ok(this.ownNode && this.ownNode.isNode());
+	
+	// provides dijkstra’s algorithm, starting with rootNode
+	this.dijkstra = this.busGraph.elements().dijkstra(this.ownNode, function(edge) { return edge.data().weight; });
+	
+	assert.ok(this.dijkstra.distanceTo);
+	assert.ok(this.dijkstra.pathTo);
+	
+	// select all nodes + local edges, take our connected component and out of these the nodes
+	this.localNodes = this.busGraph.filter('node, edge[?isLocal]')
+		.connectedComponent(this.busGraph.getElementById(this.id))
+		.filter('node');
+			
+	assert.ok(this.localNodes && this.localNodes.length >= 1);
 };
 
 Bus.prototype.logPacket = function(packet) {
@@ -232,12 +261,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 	assert.equal(packet.seenBy.indexOf(self.id), -1);
 	packet.seenBy.push(self.id);
 	
-	var rootNode = self.busGraph.getElementById(self.id);
-	assert.ok(rootNode && rootNode.isNode());
 	assert.ok(packet.recipients.length > 0);
-	
-	// provides dijkstra’s algorithm, starting with rootNode
-	var dijkstra = self.busGraph.elements().dijkstra(rootNode, function(edge) { return edge.data().weight; });
 	
 	var nextTransports = {};
 	
@@ -255,7 +279,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 			
 			assert.ok(targetNode && targetNode.isNode());
 			
-			var path = dijkstra.pathTo(targetNode);
+			var path = self.dijkstra.pathTo(targetNode);
 			assert.ok(path);
 			assert.ok(path.length >= 3); // at least source node, edge, target node
 			
@@ -335,32 +359,29 @@ Bus.prototype.handleIncomingRequest = function(req) {
 };
 
 Bus.prototype.expandScope = function(scope, eventType) {
+	var self = this;
+	
 	var eventTypeFilter = function(i, e) {
 		return e.isNode() && e.data().handledEvents.indexOf(eventType) != -1;
 	};
 	
 	switch (scope) {
 		case 'immediate':
-			scope = this.handledEvents.indexOf(eventType) == -1 ? [] : [this.id];
+			scope = self.handledEvents.indexOf(eventType) == -1 ? [] : [self.id];
 			break;
 		case 'local':
-			// select all nodes + local edges, take our connected component and out of these the nodes
-			var localNodes = this.busGraph.filter('node, edge[?isLocal]')
-				.connectedComponent(this.busGraph.getElementById(this.id))
-				.filter('node');
-			
-			assert.ok(localNodes.length >= 1);
-			return localNodes.filter(eventTypeFilter).map(function(e) { return e.id(); });
+			scope = self.localNodes.filter(eventTypeFilter).map(function(e) { return e.id(); });
+			break;
 		case 'nearest':
 			// take a shortcut if we provide the relevant event ourselves
-			// this proably happens quite often
-			if (this.handledEvents.indexOf(eventType) != -1) {
-				scope = [this.id];
+			// self proably happens quite often
+			if (self.handledEvents.indexOf(eventType) != -1) {
+				scope = [self.id];
 				break;
 			}
 			
 			// determine all nodes accepting our eventType
-			var possibleTargetNodes = this.busGraph.nodes().filter(eventTypeFilter);
+			var possibleTargetNodes = self.busGraph.nodes().filter(eventTypeFilter);
 			
 			if (possibleTargetNodes.length == 0) {
 				scope = [];
@@ -368,26 +389,22 @@ Bus.prototype.expandScope = function(scope, eventType) {
 			}
 			
 			// find nearest of these
-			var dijkstra = this.busGraph.elements().dijkstra(this.busGraph.getElementById(this.id), function(edge) {
-				return edge.weight;
-			});
-			
 			var nearestId = _.min(possibleTargetNodes, function(e) {
-				return dijkstra.distanceTo(e);
+				return self.dijkstra.distanceTo(e);
 			}).id();
 			
-			assert.notStrictEqual(nearestId, this.id);
+			assert.notStrictEqual(nearestId, self.id);
 			
 			scope = [nearestId];
 			break;
 		case 'global':
-			scope = this.busGraph.filter(eventTypeFilter).map(function(e) { return e.id(); });
+			scope = self.busGraph.filter(eventTypeFilter).map(function(e) { return e.id(); });
 			break;
 		default:
-			assert.ok(_.isArray(scope));
 			break;
 	}
 	
+	assert.ok(_.isArray(scope));
 	return scope;
 };
 

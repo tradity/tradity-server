@@ -53,22 +53,22 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
 }));
 
 Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, cb) {
-	assert.ok (this.connectionPool);
+	var self = this;
+	assert.ok (self.connectionPool);
 	
-	this.openConnections++;
+	self.openConnections++;
 	
-	var db = this;
-	this.connectionPool.getConnection(function(err, conn) {
+	self.connectionPool.getConnection(function(err, conn) {
 		if (err)
-			this.emit('error', err);
+			self.emit('error', err);
 		
 		assert.ok(conn);
 		
 		var release = function() {
-			db.openConnections--;
+			self.openConnections--;
 			
-			if (db.openConnections == 0 && db.isShuttingDown)
-				db.shutdown();
+			if (self.openConnections == 0 && self.isShuttingDown)
+				self.shutdown();
 			
 			return conn.release();
 		};
@@ -97,12 +97,12 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 							var datajson = JSON.stringify(args);
 							var querydesc = '<<' + query + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
 						
-							this.emit('error', query ? new Error(
+							self.emit('error', query ? new Error(
 								err + '\nCaused by ' + querydesc
 							) : err);
 						} else {
 							// exception in callback
-							this.emit('error', exception);
+							self.emit('error', exception);
 						}
 					} else if (autorelease) {
 						release();

@@ -272,14 +272,14 @@ SchoolsDB.prototype.listSchools = buscomponent.provideQT('client-list-schools', 
 	var params = [];
 	if (query.parentPath) {
 		where = 'AND path LIKE ? OR path = ? ';
-		params = params.concat([String(query.parentPath) + '/%', String(query.parentPath)]);
+		params.push(String(query.parentPath) + '/%', String(query.parentPath));
 	}
 	
 	if (query.search) {
 		var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
 		
 		where += 'AND (name LIKE ? OR path LIKE ?) ';
-		params = params.concat([likestring, likestring]);
+		params.push(likestring, likestring);
 	}
 	
 	ctx.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +

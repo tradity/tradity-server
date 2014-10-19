@@ -45,7 +45,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 				subselects.push('SELECT ?, userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?');
 				// all users in watchlist
 				subselects.push('SELECT ?, w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ?');
-				params = params.concat([eventid, data.srcuser, eventid, data.srcuser]);
+				params.push(eventid, data.srcuser, eventid, data.srcuser);
 			}
 			
 			if (data.feedschool) {
@@ -54,12 +54,12 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 					'JOIN schools AS c ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
 					'JOIN schoolmembers AS sm ON sm.schoolid = c.id AND sm.pending = 0 ' +
 					'WHERE p.id = ?');
-				params = params.concat([eventid, data.feedschool]);
+				params.push(eventid, data.feedschool);
 			}
 			
 			if (data.feedchat) {
 				subselects.push('SELECT ?, userid FROM chatmembers WHERE chatid = ?');
-				params = params.concat([eventid, data.feedchat]);
+				params.push(eventid, data.feedchat);
 			}
 			 
 			for (var i = 0; i < additional.length; ++i) {
@@ -67,7 +67,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 					return self.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
 				
 				subselects.push('SELECT ?,?');
-				params = params.concat([eventid, additional[i]]);
+				params.push(eventid, additional[i]);
 			}
 			query += subselects.join(' UNION ');
 		} else {

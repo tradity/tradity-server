@@ -996,7 +996,7 @@ UserDB.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', 
 		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
 		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
 		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" ' +
-		'WHERE cmi.userid = ?', [ctx.user], function(res) {
+		'WHERE cmi.userid = ?', [ctx.user.id], function(res) {
 		var ret = {};
 		
 		for (var i = 0; i < res.length; ++i) {

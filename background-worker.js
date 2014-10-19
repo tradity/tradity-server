@@ -3,7 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function BackgroundWorker () {
 	this.quoteLoader = null;
@@ -18,12 +18,12 @@ BackgroundWorker.prototype.prod = buscomponent.provideQT('client-prod', function
 	if (ctx.access.has('server') == -1)
 		return cb('prod-not-allowed');
 		
-	var starttime = new Date().getTime();
+	var starttime = Date.now();
 	
 	self.request({name: 'regularCallbackUser', query: query, ctx: ctx}, function() {
-		var userdbtime = new Date().getTime();
+		var userdbtime = Date.now();
 		self.request({name: 'regularCallbackStocks', query: query, ctx: ctx}, function() {
-			cb('prod-ready', {'utime': userdbtime - starttime, 'stime': new Date().getTime() - userdbtime});
+			cb('prod-ready', {'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime});
 		});
 	});
 });

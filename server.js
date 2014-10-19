@@ -6,9 +6,8 @@ var assert = require('assert');
 var http = require('http');
 var url = require('url');
 var sio = require('socket.io');
-var sioRedis = require('socket.io-redis');
-var redis = require('redis');
-var buscomponent = require('./buscomponent.js');
+var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
+var buscomponent = require('./bus/buscomponent.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
 function SoTradeServer () {
@@ -17,7 +16,7 @@ function SoTradeServer () {
 	this.store = null;
 	this.clients = [];
 	this.isShuttingDown = false;
-	this.creationTime = new Date().getTime() / 1000;
+	this.creationTime = Date.now() / 1000;
 	
 	this.deadQueryCount = 0;
 	this.deadQueryLZMACount = 0;
@@ -27,8 +26,8 @@ function SoTradeServer () {
 
 util.inherits(SoTradeServer, buscomponent.BusComponent);
 
-SoTradeServer.prototype.gatherServerStatistics = buscomponent.listener('getServerStatistics', function() {
-	this.emit('pushServerStatistics', {
+SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get-server-statistics', ['reply'], function(cb) {
+	cb({
 		pid: process.pid,
 		isBackgroundWorker: process.isBackgroundWorker,
 		creationTime: this.creationTime,
@@ -39,7 +38,8 @@ SoTradeServer.prototype.gatherServerStatistics = buscomponent.listener('getServe
 		connectionCount: this.connectionCount,
 		deadQueryCount: this.deadQueryCount,
 		deadQueryLZMACount: this.deadQueryLZMACount,
-		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount
+		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount,
+		now: Date.now()
 	});
 });
 
@@ -51,8 +51,7 @@ SoTradeServer.prototype.start = function(port) {
 		
 		this.io = sio.listen(this.httpServer, _.bind(cfg.configureSocketIO, this)(sio, cfg));
 		
-		this.store = redis.createClient(cfg.redis.port, cfg.redis.host, cfg.redis);
-		this.io.adapter(sioRedis({pubClient: this.store, subClient: this.store}));
+		this.io.adapter(busAdapter(this.bus));
 		
 		this.io.sockets.on('connection', _.bind(this.connectionHandler, this));
 	});
@@ -109,7 +108,7 @@ SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'glob
 	this.isShuttingDown = true;
 	
 	if (this.clients.length == 0) {
-		this.emit('localMasterShutdown');
+		this.emitImmediate('localMasterShutdown');
 		if (this.httpServer)
 			this.httpServer.close();
 		if (this.store)

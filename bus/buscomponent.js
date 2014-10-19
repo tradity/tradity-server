@@ -3,11 +3,10 @@
 var assert = require('assert');
 var _ = require('underscore');
 
-// load qctx at runtime to prevent cycle
-var qctx_ = null;
-var qctx = function() { if (qctx_) return qctx_; else return qctx_ = require('./qctx.js'); };
-
 function BusComponent () {
+	this.bus = null;
+	this.componentName = null;
+	this.wantsUnplug = false;
 }
 
 BusComponent.objCount = 0;
@@ -18,6 +17,7 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 	
 	this.bus = bus;
 	this.componentName = componentName;
+	this.bus.addComponent(componentName);
 	this.unansweredBusRequests = 0;
 	this.wantsUnplug = false;
 	
@@ -39,6 +39,7 @@ BusComponent.prototype.unplugBus = function() {
 	
 	if (this.unansweredBusRequests == 0) {
 		this.unregisterProviders();
+		this.bus.removeComponent(this.componentName);
 		this.bus = null;
 		this.componentName = null;
 		this.inited = false;
@@ -54,13 +55,16 @@ BusComponent.prototype.imprint = function(obj) {
 	return obj;
 };
 
-BusComponent.prototype.request = function(req, onReply) {
+for (var requestType_ in {request:0, requestImmediate:0, requestNearest:0, requestLocal:0, requestGlobal:0})
+(function() { var requestType = requestType_;
+
+BusComponent.prototype[requestType] = function(req, onReply) {
 	onReply = _.bind(onReply || function () {}, this);
 	assert.ok(this.bus);
 	assert.ok(req);
 	
 	this.unansweredBusRequests++;
-	this.bus.request(this.imprint(req), _.bind(function() {
+	this.bus[requestType](this.imprint(req), _.bind(function() {
 		this.unansweredBusRequests--;
 		if (this.wantsUnplug)
 			this.unplugBus();
@@ -69,31 +73,41 @@ BusComponent.prototype.request = function(req, onReply) {
 	}, this));
 };
 
+})();
+
 BusComponent.prototype.removeListener = function(event, listener) {
 	assert.ok(this.bus);
 	return this.bus.removeListener(event, listener);
 };
 
-BusComponent.prototype.on = function(event, listener, raw) {
+BusComponent.prototype.on = function(event, listener) {
 	assert.ok(this.bus);
-	return this.bus.on(event, raw ? listener : _.bind(listener, this));
+	return this.bus.on(event, listener);
 };
 
 BusComponent.prototype.once = function(event, listener) {
 	assert.ok(this.bus);
-	return this.bus.once(event, _.bind(listener, this));
+	return this.bus.once(event, listener);
 };
 
-BusComponent.prototype.emit = function() {
-	var args = Array.prototype.slice.call(arguments);
-	args.unshift(this.imprint(args.shift()));
-	return this.bus.emit.apply(this.bus, args);
+BusComponent.prototype.emit = function(name, data) {
+	return this.bus.emit(name, data);
 };
 
-BusComponent.prototype.message = function(name, msg, level) {
-	level = level || 'debug';
-	
-	this.emit({name: 'debug', message: msg, type: name, level: level});
+BusComponent.prototype.emitImmediate = function(name, data) {
+	return this.bus.emitImmediate(name, data);
+};
+
+BusComponent.prototype.emitLocal = function(name, data) {
+	return this.bus.emitLocal(name, data);
+};
+
+BusComponent.prototype.emitGlobal = function(name, data) {
+	return this.bus.emitGlobal(name, data);
+};
+
+BusComponent.prototype.emitError = function(e) {
+	return this.bus.emitImmediate('error', e);
 };
 
 BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
@@ -103,14 +117,6 @@ function provide(name, args, fn) {
 	fn.providedRequest = name;
 	
 	fn.requestCB = function(data) {
-		data.reply = _.bind(function() {
-			var args = Array.prototype.slice.call(arguments);
-			this.emit(name + '-resp', { arguments: args, replyTo: data.requestId });
-		}, this);
-		
-		if (data.ctx && !data.ctx.toJSON)
-			data.ctx = qctx().fromJSON(data.ctx, this);
-		
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)
 			passArgs.push(data[args[i]]);
@@ -141,7 +147,7 @@ BusComponent.prototype.registerProviders = function() {
 			var requests = Array.isArray(this[i].providedRequest) ? this[i].providedRequest : [this[i].providedRequest];
 			
 			_.each(requests, _.bind(function(r) {
-				this.on(r, this[i+'-bound'], true); // true -> raw listener / no extra binding
+				this.on(r, this[i+'-bound']);
 			}, this));
 		}
 	}
@@ -190,7 +196,7 @@ exports.BusComponent = BusComponent;
 exports.provide      = provide;
 exports.listener     = listener;
 exports.provideQT    = provideQT;
-exports.provideQTX  = provideQTX;
+exports.provideQTX   = provideQTX;
 exports.needsInit    = needsInit;
 exports.errorWrap    = errorWrap;
 

@@ -3,7 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function FeedControllerDB () {
 };
@@ -21,8 +21,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 	data = _.extend(data, data.json);
 	
 	process.nextTick(function() {
-		self.emit('feedevent', data);
-		self.emit('feed-' + data.type, data);
+		self.emitGlobal('feed-' + data.type, data);
 	});
 	
 	ctx.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
@@ -46,7 +45,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 				subselects.push('SELECT ?, userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?');
 				// all users in watchlist
 				subselects.push('SELECT ?, w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ?');
-				params = params.concat([eventid, data.srcuser, eventid, data.srcuser]);
+				params.push(eventid, data.srcuser, eventid, data.srcuser);
 			}
 			
 			if (data.feedschool) {
@@ -55,20 +54,20 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 					'JOIN schools AS c ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
 					'JOIN schoolmembers AS sm ON sm.schoolid = c.id AND sm.pending = 0 ' +
 					'WHERE p.id = ?');
-				params = params.concat([eventid, data.feedschool]);
+				params.push(eventid, data.feedschool);
 			}
 			
 			if (data.feedchat) {
 				subselects.push('SELECT ?, userid FROM chatmembers WHERE chatid = ?');
-				params = params.concat([eventid, data.feedchat]);
+				params.push(eventid, data.feedchat);
 			}
 			 
 			for (var i = 0; i < additional.length; ++i) {
 				if (parseInt(additional[i]) != additional[i])
-					return self.emit('error', new Error('Bad additional user for feed event: ' + additional[i]));
+					return self.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
 				
 				subselects.push('SELECT ?,?');
-				params = params.concat([eventid, additional[i]]);
+				params.push(eventid, additional[i]);
 			}
 			query += subselects.join(' UNION ');
 		} else {
@@ -77,7 +76,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 		}
 		
 		ctx.query(query, params, function() {
-			self.emit('push-events');
+			self.emitGlobal('push-events');
 		});
 	});
 });
@@ -104,7 +103,7 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents
 		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
-				if (json.__delay__ && (new Date().getTime()/1000 - ev.eventtime < json.__delay__) && ctx.user.uid != ev.srcuser)
+				if (json.__delay__ && (Date.now()/1000 - ev.eventtime < json.__delay__) && ctx.user.uid != ev.srcuser)
 					return null;
 				ev = _.extend(ev, json);
 			}

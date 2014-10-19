@@ -25,7 +25,7 @@ function YahooFinanceQuoteEntry(id, format, record) {
 	this.bid = this.b ? this.b : this.l1;
 	this.exchange = this.x;
 	this.setName(this.n);
-	this.fetchTime = new Date().getTime();
+	this.fetchTime = Date.now();
 }
 
 YahooFinanceQuoteEntry.prototype.setName = function(n) {
@@ -63,7 +63,7 @@ YahooFinanceQuoteLoader.prototype._makeQuoteRequest = function(stocklist) {
 	stocklist = _.filter(stocklist, _.bind(function(stockid) {
 		var cv = this.cache['s-' + stockid];
 		if (cv) {
-			if (cv.fetchTime > new Date().getTime() - this.cacheTime) {
+			if (cv.fetchTime > Date.now() - this.cacheTime) {
 				this._handleRecord(cv, true);
 				return false;
 			} else {
@@ -129,7 +129,7 @@ YahooFinanceQuoteLoader.prototype.searchAndFindQuotes = function(name, filter, c
 	
 	var forwardError = _.bind(function(e) {this.emit('error', e)}, this);
 	
-	var requrl = this.searchLink.replace(/%\{name\}/g, name).replace(/%\{random\}/g, new Date().getTime()).replace(/%\{fake-cb\}/g, FAKE_CALLBACK);
+	var requrl = this.searchLink.replace(/%\{name\}/g, name).replace(/%\{random\}/g, Date.now()).replace(/%\{fake-cb\}/g, FAKE_CALLBACK);
 	
 	var req = http.request(requrl, _.bind(function(res) {
 		var resultstr = '';

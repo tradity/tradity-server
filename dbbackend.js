@@ -3,7 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function Database () {
 	this.dbmod = null;
@@ -60,7 +60,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 	
 	self.connectionPool.getConnection(function(err, conn) {
 		if (err)
-			return self.emit('error', err);
+			return self.emitError(err);
 		
 		assert.ok(conn);
 		
@@ -97,12 +97,12 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 							var datajson = JSON.stringify(args);
 							var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
 						
-							self.emit('error', q ? new Error(
+							self.emitError(q ? new Error(
 								err + '\nCaused by ' + querydesc
 							) : err);
 						} else {
 							// exception in callback
-							self.emit('error', exception);
+							self.emitError(exception);
 						}
 					} else if (autorelease) {
 						release();
@@ -127,7 +127,8 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['rep
 			query: _.bind(function(q, data, cb) {
 				data = data || [];
 				
-				this.emit('dbBoundQueryLog', [q, data]);
+				// emitting this has the sole purpose of it showing up in the bus log
+				this.emitImmediate('dbBoundQueryLog', [q, data]);
 				cn.query(q, data, cb);
 			}, this),
 			release: _.bind(function() {

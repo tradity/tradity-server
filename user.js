@@ -5,7 +5,7 @@ var util = require('util');
 var hash = require('mhash').hash;
 var crypto = require('crypto');
 var assert = require('assert');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 require('datejs');
@@ -33,7 +33,7 @@ UserDB.prototype.sendInviteEmail = function(data, cb) {
 		self.request({name: 'sendMail', opt: opt}, function(error, resp) {
 			if (error) {
 				cb('create-invite-link-failed');
-				self.emit('error', error);
+				self.emitError(error);
 			} else {
 				cb('create-invite-link-success');
 			}
@@ -69,7 +69,7 @@ UserDB.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
 							if (error) {
 								cb('reg-email-failed', loginResp, 'repush');
-								self.emit('error', error);
+								self.emitError(error);
 							} else {
 								cb('reg-success', loginResp, 'repush');
 							}
@@ -141,6 +141,7 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 	
 	query.startindex = parseInt(query.startindex) || 0;
 	query.endindex = parseInt(query.endindex) || (1 << 20);
+	
 	query.since = parseInt(query.since) || 0;
 	query.upto = parseInt(query.upto) || (Date.now() / 1000);
 	
@@ -265,7 +266,7 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 				 */
 				var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; });
 				if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
-					return self.emit('error', new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
+					return self.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
 				
 				xuser.schools = schools;
 				if (query.nohistory) 
@@ -462,7 +463,7 @@ UserDB.prototype.passwordReset = buscomponent.provideQT('client-password-reset',
 						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
 							if (error) {
 								cb('password-reset-failed');
-								self.emit('error', error);
+								self.emitError(error);
 							} else {
 								cb('password-reset-success');
 							}

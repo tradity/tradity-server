@@ -4,7 +4,7 @@ var _ = require('underscore');
 var lzma = require('lzma-native');
 var util = require('util');
 var assert = require('assert');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
@@ -13,19 +13,13 @@ function ConnectionData(socket) {
 	this.lzmaSupport = false;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
-	this.cdid = new Date().getTime() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
+	this.cdid = Date.now() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
 	this.mostRecentEventTime = 0;
 	this.socket = socket;
 	this.isShuttingDown = false;
 	this.unansweredCount = 0;
-	
-	this.ctx.addProperty({
-		name: 'pushesServerStatistics',
-		value: false,
-		access: 'userdb'
-	});
 	
 	this.queryCount = 0;
 	this.queryLZMACount = 0;
@@ -100,13 +94,6 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	}, this));
 };
 
-ConnectionData.prototype.pushServerStatistics = buscomponent.listener('pushServerStatistics', function(data) {
-	if (this.ctx.getProperty('pushesServerStatistics')) {
-		data.type = 'push-server-statistics';
-		this.push(data);
-	}
-});
-
 ConnectionData.prototype.push = function(data) {
 	this.wrapForReply(data, function(r) {
 		if (this.socket)
@@ -123,7 +110,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 	assert.ok(this.bus);
 	
 	this.getServerConfig(function(cfg) {
-		var curUnixTime = new Date().getTime();
+		var curUnixTime = Date.now();
 		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 			this.lastInfoPush = curUnixTime;
 			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, ctx: this.ctx, xdata: this.pickTextFields()}, _.bind(function(code, info) {
@@ -166,7 +153,7 @@ ConnectionData.prototype.onUserConnected = function() {
 };
 
 ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
-	var recvTime = new Date().getTime();
+	var recvTime = Date.now();
 	
 	// sanitize by removing everything enclosed in '__'s
 	var sanitizeQuery = function(q) {
@@ -219,7 +206,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		var cb = _.bind(function(code, obj, extra) {
 			this.unansweredCount--;
 			
-			var now = new Date().getTime();
+			var now = Date.now();
 			obj = obj || {};
 			obj['code'] = code;
 			obj['is-reply-to'] = query.id;
@@ -237,7 +224,6 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				});
 			} else if (extra == 'logout') {
 				this.ctx.user = null;
-				this.ctx.setProperty('pushesServerStatistics', false, true);
 				this.ctx.access = new Access();
 			}
 			
@@ -253,37 +239,26 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		{
 			cb('not-logged-in');
 		} else {
-			switch (query.type) {
-				case 'get-server-statistics':
-					try {
-						this.ctx.setProperty('pushesServerStatistics', true);
-					} catch (e) {
-						return cb('permission-denied', e);
-					}
-					
-					this.emit('getServerStatistics');
-					
-					var interval = setInterval(_.bind(function() {
-						if (this.bus && this.socket && this.ctx.getProperty('pushServerStatistics')) {
-							this.emit('getServerStatistics');
-						} else {
-							clearInterval(interval);
-							interval = null;
-						}
-					}, this), 10000);
-					
-					return cb('get-server-statistics-success');
-				case 'fetch-events':
-					this.fetchEvents(query);
-					return cb('fetching-events');
+			if (query.type == 'fetch-events') {
+				this.fetchEvents(query);
+				return cb('fetching-events');
 			}
 			
-			this.request({
-				name: 'client-' + query.type,
-				query: query,
-				ctx: this.ctx,
-				xdata: this.pickTextFields()
-			}, cb);
+			try {
+				this.request({
+					name: 'client-' + query.type,
+					query: query,
+					ctx: this.ctx,
+					xdata: this.pickTextFields()
+				}, cb);
+			} catch (e) {
+				if (e.nonexistentType) {
+					cb('unknown-query-type');
+				} else {
+					cb('server-fail');
+					this.emitError(e);
+				}
+			}
 		}
 		
 		});
@@ -324,7 +299,16 @@ ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'glo
 ConnectionData.prototype.wrapForReply = function(obj, cb) {
 	cb = _.bind(cb, this);
 	
-	var s = JSON.stringify(obj);
+	var s;
+	try {
+		s = JSON.stringify(obj);
+	} catch (e) {
+		// Most likely, this was a circular data structure, so include that in the debug information
+		if (e.type == 'circular_structure')
+			return this.emitError(new Error('Circular JSON while wrapping for reply, cycle: ' + detectCycle(obj)));
+		else
+			return this.emitError(e);
+	}
 	
 	if (!this.socket)
 		this.lzmaSupport = false;
@@ -344,11 +328,35 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 		cb({
 			s: result,
 			e: encoding,
-			t: new Date().getTime()
+			t: Date.now()
 		});
 	});
 };
 
 exports.ConnectionData = ConnectionData;
+
+function detectCycle(o) {
+	var seen = [];
+	
+	function dfs(o) {
+		if (o && typeof o == 'object') {
+			if (seen.indexOf(o) != -1)
+				return true;
+			
+			seen.push(o);
+			for (var key in o) {
+				if (o.hasOwnProperty(key)) {
+					var previousChain = dfs(o[key]);
+					if (previousChain)
+						return '.' + key + (previousChain === true ? '' : previousChain);
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	return dfs(o);
+}
 
 })();

@@ -8,7 +8,7 @@ function parentPath(x) {
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function AdminDB () {
 }
@@ -54,7 +54,6 @@ AdminDB.prototype.evalCode = buscomponent.provideQT('client-eval-code', _reqpriv
 
 AdminDB.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv('server', function(query, ctx, cb) {
 	this.emit('globalShutdown');
-	this.emit('localShutdown');
 	
 	cb('shutdown-success');
 }));
@@ -199,8 +198,20 @@ AdminDB.prototype.getUserLogins = buscomponent.provideQT('client-get-user-logins
 	});
 }));
 
+AdminDB.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx, cb) {
+	this.requestGlobal({name: 'internal-get-server-statistics'}, function(replies) {
+		cb('get-server-statistics-success', {servers: replies});
+	});
+}));
+
+AdminDB.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log', _reqpriv('userdb', function(query, ctx, cb) {
+	/* The package log is mostly informal and not expected to be used for anything but debugging.
+	 * This means that circular structures in it may exist and JSON is simply not the way to go here. */ 
+	cb('show-packet-log-success', {result: util.inspect(this.bus.packetLog, null)});
+}));
+
 AdminDB.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx, cb) {
-	var now = Math.floor(new Date().getTime() / 1000);
+	var now = Math.floor(Date.now() / 1000);
 	var todayStart = now - now % 86400;
 	var ndays = parseInt(query.ndays) || 365;
 	var timespanStart = todayStart - ndays * 86400;

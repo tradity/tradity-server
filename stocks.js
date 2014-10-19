@@ -7,7 +7,7 @@ var assert = require('assert');
 var UnionFind = require('unionfind');
 require('datejs');
 var qctx = require('./qctx.js');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function StocksDB () {
 	this.quoteLoader = null;
@@ -38,10 +38,10 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 	
 	cb = cb || function() {};
 		
-	var rcbST = new Date().getTime();
+	var rcbST = Date.now();
 	
 	var xcb = function() {
-		var rcbET = new Date().getTime();
+		var rcbET = Date.now();
 		console.log('StocksDB rcb in ' + (rcbET - rcbST) + ' ms');
 		cb();
 	};
@@ -193,10 +193,22 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 	});
 };
 
+function identityMatrix(n) {
+	var A = [];
+	for (var i = 0; i < n; ++i) {
+		var row = [];
+		A.push(row);
+		for (var j = 0; j < n; ++j)
+			row[j] = (i == j ? 1.0 : 0.0);
+	}
+	
+	return A;
+}
+
 StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 	var self = this;
 	
-	var lmuStart = new Date().getTime();
+	var lmuStart = Date.now();
 	
 	self.getServerConfig(function(cfg) {
 	
@@ -219,9 +231,24 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		
-		var users_inv = [];
+		var lmuFetchData = Date.now();
+		
+		var userIdToIndex = [];
 		for (var k = 0; k < users.length; ++k)
-			users_inv[users[k]] = k;
+			userIdToIndex[users[k]] = k;
+		
+		var userIdToResStaticIndex = [];
+		for (var k = 0; k < res_static.length; ++k)
+			userIdToResStaticIndex[res_static[k].uid] = k;
+			
+		var followerToResLeaderIndices = [];
+		for (var k = 0; k < res_leader.length; ++k) {
+			var fuid = res_leader[k].fuid;
+			if (followerToResLeaderIndices[fuid])
+				followerToResLeaderIndices[fuid].push(k);
+			else
+				followerToResLeaderIndices[fuid] = [k];
+		}
 		
 		if (users.length == 0)
 			return cb();
@@ -231,7 +258,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 		// find connected components
 		var uf = new UnionFind(users.length);
 		for (var i = 0; i < res_leader.length; ++i)
-			uf.union(users_inv[res_leader[i].luid], users_inv[res_leader[i].fuid]);
+			uf.union(userIdToIndex[res_leader[i].luid], userIdToIndex[res_leader[i].fuid]);
 		
 		var components = {};
 		for (var i = 0; i < users.length; ++i) {
@@ -241,66 +268,74 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				components[uf.find(i)].push(users[i]);
 		}
 		
-		var sgesvTotalTime = 0;
+		var sgesvTotalTime = 0, presgesvTotalTime = 0, postsgesvTotalTime = 0;
 		var updateQuery = '';
 		var updateParams = [];
 		
 		for (var ci_ in components) { (function() {
+			var componentStartTime = Date.now();
 			var ci = ci_;
 			var cusers = components[ci];
 			var n = cusers.length;
 			
-			var cusers_inv = [];
+			var cuserIdToIndex = {};
 			for (var k = 0; k < cusers.length; ++k)
-				cusers_inv[cusers[k]] = k;
+				cuserIdToIndex[cusers[k]] = k;
 			
-			var A = _.map(_.range(n), function(i) {
-				return _.map(_.range(n), function(j) { return i == j ? 1.0 : 0.0; });
-			});
-			
+			var A = identityMatrix(n); // slightly faster than the underscore equivalent via 2 map()s
 			var B = _.map(_.range(n), function() { return [0.0, 0.0]; });
 			var prov_sum = _.map(_.range(n), function() { return [0.0]; });
 			
-			for (var k = 0; k < res_static.length; ++k) {
-				var uid = res_static[k].uid;
-				if (typeof (cusers_inv[uid]) == 'undefined')
-					continue; // not our group
+			for (var k = 0; k < cusers.length; ++k) {
+				var uid = cusers[k];
 				
-				assert.ok(cusers_inv[uid] < n);
-				
-				if (res_static[k].valsum === null) // happens when one invests only in leaders
-					res_static[k].valsum = 0;
-				
-				B[cusers_inv[uid]] = [
-					res_static[k].valsum    + res_static[k].freemoney - res_static[k].prov_sum,
-					res_static[k].askvalsum + res_static[k].freemoney - res_static[k].prov_sum
+				// res_static
+				{
+					var r = res_static[userIdToResStaticIndex[uid]];
+					var localIndex = cuserIdToIndex[uid];
+					
+					assert.strictEqual(r.uid, uid);
+					assert.ok(localIndex < n);
+					
+					if (r.valsum === null) // happens when one invests only in leaders
+						r.valsum = 0;
+					
+					B[localIndex] = [
+						r.valsum    + r.freemoney - r.prov_sum,
+						r.askvalsum + r.freemoney - r.prov_sum
 					];
-				prov_sum[cusers_inv[uid]] = res_static[k].prov_sum;
+					prov_sum[localIndex] = r.prov_sum;
+				}
+				
+				// res_leader (is indexed by follwer uid)
+				var rlIndices = followerToResLeaderIndices[uid];
+				
+				if (rlIndices) for (var j = 0; j < rlIndices.length; ++j) {
+					var r = res_leader[rlIndices[j]];
+					
+					assert.equal(r.fuid, uid); // the follower part is already known
+					var l = cuserIdToIndex[r.luid]; // find leader uid
+					
+					// the leader MUST be in the same connected component
+					assert.notEqual(typeof l, 'undefined');
+					
+					A[k][l] -= r.amount / cfg.leaderValueShare;
+				}
 			}
 			
-			for (var k = 0; k < res_leader.length; ++k) {
-				var l = cusers_inv[res_leader[k].luid]; // leader
-				var f = cusers_inv[res_leader[k].fuid]; // follower
-				var amount = res_leader[k].amount;
-				
-				if (typeof l == 'undefined' || typeof f == 'undefined')
-					continue;
-				
-				A[f][l] -= amount / cfg.leaderValueShare;
-			}
-			
-			var sgesvST = new Date().getTime();
+			var sgesvST = Date.now();
 			var res = lapack.sgesv(A, B);
 			if (!res) {
-				self.emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
+				self.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
 				return;
 			}
-			var sgesvET = new Date().getTime();
+			var sgesvET = Date.now();
 			sgesvTotalTime += sgesvET - sgesvST;
+			presgesvTotalTime += sgesvST - componentStartTime;
 			
 			var X =  _.pluck(res.X, 0);
 			var Xa = _.pluck(res.X, 1);
-			//console.log(JSON.stringify(A),JSON.stringify(B),JSON.stringify(users_inv),JSON.stringify(X));
+			//console.log(JSON.stringify(A),JSON.stringify(B),JSON.stringify(userIdToIndex),JSON.stringify(X));
 
 			for (var i = 0; i < n; ++i) {
 				_.bind(function(i) {
@@ -314,22 +349,29 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				var lva = Math.max(Xa[i] / 100, 10000);
 				
 				updateQuery += 'UPDATE stocks AS s SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?;';
-				updateParams = updateParams.concat([(lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]]);
+				updateParams.push((lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]);
 				updateQuery += 'UPDATE users SET totalvalue = ? WHERE id = ?;';
-				updateParams = updateParams.concat([X[i] + prov_sum[i], cusers[i]]);
+				updateParams.push(X[i] + prov_sum[i], cusers[i]);
 				
 				if (++complete == users.length) {
+					var lmuComputationsComplete = Date.now();
 					conn.query(updateQuery + 'COMMIT; UNLOCK TABLES; SET autocommit = 1;', updateParams, function() {
 						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
 							[users[i]], function(res) {
 							conn.release();
 							
-							var lmuEnd = new Date().getTime();
-							console.log('sgesv in ' + sgesvTotalTime + ' ms, lm update in ' + (lmuEnd - lmuStart) + ' ms');
+							var lmuEnd = Date.now();
+							console.log('lmu timing: ' +
+								presgesvTotalTime + ' ms pre-sgesv total, ' +
+								sgesvTotalTime + ' ms sgesv total, ' +
+								postsgesvTotalTime + ' ms post-sgesv total, ' +
+								(lmuEnd - lmuStart) + ' ms lmu total, ' +
+								(lmuFetchData - lmuStart) + ' ms fetching, ' +
+								(lmuEnd - lmuComputationsComplete) + ' ms writing');
 							
 							for (var j = 0; j < res.length; ++j) {
 								process.nextTick(_.bind(_.partial(function(r) {
-									self.emit('stock-update', r);
+									self.emitGlobal('stock-update', r);
 								}, res[j]), self));
 							}
 							
@@ -339,6 +381,9 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				}
 				}, self, i)();
 			}
+			
+			var componentEndTime = Date.now();
+			postsgesvTotalTime += componentEndTime - sgesvET;
 		})(); }
 	});
 	});
@@ -367,7 +412,7 @@ StocksDB.prototype.updateRecord = function(ctx, rec) {
 		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) >= LENGTH(?), name, ?), exchange = ?, pieces = ?',
 		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.pieces,
 		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], function() {
-			self.emit('stock-update', {
+			self.emitGlobal('stock-update', {
 				'stockid': rec.symbol,
 				'lastvalue': rec.lastTradePrice * 10000,
 				'ask': rec.ask * 10000,
@@ -454,7 +499,7 @@ StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOp
 	
 	var sxdata = cfg.stockExchanges[sxname];
 	if (!sxdata) {
-		this.emit('error', new Error('Unknown SX: ' + sxname));
+		this.emitError(new Error('Unknown SX: ' + sxname));
 		return false;
 	}
 
@@ -689,7 +734,7 @@ StocksDB.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info'
 			var r = oh_res[0];
 			
 			assert.ok(r.userid);
-			if (r.userid != ctx.user.id && !!r.delayorderhist && (new Date().getTime()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
+			if (r.userid != ctx.user.id && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
 				return cb('get-trade-delayed-history');
 			ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml '+
 				'FROM ecomments AS c '+

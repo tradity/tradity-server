@@ -5,7 +5,7 @@ var util = require('util');
 var assert = require('assert');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function DelayedQueriesDB () {
 	this.queries = {};
@@ -93,7 +93,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dque
 		self.parseCondition(query.condition);
 		qstr = JSON.stringify(query.query);
 	} catch (e) {
-		self.emit('error', e);
+		self.emitError(e);
 		return cb('format-error');
 	}
 	
@@ -150,7 +150,7 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 		switch (variable[0]) {
 			case 'time':
 				cchecks.push(function(ctx, cb) {
-					var t = new Date().getTime()/1000;
+					var t = Date.now()/1000;
 					cb(lt ? t < value : t > value);
 				});
 				break;

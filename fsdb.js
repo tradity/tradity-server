@@ -7,7 +7,7 @@ var https = require('https');
 var assert = require('assert');
 var hash = require('mhash').hash;
 var qctx = require('./qctx.js');
-var buscomponent = require('./buscomponent.js');
+var buscomponent = require('./bus/buscomponent.js');
 
 function FileStorageDB () {
 }
@@ -62,7 +62,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 				cont(pres.statusCode, function(res) { pres.pipe(res); });
 			});
 		
-			preq.on('error', function(e) { self.emit('error', e); });
+			preq.on('error', function(e) { self.emitError(e); });
 			
 			if (req.headers['if-modified-since'])
 				preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
@@ -155,10 +155,10 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 			}
 		}
 		
-		var filehash = hash('md5', content + new Date().getTime().toString());
+		var filehash = hash('md5', content + Date.now().toString());
 		query.name = query.name ? String(query.name) : filehash;
 		
-		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
+		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 			
 		var continueAfterDelPrevious = function() {
@@ -190,7 +190,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 				switch (fieldname) {
 					case 'user': dataarr.push(ctx.user.id); break;
 					case 'groupassoc': dataarr.push(query.__groupassoc__); break;
-					default: self.emit('error', new Error('Unknown uniqrole field: ' + fieldname));
+					default: self.emitError(new Error('Unknown uniqrole field: ' + fieldname));
 				}
 			}
 			

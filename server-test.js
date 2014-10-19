@@ -15,10 +15,10 @@ var schoolid = 'Musterschule';
 var schoolname = schoolid;
 
 socket.on('connect', function() {
-	var t = new Date().getTime() * (process.id | 0x100);
+	var t = Date.now() * (process.id | 0x100);
 	var email = t + '@invalid.invalid';
 	var password = 'musterpw' + t;
-	var own_uid = null;
+	var ownUid = null;
 	
 	var emit = function (e, d) { console.log('outgoing', e, JSON.stringify(d, null, 2)); socket.emit(e, d); }
 	socket.on('push', function (data) {
@@ -149,7 +149,7 @@ socket.on('connect', function() {
 			case 'get-own-options':
 				assert.equal(data.code, 'own-options-success');
 				assert.ok(!data.pwhash);
-				own_uid = data.result.uid;
+				ownUid = data.result.uid;
 				emit('query', {
 					type: 'prod',
 					id: 'prod-1',
@@ -183,7 +183,7 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'get-user-info',
 					id: 'get-user-info-1',
-					lookfor: own_uid,
+					lookfor: ownUid,
 					key: key
 				});
 				break;
@@ -218,13 +218,13 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'get-user-info',
 					id: 'get-user-info-2',
-					lookfor: own_uid,
+					lookfor: ownUid,
 					key: key
 				});
 				break;
 			case 'get-user-info-2':
 				assert.equal(data.code, 'get-user-info-success');
-				assert.equal(data.result.uid, own_uid);
+				assert.equal(data.result.uid, ownUid);
 				assert.notEqual(_.pluck(data.result.schools, 'name').indexOf(schoolname), -1);
 				assert.ok(data.result.totalvalue);
 				emit('query', {
@@ -251,7 +251,7 @@ socket.on('connect', function() {
 				emit('query', {
 					'type': 'dquery',
 					'id': 'dquery',
-					'condition': 'stock::DE000A1EWWW0::ask > 0 ∧ time > ' + ((new Date().getTime()/1000)+1),
+					'condition': 'stock::DE000A1EWWW0::ask > 0 ∧ time > ' + ((Date.now()/1000)+1),
 					'query': {
 						type: 'stock-buy',
 						id: 'stock-buy-delayed',
@@ -270,7 +270,7 @@ socket.on('connect', function() {
 					type: 'prod',
 					id: 'prod-2',
 					authorizationKey: authorizationKey,
-					uid: own_uid
+					uid: ownUid
 				});
 				}, 2000);
 				break;
@@ -285,6 +285,26 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'pong');
 				assert.equal(data.uid, null);
 				emit('query', {
+					type: 'show-packet-log',
+					id: 'show-packet-log',
+					authorizationKey: authorizationKey,
+					uid: ownUid
+				});
+				break;
+			case 'show-packet-log':
+				assert.equal(data.code, 'show-packet-log-success');
+				assert.ok(data.result);
+				emit('query', {
+					type: 'get-server-statistics',
+					id: 'get-server-statistics',
+					authorizationKey: authorizationKey,
+					uid: ownUid
+				});
+				break;
+			case 'get-server-statistics':
+				assert.equal(data.code, 'get-server-statistics-success');
+				assert.ok(data.servers && _.isArray(data.servers));
+				emit('query', {
 					type: 'server-config',
 					id: 'server-config'
 				});
@@ -297,7 +317,7 @@ socket.on('connect', function() {
 					type: 'reset-user',
 					id: 'reset-user',
 					authorizationKey: authorizationKey,
-					uid: own_uid
+					uid: ownUid
 				});
 				break;
 			case 'reset-user':

@@ -189,7 +189,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 	assert.ok(this.bus);
 	assert.ok(this.socket);
 	
-	this.request({name: 'loadSessionUser', key: query.key, ctx: this.ctx}, function(user) {
+	this.request({name: 'loadSessionUser', key: String(query.key), ctx: this.ctx}, function(user) {
 		if (!this.bus) {
 			assert.ok(!this.socket);
 			return;
@@ -229,7 +229,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 			if (extra == 'repush' && this.bus && this.socket) {
 				this.lastInfoPush = 0;
 				
-				this.request({name: 'loadSessionUser', key: query.key, ctx: this.ctx}, function(newUser) {
+				this.request({name: 'loadSessionUser', key: String(query.key), ctx: this.ctx}, function(newUser) {
 					if (newUser)
 						this.ctx.user = newUser;
 					

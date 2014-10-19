@@ -156,7 +156,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 		}
 		
 		var filehash = hash('md5', content + new Date().getTime().toString());
-		query.name = query.name || filehash;
+		query.name = query.name ? String(query.name) : filehash;
 		
 		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((new Date().getTime()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
@@ -164,7 +164,8 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 		var continueAfterDelPrevious = function() {
 			ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[ctx.user ? ctx.user.id : null, filename, url, query.mime, filehash, query.role, content, query.__groupassoc__, query.proxy], function(res) {
+				[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
+				String(query.role), content, query.__groupassoc__ ? parseInt(query.__groupassoc__) : null, query.proxy ? 1:0], function(res) {
 				
 				if (ctx.user) {
 					ctx.feed({
@@ -180,7 +181,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 		
 		if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';
-			var dataarr = [query.role];
+			var dataarr = [String(query.role)];
 			
 			for (var i = 0; i < uniqrole.length; ++i) {
 				var fieldname = uniqrole[i];

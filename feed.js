@@ -26,7 +26,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 	});
 	
 	ctx.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
-		[data.type, data.targetid, data.srcuser, json], function(r) {
+		[String(data.type), data.targetid ? parseInt(data.targetid) : null, parseInt(data.srcuser), json], function(r) {
 		var eventid = r.insertId;
 		onEventId(eventid);
 		
@@ -42,8 +42,10 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 			params = [];
 			
 			if (!data.noFollowers) {
-				subselects.push('SELECT ?,userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?'); // all followers
-				subselects.push('SELECT ?,w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ?'); // all users in watchlist
+				// all followers
+				subselects.push('SELECT ?, userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?');
+				// all users in watchlist
+				subselects.push('SELECT ?, w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ?');
 				params = params.concat([eventid, data.srcuser, eventid, data.srcuser]);
 			}
 			
@@ -98,7 +100,7 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification" ' +
 		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
-		[ctx.user.uid, query ? query.since : 0, query && query.count !== null ? query.count : 100000], function(r) {
+		[ctx.user.uid, query ? parseInt(query.since) : 0, query && query.count !== null ? parseInt(query.count) : 100000], function(r) {
 		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
@@ -117,7 +119,7 @@ FeedControllerDB.prototype.markAsSeen = buscomponent.provideQT('client-mark-as-s
 	if (parseInt(query.eventid) != query.eventid)
 		return cb('format-error');
 	
-	ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [query.eventid, ctx.user.id], function() {
+	ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [parseInt(query.eventid), ctx.user.id], function() {
 		cb('mark-as-seen-success');
 	});
 });
@@ -127,7 +129,7 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideQT('client-comment
 		return cb('format-error');
 	
 	ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
-		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?', [query.eventid], function(res) {
+		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?', [parseInt(query.eventid)], function(res) {
 		if (res.length == 0)
 			return cb('comment-notfound');
 		
@@ -158,7 +160,7 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideQT('client-comment
 		}
 		
 		ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
-			[query.eventid, ctx.user.id, query.comment, query.ishtml && ctx.access.has('comments') ? 1 : 0], function(res) {
+			[parseInt(query.eventid), ctx.user.id, String(query.comment), query.ishtml && ctx.access.has('comments') ? 1 : 0], function(res) {
 			ctx.feed({
 				type: 'comment',
 				targetid: res.insertId,

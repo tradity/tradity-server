@@ -173,7 +173,7 @@ AchievementsDB.prototype.clientAchievement = buscomponent.provideQT('client-achi
 	var self = this;
 	
 	if (query.name)
-		query.name = query.name.toString();
+		query.name = String(query.name);
 	
 	if (!query.name)
 		return cb('format-error');

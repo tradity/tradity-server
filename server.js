@@ -6,8 +6,7 @@ var assert = require('assert');
 var http = require('http');
 var url = require('url');
 var sio = require('socket.io');
-var sioRedis = require('socket.io-redis');
-var redis = require('redis');
+var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
 var buscomponent = require('./bus/buscomponent.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
@@ -52,8 +51,7 @@ SoTradeServer.prototype.start = function(port) {
 		
 		this.io = sio.listen(this.httpServer, _.bind(cfg.configureSocketIO, this)(sio, cfg));
 		
-		this.store = redis.createClient(cfg.redis.port, cfg.redis.host, cfg.redis);
-		this.io.adapter(sioRedis({pubClient: this.store, subClient: this.store}));
+		this.io.adapter(busAdapter(this.bus));
 		
 		this.io.sockets.on('connection', _.bind(this.connectionHandler, this));
 	});

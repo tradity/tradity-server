@@ -137,25 +137,26 @@ Bus.prototype.addTransport = function(transport, done) {
 	assert.equal(typeof transport.target, 'undefined');
 	assert.equal(typeof transport.id, 'undefined');
 	assert.equal(typeof transport.msgCount, 'undefined');
-	
-	transport.on('bus::handshakeA', function(id) {
+
+	/* three-way handshake, similar to tcp */
+	transport.on('bus::handshakeSYN', function(id) {
 		if (id == self.id)
 			return;
 		
-		transport.emit('bus::handshakeB', self.id);
+		transport.emit('bus::handshakeSYNACK', self.id);
 		self.emitBusNodeInfo([transport], true);
 	});
 	
-	transport.on('bus::handshakeB', function(id) {
+	transport.on('bus::handshakeSYNACK', function(id) {
 		if (id == self.id)
 			return;
 		
 		self.emitBusNodeInfo([transport], true);
 	});
 	
-	transport.emit('bus::handshakeA', self.id);
+	transport.emit('bus::handshakeSYN', self.id);
 	
-	transport.on('bus::nodeInfoInitial', function(data) {
+	transport.on('bus::nodeInfoInitial', function(data) { // ~ ACK after SYN-ACK
 		if (data.id == self.id)
 			return;
 		

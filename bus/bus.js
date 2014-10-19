@@ -9,6 +9,8 @@ var hash = require('mhash').hash;
 var cytoscape = require('cytoscape');
 
 function Bus () {
+	this.hostname = os.hostname();
+	this.pid = process.pid;
 	this.id = this.determineBusID();
 	this.handledEvents = [];
 	
@@ -69,13 +71,13 @@ function Bus () {
 util.inherits(Bus, events.EventEmitter);
 
 Bus.prototype.toJSON = function() {
-	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'components');
+	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'components', 'hostname', 'pid');
 };
 
 Bus.prototype.determineBusID = function() {
 	// return hostname and hash of network interfaces, process id, current time
-	return os.hostname() + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
-		process.pid + '|' + Date.now()).substr(0, 12);
+	return this.hostname + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
+		this.pid + '|' + Date.now()).substr(0, 12);
 };
 
 Bus.prototype.emitBusNodeInfoSoon = function() {

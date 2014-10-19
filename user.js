@@ -57,10 +57,10 @@ UserDB.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 			var key = buf.toString('hex');
 			
 			ctx.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
-				[uid, key], function(res) {
+				[ctx.user.id, key], function(res) {
 
 				self.getServerConfig(function(cfg) {
-					var url = cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, uid).replace(/\{\$hostname\}/g, cfg.hostname);
+					var url = cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, ctx.user.id).replace(/\{\$hostname\}/g, cfg.hostname);
 					
 					self.request({name: 'readEMailTemplate', 
 						template: 'register-email.eml',
@@ -94,9 +94,8 @@ UserDB.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
 UserDB.prototype.login = buscomponent.provideQTX('client-login', function(query, ctx, xdata, cb) {
 	var self = this;
 	
-	var name = query.name;
-	var pw = query.pw;
-	var stayloggedin = query.stayloggedin;
+	var name = String(query.name);
+	var pw = String(query.pw);
 	
 	ctx.query('SELECT * FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 		if (res.length == 0) {
@@ -122,7 +121,7 @@ UserDB.prototype.login = buscomponent.provideQTX('client-login', function(query,
 					[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
 				ctx.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 					'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-					[uid, key, stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
+					[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
 						cb('login-success', {key: key, uid: uid}, 'repush');
 				});
 				});
@@ -132,7 +131,7 @@ UserDB.prototype.login = buscomponent.provideQTX('client-login', function(query,
 });
 
 UserDB.prototype.logout = buscomponent.provideQT('logout', function(query, ctx, cb) {
-	ctx.query('DELETE FROM sessions WHERE `key` = ?', [query.key], function() {
+	ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)], function() {
 		cb('logout-success');
 	});
 });
@@ -142,13 +141,9 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 	
 	query.startindex = parseInt(query.startindex) || 0;
 	query.endindex = parseInt(query.endindex) || (1 << 20);
-	query.since = parseInt(query.since);
-	query.upto = parseInt(query.upto);
 	
-	if (!query.since)
-		query.since = 0;
-	if (!query.upto)
-		query.upto = Date.now()/1000;
+	query.since = parseInt(query.since) || 0;
+	query.upto = parseInt(query.upto) || (Date.now() / 1000);
 	
 	if (parseInt(query.since) != query.since)
 		return cb('format-error');
@@ -170,15 +165,15 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 		likestringWhere += ' AND email_verif != 0 ';
 
 	if (query.search) {
-		var likestring = '%' + (query.search.toString()).replace(/%/g, '\\%') + '%';
+		var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
 		likestringWhere += 'AND ((u.name LIKE ?) OR (realnamepublish != 0 AND (giv_name LIKE ? OR fam_name LIKE ?))) ';
-		likestringUnit = likestringUnit.concat([likestring, likestring, likestring]);
+		likestringUnit.push(likestring, likestring, likestring);
 	}
 	
 	(query.schoolid ? function(cont) {
 		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
 		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
-		likestringUnit = likestringUnit.concat([query.schoolid, query.schoolid]);
+		likestringUnit.push(String(query.schoolid), String(query.schoolid));
 		
 		self.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid}, function(ok) {
 			cont(ok);
@@ -243,7 +238,7 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 		'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" '+
 		'WHERE u.id = ? OR u.name = ?', 
 		[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
-			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, query.lookfor], function(users) {
+			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, String(query.lookfor)], function(users) {
 		if (users.length == 0)
 			return cb('get-user-info-notfound');
 		
@@ -332,7 +327,7 @@ UserDB.prototype.emailVerify = buscomponent.provideQTX('client-emailverif', func
 	var self = this;
 	
 	var uid = parseInt(query.uid);
-	var key = query.key;
+	var key = String(query.key);
 	
 	ctx.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
 	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], function(res) {
@@ -383,8 +378,8 @@ UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key
 		'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
 		'FROM sessions ' +
 		'JOIN users ON sessions.uid = users.id ' +
-		'LEFT JOIN schoolmembers AS sm ON sm.uid=users.id ' +
-		'LEFT JOIN schools ON schools.id=sm.schoolid ' +
+		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
+		'LEFT JOIN schools ON schools.id = sm.schoolid ' +
 		'WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() LIMIT 1', [key], function(res) {
 		if (res.length == 0) {
 			cb(null);
@@ -444,13 +439,13 @@ UserDB.prototype.resetUser = buscomponent.provideQT('client-reset-user', functio
 	});
 });
 
-UserDB.prototype.passwordReset = buscomponent.provideQT('client-password-reset', function(data, ctx, cb) {
+UserDB.prototype.passwordReset = buscomponent.provideQT('client-password-reset', function(query, ctx, cb) {
 	var self = this;
 	
 	if (ctx.user)
 		return cb('already-logged-in');
 	
-	ctx.query('SELECT * FROM users WHERE name = ? AND deletiontime IS NULL', [data.name], function(res) {
+	ctx.query('SELECT * FROM users WHERE name = ? AND deletiontime IS NULL', [String(query.name)], function(res) {
 		if (res.length == 0)
 			return cb('password-reset-notfound');
 		
@@ -463,7 +458,7 @@ UserDB.prototype.passwordReset = buscomponent.provideQT('client-password-reset',
 				ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
 					var opt = self.request({name: 'readEMailTemplate', 
 						template: 'password-reset-email.eml',
-						variables: {'password': pw, 'username': data.name, 'email': u.email},
+						variables: {'password': pw, 'username': query.name, 'email': u.email},
 					}, function(opt) {
 						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
 							if (error) {
@@ -483,7 +478,7 @@ UserDB.prototype.passwordReset = buscomponent.provideQT('client-password-reset',
 UserDB.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invite-key-info', function(query, ctx, cb) {
 	var self = this;
 	
-	ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [query.invitekey], function(res) {
+	ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)], function(res) {
 		if (res.length == 0) {
 			cb('get-invitekey-info-notfound');
 		} else {
@@ -502,7 +497,7 @@ UserDB.prototype.createInviteLink = buscomponent.provideQT('createInviteLink', f
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
-		query.email = query.email || null;
+		query.email = query.email ? String(query.email) : null;
 		
 		if (!ctx.access.has('userdb')) {
 			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
@@ -540,45 +535,52 @@ UserDB.prototype.createInviteLink = buscomponent.provideQT('createInviteLink', f
 	});
 });
 
-UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
+UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
 		
 	var uid = ctx.user !== null ? ctx.user.id : null;
-	if (!data.name || !data.email) {
+	if (!query.name || !query.email) {
 		cb('format-error');
 		return;
 	}
 	
-	if ((data.password || type != 'change') && (!data.password || data.password.length < 5)) {
+	if ((query.password || type != 'change') && (!query.password || query.password.length < 5)) {
 		cb('reg-too-short-pw');
 		return;
 	}
 	
-	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(data.name) || parseInt(data.name) == data.name) {
+	query.email = String(query.email);
+	query.name = String(query.name);
+	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) || parseInt(query.name) == query.name) {
 		cb('reg-name-invalid-char');
 		return;
 	}
 	
-	data.giv_name = data.giv_name || '';
-	data.fam_name = data.fam_name || '';
-	data.wprovision = data.wprovision || cfg.defaultWProvision;
-	data.lprovision = data.lprovision || cfg.defaultLProvision;
+	query.giv_name = String(query.giv_name || '');
+	query.fam_name = String(query.fam_name || '');
+	query.wprovision = parseInt(query.wprovision) || cfg.defaultWProvision;
+	query.lprovision = parseInt(query.lprovision) || cfg.defaultLProvision;
+	query.birthday = query.birthday ? parseInt(query.birthday) : null;
+	query.desc = String(query.desc);
+	query.street = query.street ? String(query.street) : null;
+	query.town = query.town ? String(query.town) : null;
+	query.zipcode = query.zipcode ? String(query.zipcode) : null;
 	
-	if (data.wprovision < cfg.minWProvision || data.wprovision > cfg.maxWProvision ||
-	    data.lprovision < cfg.minLProvision || data.lprovision > cfg.maxLProvision) 
+	if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
+	    query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
 		return cb('invalid-provision');
 	
-	if (!data.school) // e. g., empty string
-		data.school = null;
+	if (!query.school) // e. g., empty string
+		query.school = null;
 	
-	var betakey = data.betakey ? data.betakey.toString().split('-') : [0,0];
+	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
 	ctx.getConnection(function(conn) {
 	conn.query('SET autocommit = 0; ' +
 		'LOCK TABLES users WRITE, stocks WRITE, betakeys WRITE, inviteaccept WRITE, invitelink READ, schoolmembers WRITE, schooladmins WRITE' +
-		(data.school ? ', schools WRITE' : '') + ';', [], function() {
+		(query.school ? ', schools WRITE' : '') + ';', [], function() {
 	
 	var commit = function(cb) {
 		cb = cb || function() {};
@@ -590,7 +592,7 @@ UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
 	};
 	
 	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
-		[data.email, data.name, uid], function(res) {
+		[query.email, query.name, uid], function(res) {
 	conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
 		[betakey[0]], function(βkey) {
 		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && type == 'register' && !ctx.access.has('userdb')) {
@@ -603,7 +605,7 @@ UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
 		if (res.length > 0 && res[0].id !== uid) {
 			rollback();
 			
-			if (res[0].email.toLowerCase() == data.email.toLowerCase())
+			if (res[0].email.toLowerCase() == query.email.toLowerCase())
 				cb('reg-email-already-present');
 			else
 				cb('reg-name-already-present');
@@ -617,7 +619,7 @@ UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
 				if (res && res.insertId) {
 					// in case school was created
 					
-					data.school = res.insertId;
+					query.school = res.insertId;
 					
 					gainUIDCBs.push(function() {
 						assert.ok(uid != null);
@@ -636,10 +638,13 @@ UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
 						for (var i = 0; i < gainUIDCBs.length; ++i)
 							gainUIDCBs[i]();
 
-						if ((ctx.user && data.email == ctx.user.email) || (ctx.access.has('userdb') && data.nomail))
+						if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
 							cb('reg-success', {uid: uid}, 'repush');
 						else 
-							self.sendRegisterEmail(data, ctx.access, uid, xdata, cb);
+							self.sendRegisterEmail(query,
+								new qctx.QContext({user: {id: uid, uid: id}, access: ctx.access, parentComponent: self}),
+								xdata,
+								cb);
 					});
 				};
 				
@@ -648,49 +653,49 @@ UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
 						conn.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?,' +
 						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traditye = ?, skipwalkthrough = ? '+
 						'WHERE id = ?',
-						[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt, data.email, data.email == ctx.user.email,
-						data.birthday, data.desc, data.wprovision, data.lprovision, data.street, data.zipcode, data.town, data.traditye?1:0, data.skipwalkthrough?1:0, uid],
+						[query.name, query.giv_name, query.fam_name, query.realnamepublish?1:0, query.delayorderhist?1:0, pwhash, pwsalt, query.email, query.email == ctx.user.email,
+						query.birthday, query.desc, query.wprovision, query.lprovision, query.street, query.zipcode, query.town, query.traditye?1:0, query.skipwalkthrough?1:0, uid],
 						updateCB);
 						
-						if (data.name != ctx.user.name) {
-							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': data.name}});
-							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + data.name, uid]);
+						if (query.name != ctx.user.name) {
+							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': query.name}});
+							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
 						}
 						
-						if (data.school != ctx.user.school) {
-							if (data.school == null)
+						if (query.school != ctx.user.school) {
+							if (query.school == null)
 								conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
 							else
 								conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
 									'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
-									[uid, data.school, data.school]);
+									[uid, String(query.school), String(query.school)]);
 							
 							if (ctx.user.school != null) 
 								conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
 						}
 
-						if (data.wprovision != ctx.user.wprovision || data.lprovision != ctx.user.lprovision)
+						if (query.wprovision != ctx.user.wprovision || query.lprovision != ctx.user.lprovision)
 							ctx.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
-								{'oldwprov': ctx.user.wprovision, 'newwprov': data.wprovision,
-								 'oldlprov': ctx.user.lprovision, 'newlprov': data.lprovision}});
+								{'oldwprov': ctx.user.wprovision, 'newwprov': query.wprovision,
+								 'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}});
 						
-						if (data.desc != ctx.user.desc)
+						if (query.desc != ctx.user.desc)
 							ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid});
 					} else {
-						if (data.betakey)
-							conn.query('DELETE FROM betakeys WHERE id=?', [betakey[0]]);
+						if (query.betakey)
+							conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
 						
 						var inv = {};
-						(data.invitekey ? function(cont) {
-							conn.query('SELECT * FROM invitelink WHERE `key` = ?', [data.invitekey], function(invres) {
+						(query.invitekey ? function(cont) {
+							conn.query('SELECT * FROM invitelink WHERE `key` = ?', [String(query.invitekey)], function(invres) {
 								if (invres.length == 0)
 									cont();
 								
 								assert.equal(invres.length, 1);
 								
 								inv = invres[0];
-								if (inv.schoolid && !data.school || parseInt(data.school) == parseInt(inv.schoolid)) {
-									data.school = inv.schoolid;
+								if (inv.schoolid && !query.school || parseInt(query.school) == parseInt(inv.schoolid)) {
+									query.school = inv.schoolid;
 									inv.__schoolverif__ = 1;
 								}
 								
@@ -707,55 +712,55 @@ UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
 								'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
 								'traditye, street, zipcode, town, registertime, wprovision, lprovision)' +
 								'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?)',
-								[data.name, data.giv_name, data.fam_name, data.realnamepublish?1:0, data.delayorderhist?1:0, pwhash, pwsalt,
-								data.email, (inv.email && inv.email == data.email) ? 1 : 0,
-								data.traditye?1:0, data.street, data.zipcode, data.town,
+								[query.name, query.giv_name, query.fam_name, query.realnamepublish?1:0, query.delayorderhist?1:0, pwhash, pwsalt,
+								query.email, (inv.email && inv.email == query.email) ? 1 : 0,
+								query.traditye?1:0, query.street, query.zipcode, query.town,
 								cfg.defaultWProvision, cfg.defaultLProvision],
 							function(res) {
 								uid = res.insertId;
 								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 								conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
-									['__LEADER_' + uid + '__', uid, 'Leader: ' + data.name, 'tradity'], _.bind(updateCB, self, res));
+									['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity'], _.bind(updateCB, self, res));
 									
-								if (data.school) {
+								if (query.school) {
 									conn.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
 										'VALUES(?, ?, ' + 
 										(inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
 										', UNIX_TIMESTAMP())',
-										[uid, data.school, data.school]);
+										[uid, String(query.school), String(query.school)]);
 								}
 							});
 						});
 					}
 				};
 				
-				if (data.password)
-					self.generatePWKey(data.password, onPWGenerated);
+				if (query.password)
+					self.generatePWKey(query.password, onPWGenerated);
 				else
 					onPWGenerated(ctx.user.pwsalt, ctx.user.pwhash);
 			};
 			
-			if (res.length == 0 && data.school !== null) {
-				if (parseInt(data.school) == data.school || !data.school) {
+			if (res.length == 0 && query.school !== null) {
+				if (parseInt(query.school) == query.school || !query.school) {
 					rollback();
 					
 					cb('reg-unknown-school');
 					return;
 				} else {
-					conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",MD5(?)))', [data.school, data.school], schoolAddedCB);
+					conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",MD5(?)))', [String(query.school), String(query.school)], schoolAddedCB);
 				}
 			} else {
-				if (data.school !== null) {
-					assert.ok(parseInt(data.school) != data.school || data.school == res[0].id);
-					data.school = res[0].id;
+				if (query.school !== null) {
+					assert.ok(parseInt(query.school) != query.school || query.school == res[0].id);
+					query.school = res[0].id;
 				}
 				
 				_.bind(schoolAddedCB, self)([]);
 			}
 		};
 		
-		if (data.school !== null) {
-			conn.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [data.school], schoolLookupCB);
+		if (query.school !== null) {
+			conn.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [String(query.school)], schoolLookupCB);
 		} else {
 			_.bind(schoolLookupCB, self)([]);
 		}
@@ -769,14 +774,17 @@ UserDB.prototype.updateUser = function(data, type, ctx, xdata, cb) {
 };
 
 UserDB.prototype.watchlistAdd = buscomponent.provideQT('client-watchlist-add', function(query, ctx, cb) {
-	ctx.query('SELECT stockid,users.id AS uid,users.name, bid FROM stocks LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?', [query.stockid], function(res) {
+	ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
+		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?',
+		[String(query.stockid)], function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
 		var uid = res[0].uid;
 		if (uid == ctx.user.id)
 			return cb('watchlist-add-self');
 		
-		ctx.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)', [ctx.user.id, res[0].bid, query.stockid], function(r) {
+		ctx.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
+			[ctx.user.id, res[0].bid, String(query.stockid)], function(r) {
 			ctx.feed({
 				type: 'watch-add',
 				targetid: r.insertId,
@@ -797,7 +805,7 @@ UserDB.prototype.watchlistAdd = buscomponent.provideQT('client-watchlist-add', f
 });
 
 UserDB.prototype.watchlistRemove = buscomponent.provideQT('client-watchlist-remove', function(query, ctx, cb) {
-	ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, query.stockid], function() {
+	ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, String(query.stockid)], function() {
 		ctx.feed({
 			type: 'watch-remove',
 			targetid: null,
@@ -872,7 +880,7 @@ UserDB.prototype.getChat = buscomponent.provideQT('client-chat-get', function(qu
 				for (var i = 0; i < query.endpoints.length; ++i) {
 					members.push('(?, ?, UNIX_TIMESTAMP())');
 					memberValues.push(res.insertId);
-					memberValues.push(query.endpoints[i]);
+					memberValues.push(String(query.endpoints[i]));
 				}
 				
 				ctx.query('INSERT INTO chatmembers(chatid, userid, jointime) VALUES ' + members.join(','), memberValues, function() {

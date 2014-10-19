@@ -431,7 +431,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 	var self = this;
 	
 	this.getServerConfig(function(cfg) {
-	var str = query.name;
+	var str = String(query.name);
 	if (!str || str.length < 3)
 		return cb('stock-search-too-short');
 	
@@ -568,7 +568,7 @@ StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', functio
 		'FROM stocks AS s ' +
 		'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = s.id ' +
 		'LEFT JOIN users AS l ON s.leader = l.id AND depot_stocks.userid != l.id ' +
-		'WHERE s.stockid = ?', [ctx.user.id, query.stockid], function(res) {
+		'WHERE s.stockid = ?', [ctx.user.id, String(query.stockid)], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			rollback();
 			return cb('stock-buy-stock-not-found');
@@ -728,7 +728,7 @@ StocksDB.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info'
 			'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
 			'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid '+
 			'LEFT JOIN users AS u ON u.id = oh.leader '+
-			'LEFT JOIN users AS trader ON trader.id = oh.userid WHERE oh.orderid = ?', [query.tradeid], function(oh_res) {
+			'LEFT JOIN users AS trader ON trader.id = oh.userid WHERE oh.orderid = ?', [parseInt(query.tradeid)], function(oh_res) {
 			if (oh_res.length == 0)
 				return cb('get-trade-info-notfound');
 			var r = oh_res[0];

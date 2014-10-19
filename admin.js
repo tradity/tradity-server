@@ -1,7 +1,7 @@
 (function () { "use strict";
 
 function parentPath(x) {
-	var match = x.match(/((\/[\w_-]+)+)\/[\w_-]+$/);
+	var match = String(x).match(/((\/[\w_-]+)+)\/[\w_-]+$/);
 	return match ? match[1] : '/';
 }
 
@@ -59,12 +59,12 @@ AdminDB.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv(
 }));
 
 AdminDB.prototype.impersonateUser = buscomponent.provideQT('client-impersonate-user', _reqpriv('server', function(query, ctx, cb) {
-	ctx.query('SELECT COUNT(*) AS c FROM users WHERE id=?', [query.uid], function(r) {
+	ctx.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [parseInt(query.uid)], function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
 			return cb('impersonate-user-notfound', null, 'repush');
 	
-		ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [query.uid, ctx.user.sid], function() {
+		ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid], function() {
 			cb('impersonate-user-success', null, 'repush');
 		});
 	});
@@ -74,14 +74,18 @@ AdminDB.prototype.deleteUser = buscomponent.provideQT('client-delete-user', _req
 	if (ctx.user.id == query.uid)
 		return cb('delete-user-self-notallowed');
 	
+	var uid = parseInt(query.uid);
+	if (uid != uid) // NaN
+		return cb('format-error');
+	
 	ctx.getConnection(function(conn) {
 		conn.query('START TRANSACTION', [], function() {
-		conn.query('DELETE FROM sessions WHERE uid = ?', [query.uid], function() {
-		conn.query('DELETE FROM schoolmembers WHERE uid = ?', [query.uid], function() {
-		conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [query.uid, query.uid], function() {
+		conn.query('DELETE FROM sessions WHERE uid = ?', [uid], function() {
+		conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid], function() {
+		conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid], function() {
 		conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), ' +
 		'fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, realnamepublish=0, `desc`="", wprovision=0, lprovision=0, ' + 
-		'street="", zipcode="", town="", traditye=0, deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [query.uid, query.uid], function() {
+		'street="", zipcode="", town="", traditye=0, deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid], function() {
 			conn.query('COMMIT', [], function() {
 				conn.release();
 				cb('delete-user-success');
@@ -95,13 +99,15 @@ AdminDB.prototype.deleteUser = buscomponent.provideQT('client-delete-user', _req
 }));
 
 AdminDB.prototype.changeUserEMail = buscomponent.provideQT('client-change-user', _reqpriv('userdb', function(query, ctx, cb) {
-	ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?', [query.email, query.emailverif ? 1 : 0, query.uid], function() {
+	ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
+		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)], function() {
 		cb('change-user-email-success');
 	});
 }));
 
 AdminDB.prototype.changeCommentText = buscomponent.provideQT('client-change-comment-text', _reqpriv('moderate', function(query, ctx, cb) {
-	ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?', [query.comment, ctx.access.has('server') && query.trustedhtml ? 1:0, query.commentid], function() {
+	ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?',
+		[String(query.comment), ctx.access.has('server') && query.trustedhtml ? 1:0, parseInt(query.commentid)], function() {
 		cb('change-comment-text-success');
 	});
 }));
@@ -113,14 +119,14 @@ AdminDB.prototype.notifyUnstickAll = buscomponent.provideQT('client-notify-unsti
 }));
 
 AdminDB.prototype.notifyAll = buscomponent.provideQT('client-notify-all', _reqpriv('moderate', function(query, ctx, cb) {
-	ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [query.content, query.sticky ? 1 : 0], function(res) {
+	ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [String(query.content), query.sticky ? 1 : 0], function(res) {
 		ctx.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': ctx.user.id, 'everyone': true});
 		cb('notify-all-success');
 	});
 }));
 
 AdminDB.prototype.renameSchool = buscomponent.provideQT('client-rename-school', _reqpriv('schooldb', function(query, ctx, cb) {
-	ctx.query('SELECT path FROM schools WHERE id = ?', [query.schoolid], function(r) {
+	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)], function(r) {
 		if (r.length == 0)
 			return cb('rename-school-notfound');
 
@@ -129,14 +135,15 @@ AdminDB.prototype.renameSchool = buscomponent.provideQT('client-rename-school', 
 			if (pr[0].c !== (parentPath(query.schoolpath || '/') != '/' ? 1 : 0))
 				return cb('rename-school-notfound');
 			
-			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath ? query.schoolpath : '/'], function(er) {
+			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath || '/')], function(er) {
 				assert.equal(er.length, 1);
 				if (query.schoolpath && er[0].c == 1)
 					return cb('rename-school-already-exists');
 				
-				ctx.query('UPDATE schools SET name = ? WHERE id = ?', [query.schoolname, query.schoolid], function() {
+				ctx.query('UPDATE schools SET name = ? WHERE id = ?', [String(query.schoolname), parseInt(query.schoolid)], function() {
 					if (query.schoolpath) {
-						ctx.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?', [r[0].path, query.schoolpath, r[0].path + '/%', r[0].path], function() {
+						ctx.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?',
+							[r[0].path, String(query.schoolpath), r[0].path + '/%', r[0].path], function() {
 							cb('rename-school-success');
 						});
 					} else {
@@ -149,8 +156,8 @@ AdminDB.prototype.renameSchool = buscomponent.provideQT('client-rename-school', 
 }));
 
 AdminDB.prototype.joinSchools = buscomponent.provideQT('client-join-schools', _reqpriv('schooldb', function(query, ctx, cb) {
-	ctx.query('SELECT path FROM schools WHERE id = ?', [query.masterschool], function(mr) {
-	ctx.query('SELECT path FROM schools WHERE id = ?', [query.subschool], function(sr) {
+	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)], function(mr) {
+	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.subschool)], function(sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);
 		
@@ -159,9 +166,9 @@ AdminDB.prototype.joinSchools = buscomponent.provideQT('client-join-schools', _r
 		if (mr.length > 0 && parentPath(mr[0].path) != parentPath(sr[0].path))
 			return cb('join-schools-diff-parent');
 		
-		ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [query.masterschool, query.subschool], function() {
-		ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [query.subschool], function() {
-			ctx.query('DELETE FROM schools WHERE id = ?', [query.subschool], function() {
+		ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [parseInt(query.masterschool), parseInt(query.subschool)], function() {
+		ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)], function() {
+			ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)], function() {
 				cb('join-schools-success');
 			});
 		});
@@ -175,14 +182,14 @@ AdminDB.prototype.getFollowers = buscomponent.provideQT('client-get-followers', 
 		'FROM stocks AS s ' +
 		'JOIN depot_stocks AS ds ON ds.stockid = s.id ' +
 		'JOIN users AS u ON ds.userid = u.id ' +
-		'WHERE s.leader = ?', [query.uid], function(res) {
+		'WHERE s.leader = ?', [parseInt(query.uid)], function(res) {
 		
 		cb('get-followers-success', {results: res});
 	});
 }));
 
 AdminDB.prototype.getUserLogins = buscomponent.provideQT('client-get-user-logins', _reqpriv('userdb', function(query, ctx, cb) {
-	ctx.query('SELECT * FROM logins WHERE uid = ?', [query.uid], function(res) {
+	ctx.query('SELECT * FROM logins WHERE uid = ?', [parseInt(query.uid)], function(res) {
 		_.each(res, function(e) {
 			e.headers = JSON.parse(e.headers);
 		});

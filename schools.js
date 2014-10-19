@@ -73,7 +73,7 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
 		'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
 		'JOIN schooladmins AS sa ON sa.schoolid = p.id ' +
 		'JOIN users ON users.id = sa.uid ' +
-		'WHERE c.id = ?', [schoolid], cb);
+		'WHERE c.id = ?', [parseInt(schoolid)], cb);
 };
 
 SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
@@ -84,7 +84,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
 		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
 		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 
-		'LIMIT 1', [lookfor], function(res) {
+		'LIMIT 1', [String(lookfor)], function(res) {
 		if (res.length == 0)
 			return cb('get-school-info-notfound');
 		
@@ -161,25 +161,28 @@ SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-in
 });
 
 SchoolsDB.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx, cb) {
-	ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [query.lookfor], function(res) {
+	ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [String(query.lookfor)], function(res) {
 		cb('school-exists-success', {exists: res.length > 0, path: res.length > 0 ? res[0].path : null});
 	});
 });
 
 SchoolsDB.prototype.changeDescription = buscomponent.provideQT('client-school-change-description', _reqschooladm(function(query, ctx, cb) {
-	ctx.query('UPDATE schools SET descpage = ? WHERE id = ?', [query.descpage, query.schoolid], function() {
+	ctx.query('UPDATE schools SET descpage = ? WHERE id = ?', [String(query.descpage), parseInt(query.schoolid)], function() {
 		cb('school-change-description-success');
 	});
 }));
 
 SchoolsDB.prototype.changeMemberStatus = buscomponent.provideQT('client-school-change-member-status', _reqschooladm(function(query, ctx, cb) {
-	ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?', [query.schoolid, query.uid], function() {
+	ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
+		[parseInt(query.schoolid), parseInt(query.uid)], function() {
 		if (query.status == 'member') {
-			ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [query.uid, query.schoolid], function() {
+			ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?',
+				[parseInt(query.uid), parseInt(query.schoolid)], function() {
 				cb('school-change-member-status-success');
 			});
 		} else {
-			ctx.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)', [query.schoolid, query.uid, query.status], function() {
+			ctx.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)',
+				[parseInt(query.schoolid), parseInt(query.uid), String(query.status)], function() {
 				cb('school-change-member-status-success');
 			});
 		}
@@ -192,14 +195,14 @@ SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete
 	ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
 		'JOIN events AS e ON e.eventid = c.eventid ' +
 		'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
-		[query.commentid, query.schoolid], function(res) {
+		[parseInt(query.commentid), parseInt(query.schoolid)], function(res) {
 		if (res.length == 0)
 			return cb('permission-denied');
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
 		ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-			[self.readTemplate('comment-deleted-by-group-admin.html'), query.commentid], function() {
+			[self.readTemplate('comment-deleted-by-group-admin.html'), parseInt(query.commentid)], function() {
 			cb('school-delete-comment-success');
 		});
 	});
@@ -207,9 +210,9 @@ SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete
 
 SchoolsDB.prototype.kickUser = buscomponent.provideQT('client-school-kick-user', _reqschooladm(function(query, ctx, cb) {
 	ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
-		[query.uid, query.schoolid], function() {
+		[parseInt(query.uid), parseInt(query.schoolid)], function() {
 		ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
-			[query.uid, query.schoolid], function() {
+			[parseInt(query.uid), parseInt(query.schoolid)], function() {
 			cb('school-kick-user-success');
 		});
 	});
@@ -221,7 +224,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 	
 	ctx.getConnection(function(conn) {
 		conn.query('START TRANSACTION', [], function() {
-		conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(r) {
+		conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)], function(r) {
 			assert.equal(r.length, 1);
 			if (r[0].c == 1 || !query.schoolname.trim() || 
 				!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
@@ -233,7 +236,8 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 			}
 			
 			var createCB = function() {
-				conn.query('INSERT INTO schools (name,path) VALUES(?,?)', [query.schoolname,query.schoolpath], function(res) {
+				conn.query('INSERT INTO schools (name,path) VALUES(?,?)',
+					[String(query.schoolname), String(query.schoolpath)], function(res) {
 					ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': ctx.user.id});
 					
 					conn.query('COMMIT', function() {
@@ -246,7 +250,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school'
 			
 			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
 				createCB();
-			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath)], function(r) {
+			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(String(query.schoolpath))], function(r) {
 				assert.equal(r.length, 1);
 				if (r[0].c != 1) {
 					conn.query('ROLLBACK', function() {
@@ -268,11 +272,11 @@ SchoolsDB.prototype.listSchools = buscomponent.provideQT('client-list-schools', 
 	var params = [];
 	if (query.parentPath) {
 		where = 'AND path LIKE ? OR path = ? ';
-		params = params.concat([query.parentPath + '/%', query.parentPath]);
+		params = params.concat([String(query.parentPath) + '/%', String(query.parentPath)]);
 	}
 	
 	if (query.search) {
-		var likestring = '%' + (query.search.toString()).replace(/%/g, '\\%') + '%';
+		var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
 		
 		where += 'AND (name LIKE ? OR path LIKE ?) ';
 		params = params.concat([likestring, likestring]);

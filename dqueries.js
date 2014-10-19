@@ -101,7 +101,7 @@ DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dque
 		return cb('unknown-query-type');
 	
 	ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
-		[query.condition, qstr, JSON.stringify(ctx.user), ctx.access.toJSON()], function(r) {
+		[String(query.condition), qstr, JSON.stringify(ctx.user), ctx.access.toJSON()], function(r) {
 		query.queryid = r.insertId;
 		query.userinfo = ctx.user;
 		query.accessinfo = ctx.access;
@@ -164,7 +164,7 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 				switch(fieldname) {
 					case 'exchange-open':
 						cchecks.push(_.bind(function(ctx, cb) {
-							ctx.query('SELECT exchange FROM stocks WHERE stockid = ?', [stockid], function(r) {
+							ctx.query('SELECT exchange FROM stocks WHERE stockid = ?', [String(stockid)], function(r) {
 								if (r.length == 0)
 									return cb(false);
 								
@@ -182,7 +182,7 @@ DelayedQueriesDB.prototype.parseCondition = function(str) {
 						if (!/^\w+$/.test(fieldname))
 							throw new Error('bad fieldname');
 						cchecks.push(_.bind(function(ctx, cb) {
-							ctx.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?', [stockid], function(r) {
+							ctx.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?', [String(stockid)], function(r) {
 								cb(r.length > 0 && (lt ? r[0][fieldname] < value : r[0][fieldname] > value));
 							});
 						}, this));
@@ -232,7 +232,7 @@ DelayedQueriesDB.prototype.executeQuery = function(query) {
 DelayedQueriesDB.prototype.removeQuery = function(query, ctx) {
 	var self = this;
 	
-	ctx.query('DELETE FROM dqueries WHERE queryid = ?', [query.queryid], function() {
+	ctx.query('DELETE FROM dqueries WHERE queryid = ?', [parseInt(query.queryid)], function() {
 		delete self.queries[query.queryid];
 		_.each(query.neededStocks, function(stock) {
 			self.neededStocks['s-'+stock] = _.without(self.neededStocks['s-'+stock], query.queryid);

@@ -41,7 +41,7 @@ Database.prototype._init = function(cb) {
 		self.wConnectionPool.on('remove', function(nodeId) {
 			self.writableNodes = _.without(self.writableNodes, nodeId);
 			if (self.writableNodes.length == 0)
-				self.emitImmediate('readonly');
+				self.emitImmediate('change-readability-mode', { readonly: true });
 		});
 		
 		self.inited = true;

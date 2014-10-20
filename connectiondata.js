@@ -8,7 +8,7 @@ var buscomponent = require('./bus/buscomponent.js');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
-function ConnectionData(socket) {
+function ConnectionData(socket, server) {
 	this.ctx = new qctx.QContext();
 	this.lzmaSupport = false;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
@@ -20,6 +20,10 @@ function ConnectionData(socket) {
 	this.socket = socket;
 	this.isShuttingDown = false;
 	this.unansweredCount = 0;
+	
+	this.ctx.addProperty({name: 'readonly', value: server.readonly});
+	this.ctx.addProperty({name: 'lastSessionUpdate', value: null});
+	this.ctx.addProperty({name: 'pendingTicks', value: 0});
 	
 	this.queryCount = 0;
 	this.queryLZMACount = 0;
@@ -46,6 +50,10 @@ ConnectionData.prototype.onBusConnect = function() {
 	});
 };
 
+ConnectionData.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
+	this.ctx.setProperty('readonly', event.readonly);
+});
+
 ConnectionData.prototype.stats = function() {
 	return {
 		lzma: this.lzmaSupport,
@@ -58,7 +66,8 @@ ConnectionData.prototype.stats = function() {
 		ip: this.remoteip,
 		xff: this.hsheaders['x-forwarded-for'],
 		xrip: this.hsheaders['x-real-ip'],
-		unanswered: this.unansweredCount
+		unanswered: this.unansweredCount,
+		readonly: this.ctx.getProperty('readonly')
 	};
 };
 
@@ -152,6 +161,17 @@ ConnectionData.prototype.onUserConnected = function() {
 	this.request({name: 'checkAchievements', ctx: this.ctx});
 };
 
+ConnectionData.prototype.onLogout = function() {
+	var self = this;
+	
+	self.request({name: 'updateUserStatistics', ctx: self.ctx, user: self.ctx.user, force: true}, function() {
+		self.ctx.user = null;
+		self.ctx.access = new Access();
+		self.ctx.setProperty('lastSessionUpdate', null);
+		self.ctx.setProperty('pendingTicks', 0);
+	});
+};
+
 ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 	var recvTime = Date.now();
 	
@@ -223,8 +243,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 					this.pushSelfInfo();
 				});
 			} else if (extra == 'logout') {
-				this.ctx.user = null;
-				this.ctx.access = new Access();
+				this.onLogout();
 			}
 			
 			this.response(obj);
@@ -266,6 +285,8 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 });
 
 ConnectionData.prototype.disconnectedHandler = buscomponent.errorWrap(function() {
+	this.onLogout();
+	
 	if (this.socket) {
 		this.socket.removeListener('query', this.query_);
 		this.socket.removeListener('disconnect', this.disconnected_);

@@ -373,7 +373,27 @@ UserDB.prototype.emailVerify = buscomponent.provideQTX('client-emailverif', func
 	});
 });
 
+UserDB.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
+	['user', 'ctx', 'force', 'reply'], function(user, ctx, force, reply)
+{
+	var now = Date.now();
+	var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
+	if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly')) {
+		// don't update things yet
+		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
+	} else {
+		ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]);
+		ctx.query('UPDATE users SET ticks = ? + 1 WHERE id = ?', [ctx.getProperty('pendingTicks'), user.id]);
+		ctx.setProperty('pendingTicks', 0);
+		ctx.setProperty('lastSessionUpdate', now);
+	}
+	
+	reply();
+});
+
 UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx', 'reply'], function(key, ctx, cb) {
+	var self = this;
+	
 	ctx.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ' +
 		'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
 		'FROM sessions ' +
@@ -390,8 +410,8 @@ UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key
 			user.realnamepublish = !!user.realnamepublish;
 			user.delayorderhist = !!user.delayorderhist;
 			
-			ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]);
-			ctx.query('UPDATE users SET ticks = ticks + 1 WHERE id = ?', [user.id]);
+			self.updateUserStatistics(user, ctx);
+			
 			cb(user);
 		}
 	});

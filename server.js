@@ -16,6 +16,7 @@ function SoTradeServer () {
 	this.store = null;
 	this.clients = [];
 	this.isShuttingDown = false;
+	this.readonly = false;
 	this.creationTime = Date.now() / 1000;
 	
 	this.deadQueryCount = 0;
@@ -26,8 +27,13 @@ function SoTradeServer () {
 
 util.inherits(SoTradeServer, buscomponent.BusComponent);
 
+SoTradeServer.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
+	this.readonly = event.readonly;
+});
+
 SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get-server-statistics', ['reply'], function(cb) {
 	cb({
+		readonly: this.readonly,
 		pid: process.pid,
 		isBackgroundWorker: process.isBackgroundWorker,
 		creationTime: this.creationTime,
@@ -82,7 +88,7 @@ SoTradeServer.prototype.connectionHandler = function(socket) {
 	
 	this.connectionCount++;
 	
-	var d = new ConnectionData(socket);
+	var d = new ConnectionData(socket, this);
 	assert.ok(d.cdid);
 	d.setBus(this.bus, 'cdata-' + d.cdid);
 	this.clients.push(d);

@@ -12,6 +12,8 @@ var cfg = require('./config.js').config;
 var bus = require('./bus/bus.js');
 var buscomponent = require('./bus/buscomponent.js');
 var pt = require('./bus/processtransport.js');
+var dt = require('./bus/directtransport.js');
+var sio = require('socket.io-client');
 
 var af = require('./arivafinance.js');
 var achievementList = require('./achievement-list.js');
@@ -41,6 +43,9 @@ manager.getReadabilityMode = buscomponent.provide('get-readability-mode', ['repl
 manager.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) { readonly = event.readonly; });
 
 manager.setBus(mainBus);
+
+// load super-essential components
+loadComponents(['./errorhandler.js', './emailsender.js', './signedmsg.js']);
 
 var afql = new af.ArivaFinanceQuoteLoader();
 
@@ -133,6 +138,9 @@ if (cluster.isWorker) {
 				forkStandardWorker();
 		}
 	});
+	
+	for (var i = 0; i < cfg.socketIORemotes.length; ++i)
+		connectToSocketIORemote(cfg.socketIORemotes[i]);
 }
 
 function worker() {
@@ -146,21 +154,15 @@ function worker() {
 			return;
 		}
 		
-		var loadComponents = [
-			'./errorhandler.js', './emailsender.js', './signedmsg.js', './dbbackend.js', './feed.js',
-			'./template-loader.js', './stocks.js', './user.js'
+		var componentsForLoading = [
+			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './user.js'
 		].concat(process.isBackgroundWorker ? [
 			'./background-worker.js', './dqueries.js'
 		] : [
 			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js'
 		]);
 
-		for (var i = 0; i < loadComponents.length; ++i) {
-			var c = require(loadComponents[i]);
-			for (var j in c) 
-				if (c[j] && c[j].prototype.setBus)
-					new c[j]().setBus(mainBus, loadComponents[i].replace(/\.[^.]+$/, '').replace(/[^\w]/g, ''));
-		}
+		loadComponents(componentsForLoading);
 
 		var server = require('./server.js');
 		var stserver = new server.SoTradeServer().setBus(mainBus, 'serverMaster');
@@ -170,6 +172,47 @@ function worker() {
 		else
 			stserver.start(msg.port);
 	});
+}
+
+function connectToSocketIORemote(remote) {
+	manager.request({
+		name: 'createSignedMessage',
+		msg: {
+			type: 'init-bus-transport',
+			id: 'init-bus-transport',
+			time: Date.now(),
+			weight: remote.weight
+		}
+	}, function(signed) {
+		var socket = sio.connect(remote.url);
+		
+		socket.on('error', function(e) { manager.emitError(e); });
+		
+		socket.on('connect', function() {
+			socket.on('response', function(response) {
+				assert.equal(response.e, 'raw');
+				
+				var r = JSON.parse(response.s);
+				if (r.code == 'init-bus-transport-success')
+					mainBus.addTransport(new dt.DirectTransport(socket, remote.weight || 10, false));
+				else
+					manager.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
+			});
+			
+			socket.emit('query', {
+				signedContent: signed
+			});
+		});
+	});
+}
+
+function loadComponents(componentsForLoading) {
+	for (var i = 0; i < componentsForLoading.length; ++i) {
+		var c = require(componentsForLoading[i]);
+		for (var j in c) 
+			if (c[j] && c[j].prototype.setBus)
+				new c[j]().setBus(mainBus, componentsForLoading[i].replace(/\.[^.]+$/, '').replace(/[^\w]/g, ''));
+	}
 }
 
 })();

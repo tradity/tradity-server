@@ -27,6 +27,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 				longErrorText += util.inspect(e) + '\n';
 			
 			if (self.bus) {
+				longErrorText += 'Bus: ' + self.bus.id + '\n';
 				longErrorText += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
 			
 				if (e.nonexistentType)

@@ -139,11 +139,16 @@ Bus.prototype.addTransport = function(transport, done) {
 	assert.equal(typeof transport.target, 'undefined');
 	assert.equal(typeof transport.id, 'undefined');
 	assert.equal(typeof transport.msgCount, 'undefined');
+	
+	var edgeId = ++self.curId;
 
 	/* three-way handshake, similar to tcp */
-	transport.on('bus::handshakeSYN', function(id) {
+	transport.on('bus::handshakeSYN', function(d) {
+		var id = d.id;
 		if (id == self.id)
 			return;
+		
+		edgeId = d.edgeId;
 		
 		transport.emit('bus::handshakeSYNACK', self.id);
 		self.emitBusNodeInfo([transport], true);
@@ -156,7 +161,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		self.emitBusNodeInfo([transport], true);
 	});
 	
-	transport.emit('bus::handshakeSYN', self.id);
+	transport.emit('bus::handshakeSYN', {id: self.id, edgeId: edgeId});
 	
 	transport.on('bus::nodeInfoInitial', function(data) { // ~ ACK after SYN-ACK
 		if (data.id == self.id)
@@ -177,7 +182,7 @@ Bus.prototype.addTransport = function(transport, done) {
 			
 			transport.source = nodeIDs[0];
 			transport.target = nodeIDs[1];
-			transport.id = nodeIDs.join('-') + '-' + (++self.curId);
+			transport.id = nodeIDs.join('-') + '-' + edgeId;
 			transport.msgCount = 0;
 			
 			self.busGraph.add({
@@ -213,7 +218,12 @@ Bus.prototype.addTransport = function(transport, done) {
 		self.busGraph.remove(self.busGraph.getElementById(transport.id));
 		
 		// reload the graph, choosing only the current connected component
-		self.busGraph.load(self.busGraph.elements().connectedComponent(self.busGraph.getElementById(self.id)));
+		var ownNode = self.busGraph.getElementById(self.id);
+		assert.ok(ownNode && ownNode.isNode());
+		
+		var cc = self.busGraph.elements().connectedComponent(self.busGraph.getElementById(self.id));
+		self.busGraph.load(cc.map(function(e) { return e.json(); }));
+		assert.ok(self.busGraph.elements().length > 0);
 		
 		self.busGraphUpdated();
 	});
@@ -229,7 +239,8 @@ Bus.prototype.handleTransportNodeInfo = function(busnode) {
 Bus.prototype.busGraphUpdated = function() {
 	this.ownNode = this.busGraph.getElementById(this.id);
 	
-	assert.ok(this.ownNode && this.ownNode.isNode());
+	assert.ok(this.ownNode);
+	assert.ok(this.ownNode.isNode());
 	
 	// provides dijkstra’s algorithm, starting with rootNode
 	this.dijkstra = this.busGraph.elements().dijkstra(this.ownNode, function(edge) { return edge.data().weight; });

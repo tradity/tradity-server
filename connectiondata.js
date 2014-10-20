@@ -5,6 +5,7 @@ var lzma = require('lzma-native');
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./bus/buscomponent.js');
+var dt = require('./bus/directtransport.js');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
@@ -256,9 +257,16 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 			{
 				cb('not-logged-in');
 			} else {
-				if (query.type == 'fetch-events') {
-					self.fetchEvents(query);
-					return cb('fetching-events');
+				switch (query.type) {
+					case 'fetch-events':
+						self.fetchEvents(query);
+						return cb('fetching-events');
+					case 'init-bus-transport':
+						if (!masterAuthorization || query.time < Date.now() - 200000)
+							return cb('permission-denied');
+						
+						self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));
+						return cb('init-bus-transport-success');
 				}
 				
 				try {

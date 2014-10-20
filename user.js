@@ -10,6 +10,12 @@ var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 require('datejs');
 
+function sha256(s) {
+	var h = crypto.createHash('sha256');
+	h.end(s);
+	return h.read().toString('hex');
+}
+
 function UserDB () {
 }
 
@@ -18,7 +24,7 @@ util.inherits(UserDB, buscomponent.BusComponent);
 UserDB.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, function(ex, buf) {
 		var pwsalt = buf.toString('hex');
-		var pwhash = hash('sha256', pwsalt + pw);
+		var pwhash = sha256(pwsalt + pw);
 		cb(pwsalt, pwhash);
 	});
 };
@@ -106,7 +112,7 @@ UserDB.prototype.login = buscomponent.provideQTX('client-login', function(query,
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;
-		if (pwhash != hash('sha256', pwsalt + pw) && !query.__ignore_password__) {
+		if (pwhash != sha256(pwsalt + pw) && !query.__ignore_password__) {
 			cb('login-wrongpw');
 			return;
 		}

@@ -7,7 +7,6 @@
 	"dependencies": {
 		"csv": "*",
 		"xml2js": "*",
-		"mhash": "*",
 		"mysql": "*",
 		"nodemailer": "~0.7",
 		"socket.io": "1.0.4",

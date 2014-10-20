@@ -5,9 +5,15 @@ var util = require('util');
 var http = require('http');
 var https = require('https');
 var assert = require('assert');
-var hash = require('mhash').hash;
+var crypto = require('crypto');
 var qctx = require('./qctx.js');
 var buscomponent = require('./bus/buscomponent.js');
+
+function sha256(s) {
+	var h = crypto.createHash('sha256');
+	h.end(s);
+	return h.read().toString('hex');
+}
 
 function FileStorageDB () {
 }
@@ -67,7 +73,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 			if (req.headers['if-modified-since'])
 				preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
 			
-			preq.setHeader('User-Agent', 'tradity.de +' + hash('md5', r.hash + r.user) + ' (contact: tech@tradity.de) (NodeJS ' + process.version + ' http)');
+			preq.setHeader('User-Agent', 'tradity.de +' + sha256(r.hash + r.user) + ' (contact: tech@tradity.de) (NodeJS ' + process.version + ' http)');
 			preq.end();
 		} : function(cont) {
 			headers['Content-Type'] = r.mime;
@@ -155,7 +161,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 			}
 		}
 		
-		var filehash = hash('md5', content + Date.now().toString());
+		var filehash = sha256(content + String(Date.now())).substr(0, 32);
 		query.name = query.name ? String(query.name) : filehash;
 		
 		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');

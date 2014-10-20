@@ -168,113 +168,125 @@ ConnectionData.prototype.onLogout = function() {
 };
 
 ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
-	var recvTime = Date.now();
+	var self = this;
 	
-	// sanitize by removing everything enclosed in '__'s
-	var sanitizeQuery = function(q) {
-		if (q.query)
-			q.query = sanitizeQuery(q.query);
+	(query.signedContent ? function(cont) {
+		self.request({
+			name: 'verifySignedMessage',
+			msg: query.signedContent
+		}, function(verified) {
+			if (verified)
+				cont(verified, true);
+			else
+				this.close();
+		});
+	} : function(cont) {
+		cont(query, false);
+	})(function(query, masterAuthorization) {
+		var recvTime = Date.now();
 		
-		return _.omit(q, _.chain(q).keys().filter(function(k) { return /^__.*__$/.test(k); }));
-	};
-	
-	query = sanitizeQuery(query);
-	
-	this.queryCount++;
-	if (query.lzma) {
-		this.queryLZMACount++;
-		this.lzmaSupport = true;
-	}
-	
-	var hadUser = this.ctx.user ? true : false;
-	
-	assert.ok(this.bus);
-	assert.ok(this.socket);
-	
-	this.request({name: 'loadSessionUser', key: String(query.key), ctx: this.ctx}, function(user) {
-		if (!this.bus) {
-			assert.ok(!this.socket);
-			return;
+		// sanitize by removing everything enclosed in '__'s
+		var sanitizeQuery = function(q) {
+			if (q.query)
+				q.query = sanitizeQuery(q.query);
+			
+			return _.omit(q, _.chain(q).keys().filter(function(k) { return /^__.*__$/.test(k); }));
+		};
+		
+		query = sanitizeQuery(query);
+		
+		self.queryCount++;
+		if (query.lzma) {
+			self.queryLZMACount++;
+			self.lzmaSupport = true;
 		}
 		
-		this.request({name: 'getAuthorizationKey'}, function(authorizationKey) {
+		var hadUser = self.ctx.user ? true : false;
 		
-		var access = new Access();
-		if (user != null) 
-			access.update(Access.fromJSON(user.access));
+		assert.ok(self.bus);
+		assert.ok(self.socket);
 		
-		this.ctx.access.update(access);
-		
-		if (query.authorizationKey == authorizationKey) {
-			console.log('Received query with master authorization of type', query.type);
-			this.ctx.access.grantAny();
-			if (user == null && query.uid != null)
-				user = {uid: query.uid, id: query.uid};
-		}
-		
-		this.ctx.user = user;
-		this.ctx.access[['grant', 'drop'][this.ctx.user && this.ctx.user.email_verif ? 0 : 1]]('email_verif');
-		
-		if (!hadUser && this.ctx.user != null)
-			this.onUserConnected();
-		
-		var cb = _.bind(function(code, obj, extra) {
-			this.unansweredCount--;
+		self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx}, function(user) {
+			if (!self.bus) {
+				assert.ok(!self.socket);
+				return;
+			}
 			
-			var now = Date.now();
-			obj = obj || {};
-			obj['code'] = code;
-			obj['is-reply-to'] = query.id;
-			obj['_t_sdone'] = now;
-			obj['_t_srecv'] = recvTime;
+			var access = new Access();
+			if (user != null) 
+				access.update(Access.fromJSON(user.access));
 			
-			if (extra == 'repush' && this.bus && this.socket) {
-				this.lastInfoPush = 0;
+			self.ctx.access.update(access);
+			
+			if (masterAuthorization) {
+				console.log('Received query with master authorization of type', query.type);
+				self.ctx.access.grantAny();
+				if (user == null && query.uid != null)
+					user = {uid: query.uid, id: query.uid};
+			}
+			
+			self.ctx.user = user;
+			self.ctx.access[['grant', 'drop'][self.ctx.user && self.ctx.user.email_verif ? 0 : 1]]('email_verif');
+			
+			if (!hadUser && self.ctx.user != null)
+				self.onUserConnected();
+			
+			var cb = _.bind(function(code, obj, extra) {
+				self.unansweredCount--;
 				
-				this.request({name: 'loadSessionUser', key: String(query.key), ctx: this.ctx}, function(newUser) {
-					if (newUser)
-						this.ctx.user = newUser;
+				var now = Date.now();
+				obj = obj || {};
+				obj['code'] = code;
+				obj['is-reply-to'] = query.id;
+				obj['_t_sdone'] = now;
+				obj['_t_srecv'] = recvTime;
+				
+				if (extra == 'repush' && self.bus && self.socket) {
+					self.lastInfoPush = 0;
 					
-					this.pushSelfInfo();
-				});
-			} else if (extra == 'logout') {
-				this.onLogout();
-			}
+					self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx}, function(newUser) {
+						if (newUser)
+							self.ctx.user = newUser;
+						
+						self.pushSelfInfo();
+					});
+				} else if (extra == 'logout') {
+					self.onLogout();
+				}
+				
+				self.response(obj);
+			}, self);
 			
-			this.response(obj);
-		}, this);
-		
-		this.unansweredCount++;
-		if (this.isShuttingDown) {
-			cb('server-shutting-down');
-		} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
-			this.ctx.user === null &&
-			!this.ctx.access.has('login_override'))
-		{
-			cb('not-logged-in');
-		} else {
-			if (query.type == 'fetch-events') {
-				this.fetchEvents(query);
-				return cb('fetching-events');
-			}
-			
-			try {
-				this.request({
-					name: 'client-' + query.type,
-					query: query,
-					ctx: this.ctx,
-					xdata: this.pickTextFields()
-				}, cb);
-			} catch (e) {
-				if (e.nonexistentType) {
-					cb('unknown-query-type');
-				} else {
-					cb('server-fail');
-					this.emitError(e);
+			self.unansweredCount++;
+			if (self.isShuttingDown) {
+				cb('server-shutting-down');
+			} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
+				self.ctx.user === null &&
+				!self.ctx.access.has('login_override'))
+			{
+				cb('not-logged-in');
+			} else {
+				if (query.type == 'fetch-events') {
+					self.fetchEvents(query);
+					return cb('fetching-events');
+				}
+				
+				try {
+					self.request({
+						name: 'client-' + query.type,
+						query: query,
+						ctx: self.ctx,
+						xdata: self.pickTextFields()
+					}, cb);
+				} catch (e) {
+					if (e.nonexistentType) {
+						cb('unknown-query-type');
+					} else {
+						cb('server-fail');
+						self.emitError(e);
+					}
 				}
 			}
-		}
-		
 		});
 	});
 });

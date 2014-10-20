@@ -7,9 +7,12 @@ var util = require('util');
 var _ = require('underscore');
 
 var cfg = require('./config.js').config;
+var SignedMessagingDB = require('./signedmsg.js').SignedMessagingDB;
+
+var smdb = new SignedMessagingDB();
+smdb.useConfig(cfg);
 
 var socket = sio.connect('http://' + cfg.wshost + ':' + cfg.wsports[0]);
-var authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString();
 var key = '';
 var schoolid = 'Musterschule';
 var schoolname = schoolid;
@@ -20,7 +23,18 @@ socket.on('connect', function() {
 	var password = 'musterpw' + t;
 	var ownUid = null;
 	
-	var emit = function (e, d) { console.log('outgoing', e, JSON.stringify(d, null, 2)); socket.emit(e, d); }
+	var emit = function (e, d, sign) {
+		d.quiet || console.log('outgoing', e, JSON.stringify(d, null, 2));
+		
+		if (sign) {
+			smdb.createSignedMessage(d, function(signedD) {
+				socket.emit(e, { signedContent: signedD }); 
+			});
+		} else {
+			socket.emit(e, d);
+		}
+	};
+	
 	socket.on('push', function (data) {
 		console.log('incoming/push', JSON.stringify(data, null, 2));
 	});
@@ -52,14 +66,13 @@ socket.on('connect', function() {
 					password: password,
 					email: email,
 					school: schoolid,
-					authorizationKey: authorizationKey,
 					nomail: true,
 					betakey: '1-a.skidulaqrniucznl',
 					street: '',
 					town: '',
 					zipcode: '',
 					traditye: 0
-				});
+				}, true);
 				break;
 			case 'register':
 				assert.equal(data.code, 'reg-success');
@@ -153,9 +166,8 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'prod',
 					id: 'prod-1',
-					authorizationKey: authorizationKey,
 					key: key
-				});
+				}, true);
 				break;
 			case 'prod-1':
 				assert.equal(data.code, 'prod-ready');
@@ -269,9 +281,8 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'prod',
 					id: 'prod-2',
-					authorizationKey: authorizationKey,
 					uid: ownUid
-				});
+				}, true);
 				}, 2000);
 				break;
 			case 'prod-2':
@@ -287,9 +298,8 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'show-packet-log',
 					id: 'show-packet-log',
-					authorizationKey: authorizationKey,
 					uid: ownUid
-				});
+				}, true);
 				break;
 			case 'show-packet-log':
 				assert.equal(data.code, 'show-packet-log-success');
@@ -297,9 +307,8 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'get-server-statistics',
 					id: 'get-server-statistics',
-					authorizationKey: authorizationKey,
 					uid: ownUid
-				});
+				}, true);
 				break;
 			case 'get-server-statistics':
 				assert.equal(data.code, 'get-server-statistics-success');
@@ -316,9 +325,8 @@ socket.on('connect', function() {
 				emit('query', {
 					type: 'reset-user',
 					id: 'reset-user',
-					authorizationKey: authorizationKey,
 					uid: ownUid
-				});
+				}, true);
 				break;
 			case 'reset-user':
 				assert.equal(data.code, 'reset-user-success');

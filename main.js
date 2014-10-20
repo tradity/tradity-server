@@ -31,7 +31,6 @@ mainBus.addInputFilter(function(packet) {
 });
 
 manager.getServerConfig = buscomponent.provide('getServerConfig', ['reply'], function(reply) { reply(cfg); });
-manager.getAuthorizationKey = buscomponent.provide('getAuthorizationKey', ['reply'], function(reply) { reply(authorizationKey); });
 manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', ['reply'], function(reply) { reply(afql); });
 manager.getAchievementList = buscomponent.provide('getAchievementList', ['reply'], function(reply) { reply(achievementList.AchievementList); });
 manager.getClientAchievementList = buscomponent.provide('getClientAchievementList', ['reply'], function(reply) { reply(achievementList.ClientAchievements); });
@@ -62,18 +61,10 @@ process.on('SIGUSR2', function() {
 	fs.writeFileSync(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid), 'Log:\n\n' + JSON.stringify(mainBus.packetLog) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
 });
 
-var authorizationKey;
-
 if (cluster.isWorker) {
-	authorizationKey = fs.readFileSync(cfg['auth-key-file']).toString('ascii');
-	
 	mainBus.addTransport(new pt.ProcessTransport(process), worker);
 } else {
 	assert.ok(cluster.isMaster);
-	
-	authorizationKey = crypto.randomBytes(64).toString('hex');
-
-	fs.writeFileSync(cfg['auth-key-file'], authorizationKey, {mode: 432});
 	
 	var workers = [];
 	var assignedPorts = [];

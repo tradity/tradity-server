@@ -7,7 +7,10 @@ var util = require('util');
 var _ = require('underscore');
 
 var cfg = require('./config.js').config;
+var SignedMessagingDB = require('./signedmsg.js').SignedMessagingDB;
 
+var smdb = new SignedMessagingDB();
+smdb.useConfig(cfg);
 var options = process.argv.splice(2);
 
 assert.ok(options.length > 0);
@@ -31,10 +34,7 @@ for (var i = 1; i < options.length; ++i) {
 }
 
 var socket = sio.connect('http://' + (query.wshost || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
-var authorizationKey = fs.readFileSync(query.authfile || cfg['auth-key-file']).toString();
 var key = '';
-
-query.authorizationKey = authorizationKey;
 
 if (query.timeout) {
 	setTimeout(function() {
@@ -44,7 +44,18 @@ if (query.timeout) {
 }
 
 socket.on('connect', function() {
-	var emit = function (e, d) { query.quiet || console.log('outgoing', e, d); socket.emit(e, d); }
+	var emit = function (e, d, sign) {
+		d.quiet || console.log('outgoing', e, JSON.stringify(d, null, 2));
+		
+		if (sign) {
+			smdb.createSignedMessage(d, function(signedD) {
+				socket.emit(e, { signedContent: signedD }); 
+			});
+		} else {
+			socket.emit(e, d);
+		}
+	};
+	
 	socket.on('push', function (data) {
 		query.quiet || console.log('incoming/push', JSON.stringify(data, null, 2));
 	});
@@ -58,7 +69,7 @@ socket.on('connect', function() {
 			process.exit(0);
 	});
 	
-	emit('query', query);
+	emit('query', query, true);
 });
 
 })();

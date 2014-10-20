@@ -19,12 +19,16 @@ SignedMessagingDB.prototype.onBusConnect = function() {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
-		self.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
-		self.publicKeys = fs.readFileSync(cfg.publicKeys, {encoding: 'utf-8'})
-			.replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
-		self.algorithm = cfg.signatureAlgorithm || self.algorithm;
+		self.useConfig(cfg);
 	});
 };
+
+SignedMessagingDB.prototype.useConfig = function(cfg) {
+	this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
+	this.publicKeys = fs.readFileSync(cfg.publicKeys, {encoding: 'utf-8'})
+		.replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
+	this.algorithm = cfg.signatureAlgorithm || this.algorithm;
+}
 
 SignedMessagingDB.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg', 'reply'], function(msg, cb) {
 	var self = this;

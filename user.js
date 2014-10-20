@@ -400,6 +400,9 @@ UserDB.prototype.updateUserStatistics = buscomponent.provide('updateUserStatisti
 {
 	reply = reply || function() {};
 	
+	if (!user)
+		return reply();
+	
 	var now = Date.now();
 	var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
 	if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly')) {
@@ -442,7 +445,7 @@ UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key
 			'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
 			'LEFT JOIN schools ON schools.id = sm.schoolid ' +
 			'WHERE ' + (signedLogin ? 'uid = ? ' : '`key` = ? ' +
-			(cfg.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
+			(ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
 			'LIMIT 1', [signedLogin ? uid : key], function(res) {
 			if (res.length == 0) {
 				cb(null);

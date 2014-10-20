@@ -45,13 +45,6 @@ AdminDB.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users',
 	});
 }));
 
-AdminDB.prototype.evalCode = buscomponent.provideQT('client-eval-code', _reqpriv('*', function(query, ctx, xdata, cb) {
-	if (!query.authorizationKey)
-		cb('permission-denied');
-	else
-		cb('eval-code-success', {result: eval(query.code)});
-}));
-
 AdminDB.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv('server', function(query, ctx, cb) {
 	this.emit('globalShutdown');
 	

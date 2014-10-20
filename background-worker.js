@@ -10,7 +10,7 @@ function BackgroundWorker () {
 }
 util.inherits(BackgroundWorker, buscomponent.BusComponent);
 
-BackgroundWorker.prototype.prod = buscomponent.provideQT('client-prod', function(query, ctx, cb) {
+BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx, cb) {
 	var self = this;
 	
 	assert.ok(ctx.access);

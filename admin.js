@@ -58,7 +58,7 @@ AdminDB.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv(
 	cb('shutdown-success');
 }));
 
-AdminDB.prototype.impersonateUser = buscomponent.provideQT('client-impersonate-user', _reqpriv('server', function(query, ctx, cb) {
+AdminDB.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-user', _reqpriv('server', function(query, ctx, cb) {
 	ctx.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [parseInt(query.uid)], function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
@@ -70,7 +70,7 @@ AdminDB.prototype.impersonateUser = buscomponent.provideQT('client-impersonate-u
 	});
 }));
 
-AdminDB.prototype.deleteUser = buscomponent.provideQT('client-delete-user', _reqpriv('userdb', function(query, ctx, cb) {
+AdminDB.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqpriv('userdb', function(query, ctx, cb) {
 	if (ctx.user.id == query.uid)
 		return cb('delete-user-self-notallowed');
 	
@@ -98,34 +98,34 @@ AdminDB.prototype.deleteUser = buscomponent.provideQT('client-delete-user', _req
 	});
 }));
 
-AdminDB.prototype.changeUserEMail = buscomponent.provideQT('client-change-user', _reqpriv('userdb', function(query, ctx, cb) {
+AdminDB.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user', _reqpriv('userdb', function(query, ctx, cb) {
 	ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
 		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)], function() {
 		cb('change-user-email-success');
 	});
 }));
 
-AdminDB.prototype.changeCommentText = buscomponent.provideQT('client-change-comment-text', _reqpriv('moderate', function(query, ctx, cb) {
+AdminDB.prototype.changeCommentText = buscomponent.provideWQT('client-change-comment-text', _reqpriv('moderate', function(query, ctx, cb) {
 	ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?',
 		[String(query.comment), ctx.access.has('server') && query.trustedhtml ? 1:0, parseInt(query.commentid)], function() {
 		cb('change-comment-text-success');
 	});
 }));
 
-AdminDB.prototype.notifyUnstickAll = buscomponent.provideQT('client-notify-unstick-all', _reqpriv('moderate', function(query, ctx, cb) {
+AdminDB.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstick-all', _reqpriv('moderate', function(query, ctx, cb) {
 	ctx.query('UPDATE mod_notif SET sticky = 0', [], function() {
 		cb('notify-unstick-all-success');
 	});
 }));
 
-AdminDB.prototype.notifyAll = buscomponent.provideQT('client-notify-all', _reqpriv('moderate', function(query, ctx, cb) {
+AdminDB.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpriv('moderate', function(query, ctx, cb) {
 	ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [String(query.content), query.sticky ? 1 : 0], function(res) {
 		ctx.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': ctx.user.id, 'everyone': true});
 		cb('notify-all-success');
 	});
 }));
 
-AdminDB.prototype.renameSchool = buscomponent.provideQT('client-rename-school', _reqpriv('schooldb', function(query, ctx, cb) {
+AdminDB.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _reqpriv('schooldb', function(query, ctx, cb) {
 	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)], function(r) {
 		if (r.length == 0)
 			return cb('rename-school-notfound');
@@ -155,7 +155,7 @@ AdminDB.prototype.renameSchool = buscomponent.provideQT('client-rename-school', 
 	});
 }));
 
-AdminDB.prototype.joinSchools = buscomponent.provideQT('client-join-schools', _reqpriv('schooldb', function(query, ctx, cb) {
+AdminDB.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _reqpriv('schooldb', function(query, ctx, cb) {
 	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)], function(mr) {
 	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.subschool)], function(sr) {
 		assert.ok(mr.length <= 1);

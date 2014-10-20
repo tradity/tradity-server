@@ -8,7 +8,7 @@ var buscomponent = require('./bus/buscomponent.js');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
-function ConnectionData(socket, server) {
+function ConnectionData(socket) {
 	this.ctx = new qctx.QContext();
 	this.lzmaSupport = false;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
@@ -21,7 +21,6 @@ function ConnectionData(socket, server) {
 	this.isShuttingDown = false;
 	this.unansweredCount = 0;
 	
-	this.ctx.addProperty({name: 'readonly', value: server.readonly});
 	this.ctx.addProperty({name: 'lastSessionUpdate', value: null});
 	this.ctx.addProperty({name: 'pendingTicks', value: 0});
 	
@@ -49,10 +48,6 @@ ConnectionData.prototype.onBusConnect = function() {
 		this.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig), 'versionInfo': this.versionInfo});
 	});
 };
-
-ConnectionData.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
-	this.ctx.setProperty('readonly', event.readonly);
-});
 
 ConnectionData.prototype.stats = function() {
 	return {

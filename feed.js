@@ -114,7 +114,7 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents
 	});
 });
 
-FeedControllerDB.prototype.markAsSeen = buscomponent.provideQT('client-mark-as-seen', function(query, ctx, cb) {
+FeedControllerDB.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx, cb) {
 	if (parseInt(query.eventid) != query.eventid)
 		return cb('format-error');
 	
@@ -123,7 +123,7 @@ FeedControllerDB.prototype.markAsSeen = buscomponent.provideQT('client-mark-as-s
 	});
 });
 
-FeedControllerDB.prototype.commentEvent = buscomponent.provideQT('client-comment', function(query, ctx, cb) {
+FeedControllerDB.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx, cb) {
 	if (!query.comment)
 		return cb('format-error');
 	

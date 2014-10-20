@@ -37,6 +37,9 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 	var self = this;
 	
 	cb = cb || function() {};
+	
+	if (ctx.getProperty('readonly'))
+		return cb();
 		
 	var rcbST = Date.now();
 	
@@ -407,25 +410,29 @@ StocksDB.prototype.updateRecord = function(ctx, rec) {
 	
 	assert.notStrictEqual(rec.pieces, null);
 	
+	var emitSUEvent = function() {
+		self.emitGlobal('stock-update', {
+			'stockid': rec.symbol,
+			'lastvalue': rec.lastTradePrice * 10000,
+			'ask': rec.ask * 10000,
+			'bid': rec.bid * 10000,
+			'name': rec.name,
+			'leader': null,
+			'leadername': null,
+			'exchange': rec.exchange,
+			'pieces': rec.pieces
+		});
+	};
+	
+	if (ctx.getProperty('readonly'))
+		return emitSUEvent();
+	
 	ctx.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange, pieces) VALUES '+
 		'(?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
 		'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), name = IF(LENGTH(name) >= LENGTH(?), name, ?), exchange = ?, pieces = ?',
 		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.pieces,
-		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], function() {
-			self.emitGlobal('stock-update', {
-				'stockid': rec.symbol,
-				'lastvalue': rec.lastTradePrice * 10000,
-				'ask': rec.ask * 10000,
-				'bid': rec.bid * 10000,
-				'name': rec.name,
-				'leader': null,
-				'leadername': null,
-				'exchange': rec.exchange,
-				'pieces': rec.pieces
-			});
-		}
-	);
-}
+		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], emitSUEvent);
+};
 
 StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx, cb) {
 	var self = this;
@@ -441,7 +448,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 		results = _.uniq(results, false, function(r) { return r.stockid; });
 		var symbols = _.pluck(results, 'stockid');
 		
-		if (symbols.length > 0) {
+		if (symbols.length > 0 && !ctx.getProperty('readonly')) {
 			symbols = _.map(symbols, escape);
 			ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
 		}
@@ -514,7 +521,7 @@ StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOp
 	return res;
 });
 
-StocksDB.prototype.sellAll = buscomponent.provideQT('sellAll', function(query, ctx, cb) {
+StocksDB.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ctx, cb) {
 	var self = this;
 	
 	ctx.query('SELECT s.*, ds.* FROM stocks AS s JOIN depot_stocks AS ds ON ds.stockid = s.id WHERE s.leader = ?', [ctx.user.id], function(res) {
@@ -536,7 +543,7 @@ StocksDB.prototype.sellAll = buscomponent.provideQT('sellAll', function(query, c
 	});
 });
 
-StocksDB.prototype.buyStock = buscomponent.provideQT('client-stock-buy', function(query, ctx, cb) {
+StocksDB.prototype.buyStock = buscomponent.provideWQT('client-stock-buy', function(query, ctx, cb) {
 	var self = this;
 	
 	this.getServerConfig(function(cfg) {

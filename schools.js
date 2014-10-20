@@ -166,13 +166,13 @@ SchoolsDB.prototype.schoolExists = buscomponent.provideQT('client-school-exists'
 	});
 });
 
-SchoolsDB.prototype.changeDescription = buscomponent.provideQT('client-school-change-description', _reqschooladm(function(query, ctx, cb) {
+SchoolsDB.prototype.changeDescription = buscomponent.provideWQT('client-school-change-description', _reqschooladm(function(query, ctx, cb) {
 	ctx.query('UPDATE schools SET descpage = ? WHERE id = ?', [String(query.descpage), parseInt(query.schoolid)], function() {
 		cb('school-change-description-success');
 	});
 }));
 
-SchoolsDB.prototype.changeMemberStatus = buscomponent.provideQT('client-school-change-member-status', _reqschooladm(function(query, ctx, cb) {
+SchoolsDB.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx, cb) {
 	ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
 		[parseInt(query.schoolid), parseInt(query.uid)], function() {
 		if (query.status == 'member') {
@@ -189,7 +189,7 @@ SchoolsDB.prototype.changeMemberStatus = buscomponent.provideQT('client-school-c
 	});
 }));
 
-SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete-comment', _reqschooladm(function(query, ctx, cb) {
+SchoolsDB.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-comment', _reqschooladm(function(query, ctx, cb) {
 	var self = this;
 	
 	ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
@@ -208,7 +208,7 @@ SchoolsDB.prototype.deleteComment = buscomponent.provideQT('client-school-delete
 	});
 }));
 
-SchoolsDB.prototype.kickUser = buscomponent.provideQT('client-school-kick-user', _reqschooladm(function(query, ctx, cb) {
+SchoolsDB.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx, cb) {
 	ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
 		[parseInt(query.uid), parseInt(query.schoolid)], function() {
 		ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
@@ -218,7 +218,7 @@ SchoolsDB.prototype.kickUser = buscomponent.provideQT('client-school-kick-user',
 	});
 }));
 
-SchoolsDB.prototype.createSchool = buscomponent.provideQT('client-create-school', function(query, ctx, cb) {
+SchoolsDB.prototype.createSchool = buscomponent.provideWQT('client-create-school', function(query, ctx, cb) {
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	

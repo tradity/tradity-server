@@ -42,10 +42,12 @@ DelayedQueriesDB.prototype.getNeededStocks = buscomponent.provide('neededStocksD
 DelayedQueriesDB.prototype.checkAndExecute = function(ctx, query) {
 	var self = this;
 	
+	if (ctx.getProperty('readonly'))
+		return;
+	
 	query.check(ctx, function(condmatch) {
-		if (!condmatch)
-			return;
-		self.executeQuery(query);
+		if (condmatch)
+			self.executeQuery(query);
 	});
 };
 
@@ -73,7 +75,7 @@ DelayedQueriesDB.prototype.listDelayQueries = buscomponent.provideQT('client-dqu
 	});
 });
 
-DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQT('client-dquery-remove', function(query, ctx, cb) {
+DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx, cb) {
 	var queryid = query.queryid;
 	if (this.queries[queryid] && this.queries[queryid].userinfo.id == ctx.user.id) {
 		this.removeQuery(this.queries[queryid], ctx);
@@ -83,7 +85,7 @@ DelayedQueriesDB.prototype.removeQueryUser = buscomponent.provideQT('client-dque
 	}
 });
 
-DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideQT('client-dquery', function(query, ctx, cb) {
+DelayedQueriesDB.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquery', function(query, ctx, cb) {
 	var self = this;
 	
 	cb = cb || function() {};

@@ -31,6 +31,9 @@ AchievementsDB.prototype.onBusConnect = function() {
 AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
 	var self = this;
 	
+	if (ctx.getProperty('readonly'))
+		return cb();
+	
 	ctx.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id], function(userAchievements) {
 		_.each(self.achievementList, function(achievementEntry) {
 			self.checkAchievement(achievementEntry, ctx, userAchievements);
@@ -169,7 +172,7 @@ AchievementsDB.prototype.listAchievements = buscomponent.provideQT('client-list-
 	cb('list-all-achievements-success', {result: this.achievementList});
 }),
 
-AchievementsDB.prototype.clientAchievement = buscomponent.provideQT('client-achievement', function(query, ctx, cb) {
+AchievementsDB.prototype.clientAchievement = buscomponent.provideWQT('client-achievement', function(query, ctx, cb) {
 	var self = this;
 	
 	if (query.name)

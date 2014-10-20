@@ -35,6 +35,12 @@ manager.getAuthorizationKey = buscomponent.provide('getAuthorizationKey', ['repl
 manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', ['reply'], function(reply) { reply(afql); });
 manager.getAchievementList = buscomponent.provide('getAchievementList', ['reply'], function(reply) { reply(achievementList.AchievementList); });
 manager.getClientAchievementList = buscomponent.provide('getClientAchievementList', ['reply'], function(reply) { reply(achievementList.ClientAchievements); });
+
+var readonly = cfg.readonly;
+
+manager.getReadabilityMode = buscomponent.provide('get-readability-mode', ['reply'], function(cb) { cb({readonly: readonly}); });
+manager.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) { readonly = event.readonly; });
+
 manager.setBus(mainBus);
 
 var afql = new af.ArivaFinanceQuoteLoader();

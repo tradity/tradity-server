@@ -2,6 +2,7 @@
 
 var Access = require('./access.js').Access;
 var util = require('util');
+var assert = require('assert');
 var buscomponent = require('./bus/buscomponent.js');
 var _ = require('underscore');
 
@@ -16,6 +17,26 @@ function QContext(obj) {
 };
 
 util.inherits(QContext, buscomponent.BusComponent);
+
+QContext.prototype.onBusConnect = function() {
+	var self = this;
+	
+	self.request({name: 'get-readability-mode'}, function(reply) {
+		assert.ok(reply.readonly === true || reply.readonly === false);
+		
+		if (!self.hasProperty('readonly')) {
+			self.addProperty({
+				name: 'readonly',
+				value: reply.readonly
+			});
+		}
+	});
+};
+
+QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
+	if (this.hasProperty('readonly'))
+		this.setProperty('readonly', event.readonly);
+});
 
 QContext.prototype.toJSON = function() {
 	return { user: this.user, access: this.access, properties: this.properties };
@@ -47,8 +68,12 @@ QContext.prototype.getProperty = function(name) {
 	return this.properties[name].value;
 };
 
+QContext.prototype.hasProperty = function(name) {
+	return this.properties[name] ? true : false;
+};
+
 QContext.prototype.setProperty = function(name, value, hasAccess) {
-	if (!this.properties[name])
+	if (!this.hasProperty(name))
 		throw new Error('Property ' + name + ' not defined yet');
 	
 	var requiredAccess = this.properties[name].access;

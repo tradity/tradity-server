@@ -16,7 +16,6 @@ function SoTradeServer () {
 	this.store = null;
 	this.clients = [];
 	this.isShuttingDown = false;
-	this.readonly = false;
 	this.creationTime = Date.now() / 1000;
 	
 	this.deadQueryCount = 0;
@@ -27,25 +26,25 @@ function SoTradeServer () {
 
 util.inherits(SoTradeServer, buscomponent.BusComponent);
 
-SoTradeServer.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
-	this.readonly = event.readonly;
-});
-
 SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get-server-statistics', ['reply'], function(cb) {
-	cb({
-		readonly: this.readonly,
-		pid: process.pid,
-		isBackgroundWorker: process.isBackgroundWorker,
-		creationTime: this.creationTime,
-		clients: _.map(this.clients, function(x) { return x.stats(); }),
-		bus: this.bus.stats(),
-		msgCount: this.msgCount,
-		msgLZMACount: this.msgLZMACount,
-		connectionCount: this.connectionCount,
-		deadQueryCount: this.deadQueryCount,
-		deadQueryLZMACount: this.deadQueryLZMACount,
-		deadQueryLZMAUsedCount: this.deadQueryLZMAUsedCount,
-		now: Date.now()
+	var self = this;
+	
+	self.request({name: 'get-readability-mode'}, function(reply) {
+		cb({
+			readonly: reply.readonly,
+			pid: process.pid,
+			isBackgroundWorker: process.isBackgroundWorker,
+			creationTime: self.creationTime,
+			clients: _.map(self.clients, function(x) { return x.stats(); }),
+			bus: self.bus.stats(),
+			msgCount: self.msgCount,
+			msgLZMACount: self.msgLZMACount,
+			connectionCount: self.connectionCount,
+			deadQueryCount: self.deadQueryCount,
+			deadQueryLZMACount: self.deadQueryLZMACount,
+			deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
+			now: Date.now()
+		});
 	});
 });
 
@@ -88,7 +87,7 @@ SoTradeServer.prototype.connectionHandler = function(socket) {
 	
 	this.connectionCount++;
 	
-	var d = new ConnectionData(socket, this);
+	var d = new ConnectionData(socket);
 	assert.ok(d.cdid);
 	d.setBus(this.bus, 'cdata-' + d.cdid);
 	this.clients.push(d);

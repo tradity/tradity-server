@@ -410,7 +410,7 @@ UserDB.prototype.updateUserStatistics = buscomponent.provide('updateUserStatisti
 	
 	var now = Date.now();
 	var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
-	if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly')) {
+	if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly') || !user) {
 		// don't update things yet
 		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
 	} else {

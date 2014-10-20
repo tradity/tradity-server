@@ -71,8 +71,13 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
 QContext.prototype.feed = function(data, onEventId) { this.request({name: 'feed', data: data, ctx: this}, onEventId || function() {}); };
 QContext.prototype.query = function(query, args, cb) { this.request({name: 'dbQuery', query: query, args: args}, cb); };
 
-QContext.prototype.getConnection = function(cb) {
-	this.request({name: 'dbGetConnection'}, function(conn) {
+QContext.prototype.getConnection = function(readonly, cb) {
+	if (typeof readonly == 'function') {
+		cb = readonly;
+		readonly = false;
+	}
+	
+	this.request({readonly: readonly, name: 'dbGetConnection'}, function(conn) {
 		cb({
 			release: _.bind(conn.release, conn),
 			query: function(query, args, cb) {

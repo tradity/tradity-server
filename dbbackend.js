@@ -7,7 +7,8 @@ var buscomponent = require('./bus/buscomponent.js');
 
 function Database () {
 	this.dbmod = null;
-	this.connectionPool = null;
+	this.wConnectionPool = null;
+	this.rConnectionPool = null;
 	this.openConnections = 0;
 	this.isShuttingDown = false;
 }
@@ -15,11 +16,36 @@ function Database () {
 util.inherits(Database, buscomponent.BusComponent);
 
 Database.prototype._init = function(cb) {
-	this.getServerConfig(function(cfg) {
-		this.dbmod = cfg['dbmod'] || require('mysql');
-		this.connectionPool = this.dbmod.createPool(cfg['db']);
-		this.inited = true;
-		this.openConnections = 0;
+	var self = this;
+	
+	self.getServerConfig(function(cfg) {
+		self.dbmod = cfg.dbmod || require('mysql');
+		
+		self.wConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
+		self.rConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
+		self.writableNodes = [];
+		
+		for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
+			var id = cfg.db.clusterOptions.order[i];
+			var opt = _.deepupdate(cfg.db.cluster[id], cfg.db);
+			
+			if (opt.writable) {
+				self.writableNodes.push(id);
+				self.wConnectionPool.add(id, opt);
+			}
+			
+			if (opt.readable)
+				self.rConnectionPool.add(id, opt);
+		}
+		
+		self.wConnectionPool.on('remove', function(nodeId) {
+			self.writableNodes = _.without(self.writableNodes, nodeId);
+			if (self.writableNodes.length == 0)
+				self.emitImmediate('readonly');
+		});
+		
+		self.inited = true;
+		self.openConnections = 0;
 		
 		/*
 		 * Note: We don't set isShuttingDown = true here.
@@ -35,30 +61,42 @@ Database.prototype._init = function(cb) {
 Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', function() {
 	this.isShuttingDown = true;
 	
-	if (this.connectionPool && this.openConnections == 0) {
-		this.connectionPool.end();
-		this.connectionPool = null;
+	if (this.openConnections == 0) {
+		if (this.wConnectionPool) {
+			this.wConnectionPool.end();
+			this.wConnectionPool = null;
+		}
+		
+		if (this.rConnectionPool) {
+			this.rConnectionPool.end();
+			this.rConnectionPool = null;
+		}
+		
 		this.inited = false;
 	}
 });
 
-Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'reply'],
-	buscomponent.needsInit(function(query, args, cb)
+Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly', 'reply'],
+	buscomponent.needsInit(function(query, args, readonly, cb)
 {
-	this._getConnection(true, function(connection) {
+	if (readonly !== false && readonly !== true)
+		readonly = (query.trim().indexOf('SELECT') == 0);
+	
+	this._getConnection(true, readonly, function(connection) {
 		connection.query(query, args || [], function() {
 			cb.apply(this, arguments);
 		});
 	});
 }));
 
-Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, cb) {
+Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, readonly, cb) {
 	var self = this;
-	assert.ok (self.connectionPool);
+	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
+	assert.ok (pool);
 	
 	self.openConnections++;
 	
-	self.connectionPool.getConnection(function(err, conn) {
+	pool.getConnection(function(err, conn) {
 		if (err)
 			return self.emitError(err);
 		
@@ -87,7 +125,8 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					}
 					
 					if (err || exception) {
-						conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+						if (!readonly)
+							conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
 						
 						// make sure that the error event is emitted -> release() will be called in next tick
 						process.nextTick(release);
@@ -117,25 +156,29 @@ Database.prototype.escape = buscomponent.needsInit(function(str) {
 	return this.dbmod.escape(str);
 });
 
-Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['reply'], function(conncb) {
-	this._getConnection(false, _.bind(function(cn) {
-		if (!this.dbconnid)
-			this.dbconnid = 0;
-		var connid = ++this.dbconnid;
+Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['readonly', 'reply'], function(readonly, conncb) {
+	var self = this;
+	
+	assert.ok(readonly === true || readonly === false);
+	
+	self._getConnection(false, readonly, function(cn) {
+		if (!self.dbconnid)
+			self.dbconnid = 0;
+		var connid = ++self.dbconnid;
 		
 		conncb({
-			query: _.bind(function(q, data, cb) {
+			query: function(q, data, cb) {
 				data = data || [];
 				
-				// emitting this has the sole purpose of it showing up in the bus log
-				this.emitImmediate('dbBoundQueryLog', [q, data]);
+				// emitting self has the sole purpose of it showing up in the bus log
+				self.emitImmediate('dbBoundQueryLog', [q, data]);
 				cn.query(q, data, cb);
-			}, this),
-			release: _.bind(function() {
+			},
+			release: function() {
 				cn.release();
-			}, this)
+			}
 		});
-	}, this));
+	});
 });
 
 exports.Database = Database;

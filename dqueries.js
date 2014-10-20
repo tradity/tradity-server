@@ -216,7 +216,7 @@ DelayedQueriesDB.prototype.executeQuery = function(query) {
 	var self = this;
 	
 	var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: self});
-	query.query.__is_delayed__ = true;
+	query.query._isDelayed = true;
 	self.request({
 		name: 'client-' + query.query.type,
 		query: query.query,

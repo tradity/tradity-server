@@ -292,11 +292,10 @@ SchoolsDB.prototype.listSchools = buscomponent.provideQT('client-list-schools', 
 });
 
 SchoolsDB.prototype.publishBanner = buscomponent.provideQT('client-school-publish-banner', function(query, ctx, cb) {
-	query.__groupassoc__ = query.schoolid;
 	query.role = 'schools.banner';
 	
 	_reqschooladm(_.bind(function(query, ctx, cb) {
-		this.request({name: 'client-publish', query: query, ctx: ctx}, cb);
+		this.request({name: 'client-publish', query: query, ctx: ctx, groupassoc: query.schoolid}, cb);
 	}, this), false, this)(query, ctx, cb);
 });
 

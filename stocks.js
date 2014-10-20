@@ -531,11 +531,17 @@ StocksDB.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, 
 		var complete = 0;
 		for (var i = 0; i < res.length; ++i) {
 			var depotentry = res[i];
+			
+			var newCtx = new qctx.QContext({
+				parentComponent: this,
+				user: {id: depotentry.userid, uid: depotentry.userid},
+				access: ctx.access
+			});
+			
 			self.buyStock({
 				amount: -depotentry.amount,
 				leader: ctx.user.id,
-				__force_now__: true
-			}, {id: depotentry.userid}, ctx.access, function() {
+			}, newCtx, true, function() {
 				if (++complete == res.length) 
 					cb();
 			});
@@ -543,8 +549,12 @@ StocksDB.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, 
 	});
 });
 
-StocksDB.prototype.buyStock = buscomponent.provideWQT('client-stock-buy', function(query, ctx, cb) {
+StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
+	['query', 'ctx', 'forceNow', 'reply'], function(query, ctx, forceNow, cb) {
 	var self = this;
+	
+	if (ctx.getProperty('readonly'))
+		return cb('server-readonly');
 	
 	this.getServerConfig(function(cfg) {
 	
@@ -590,15 +600,17 @@ StocksDB.prototype.buyStock = buscomponent.provideWQT('client-stock-buy', functi
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !query.__force_now__) {
+		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !forceNow) {
 			rollback();
 			return cb('stock-buy-email-not-verif');
 		}
 		
-		if (!self.stockExchangeIsOpen(r.exchange, cfg) && !(ctx.access.has('stocks') && query.forceNow) && !query.__force_now__) {
+		forceNow = forceNow || (ctx.access.has('stocks') && query.forceNow);
+		
+		if (!self.stockExchangeIsOpen(r.exchange, cfg) && !forceNow) {
 			rollback();
 			
-			if (!query.__is_delayed__) {
+			if (!query._isDelayed) {
 				query.retainUntilCode = 'stock-buy-success';
 				this.request({name: 'client-dquery', 
 					ctx: ctx,
@@ -646,7 +658,7 @@ StocksDB.prototype.buyStock = buscomponent.provideWQT('client-stock-buy', functi
 			return cb('stock-buy-single-paper-share-exceed');
 		}
 		
-		if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !query.__force_now__) {
+		if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
 			rollback();
 			return cb('stock-buy-over-pieces-limit');
 		}
@@ -674,7 +686,7 @@ StocksDB.prototype.buyStock = buscomponent.provideWQT('client-stock-buy', functi
 				'type': 'trade',
 				'targetid': oh_res.insertId,
 				'srcuser': ctx.user.id,
-				'json': {'__delay__': !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
+				'json': {delay: !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
 				'feedusers': r.leader ? [r.leader] : []
 			});
 			

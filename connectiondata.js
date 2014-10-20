@@ -185,16 +185,6 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 	})(function(query, masterAuthorization) {
 		var recvTime = Date.now();
 		
-		// sanitize by removing everything enclosed in '__'s
-		var sanitizeQuery = function(q) {
-			if (q.query)
-				q.query = sanitizeQuery(q.query);
-			
-			return _.omit(q, _.chain(q).keys().filter(function(k) { return /^__.*__$/.test(k); }));
-		};
-		
-		query = sanitizeQuery(query);
-		
 		self.queryCount++;
 		if (query.lzma) {
 			self.queryLZMACount++;

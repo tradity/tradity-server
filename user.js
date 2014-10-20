@@ -55,8 +55,7 @@ UserDB.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	self.login({
 		name: data.email,
 		stayloggedin: true,
-		__ignore_password__: true
-	}, ctx, xdata, function(code, loginResp) {
+	}, ctx, xdata, true, function(code, loginResp) {
 		assert.equal(code, 'login-success');
 		
 		crypto.randomBytes(16, function(ex, buf) {
@@ -97,7 +96,8 @@ UserDB.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
 	});
 });
 
-UserDB.prototype.login = buscomponent.provideQTX('client-login', function(query, ctx, xdata, cb) {
+UserDB.prototype.login = buscomponent.provide('client-login', 
+	['query', 'ctx', 'xdata', 'ignorePassword', 'reply'], function(query, ctx, xdata, ignorePassword, cb) {
 	var self = this;
 	
 	var name = String(query.name);
@@ -112,7 +112,7 @@ UserDB.prototype.login = buscomponent.provideQTX('client-login', function(query,
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;
-		if (pwhash != sha256(pwsalt + pw) && !query.__ignore_password__) {
+		if (pwhash != sha256(pwsalt + pw) && !ignorePassword) {
 			cb('login-wrongpw');
 			return;
 		}
@@ -393,8 +393,7 @@ UserDB.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', fun
 				self.login({
 					name: email,
 					stayloggedin: true,
-					__ignore_password__: true
-				}, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, cb);
+				}, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, true, cb);
 			});
 			});
 		});
@@ -869,8 +868,7 @@ UserDB.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', 
 				json: {
 					watched: query.stockid, 
 					watcheduser: uid,
-					watchedname: 
-					res[0].name
+					watchedname: res[0].name
 				},
 				feedusers: uid ? [uid] : []
 			});

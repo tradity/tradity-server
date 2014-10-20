@@ -104,8 +104,12 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 	});
 });
 
-FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', function(query, ctx, cb) {
+FileStorageDB.prototype.publish = buscomponent.provide('client-publish',
+	['query', 'ctx', 'groupassoc', 'reply'], function(query, ctx, groupassoc, cb) {
 	var self = this;
+	
+	if (ctx.getProperty('readonly'))
+		return cb('server-readonly');
 	
 	this.getServerConfig(function(cfg) {
 	
@@ -166,12 +170,13 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 		
 		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
-			
+		
+		var groupassoc = groupassoc ? parseInt(groupassoc) : null;
 		var continueAfterDelPrevious = function() {
 			ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
 				[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
-				String(query.role), content, query.__groupassoc__ ? parseInt(query.__groupassoc__) : null, query.proxy ? 1:0], function(res) {
+				String(query.role), content, groupassoc, query.proxy ? 1:0], function(res) {
 				
 				if (ctx.user) {
 					ctx.feed({
@@ -195,7 +200,7 @@ FileStorageDB.prototype.publish = buscomponent.provideQT('client-publish', funct
 				
 				switch (fieldname) {
 					case 'user': dataarr.push(ctx.user.id); break;
-					case 'groupassoc': dataarr.push(query.__groupassoc__); break;
+					case 'groupassoc': dataarr.push(groupassoc); break;
 					default: self.emitError(new Error('Unknown uniqrole field: ' + fieldname));
 				}
 			}

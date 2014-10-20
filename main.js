@@ -109,7 +109,9 @@ if (cluster.isWorker) {
 		});
 	};
 	
-	forkBackgroundWorker();
+	if (cfg.startBackgroundWorker)
+		forkBackgroundWorker();
+	
 	for (var i = 0; i < cfg.wsports.length; ++i) 
 		forkStandardWorker();
 	

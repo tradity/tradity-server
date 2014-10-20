@@ -115,16 +115,35 @@ UserDB.prototype.login = buscomponent.provideQTX('client-login', function(query,
 			self.getServerConfig(function(cfg) {
 				var key = buf.toString('hex');
 				
-				self.regularCallback({}, ctx);
-				
-				ctx.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
-					[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
-				ctx.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
-					'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-					[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
-						cb('login-success', {key: key, uid: uid}, 'repush');
-				});
-				});
+				if (ctx.getProperty('readonly')) {
+					key = key.substr(0, 6);
+					var today = parseInt(Date.now() / 86400);
+					
+					self.request({
+						name: 'createSignedMessage',
+						msg: {
+							uid: uid,
+							sid: key,
+							date: today
+						}
+					}, function(sid) {
+						cb('login-success', {
+							key: ':' + sid,
+							uid: uid
+						}, 'repush');
+					});
+				} else {
+					self.regularCallback({}, ctx);
+					
+					ctx.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
+						[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
+					ctx.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
+						'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
+						[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
+							cb('login-success', {key: key, uid: uid}, 'repush');
+					});
+					});
+				}
 			});
 		});
 	});
@@ -399,26 +418,49 @@ UserDB.prototype.updateUserStatistics = buscomponent.provide('updateUserStatisti
 UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx', 'reply'], function(key, ctx, cb) {
 	var self = this;
 	
-	ctx.query('SELECT users.*, sessions.id AS sid, users.id AS uid, ' +
-		'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
-		'FROM sessions ' +
-		'JOIN users ON sessions.uid = users.id ' +
-		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
-		'LEFT JOIN schools ON schools.id = sm.schoolid ' +
-		'WHERE `key` = ? AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() LIMIT 1', [key], function(res) {
-		if (res.length == 0) {
-			cb(null);
-		} else {
-			assert.equal(res.length, 1);
-			var user = res[0];
-			user.id = user.uid;
-			user.realnamepublish = !!user.realnamepublish;
-			user.delayorderhist = !!user.delayorderhist;
+	var signedLogin = (key[0] == ':');
+	
+	(signedLogin ? function(cont) {
+		// was signed login, e. g. during read-only period
+		self.request({
+			name: 'verifySignedMessage',
+			msg: key.substr(1),
+		}, function(msg) {
+			var today = parseInt(Date.now() / 86400);
+			if (!msg || msg.date <= today - 1) // message at least 24 hours old
+				return cb(null);
 			
-			self.updateUserStatistics(user, ctx);
-			
-			cb(user);
-		}
+			cont(msg.uid, msg.sid);
+		});
+	} : function(cont) {
+		cont(null, key);
+	})(function(uid, key) {
+		ctx.query('SELECT users.*, users.id AS uid, ' + (signedLogin ? '' : 'sessions.id AS sid, ') +
+			'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
+			'FROM users ' +
+			(signedLogin ? '' : 'JOIN sessions ON sessions.uid = users.id ') +
+			'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
+			'LEFT JOIN schools ON schools.id = sm.schoolid ' +
+			'WHERE ' + (signedLogin ? 'uid = ? ' : '`key` = ? ' +
+			(cfg.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
+			'LIMIT 1', [signedLogin ? uid : key], function(res) {
+			if (res.length == 0) {
+				cb(null);
+			} else {
+				assert.equal(res.length, 1);
+				var user = res[0];
+				user.id = user.uid;
+				user.realnamepublish = !!user.realnamepublish;
+				user.delayorderhist = !!user.delayorderhist;
+				
+				if (signedLogin)
+					user.sid = key;
+				
+				self.updateUserStatistics(user, ctx);
+				
+				cb(user);
+			}
+		});
 	});
 });
 

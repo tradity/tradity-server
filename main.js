@@ -154,7 +154,8 @@ function worker() {
 		}
 		
 		var loadComponents = [
-			'./errorhandler.js', './emailsender.js', './dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './user.js'
+			'./errorhandler.js', './emailsender.js', './signedmsg.js', './dbbackend.js', './feed.js',
+			'./template-loader.js', './stocks.js', './user.js'
 		].concat(process.isBackgroundWorker ? [
 			'./background-worker.js', './dqueries.js'
 		] : [

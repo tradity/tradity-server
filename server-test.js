@@ -62,7 +62,7 @@ socket.on('connect', function() {
 				});
 				break;
 			case 'register':
-				assert(data.code == 'reg-success', 'Register return code should be email-success');
+				assert.equal(data.code, 'reg-success');
 				emit('query', {
 					type: 'login',
 					id: 'login-1',

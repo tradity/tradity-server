@@ -11,7 +11,6 @@ var Access = require('./access.js').Access;
 
 function ConnectionData(socket) {
 	this.ctx = new qctx.QContext();
-	this.lzmaSupport = false;
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
 	this.cdid = Date.now() + '-' + this.remoteip + '-' + ConnectionData.uniqueCount++;
@@ -24,6 +23,8 @@ function ConnectionData(socket) {
 	
 	this.ctx.addProperty({name: 'lastSessionUpdate', value: null});
 	this.ctx.addProperty({name: 'pendingTicks', value: 0});
+	this.ctx.addProperty({name: 'remoteProtocolVersion', value: null});
+	this.ctx.addProperty({name: 'lzmaSupport', value: false});
 	
 	this.queryCount = 0;
 	this.queryLZMACount = 0;
@@ -52,7 +53,8 @@ ConnectionData.prototype.onBusConnect = function() {
 
 ConnectionData.prototype.stats = function() {
 	return {
-		lzma: this.lzmaSupport,
+		lzma: this.ctx.getProperty('lzmaSupport'),
+		remoteProtocolVersion: this.ctx.getProperty('remoteProtocolVersion'),
 		user: this.ctx.user ? { name: this.ctx.user.name, uid: this.ctx.user.uid } : null,
 		lastInfoPush: this.lastInfoPush,
 		mostRecentEventTime: this.mostRecentEventTime,
@@ -189,8 +191,12 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		self.queryCount++;
 		if (query.lzma) {
 			self.queryLZMACount++;
-			self.lzmaSupport = true;
+			self.ctx.setProperty('lzmaSupport', true);
 		}
+		
+		if (query.pv)
+			self.ctx.setProperty('remoteProtocolVersion', parseInt(query.pv) ||
+				self.ctx.getProperty('remoteProtocolVersion'));
 		
 		var hadUser = self.ctx.user ? true : false;
 		
@@ -336,10 +342,12 @@ ConnectionData.prototype.wrapForReply = function(obj, cb) {
 			return this.emitError(e);
 	}
 	
-	if (!this.socket)
-		this.lzmaSupport = false;
+	if (!this.socket) {
+		this.ctx.setProperty('lzmaSupport', false);
+		this.ctx.setProperty('remoteProtocolVersion', null);
+	}
 	
-	_.bind(s.length > 20480 && this.lzmaSupport ? function(cont) {
+	_.bind(s.length > 20480 && this.ctx.getProperty('lzmaSupport') ? function(cont) {
 		this.queryLZMAUsedCount++;
 		
 		var buflist = [];

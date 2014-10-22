@@ -27,5 +27,3 @@ DirectTransport.prototype.toJSON = function() {
 exports.DirectTransport = DirectTransport;
 
 })();
-
-

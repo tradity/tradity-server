@@ -33,6 +33,7 @@ function Bus () {
 	this.responseWaiters = {};
 	
 	this.msgCount = 0;
+	this.lostPackets = false;
 	this.busNodeInfoQueued = false;
 	
 	this.packetLog = [];
@@ -71,7 +72,7 @@ function Bus () {
 util.inherits(Bus, events.EventEmitter);
 
 Bus.prototype.toJSON = function() {
-	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'components', 'hostname', 'pid');
+	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'lostPackets', 'components', 'hostname', 'pid');
 };
 
 Bus.prototype.determineBusID = function() {
@@ -135,6 +136,8 @@ Bus.prototype.addTransport = function(transport, done) {
 	done = done || function() {};
 	
 	assert.ok(transport.weight || transport.weight === 0);
+	assert.ok(transport.on);
+	assert.ok(transport.emit);
 	assert.equal(typeof transport.source, 'undefined');
 	assert.equal(typeof transport.target, 'undefined');
 	assert.equal(typeof transport.id, 'undefined');
@@ -254,6 +257,13 @@ Bus.prototype.busGraphUpdated = function() {
 		.filter('node');
 			
 	assert.ok(this.localNodes && this.localNodes.length >= 1);
+	
+	// inform response waiters that nodes may have been removed and are therefore not able to answer requests
+	for (var i in this.responseWaiters) {
+		var w = this.responseWaiters[i];
+		if (w.handleResponse)
+			w.handleResponse(null);
+	}
 };
 
 Bus.prototype.logPacket = function(packet) {
@@ -291,7 +301,10 @@ Bus.prototype.handleBusPacket = function(packet) {
 		} else {
 			var targetNode = self.busGraph.getElementById(recpId);
 			
-			assert.ok(targetNode && targetNode.isNode());
+			if (!targetNode || !targetNode.isNode()) {
+				self.lostPackets++;
+				continue;
+			}
 			
 			var path = self.dijkstra.pathTo(targetNode);
 			assert.ok(path);
@@ -299,6 +312,8 @@ Bus.prototype.handleBusPacket = function(packet) {
 			
 			// add recipient id to recipient list for this transport
 			var nextTransport = path[1].data();
+			assert.ok(nextTransport && nextTransport.emit);
+			
 			if (nextTransports[nextTransport.id])
 				nextTransports[nextTransport.id].recipients.push(recpId);
 			else
@@ -310,7 +325,8 @@ Bus.prototype.handleBusPacket = function(packet) {
 		var transport = nextTransports[i].transport;
 		var packet_ = _.clone(packet);
 		packet_.recipients = nextTransports[i].recipients;
-		
+
+		transport.msgCount++;
 		transport.emit('bus::packet', packet_);
 	}
 	
@@ -422,6 +438,10 @@ Bus.prototype.expandScope = function(scope, eventType) {
 	return scope;
 };
 
+Bus.prototype.listAllIds = function() {
+	return this.busGraph.elements().map(function(e) { return e.id(); });
+};
+
 Bus.prototype.emit = function(name, data) {
 	// do not propagate events provided by EventEmitter
 	if (name == 'newListener' || name == 'removeListener')
@@ -493,6 +513,7 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 	
 	// scope is now array of target ids
 	assert.ok(_.isArray(recipients));
+	assert.ok(_.difference(recipients, self.listAllIds()).length == 0);
 	
 	if (recipients.length == 0) {
 		var e = new Error('Nonexistent event/request type: ' + req.name);
@@ -516,12 +537,16 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 	var responsePackets = [];
 	self.responseWaiters[requestId] = {
 		handleResponse: function(responsePacket) {
-			assert.ok(responsePacket.sender);
+			if (responsePacket !== null) {
+				assert.ok(responsePacket.sender);
+				
+				responsePackets.push(responsePacket);
+			}
 			
-			responsePackets.push(responsePacket);
+			var availableRecipients = self.listAllIds();
 			
 			// all responses in?
-			if (responsePackets.length != recipients.length) 
+			if (responsePackets.length != _.intersection(availableRecipients, recipients).length) 
 				return; // wait until they are
 			
 			delete self.responseWaiters[requestId];
@@ -551,6 +576,7 @@ Bus.prototype.stats = function() {
 	return {
 		unanswered: _.keys(this.responseWaiters).length,
 		msgCount: this.msgCount,
+		lostPackets: this.lostPackets,
 		id: this.id,
 		components: this.components,
 		busGraph: this.busGraph.json()

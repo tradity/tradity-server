@@ -5,7 +5,7 @@ var util = require('util');
 var assert = require('assert');
 var events = require('events');
 var os = require('os');
-var hash = require('mhash').hash;
+var crypto = require('crypto');
 var cytoscape = require('cytoscape');
 
 function Bus () {
@@ -77,7 +77,7 @@ Bus.prototype.toJSON = function() {
 
 Bus.prototype.determineBusID = function() {
 	// return hostname and hash of network interfaces, process id, current time
-	return this.hostname + '-' + hash('sha256', JSON.stringify(os.networkInterfaces()) + '|' +
+	return this.hostname + '-' + sha256(JSON.stringify(os.networkInterfaces()) + '|' +
 		this.pid + '|' + Date.now()).substr(0, 12);
 };
 
@@ -143,7 +143,7 @@ Bus.prototype.addTransport = function(transport, done) {
 	assert.equal(typeof transport.id, 'undefined');
 	assert.equal(typeof transport.msgCount, 'undefined');
 	
-	var edgeId = ++self.curId;
+	var edgeId = sha256(Math.random() + '.' + Date.now()).substr(0, 4);
 
 	/* three-way handshake, similar to tcp */
 	transport.on('bus::handshakeSYN', function(d) {
@@ -151,7 +151,8 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (id == self.id)
 			return;
 		
-		edgeId = d.edgeId;
+		if (d.edgeId < edgeId)
+			edgeId = d.edgeId; // take minimum
 		
 		transport.emit('bus::handshakeSYNACK', self.id);
 		self.emitBusNodeInfo([transport], true);
@@ -312,7 +313,8 @@ Bus.prototype.handleBusPacket = function(packet) {
 			
 			// add recipient id to recipient list for this transport
 			var nextTransport = path[1].data();
-			assert.ok(nextTransport && nextTransport.emit);
+			assert.ok(nextTransport);
+			assert.ok(nextTransport.emit);
 			
 			if (nextTransports[nextTransport.id])
 				nextTransports[nextTransport.id].recipients.push(recpId);
@@ -657,5 +659,11 @@ cytoscape('core', 'union', function(g2) {
 	
 	return cytoscape({elements: elements});
 });
+
+function sha256(s) {
+	var h = crypto.createHash('sha256');
+	h.end(s);
+	return h.read().toString('hex');
+}
 
 })();

@@ -2,7 +2,6 @@
 
 var _ = require('underscore');
 var util = require('util');
-var hash = require('mhash').hash;
 var crypto = require('crypto');
 var assert = require('assert');
 var buscomponent = require('./bus/buscomponent.js');

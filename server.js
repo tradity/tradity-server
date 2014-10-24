@@ -51,7 +51,11 @@ SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get
 
 SoTradeServer.prototype.start = function(port) {
 	this.getServerConfig(function(cfg) {
-		this.httpServer = (cfg.http.secure ? https : http).createServer(cfg.http);
+		if (cfg.http.secure)
+			this.httpServer = https.createServer(cfg.http);
+		else
+			this.httpServer = http.createServer();
+		
 		this.httpServer.on('request', _.bind(this.handleHTTPRequest, this));
 		this.httpServer.listen(port, cfg.wshost);
 		

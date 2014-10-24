@@ -4,6 +4,7 @@ var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
 var http = require('http');
+var https = require('http');
 var url = require('url');
 var sio = require('socket.io');
 var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
@@ -50,7 +51,7 @@ SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get
 
 SoTradeServer.prototype.start = function(port) {
 	this.getServerConfig(function(cfg) {
-		this.httpServer = http.createServer();
+		this.httpServer = (cfg.http.secure ? https : http).createServer(cfg.http);
 		this.httpServer.on('request', _.bind(this.handleHTTPRequest, this));
 		this.httpServer.listen(port, cfg.wshost);
 		

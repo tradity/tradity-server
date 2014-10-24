@@ -173,33 +173,30 @@ Bus.prototype.addTransport = function(transport, done) {
 		
 		self.handleTransportNodeInfo(data); // modifies busGraph property!
 		
-		var nodeIDs = [data.id, self.id].sort(); // sort for normalization
-		var src = self.busGraph.getElementById(nodeIDs[0]);
-		var dst = self.busGraph.getElementById(nodeIDs[1]);
+		var nodeIDs = [data.id, self.id].sort(); // sort for normalization across nodes
+		var transportGraphID = nodeIDs.join('-') + '-' + edgeId;
 		
-		assert.ok(src && src.isNode());
-		assert.ok(dst && dst.isNode());
+		assert.ok(self.busGraph.getElementById(nodeIDs[0]).isNode());
+		assert.ok(self.busGraph.getElementById(nodeIDs[1]).isNode());
 		
-		var presentEdges = src.edgesWith(dst);
-		if (!presentEdges.data()) {
-			// edge not present in graph -> add it
-			
-			transport.source = nodeIDs[0];
-			transport.target = nodeIDs[1];
-			transport.id = nodeIDs.join('-') + '-' + edgeId;
-			transport.msgCount = 0;
-			
-			self.busGraph.add({
-				group: 'edges',
-				data: transport
-			});
-			
-			self.busGraphUpdated();
-			
-			self.transports.push(transport);
-			
-			self.emitBusNodeInfoSoon();
-		}
+		// remove the edge, if present, since it may have been updated
+		// during reading the remote node info (in which case emit() & co are missing!)
+		self.busGraph.remove(self.busGraph.getElementById(transportGraphID));
+		transport.source = nodeIDs[0];
+		transport.target = nodeIDs[1];
+		transport.id = transportGraphID;
+		transport.msgCount = 0;
+		
+		self.busGraph.add({
+			group: 'edges',
+			data: transport
+		});
+		
+		self.busGraphUpdated();
+		
+		self.transports.push(transport);
+		
+		self.emitBusNodeInfoSoon();
 		
 		if (!doneCalled) {
 			doneCalled = true;
@@ -234,7 +231,10 @@ Bus.prototype.addTransport = function(transport, done) {
 };
 
 Bus.prototype.handleTransportNodeInfo = function(busnode) {
+	var self = this;
+	
 	this.busGraph = this.busGraph.union(cytoscape(busnode.graph));
+	
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
 	
 	this.busGraphUpdated();

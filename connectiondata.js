@@ -194,9 +194,9 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 			self.ctx.setProperty('lzmaSupport', true);
 		}
 		
-		if (query.pv)
-			self.ctx.setProperty('remoteProtocolVersion', parseInt(query.pv) ||
-				self.ctx.getProperty('remoteProtocolVersion'));
+		self.ctx.setProperty('remoteProtocolVersion', 
+			(query.pv ? parseInt(query.pv) ||
+			self.ctx.getProperty('remoteProtocolVersion') : 1));
 		
 		var hadUser = self.ctx.user ? true : false;
 		

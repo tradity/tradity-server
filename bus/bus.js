@@ -24,6 +24,7 @@ function Bus () {
 			}
 		]
 	});
+	
 	this.ownNode = null;
 	this.dijkstra = null;
 	this.localNodes = null;
@@ -41,6 +42,7 @@ function Bus () {
 	
 	this.components = [];
 	this.transports = [];
+	this.removedTransports = [];
 	
 	this.inputFilters = [];
 	this.outputFilters = [];
@@ -143,24 +145,28 @@ Bus.prototype.addTransport = function(transport, done) {
 	assert.equal(typeof transport.id, 'undefined');
 	assert.equal(typeof transport.msgCount, 'undefined');
 	
-	var edgeId = sha256(Math.random() + '.' + Date.now()).substr(0, 4);
+	var edgeId = sha256(Math.random() + '.' + Date.now()).substr(0, 8);
 
-	/* three-way handshake, similar to tcp */
+	// Do a three-way handshake, similar to TCP
+	// This has the purpose of checking connectivity
+	// for both outgoing and incoming events
 	transport.on('bus::handshakeSYN', function(d) {
-		var id = d.id;
-		if (id == self.id)
+		if (d.id == self.id)
 			return;
 		
 		if (d.edgeId < edgeId)
 			edgeId = d.edgeId; // take minimum
 		
-		transport.emit('bus::handshakeSYNACK', self.id);
+		transport.emit('bus::handshakeSYNACK', {id: self.id, edgeId: edgeId});
 		self.emitBusNodeInfo([transport], true);
 	});
 	
-	transport.on('bus::handshakeSYNACK', function(id) {
-		if (id == self.id)
+	transport.on('bus::handshakeSYNACK', function(d) {
+		if (d.id == self.id)
 			return;
+		
+		if (d.edgeId < edgeId)
+			edgeId = d.edgeId; // take minimum
 		
 		self.emitBusNodeInfo([transport], true);
 	});
@@ -171,7 +177,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (data.id == self.id)
 			return;
 		
-		self.handleTransportNodeInfo(data); // modifies busGraph property!
+		self.handleTransportNodeInfo(data, true); // modifies busGraph property!
 		
 		var nodeIDs = [data.id, self.id].sort(); // sort for normalization across nodes
 		var transportGraphID = nodeIDs.join('-') + '-' + edgeId;
@@ -182,6 +188,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		// remove the edge, if present, since it may have been updated
 		// during reading the remote node info (in which case emit() & co are missing!)
 		self.busGraph.remove(self.busGraph.getElementById(transportGraphID));
+		
 		transport.source = nodeIDs[0];
 		transport.target = nodeIDs[1];
 		transport.id = transportGraphID;
@@ -216,26 +223,46 @@ Bus.prototype.addTransport = function(transport, done) {
 	});
 	
 	transport.on('disconnect', function() {
+		self.removedTransports.push(transport.id);
 		self.busGraph.remove(self.busGraph.getElementById(transport.id));
 		
-		// reload the graph, choosing only the current connected component
-		var ownNode = self.busGraph.getElementById(self.id);
-		assert.ok(ownNode && ownNode.isNode());
+		var tIndex = self.transports.indexOf(transport);
+		assert.ok(tIndex != -1 || !doneCalled);
+		if (tIndex != -1)
+			self.transports.splice(tIndex, 1); // remove from transports list
 		
-		var cc = self.busGraph.elements().connectedComponent(self.busGraph.getElementById(self.id));
-		self.busGraph.load(cc.map(function(e) { return e.json(); }));
-		assert.ok(self.busGraph.elements().length > 0);
+		self.localizeBusGraph();
 		
 		self.busGraphUpdated();
 	});
 };
 
-Bus.prototype.handleTransportNodeInfo = function(busnode) {
+Bus.prototype.localizeBusGraph = function() {
+	// reload the graph, choosing only the current connected component
+	var ownNode = this.busGraph.getElementById(this.id);
+	assert.ok(ownNode && ownNode.isNode());
+	
+	var cc = this.busGraph.elements().connectedComponent(this.busGraph.getElementById(this.id));
+	this.busGraph.load(cc.map(function(e) { return e.json(); }));
+	assert.ok(this.busGraph.elements().length > 0);
+};
+
+Bus.prototype.handleTransportNodeInfo = function(busnode, dontLocalize) {
 	var self = this;
 	
 	this.busGraph = this.busGraph.union(cytoscape(busnode.graph));
 	
+	// remove edges that have been removed locally
+	// (the remote may not yet be aware of that fact)
+	for (var i = 0; i < this.removedTransports.length; ++i)
+		this.busGraph.remove(this.busGraph.getElementById(this.removedTransports[i]));
+	
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
+	
+	// localization may be supressed, e. g. because this is an initial node info
+	// and the edge that keeps the graph connected is yet to be added
+	if (!dontLocalize)
+		this.localizeBusGraph();
 	
 	this.busGraphUpdated();
 };
@@ -256,7 +283,7 @@ Bus.prototype.busGraphUpdated = function() {
 	this.localNodes = this.busGraph.filter('node, edge[?isLocal]')
 		.connectedComponent(this.busGraph.getElementById(this.id))
 		.filter('node');
-			
+	
 	assert.ok(this.localNodes && this.localNodes.length >= 1);
 	
 	// inform response waiters that nodes may have been removed and are therefore not able to answer requests

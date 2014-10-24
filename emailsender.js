@@ -16,7 +16,7 @@ MailerDB.prototype._init = function(cb) {
 	var self = this;
 	
 	this.getServerConfig(function(cfg) {
-		self.mailer = nodemailer.createTransport(cfg.mail.transport, cfg.mail.transportData);
+		self.mailer = nodemailer.createTransport(cfg.mail.transport(cfg.mail.transportData));
 		self.inited = true;
 		cb();
 	});
@@ -25,7 +25,14 @@ MailerDB.prototype._init = function(cb) {
 MailerDB.prototype.sendMail = buscomponent.provide('sendMail', ['opt', 'reply'], buscomponent.needsInit(function(opt, cb) {
 	assert.ok(this.mailer);
 	
-	this.mailer.sendMail(opt, cb);
+	this.getServerConfig(function(cfg) {
+		if (cfg.mail.forceTo)
+			opt.to = cfg.mail.forceTo;
+		if (cfg.mail.forceFrom)
+			opt.to = cfg.mail.forceFrom;
+		
+		this.mailer.sendMail(opt, cb);
+	});
 }));
 
 exports.MailerDB = MailerDB;

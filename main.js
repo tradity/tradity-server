@@ -186,6 +186,11 @@ function connectToSocketIORemote(remote) {
 	}, function(signed) {
 		var socket = sio.connect(remote.url);
 		
+		socket.on('disconnect', function() {
+			// auto-reconnect
+			connectToSocketIORemote(remote);
+		});
+		
 		mainBus.on('localShutdown', function() {
 			if (socket) {
 				socket.io.reconnectionAttempts(0);

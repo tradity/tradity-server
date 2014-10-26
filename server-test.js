@@ -13,7 +13,7 @@ var smdb = new SignedMessagingDB();
 smdb.useConfig(cfg);
 
 var protocol = cfg.http.secure ? 'https' : 'http';
-var socket = sio.connect(protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + cfg.wsports[0]);
+var socket = sio.connect(protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + (cfg.wsporte || cfg.wsports[0]));
 var key = '';
 var schoolid = 'Musterschule';
 var schoolname = schoolid;

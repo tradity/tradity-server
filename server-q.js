@@ -33,7 +33,8 @@ for (var i = 1; i < options.length; ++i) {
 	query[p[1]] = value;
 }
 
-var socket = sio.connect('http://' + (query.wshost || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
+var protocol = cfg.http.secure ? 'https' : 'http';
+var socket = sio.connect(protocol + '://' + (query.wshost || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
 var key = '';
 
 if (query.timeout) {

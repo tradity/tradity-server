@@ -12,7 +12,8 @@ var SignedMessagingDB = require('./signedmsg.js').SignedMessagingDB;
 var smdb = new SignedMessagingDB();
 smdb.useConfig(cfg);
 
-var socket = sio.connect('http://' + cfg.wshost + ':' + cfg.wsports[0]);
+var protocol = cfg.http.secure ? 'https' : 'http';
+var socket = sio.connect(protocol + '://' + cfg.wshost + ':' + cfg.wsports[0]);
 var key = '';
 var schoolid = 'Musterschule';
 var schoolname = schoolid;

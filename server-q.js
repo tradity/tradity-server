@@ -34,7 +34,7 @@ for (var i = 1; i < options.length; ++i) {
 }
 
 var protocol = cfg.http.secure ? 'https' : 'http';
-var socket = sio.connect(protocol + '://' + (query.wshost || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
+var socket = sio.connect(protocol + '://' + (query.wshost || cfg.wshoste || cfg.wshost) + ':' + (query.wsport || cfg.wsports[0]));
 var key = '';
 
 if (query.timeout) {

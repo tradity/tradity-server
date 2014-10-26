@@ -44,6 +44,8 @@ function Bus () {
 	this.transports = [];
 	this.removedTransports = [];
 	
+	this.remotesWithOurBusNodeInfo = [];
+	
 	this.inputFilters = [];
 	this.outputFilters = [];
 	this.nonLoggedPacketNames = ['bus::nodeInfo'];
@@ -67,8 +69,22 @@ function Bus () {
 	});
 	
 	this.on('bus::nodeInfo', function(data) {
+		assert.ok(data.id && _.isString(data.id));
+		assert.ok(data.graph);
+		assert.ok(data.handledEvents && _.isArray(data.handledEvents));
+		
+		if (data.id == this.id)
+			return;
+		
 		this.handleTransportNodeInfo(data);
+		
+		if (this.remotesWithOurBusNodeInfo.indexOf(data.id) == -1) {
+			this.remotesWithOurBusNodeInfo.push(data.id);
+			this.emitBusNodeInfoSoon();
+		}
 	});
+	
+	assert.notEqual(this.handledEvents.indexOf('bus::nodeInfo'), -1);
 }
 
 util.inherits(Bus, events.EventEmitter);
@@ -112,7 +128,7 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
 		for (var i = 0; i < transports.length; ++i)
 			transports[i].emit('bus::nodeInfoInitial', info);
 	} else {
-		this.emit('bus::nodeInfo', info);
+		this.emitGlobal('bus::nodeInfo', info);
 	}
 }
 

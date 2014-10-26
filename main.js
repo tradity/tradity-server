@@ -42,7 +42,7 @@ var readonly = cfg.readonly;
 manager.getReadabilityMode = buscomponent.provide('get-readability-mode', ['reply'], function(cb) { cb({readonly: readonly}); });
 manager.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) { readonly = event.readonly; });
 
-manager.setBus(mainBus);
+manager.setBus(mainBus, 'manager-' + process.pid);
 
 // load super-essential components
 loadComponents(['./errorhandler.js', './emailsender.js', './signedmsg.js']);

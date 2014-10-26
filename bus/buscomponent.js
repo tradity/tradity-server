@@ -91,22 +91,32 @@ BusComponent.prototype.once = function(event, listener) {
 };
 
 BusComponent.prototype.emit = function(name, data) {
+	if (!this.bus)
+		throw new Error('Cannot emit event "' + name + '" without bus connection');
 	return this.bus.emit(name, data);
 };
 
 BusComponent.prototype.emitImmediate = function(name, data) {
+	if (!this.bus)
+		throw new Error('Cannot emit event "' + name + '" without bus connection');
 	return this.bus.emitImmediate(name, data);
 };
 
 BusComponent.prototype.emitLocal = function(name, data) {
+	if (!this.bus)
+		throw new Error('Cannot emit event "' + name + '" without bus connection');
 	return this.bus.emitLocal(name, data);
 };
 
 BusComponent.prototype.emitGlobal = function(name, data) {
+	if (!this.bus)
+		throw new Error('Cannot emit event "' + name + '" without bus connection');
 	return this.bus.emitGlobal(name, data);
 };
 
 BusComponent.prototype.emitError = function(e) {
+	if (!this.bus)
+		throw e;
 	return this.bus.emitImmediate('error', e);
 };
 

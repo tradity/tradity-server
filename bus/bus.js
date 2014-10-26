@@ -250,6 +250,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		self.localizeBusGraph();
 		
 		self.busGraphUpdated();
+		
 	});
 };
 
@@ -263,21 +264,31 @@ Bus.prototype.localizeBusGraph = function() {
 	assert.ok(this.busGraph.elements().length > 0);
 };
 
-Bus.prototype.handleTransportNodeInfo = function(busnode, dontLocalize) {
-	var self = this;
+Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
+	var pluckID = function(e) { return e.id(); };
 	
-	this.busGraph = this.busGraph.union(cytoscape(busnode.graph));
+	var remoteBusGraph = cytoscape(busnode.graph);
+	this.busGraph = this.busGraph.union(remoteBusGraph);
+	
+	// Remove edges from the graph of which the remote node is an endpoint (but we are not)
+	// and which are not present in the remote graph;
+	// Work with IDs since the nodes are in different Cytoscape instances
+	var rEdgesInUnion = this.busGraph.getElementById(busnode.id).edgesWith(this.busGraph.elements()).map(pluckID);
+	var rEdgesInRGraph = remoteBusGraph.getElementById(busnode.id).edgesWith(remoteBusGraph.elements()).map(pluckID);
+	var ownEdges = this.busGraph.getElementById(this.id).edgesWith(this.busGraph.elements()).map(pluckID);
+	var edgesToRemove = _.difference(_.difference(rEdgesInUnion, rEdgesInRGraph), ownEdges);
 	
 	// remove edges that have been removed locally
 	// (the remote may not yet be aware of that fact)
-	for (var i = 0; i < this.removedTransports.length; ++i)
-		this.busGraph.remove(this.busGraph.getElementById(this.removedTransports[i]));
+	edgesToRemove = _.union(edgesToRemove, this.removedTransports);
+	for (var i = 0; i < edgesToRemove.length; ++i)
+		this.busGraph.remove(this.busGraph.getElementById(edgesToRemove[i]));
 	
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
 	
 	// localization may be supressed, e. g. because this is an initial node info
 	// and the edge that keeps the graph connected is yet to be added
-	if (!dontLocalize)
+	if (!doNotLocalize)
 		this.localizeBusGraph();
 	
 	this.busGraphUpdated();

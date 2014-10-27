@@ -1,6 +1,7 @@
 (function () { "use strict";
 
 var _ = require('underscore');
+var os = require('os');
 var util = require('util');
 var assert = require('assert');
 var http = require('http');
@@ -34,6 +35,7 @@ SoTradeServer.prototype.getServerStatistics = buscomponent.provide('internal-get
 		cb({
 			readonly: reply.readonly,
 			pid: process.pid,
+			hostname: os.hostname(),
 			isBackgroundWorker: process.isBackgroundWorker,
 			creationTime: self.creationTime,
 			clients: _.map(self.clients, function(x) { return x.stats(); }),

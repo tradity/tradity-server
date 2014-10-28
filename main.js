@@ -190,8 +190,8 @@ function connectToSocketIORemote(remote) {
 		if (sslOpts === 'default')
 			sslOpts = cfg.ssl;
 		
-		var httpx = (sslOpts || url.match(/^https/) ? http : https);
-		var socket = sio.connect(remote.url, { agent: new httpx.Agent(sslOpts)});
+		var httpx = (sslOpts ? http : https);
+		var socket = sio.connect(remote.url, sslOpts ? { agent: new httpx.Agent(sslOpts) } : null);
 		
 		socket.on('error', function(e) {
 			manager.emitError(e);

@@ -5,7 +5,6 @@ var assert = require('assert');
 var fs = require('fs');
 var crypto = require('crypto');
 var os = require('os');
-var http = require('http');
 var https = require('https');
 var cluster = require('cluster');
 
@@ -190,8 +189,7 @@ function connectToSocketIORemote(remote) {
 		if (sslOpts === 'default')
 			sslOpts = cfg.ssl;
 		
-		var httpx = (sslOpts ? http : https);
-		var socket = sio.connect(remote.url, sslOpts ? { agent: new httpx.Agent(sslOpts) } : null);
+		var socket = sio.connect(remote.url, sslOpts ? { agent: new https.Agent(sslOpts) } : null);
 		
 		socket.on('error', function(e) {
 			manager.emitError(e);

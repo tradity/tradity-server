@@ -186,6 +186,10 @@ function connectToSocketIORemote(remote) {
 	}, function(signed) {
 		var socket = sio.connect(remote.url);
 		
+		socket.on('error', function(e) {
+			manager.emitError(e);
+		});
+		
 		socket.on('disconnect', function() {
 			// auto-reconnect
 			connectToSocketIORemote(remote);

@@ -29,6 +29,9 @@ Database.prototype._init = function(cb) {
 			var id = cfg.db.clusterOptions.order[i];
 			var opt = _.deepupdate(cfg.db.cluster[id], cfg.db);
 			
+			if (opt.ssl === 'default')
+				opt.ssl = cfg.ssl || {};
+			
 			if (opt.writable) {
 				self.writableNodes.push(id);
 				self.wConnectionPool.add(id, opt);

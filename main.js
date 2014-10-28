@@ -5,6 +5,8 @@ var assert = require('assert');
 var fs = require('fs');
 var crypto = require('crypto');
 var os = require('os');
+var http = require('http');
+var https = require('https');
 var cluster = require('cluster');
 
 var qctx = require('./qctx.js');
@@ -184,7 +186,12 @@ function connectToSocketIORemote(remote) {
 			weight: remote.weight
 		}
 	}, function(signed) {
-		var socket = sio.connect(remote.url);
+		var sslOpts = remote.ssl || null;
+		if (sslOpts === 'default')
+			sslOpts = cfg.ssl;
+		
+		var httpx = (sslOpts || url.match(/^https/) ? http : https);
+		var socket = sio.connect(remote.url, { agent: new httpx.Agent(sslOpts)});
 		
 		socket.on('error', function(e) {
 			manager.emitError(e);

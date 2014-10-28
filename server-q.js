@@ -2,6 +2,7 @@
 
 var sio = require('socket.io-client');
 var fs = require('fs');
+var https = require('https');
 var assert = require('assert');
 var util = require('util');
 var _ = require('underscore');
@@ -34,7 +35,11 @@ for (var i = 1; i < options.length; ++i) {
 }
 
 var protocol = cfg.http.secure ? 'https' : 'http';
-var socket = sio.connect(protocol + '://' + (query.wshost || cfg.wshoste || cfg.wshost) + ':' + (query.wsport || cfg.wsporte || cfg.wsports[0]));
+var socket = sio.connect(query.wsurl || (protocol + '://' +
+	(query.wshost || cfg.wshoste || cfg.wshost) + ':' +
+	(query.wsport || cfg.wsporte || cfg.wsports[0])), query.ssldefault ? { 
+		agent: new https.Agent(cfg.ssl)
+		}: null);
 var key = '';
 
 if (query.timeout) {

@@ -128,7 +128,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
 						s.parentPath = parentPath(s.path);
-						self.loadSchoolInfo(s.parentPath, ctx.user, ctx.access, cfg, function(code, result) {
+						self.loadSchoolInfo(s.parentPath, ctx, cfg, function(code, result) {
 							assert.equal(code, 'get-school-info-success');
 							
 							s.parentSchool = result;

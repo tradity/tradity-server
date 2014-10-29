@@ -414,7 +414,7 @@ UserDB.prototype.updateUserStatistics = buscomponent.provide('updateUserStatisti
 		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
 	} else {
 		ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]);
-		ctx.query('UPDATE users SET ticks = ? + 1 WHERE id = ?', [ctx.getProperty('pendingTicks'), user.id]);
+		ctx.query('UPDATE users SET ticks = ? + ticks WHERE id = ?', [ctx.getProperty('pendingTicks'), user.id]);
 		ctx.setProperty('pendingTicks', 0);
 		ctx.setProperty('lastSessionUpdate', now);
 	}

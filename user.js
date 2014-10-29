@@ -716,7 +716,7 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							cb('reg-success', {uid: uid}, 'repush');
 						else 
 							self.sendRegisterEmail(query,
-								new qctx.QContext({user: {id: uid, uid: id}, access: ctx.access, parentComponent: self}),
+								new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access, parentComponent: self}),
 								xdata,
 								cb);
 					});

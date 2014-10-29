@@ -612,7 +612,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			
 			if (!query._isDelayed) {
 				query.retainUntilCode = 'stock-buy-success';
-				this.request({name: 'client-dquery', 
+				self.request({name: 'client-dquery', 
 					ctx: ctx,
 					query: { 
 						condition: 'stock::' + r.stockid + '::exchange-open > 0',

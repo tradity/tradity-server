@@ -300,7 +300,8 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 					'LEFT JOIN users AS u ON oh.leader = u.id ' + 
 					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
-					[xuser.uid, (xuser.delayorderhist && xuser.uid != ctx.user.uid && !ctx.access.has('stocks')) ? cfg.delayOrderHistTime : 0], function(orders) {
+					[xuser.uid, (!ctx.user || (xuser.delayorderhist && xuser.uid != ctx.user.uid && !ctx.access.has('stocks')))
+						? cfg.delayOrderHistTime : 0], function(orders) {
 					ctx.query('SELECT * FROM achievements ' +
 						'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
 						'WHERE userid = ?', [xuser.uid], function(achievements) {
@@ -716,7 +717,7 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							cb('reg-success', {uid: uid}, 'repush');
 						else 
 							self.sendRegisterEmail(query,
-								new qctx.QContext({user: {id: uid, uid: id}, access: ctx.access, parentComponent: self}),
+								new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access, parentComponent: self}),
 								xdata,
 								cb);
 					});

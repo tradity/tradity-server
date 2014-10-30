@@ -25,6 +25,7 @@ function ConnectionData(socket) {
 	this.ctx.addProperty({name: 'pendingTicks', value: 0});
 	this.ctx.addProperty({name: 'remoteProtocolVersion', value: null});
 	this.ctx.addProperty({name: 'lzmaSupport', value: false});
+	this.ctx.addProperty({name: 'isBusTransport', value: false});
 	
 	this.queryCount = 0;
 	this.queryLZMACount = 0;
@@ -55,6 +56,7 @@ ConnectionData.prototype.onBusConnect = function() {
 ConnectionData.prototype.stats = function() {
 	return {
 		lzma: this.ctx.getProperty('lzmaSupport'),
+		isBusTransport: this.ctx.getProperty('isBusTransport'),
 		remoteProtocolVersion: this.ctx.getProperty('remoteProtocolVersion'),
 		user: this.ctx.user ? { name: this.ctx.user.name, uid: this.ctx.user.uid } : null,
 		lastInfoPush: this.lastInfoPush,
@@ -272,6 +274,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 						if (!masterAuthorization || query.time < Date.now() - 200000)
 							return cb('permission-denied');
 						
+						self.ctx.setProperty('isBusTransport', true);
 						self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));
 						return cb('init-bus-transport-success');
 				}

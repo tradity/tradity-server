@@ -38,6 +38,7 @@ function ConnectionData(socket) {
 		current: 1
 	};
 	
+	socket.on('error', _.bind(this.emitError, this));
 	socket.on('query', this.query_);
 	socket.on('disconnect', this.disconnected_);
 }

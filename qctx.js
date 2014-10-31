@@ -3,7 +3,7 @@
 var Access = require('./access.js').Access;
 var util = require('util');
 var assert = require('assert');
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 var _ = require('underscore');
 
 function QContext(obj) {

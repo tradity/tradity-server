@@ -7,7 +7,7 @@ var https = require('https');
 var assert = require('assert');
 var crypto = require('crypto');
 var qctx = require('./qctx.js');
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 
 function sha256(s) {
 	var h = crypto.createHash('sha256');

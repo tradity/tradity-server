@@ -4,7 +4,7 @@ var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 
 function MailerDB () {
 	this.mailer = null;

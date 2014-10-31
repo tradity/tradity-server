@@ -5,7 +5,7 @@ var util = require('util');
 var fs = require('fs');
 var crypto = require('crypto');
 var assert = require('assert');
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 
 function SignedMessagingDB () {
 	this.privateKey = null;

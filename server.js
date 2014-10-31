@@ -9,7 +9,7 @@ var https = require('https');
 var url = require('url');
 var sio = require('socket.io');
 var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
 function SoTradeServer () {

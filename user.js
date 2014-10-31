@@ -4,7 +4,7 @@ var _ = require('underscore');
 var util = require('util');
 var crypto = require('crypto');
 var assert = require('assert');
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 require('datejs');

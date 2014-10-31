@@ -120,8 +120,6 @@ BusComponent.prototype.emitError = function(e) {
 	return this.bus.emitImmediate('error', e);
 };
 
-BusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
-
 function provide(name, args, fn, prefilter) {
 	fn.isProvider = true;
 	fn.providedRequest = name;
@@ -139,17 +137,6 @@ function provide(name, args, fn, prefilter) {
 	return fn;
 };
 
-function provideW(name, args, fn) {
-	return provide(name, args, fn, function(data) {
-		if (data.ctx && data.reply && data.ctx.getProperty('readonly')) {
-			data.reply('server-readonly');
-			return true;
-		}
-		
-		return false;
-	});
-};
-
 function listener(name, fn) {
 	fn.isProvider = true;
 	fn.providedRequest = name;
@@ -157,11 +144,6 @@ function listener(name, fn) {
 	
 	return fn;
 };
-
-function provideQT(name, fn)  { return provide(name, ['query', 'ctx', 'reply'], fn); };
-function provideQTX(name, fn) { return provide(name, ['query', 'ctx', 'xdata', 'reply'], fn); };
-function provideWQT(name, fn)  { return provideW(name, ['query', 'ctx', 'reply'], fn); };
-function provideWQTX(name, fn) { return provideW(name, ['query', 'ctx', 'xdata', 'reply'], fn); };
 
 BusComponent.prototype.registerProviders = function() {
 	for (var i in this) {
@@ -221,10 +203,6 @@ function errorWrap (fn) {
 exports.BusComponent = BusComponent;
 exports.listener     = listener;
 exports.provide      = provide;
-exports.provideQT    = provideQT;
-exports.provideQTX   = provideQTX;
-exports.provideWQT   = provideWQT;
-exports.provideWQTX  = provideWQTX;
 exports.needsInit    = needsInit;
 exports.errorWrap    = errorWrap;
 

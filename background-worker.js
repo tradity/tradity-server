@@ -3,7 +3,7 @@
 var _ = require('underscore');
 var util = require('util');
 var assert = require('assert');
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 
 function BackgroundWorker () {
 	this.quoteLoader = null;

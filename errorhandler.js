@@ -3,7 +3,7 @@
 var _ = require('underscore');
 var fs = require('fs');
 var util = require('util');
-var buscomponent = require('./bus/buscomponent.js');
+var buscomponent = require('./stbuscomponent.js');
 
 function ErrorHandler() {
 }

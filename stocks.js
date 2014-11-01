@@ -83,18 +83,23 @@ StocksDB.prototype.updateRankingInformation = function(ctx, cb) {
 	
 	cb = cb || function() {};
 	
-	ctx.query('UPDATE users SET ' +
-		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NOT NULL), ' +
-		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id WHERE userid=users.id AND leader IS NULL)', [], function() {
+	ctx.query('UPDATE users_finance SET ' +
+		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
+			'WHERE userid=users_finance.id AND leader IS NOT NULL), ' +
+		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
+			'WHERE userid=users_finance.id AND leader IS NULL)', [], function() {
 		self.updateValueHistory(ctx, cb);
 	});	
 }
 
 StocksDB.prototype.updateValueHistory = function(ctx, cb) {
 	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
-	ctx.query('INSERT INTO tickshistory (userid, ticks, time) SELECT id, ticks, UNIX_TIMESTAMP() FROM users', [], function() {
-		ctx.query('INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT id, ' + copyFields + ', UNIX_TIMESTAMP() FROM users WHERE deletiontime IS NULL', [], cb);
-	});
+	ctx.query('INSERT INTO tickshistory (userid, ticks, time) SELECT id, ticks, UNIX_TIMESTAMP() FROM users');
+	
+	ctx.query('CREATE TEMPORARY TABLE users_dindex SELECT id, deletiontime FROM users; ' +
+		'INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT users_finance.id, ' + copyFields + ', UNIX_TIMESTAMP() ' +
+		'FROM users_finance JOIN users_dindex ON users_dindex.id = users_finance.id WHERE users_dindex.deletiontime IS NULL; ' +
+		'DROP TABLE users_dindex', [], cb);
 }
 
 StocksDB.prototype.dailyCallback = function(ctx, cb) {
@@ -154,7 +159,7 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 StocksDB.prototype.updateProvisions = function (ctx, cb) {
 	ctx.getConnection(function (conn) {
 	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks AS ds WRITE, users AS l WRITE, users AS f WRITE, stocks AS s READ;', [], function() {
+	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, stocks AS s READ;', [], function() {
 		conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, '+
 			wprovFees+' AS wfees, '+wprovMax+' AS wmax, '+
@@ -220,18 +225,19 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 	
 	ctx.getConnection(function (conn) {
 	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES depot_stocks AS ds READ, users WRITE, stocks AS s WRITE;', [], function() {
+		'LOCK TABLES depot_stocks AS ds READ, users_finance WRITE, stocks AS s WRITE;', [], function() {
 	conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
 		'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', [], function(users) {
 	conn.query(
 		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
-		'freemoney, users.wprov_sum + users.lprov_sum AS prov_sum ' +
+		'freemoney, users_finance.wprov_sum + users_finance.lprov_sum AS prov_sum ' +
 		'FROM depot_stocks AS ds ' +
 		'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
-		'LEFT JOIN users ON ds.userid = users.id ' +
+		'LEFT JOIN users_finance ON ds.userid = users_finance.id ' +
 		'GROUP BY uid ', [], function(res_static) {
 	conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
-		'FROM users WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users.id) = 0', [], function(res_static2) {
+		'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0', [],
+		function(res_static2) {
 		res_static = res_static.concat(res_static2);
 	conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
 		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
@@ -356,13 +362,14 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				
 				updateQuery += 'UPDATE stocks AS s SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?;';
 				updateParams.push((lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]);
-				updateQuery += 'UPDATE users SET totalvalue = ? WHERE id = ?;';
+				updateQuery += 'UPDATE users_finance SET totalvalue = ? WHERE id = ?;';
 				updateParams.push(X[i] + prov_sum[i], cusers[i]);
 				
 				if (++complete == users.length) {
 					var lmuComputationsComplete = Date.now();
 					conn.query(updateQuery + 'COMMIT; UNLOCK TABLES; SET autocommit = 1;', updateParams, function() {
-						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
+						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
+							'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
 							[users[i]], function(res) {
 							conn.release();
 							
@@ -467,7 +474,10 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 	var xstr = '%' + str.replace(/%/g, '\\%') + '%';
 	ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS  ask, stocks.bid AS bid, '+
 		'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
-		'FROM stocks JOIN users ON stocks.leader = users.id WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
+		'FROM stocks ' +
+		'JOIN users ON stocks.leader = users.id ' +
+		'JOIN users_finance ON users.id = users_finance.id ' +
+		'WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
 	ctx.query('SELECT *, 0 AS wprovision, 0 AS lprovision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
 		var externalSearchResultHandler = function(res3) {
 			var results = _.union(res1, _.map(res3, function(r) {
@@ -570,7 +580,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	ctx.getConnection(function(conn) {
 	
 	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks WRITE, users AS l WRITE, users AS f WRITE, stocks AS s READ, orderhistory WRITE;', [], function() {
+	'LOCK TABLES depot_stocks WRITE, users_finance AS l WRITE, users_finance AS f WRITE, users AS fu WRITE, stocks AS s READ, orderhistory WRITE;', [], function() {
 	var commit = function() {
 		conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
 	};
@@ -587,7 +597,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
 		'FROM stocks AS s ' +
 		'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = s.id ' +
-		'LEFT JOIN users AS l ON s.leader = l.id AND depot_stocks.userid != l.id ' +
+		'LEFT JOIN users_finance AS l ON s.leader = l.id AND depot_stocks.userid != l.id ' +
 		'WHERE s.stockid = ?', [ctx.user.id, String(query.stockid)], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			rollback();
@@ -640,7 +650,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		assert.ok(r.ask >= 0);
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
-		conn.query('SELECT freemoney, totalvalue FROM users AS f WHERE id = ?', [ctx.user.id], function(ures) {
+		conn.query('SELECT freemoney, totalvalue FROM users_finance AS f WHERE id = ?', [ctx.user.id], function(ures) {
 		assert.equal(ures.length, 1);
 		var price = amount * ta_value;
 		if (price > ures[0].freemoney && price >= 0) {
@@ -675,8 +685,8 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			
 			var totalprovPay = wprovPay + lprovPay;
 			
-			conn.query('UPDATE users AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, ctx.user.id], function() {
-				conn.query('UPDATE users AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, ctx.user.id], function() {
+				conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid], cont);
 			});
 		} : function(cont) { cont(); })(function() {
@@ -699,7 +709,8 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			var perfv = amount >= 0 ? 'bought' : 'sold';
 			var perffull = perfn + '_' + perfv;
 			
-			conn.query('UPDATE users AS f SET tradecount = tradecount+1, freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
+			conn.query('UPDATE users AS fu SET tradecount = tradecount+1 WHERE id = ?', [ctx.user.id], function() {
+			conn.query('UPDATE users_finance AS f SET freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
 				perffull + '=' + perffull + ' + ABS(?) ' +
 				' WHERE id = ?', [price+fee, fee, price, ctx.user.id], function() {
 			if (!hadDepotStocksEntry) {
@@ -724,6 +735,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			}
 			});
 			});
+			});
 		});
 		});
 		});
@@ -737,8 +749,12 @@ StocksDB.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot
 	ctx.query('SELECT '+
 		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, '+
 		's.stockid AS stockid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, '+
-		'users.id AS leader, users.name AS leadername, exchange, s.name, IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
-		'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid LEFT JOIN users ON s.leader = users.id WHERE userid = ? AND amount != 0',
+		'users.id AS leader, users.name AS leadername, exchange, s.name, ' +
+		'IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
+		'FROM depot_stocks AS ds ' +
+		'JOIN stocks AS s ON s.id = ds.stockid ' +
+		'LEFT JOIN users ON s.leader = users.id ' +
+		'WHERE userid = ? AND amount != 0',
 		[ctx.user.id], function(results) {
 		cb('list-own-depot-success', {'results': results});
 	});

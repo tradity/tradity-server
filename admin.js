@@ -39,6 +39,8 @@ AdminDB.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users',
 		'logins.logintime AS lastlogintime, schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
 		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=users.id) AS commentcount, '+
 		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=users.id) AS lastcommenttime FROM users ' +
+		'JOIN users_data ON users.id = users_data.id ' +
+		'JOIN users_finance ON users.id = users_finance.id ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
 		'LEFT JOIN schools ON schools.id = sm.schoolid ' +
 		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)',
@@ -78,13 +80,17 @@ AdminDB.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _re
 		conn.query('DELETE FROM sessions WHERE uid = ?', [uid], function() {
 		conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid], function() {
 		conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid], function() {
-		conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), giv_name="__user_deleted__", email = CONCAT("deleted:", email), ' +
-		'fam_name="", pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", birthday=NULL, realnamepublish=0, `desc`="", wprovision=0, lprovision=0, ' + 
-		'street="", zipcode="", town="", traditye=0, deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid], function() {
+		conn.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
+			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE id = ?', [uid], function() {
+		conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE id = ?', [uid], function() {
+		conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
+		'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid], function() {
 			conn.query('COMMIT', [], function() {
 				conn.release();
 				cb('delete-user-success');
 			});
+		});
+		});
 		});
 		});
 		});

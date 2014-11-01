@@ -106,7 +106,7 @@ UserDB.prototype.login = buscomponent.provide('client-login',
 	/* use an own connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
 	ctx.getConnection(function(conn) {
-		conn.query('SELECT * FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
+		conn.query('SELECT id, pwsalt, pwhash FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 			if (res.length == 0) {
 				cb('login-badname');
 				return;
@@ -148,7 +148,7 @@ UserDB.prototype.login = buscomponent.provide('client-login',
 							[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
 						conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 							'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-							[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
+							[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function() {
 								cb('login-success', {key: key, uid: uid}, 'repush');
 						});
 						});
@@ -181,6 +181,7 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 	var likestringUnit = [];
 	
 	var join = 'FROM users AS u ' +
+		'JOIN users_data ON users_data.id = u.id ' +
 		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid ' +
 		'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
 		'JOIN valuehistory AS past_va ON past_va.userid = u.id ' +
@@ -237,28 +238,30 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 		query.lookfor = ctx.user.id;
 	
 	var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.id ? [
-		'u.*'
+		'u.*', 'ud.*', 'uf.*',
 	] : [
 		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
 		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
 	]).concat([
 		'u.id AS uid', 'u.name AS name', 'birthday',
 		'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
-		'`desc`', 'wprovision', 'lprovision', 'u.totalvalue', 'delayorderhist',
+		'`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
 		'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
 		'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
-		'((u.fperf_cur + u.fperf_sold -  day_va.fperf_sold) / (u.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
-		'((u.operf_cur + u.operf_sold -  day_va.operf_sold) / (u.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
-		'((u.fperf_cur + u.fperf_sold - week_va.fperf_sold) / (u.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
-		'((u.operf_cur + u.operf_sold - week_va.operf_sold) / (u.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
-		'(u.fperf_cur + u.fperf_sold) / u.fperf_bought AS totalfperf',
-		'(u.operf_cur + u.operf_sold) / u.operf_bought AS totaloperf',
-		'freemoney', 'u.wprov_sum + u.lprov_sum AS prov_sum',
+		'((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
+		'((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
+		'((uf.fperf_cur + uf.fperf_sold - week_va.fperf_sold) / (uf.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
+		'((uf.operf_cur + uf.operf_sold - week_va.operf_sold) / (uf.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
+		'(uf.fperf_cur + uf.fperf_sold) / uf.fperf_bought AS totalfperf',
+		'(uf.operf_cur + uf.operf_sold) / uf.operf_bought AS totaloperf',
+		'freemoney', 'uf.wprov_sum + uf.lprov_sum AS prov_sum',
 		'week_va.totalvalue AS weekstarttotalvalue',
 		'day_va.totalvalue  AS daystarttotalvalue'
 	]).join(', ');
 		
-	ctx.query('SELECT ' + columns + ' FROM users AS u '+
+	ctx.query('SELECT ' + columns + ' FROM users AS u ' +
+		'JOIN users_finance AS uf ON u.id = uf.id ' +
+		'JOIN users_data AS ud ON u.id = uf.id ' +
 		'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
 		'LEFT JOIN valuehistory AS day_va  ON day_va.userid  = u.id AND day_va.time  = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
 		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid '+
@@ -369,7 +372,7 @@ UserDB.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', fun
 			cb('email-verify-failure');
 			return;
 		}
-			
+		
 		var email = null;
 		for (var i = 0; i < res.length; ++i) {
 			if (res[i].y == 42) {
@@ -448,9 +451,12 @@ UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key
 	} : function(cont) {
 		cont(null, key);
 	})(function(uid, key) {
-		ctx.query('SELECT users.*, users.id AS uid, ' + (signedLogin ? '' : 'sessions.id AS sid, ') +
+		ctx.query('SELECT users.*, users_finance.*, users_data.*, users.id AS uid, ' +
+			(signedLogin ? '' : 'sessions.id AS sid, ') +
 			'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
 			'FROM users ' +
+			'JOIN users_finance ON users_finance.id = users.id ' +
+			'JOIN users_data ON users_data.id = users.id ' +
 			(signedLogin ? '' : 'JOIN sessions ON sessions.uid = users.id ') +
 			'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
 			'LEFT JOIN schools ON schools.id = sm.schoolid ' +
@@ -498,7 +504,7 @@ UserDB.prototype.resetUser = buscomponent.provideWQT('client-reset-user', functi
 		assert.ok(ctx.access);
 		
 		ctx.query('DELETE FROM depot_stocks WHERE userid = ?', [ctx.user.uid], function() {
-		ctx.query('UPDATE users SET freemoney = 1000000000, totalvalue = 1000000000, ' +
+		ctx.query('UPDATE users_finance SET freemoney = 1000000000, totalvalue = 1000000000, ' +
 			'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
 			'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
 			'wprov_sum = 0, lprov_sum = 0 ' + 
@@ -525,7 +531,10 @@ UserDB.prototype.passwordReset = buscomponent.provideWQT('client-password-reset'
 	if (ctx.user)
 		return cb('already-logged-in');
 	
-	ctx.query('SELECT * FROM users WHERE name = ? AND deletiontime IS NULL', [String(query.name)], function(res) {
+	var name = String(query.name);
+	
+	ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
+		[name, name], function(res) {
 		if (res.length == 0)
 			return cb('password-reset-notfound');
 		
@@ -659,7 +668,8 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	
 	ctx.getConnection(function(conn) {
 	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES users WRITE, stocks WRITE, betakeys WRITE, inviteaccept WRITE, invitelink READ, schoolmembers WRITE, schooladmins WRITE' +
+		'LOCK TABLES users WRITE, users_finance WRITE, users_data WRITE, stocks WRITE, betakeys WRITE, ' +
+		'inviteaccept WRITE, invitelink READ, schoolmembers WRITE, schooladmins WRITE' +
 		(query.school ? ', schools WRITE' : '') + ';', [], function() {
 	
 	var commit = function(cb) {
@@ -731,12 +741,19 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 				
 				var onPWGenerated = function(pwsalt, pwhash) {
 					if (type == 'change') {
-						conn.query('UPDATE users SET name = ?, giv_name = ?, fam_name = ?, realnamepublish = ?, delayorderhist = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?,' +
-						'birthday = ?, `desc` = ?, wprovision = ?, lprovision = ?, street = ?, zipcode = ?, town = ?, traditye = ?, skipwalkthrough = ? '+
-						'WHERE id = ?',
-						[query.name, query.giv_name, query.fam_name, query.realnamepublish?1:0, query.delayorderhist?1:0, pwhash, pwsalt, query.email, query.email == ctx.user.email,
-						query.birthday, query.desc, query.wprovision, query.lprovision, query.street, query.zipcode, query.town, query.traditye?1:0, query.skipwalkthrough?1:0, uid],
-						updateCB);
+						conn.query('UPDATE users SET name = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?, ' +
+							'street = ?, zipcode = ?, town = ?, traditye = ?, skipwalkthrough = ? WHERE id = ?',
+							[String(query.name), pwhash, pwsalt, String(query.email), query.email == ctx.user.email ? 1 : 0, 
+							String(query.street), String(query.zipcode), String(query.town), query.traditye?1:0,
+							query.skipwalkthrough?1:0, uid], function() {
+						conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
+							'birthday = ?, `desc` = ? WHERE id = ?',
+							[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
+							parseInt(query.birthday), String(query.desc), uid], function() {
+						conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
+							[query.wprovision, query.lprovision, uid], updateCB);
+						});
+						});
 						
 						if (query.name != ctx.user.name) {
 							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': query.name}});
@@ -748,7 +765,8 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 								conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
 							else
 								conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
-									'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
+									'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' :
+										'((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
 									[uid, String(query.school), String(query.school)]);
 							
 							if (ctx.user.school != null) 
@@ -790,15 +808,18 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							cont();
 						})(function() {
 							conn.query('INSERT INTO users ' +
-								'(name, giv_name, fam_name, realnamepublish, delayorderhist, pwhash, pwsalt, email, email_verif, ' +
-								'traditye, street, zipcode, town, registertime, wprovision, lprovision)' +
-								'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?)',
-								[query.name, query.giv_name, query.fam_name, query.realnamepublish?1:0, query.delayorderhist?1:0, pwhash, pwsalt,
-								query.email, (inv.email && inv.email == query.email) ? 1 : 0,
-								query.traditye?1:0, query.street, query.zipcode, query.town,
-								cfg.defaultWProvision, cfg.defaultLProvision],
+								'(name, delayorderhist, pwhash, pwsalt, email, email_verif, registertime)' +
+								'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())',
+								[String(query.name), query.delayorderhist?1:0, pwhash, pwsalt,
+								String(query.email), (inv.email && inv.email == query.email) ? 1 : 0],
 							function(res) {
 								uid = res.insertId;
+								conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
+									'street, zipcode, town) VALUES (?, ?, ?, ?, ?, ?, ?, ?); ' +
+									'INSERT INTO users_finance(id,wprovision, lprovision) VALUES (?, ?, ?)',
+									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
+									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
+									uid, cfg.defaultWProvision, cfg.defaultLProvision], function() {
 								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 								conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 									['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity'], _.bind(updateCB, self, res));
@@ -810,6 +831,8 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 										', UNIX_TIMESTAMP())',
 										[uid, String(query.school), String(query.school)]);
 								}
+								
+								});
 							});
 						});
 					}

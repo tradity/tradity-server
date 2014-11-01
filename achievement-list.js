@@ -300,7 +300,7 @@ AchievementList.push({
 	fireOn: { 'feed-user-provchange': function (ev, ctx, cb) { cb([ev.srcuser]); } },
 	xp: 100,
 	check: function(uid, userAchievements, cfg, ctx, cb) {
-		ctx.query('SELECT wprovision FROM users WHERE id = ?', [uid], function(res) {
+		ctx.query('SELECT wprovision FROM users_finance WHERE id = ?', [uid], function(res) {
 			assert.equal(res.length, 1);
 			cb(res[0].wprovision != cfg.defaultWProvision);
 		});
@@ -314,7 +314,7 @@ AchievementList.push({
 	fireOn: { 'feed-user-provchange': function (ev, ctx, cb) { cb([ev.srcuser]); } },
 	xp: 100,
 	check: function(uid, userAchievements, cfg, ctx, cb) {
-		ctx.query('SELECT lprovision FROM users WHERE id = ?', [uid], function(res) {
+		ctx.query('SELECT lprovision FROM users_finance WHERE id = ?', [uid], function(res) {
 			assert.equal(res.length, 1);
 			cb(res[0].lprovision != cfg.defaultLProvision);
 		});
@@ -328,7 +328,7 @@ AchievementList.push({
 	fireOn: { 'feed-user-descchange': function (ev, ctx, cb) { cb([ev.srcuser]); } },
 	xp: 150,
 	check: function(uid, userAchievements, cfg, ctx, cb) {
-		ctx.query('SELECT `desc` FROM users WHERE id = ?', [uid], function(res) {
+		ctx.query('SELECT `desc` FROM users_data WHERE id = ?', [uid], function(res) {
 			assert.equal(res.length, 1);
 			cb(res[0].desc != '');
 		});

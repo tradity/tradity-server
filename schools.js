@@ -110,7 +110,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 				'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
 				'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
 				'WHERE p.id = ?', [s.id], function(usercount) {
-			ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
+			ctx.query('SELECT c.*, u.name AS username, u.id AS uid, url AS profilepic, trustedhtml ' +
 				'FROM ecomments AS c '+
 				'LEFT JOIN users AS u ON c.commenter = u.id ' +
 				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+

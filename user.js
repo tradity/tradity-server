@@ -261,7 +261,7 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 		
 	ctx.query('SELECT ' + columns + ' FROM users AS u ' +
 		'JOIN users_finance AS uf ON u.id = uf.id ' +
-		'JOIN users_data AS ud ON u.id = uf.id ' +
+		'JOIN users_data AS ud ON u.id = ud.id ' +
 		'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
 		'LEFT JOIN valuehistory AS day_va  ON day_va.userid  = u.id AND day_va.time  = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
 		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid '+

@@ -5,7 +5,7 @@ function parentPath(x) {
 	return match ? match[1] : '/';
 }
 
-var _ = require('underscore');
+var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');

@@ -4,7 +4,7 @@ var sio = require('socket.io-client');
 var fs = require('fs');
 var assert = require('assert');
 var util = require('util');
-var _ = require('underscore');
+var _ = require('lodash');
 
 var cfg = require('./config.js').config;
 var SignedMessagingDB = require('./signedmsg.js').SignedMessagingDB;

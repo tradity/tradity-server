@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var _ = require('underscore');
+var _ = require('lodash');
 var util = require('util');
 var crypto = require('crypto');
 var assert = require('assert');

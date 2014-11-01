@@ -4,7 +4,7 @@ var Access = require('./access.js').Access;
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
-var _ = require('underscore');
+var _ = require('lodash');
 
 function QContext(obj) {
 	var self = this;

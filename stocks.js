@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var _ = require('underscore');
+var _ = require('lodash');
 var util = require('util');
 var lapack = require('lapack');
 var assert = require('assert');
@@ -294,7 +294,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 			for (var k = 0; k < cusers.length; ++k)
 				cuserIdToIndex[cusers[k]] = k;
 			
-			var A = identityMatrix(n); // slightly faster than the underscore equivalent via 2 map()s
+			var A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
 			var B = _.map(_.range(n), function() { return [0.0, 0.0]; });
 			var prov_sum = _.map(_.range(n), function() { return [0.0]; });
 			

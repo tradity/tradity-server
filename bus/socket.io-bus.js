@@ -1,7 +1,7 @@
 (function () { "use strict";
 
 var Adapter = require('socket.io-adapter');
-var _ = require('underscore');
+var _ = require('lodash');
 var util = require('util');
 
 /**

@@ -4,7 +4,7 @@ var http = require('http');
 var util = require('util');
 var events = require('events');
 var csv = require('csv');
-var _ = require('underscore');
+var _ = require('lodash');
 
 var FAKE_CALLBACK = 'YAHOO.util.UHScriptNodeDataSource.callbacks';
 var INFO_LINK_DEFAULT = 'http://download.finance.yahoo.com/d/quotes.csv?s=%{stocklist}&f=%{format}';

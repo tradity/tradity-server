@@ -34,6 +34,9 @@ YahooFinanceQuoteEntry.prototype.setName = function(n) {
 
 function YahooFinanceQuoteLoader (infoLink, searchLink, format, maxlen, userAgent, cacheTime) {
 	YahooFinanceQuoteLoader.super_.apply(this);
+	
+	this.setMaxListeners(0);
+	
 	this.infoLink = infoLink || INFO_LINK_DEFAULT;
 	this.searchLink = searchLink || SEARCH_LINK_DEFAULT;
 	this.format = format || FORMAT_DEFAULT;

@@ -61,7 +61,7 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 					self.weeklyCallback(ctx, function() {
 						self.dailyCallback(ctx, xcb);
 					});
-				} if (query.daily) {
+				} else if (query.daily) {
 					self.dailyCallback(ctx, xcb);
 				} else {
 					xcb();

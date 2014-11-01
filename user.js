@@ -742,9 +742,9 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 				var onPWGenerated = function(pwsalt, pwhash) {
 					if (type == 'change') {
 						conn.query('UPDATE users SET name = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?, ' +
-							'skipwalkthrough = ? WHERE id = ?',
+							'delayorderhist = ?, skipwalkthrough = ? WHERE id = ?',
 							[String(query.name), pwhash, pwsalt, String(query.email), query.email == ctx.user.email ? 1 : 0, 
-							query.skipwalkthrough?1:0, uid], function() {
+							query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid], function() {
 						conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
 							'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ? WHERE id = ?',
 							[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,

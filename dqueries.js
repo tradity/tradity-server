@@ -8,11 +8,14 @@ var Access = require('./access.js').Access;
 var buscomponent = require('./stbuscomponent.js');
 
 function DelayedQueriesDB () {
+	DelayedQueriesDB.super_.apply(this, arguments);
+	
 	this.queries = {};
 	
 	this.neededStocks = {};
 	this.queryTypes = ['stock-buy', 'dquery-remove'];
 };
+
 util.inherits(DelayedQueriesDB, buscomponent.BusComponent);
 
 DelayedQueriesDB.prototype.onBusConnect = function() {

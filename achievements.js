@@ -7,6 +7,8 @@ var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
 function AchievementsDB () {
+	AchievementsDB.super_.apply(this, arguments);
+	
 	this.achievementList = [];
 	this.clientAchievements = [];
 };

@@ -7,16 +7,40 @@ var buscomponent = require('./stbuscomponent.js');
 var _ = require('underscore');
 
 function QContext(obj) {
+	var self = this;
+	
+	QContext.super_.apply(self);
+	
 	obj = obj || {};
-	this.user = obj.user || null;
-	this.access = obj.access || new Access();
-	this.properties = {};
+	self.user = obj.user || null;
+	self.access = obj.access || new Access();
+	self.properties = {};
+	self.debugHandlers = [];
+	self.errorHandlers = [];
+	
+	self.callbackFilters.push(function(callback) {
+		return self.errorWrap(callback);
+	});
 	
 	if (obj.parentComponent)
-		this.setBusFromParent(obj.parentComponent);
+		self.setBusFromParent(obj.parentComponent);
+	
+	self.addProperty({name: 'debugEnabled', value: false, access: 'server'});
 };
 
 util.inherits(QContext, buscomponent.BusComponent);
+
+QContext.prototype.errorWrap = function(callback) {
+	var self = this;
+	
+	return function() {
+		try {
+			return callback.apply(self, arguments);
+		} catch (e) {
+			self.emitError(e);
+		}
+	};
+};
 
 QContext.prototype.onBusConnect = function() {
 	var self = this;
@@ -93,23 +117,49 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
 		throw new Error('Access for changing property ' + name + ' not granted');
 };
 
-QContext.prototype.feed = function(data, onEventId) { this.request({name: 'feed', data: data, ctx: this}, onEventId || function() {}); };
-QContext.prototype.query = function(query, args, cb) { this.request({name: 'dbQuery', query: query, args: args}, cb); };
+QContext.prototype.feed = function(data, onEventId) { 
+	return this.request({name: 'feed', data: data, ctx: this}, onEventId || function() {});
+};
+
+QContext.prototype.query = function(query, args, cb) {
+	this.debug('Executing query [unbound]', query, args);
+	return this.request({name: 'dbQuery', query: query, args: args}, cb); 
+};
 
 QContext.prototype.getConnection = function(readonly, cb) {
+	var self = this;
+	
 	if (typeof readonly == 'function') {
 		cb = readonly;
 		readonly = false;
 	}
 	
-	this.request({readonly: readonly, name: 'dbGetConnection'}, function(conn) {
+	self.request({readonly: readonly, name: 'dbGetConnection'}, function(conn) {
 		cb({
 			release: _.bind(conn.release, conn),
 			query: function(query, args, cb) {
+				self.debug('Executing query [bound]', query, args);
 				conn.query(query, args, (cb || function() {}));
 			}
 		});
 	}); 
+};
+
+QContext.prototype.debug = function() {
+	if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled'))
+		return;
+	
+	for (var i = 0; i < this.debugHandlers.length; ++i)
+		this.debugHandlers[i](Array.prototype.slice.call(arguments));
+};
+
+QContext.prototype.emitError = function(e) {
+	this.debug('Caught error', e);
+	
+	for (var i = 0; i < this.errorHandlers.length; ++i)
+		this.errorHandlers[i](e);
+	
+	QContext.super_.prototype.emitError.call(this, e);
 };
 
 exports.QContext = QContext;

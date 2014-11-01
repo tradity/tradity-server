@@ -7,6 +7,7 @@ var buscomponent = require('./stbuscomponent.js');
 var templates = require('./templates-compiled.js');
 
 function TemplateLoaderDB () {
+	TemplateLoaderDB.super_.apply(this, arguments);
 };
 
 util.inherits(TemplateLoaderDB, buscomponent.BusComponent);

@@ -6,6 +6,8 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
 function Database () {
+	Database.super_.apply(this, arguments);
+	
 	this.dbmod = null;
 	this.wConnectionPool = null;
 	this.rConnectionPool = null;

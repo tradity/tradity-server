@@ -10,6 +10,8 @@ var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
 function ConnectionData(socket) {
+	ConnectionData.super_.apply(this, arguments);
+	
 	this.ctx = new qctx.QContext();
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
@@ -26,6 +28,8 @@ function ConnectionData(socket) {
 	this.ctx.addProperty({name: 'remoteProtocolVersion', value: null});
 	this.ctx.addProperty({name: 'lzmaSupport', value: false});
 	this.ctx.addProperty({name: 'isBusTransport', value: false});
+	this.ctx.debugHandlers.push(_.bind(this.dbgHandler, this));
+	this.ctx.errorHandlers.push(_.bind(this.ISEHandler, this));
 	
 	this.queryCount = 0;
 	this.queryLZMACount = 0;
@@ -43,6 +47,7 @@ function ConnectionData(socket) {
 	socket.on('query', this.query_);
 	socket.on('disconnect', this.disconnected_);
 }
+
 util.inherits(ConnectionData, buscomponent.BusComponent);
 
 ConnectionData.prototype.onBusConnect = function() {
@@ -102,6 +107,14 @@ ConnectionData.prototype.fetchEvents = function(query) {
 				this.socket.emit('push-container', r)
 		});
 	}, this));
+};
+
+ConnectionData.prototype.ISEHandler = function(error) {
+	this.push({type: 'internal-server-error'});
+};
+
+ConnectionData.prototype.dbgHandler = function(args) {
+	this.push({type: 'debug-info', args: args});
 };
 
 ConnectionData.prototype.push = function(data) {
@@ -277,6 +290,11 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 						self.ctx.setProperty('isBusTransport', true);
 						self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));
 						return cb('init-bus-transport-success');
+					case 'set-debug-mode':
+						if (!self.ctx.access.has('server'))
+							return cb('permission-denied');
+						self.ctx.setProperty('debugEnabled', query.debugMode);
+						return cb('set-debug-mode-success');
 				}
 				
 				try {

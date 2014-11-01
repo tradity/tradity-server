@@ -10,8 +10,11 @@ var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
 function StocksDB () {
+	StocksDB.super_.apply(this, arguments);
+	
 	this.quoteLoader = null;
 }
+
 util.inherits(StocksDB, buscomponent.BusComponent);
 
 StocksDB.prototype.onBusConnect = function() {

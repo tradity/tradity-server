@@ -7,6 +7,7 @@ function BusComponent () {
 	this.bus = null;
 	this.componentName = null;
 	this.wantsUnplug = false;
+	this.callbackFilters = [];
 }
 
 BusComponent.objCount = 0;
@@ -62,6 +63,9 @@ BusComponent.prototype[requestType] = function(req, onReply) {
 	onReply = _.bind(onReply || function () {}, this);
 	assert.ok(this.bus);
 	assert.ok(req);
+	
+	for (var i = 0; i < this.callbackFilters.length; ++i)
+		onReply = this.callbackFilters[i](onReply);
 	
 	this.unansweredBusRequests++;
 	this.bus[requestType](this.imprint(req), _.bind(function() {
@@ -193,7 +197,7 @@ function needsInit (fn) {
 function errorWrap (fn) {
 	return function() {
 		try {
-			fn.apply(this, arguments);
+			return fn.apply(this, arguments);
 		} catch (e) {
 			this.emitError(e);
 		}

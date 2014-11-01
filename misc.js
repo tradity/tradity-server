@@ -6,6 +6,7 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
 function MiscDB () {
+	MiscDB.super_.apply(this, arguments);
 };
 
 util.inherits(MiscDB, buscomponent.BusComponent);
@@ -27,6 +28,13 @@ MiscDB.prototype.logout = buscomponent.provideQT('client-logout', function(query
 
 MiscDB.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx, cb) {
 	cb('pong', {'uid': ctx.user ? ctx.user.uid : null});
+});
+
+MiscDB.prototype.artificialError = buscomponent.provideQT('client-artificial-error', function(query, ctx, cb) {
+	if (!ctx.access.has('server'))
+		return cb('permission-denied');
+	
+	ctx.emitError(new Error('Client-induced non-failure'));
 });
 
 MiscDB.prototype.clientGetConfig = buscomponent.provide('client-server-config', ['reply'], function(cb) {

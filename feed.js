@@ -6,6 +6,7 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
 function FeedControllerDB () {
+	FeedControllerDB.super_.apply(this, arguments);
 };
 
 util.inherits(FeedControllerDB, buscomponent.BusComponent);

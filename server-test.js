@@ -78,6 +78,14 @@ socket.on('connect', function() {
 			case 'register':
 				assert.equal(data.code, 'reg-success');
 				emit('query', {
+					type: 'set-debug-mode',
+					id: 'set-debug-mode-1',
+					debugMode: true
+				}, true);
+				break;
+			case 'set-debug-mode-1':
+				assert.equal(data.code, 'set-debug-mode-success');
+				emit('query', {
 					type: 'login',
 					id: 'login-1',
 					name: email,
@@ -126,6 +134,15 @@ socket.on('connect', function() {
 			case 'login-2':
 				assert.equal(data.code, 'login-success');
 				key = data.key;
+				
+				emit('query', {
+					type: 'set-debug-mode',
+					id: 'set-debug-mode-2',
+					debugMode: false
+				}, true);
+				break;
+			case 'set-debug-mode-2':
+				assert.equal(data.code, 'set-debug-mode-success');
 				
 				fs.readFile('res/bob.jpg', function(err, data) {
 					if (err) throw err;

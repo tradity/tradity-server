@@ -11,7 +11,9 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
 function AdminDB () {
+	AdminDB.super_.apply(this, arguments);
 }
+
 util.inherits(AdminDB, buscomponent.BusComponent);
 
 function _reqpriv_x (required, f) {

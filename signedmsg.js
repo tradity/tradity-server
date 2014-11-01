@@ -8,6 +8,8 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
 function SignedMessagingDB () {
+	SignedMessagingDB.super_.apply(this, arguments);
+	
 	this.privateKey = null;
 	this.publicKeys = [];
 	this.algorithm = 'RSA-SHA256';

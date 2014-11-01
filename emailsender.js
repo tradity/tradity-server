@@ -7,6 +7,7 @@ var nodemailer = require('nodemailer');
 var buscomponent = require('./stbuscomponent.js');
 
 function MailerDB () {
+	MailerDB.super_.apply(this, arguments);
 	this.mailer = null;
 };
 

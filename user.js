@@ -16,6 +16,7 @@ function sha256(s) {
 }
 
 function UserDB () {
+	UserDB.super_.apply(this, arguments);
 }
 
 util.inherits(UserDB, buscomponent.BusComponent);
@@ -57,7 +58,7 @@ UserDB.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	}, ctx, xdata, true, function(code, loginResp) {
 		assert.equal(code, 'login-success');
 		
-		crypto.randomBytes(16, function(ex, buf) {
+		crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
 			var key = buf.toString('hex');
 			
 			ctx.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
@@ -81,7 +82,7 @@ UserDB.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 					});
 				});
 			});
-		});
+		}));
 	});
 };
 
@@ -102,54 +103,58 @@ UserDB.prototype.login = buscomponent.provide('client-login',
 	var name = String(query.name);
 	var pw = String(query.pw);
 	
-	ctx.query('SELECT * FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
-		if (res.length == 0) {
-			cb('login-badname');
-			return;
-		}
-		
-		var uid = res[0].id;
-		var pwsalt = res[0].pwsalt;
-		var pwhash = res[0].pwhash;
-		if (pwhash != sha256(pwsalt + pw) && !ignorePassword) {
-			cb('login-wrongpw');
-			return;
-		}
-		
-		crypto.randomBytes(16, function(ex, buf) {
-			self.getServerConfig(function(cfg) {
-				var key = buf.toString('hex');
-				
-				if (ctx.getProperty('readonly')) {
-					key = key.substr(0, 6);
-					var today = parseInt(Date.now() / 86400);
+	/* use an own connection to the server with write access
+	 * (otherwise we might end up with slightly outdated data) */
+	ctx.getConnection(function(conn) {
+		conn.query('SELECT * FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
+			if (res.length == 0) {
+				cb('login-badname');
+				return;
+			}
+			
+			var uid = res[0].id;
+			var pwsalt = res[0].pwsalt;
+			var pwhash = res[0].pwhash;
+			if (pwhash != sha256(pwsalt + pw) && !ignorePassword) {
+				cb('login-wrongpw');
+				return;
+			}
+			
+			crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
+				self.getServerConfig(function(cfg) {
+					var key = buf.toString('hex');
 					
-					self.request({
-						name: 'createSignedMessage',
-						msg: {
-							uid: uid,
-							sid: key,
-							date: today
-						}
-					}, function(sid) {
-						cb('login-success', {
-							key: ':' + sid,
-							uid: uid
-						}, 'repush');
-					});
-				} else {
-					self.regularCallback({}, ctx);
-					
-					ctx.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
-						[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
-					ctx.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
-						'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-						[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
-							cb('login-success', {key: key, uid: uid}, 'repush');
-					});
-					});
-				}
-			});
+					if (ctx.getProperty('readonly')) {
+						key = key.substr(0, 6);
+						var today = parseInt(Date.now() / 86400);
+						
+						self.request({
+							name: 'createSignedMessage',
+							msg: {
+								uid: uid,
+								sid: key,
+								date: today
+							}
+						}, function(sid) {
+							cb('login-success', {
+								key: ':' + sid,
+								uid: uid
+							}, 'repush');
+						});
+					} else {
+						self.regularCallback({}, ctx);
+						
+						conn.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
+							[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
+						conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
+							'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
+							[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function(res) {
+								cb('login-success', {key: key, uid: uid}, 'repush');
+						});
+						});
+					}
+				});
+			}));
 		});
 	});
 });
@@ -527,9 +532,9 @@ UserDB.prototype.passwordReset = buscomponent.provideWQT('client-password-reset'
 		var u = res[0];
 		assert.ok(u);
 		
-		crypto.randomBytes(6, function(ex, buf) {
+		crypto.randomBytes(6, ctx.errorWrap(function(ex, buf) {
 			var pw = buf.toString('hex');
-			self.generatePWKey(pw, function(salt, hash) {
+			self.generatePWKey(pw, ctx.errorWrap(function(salt, hash) {
 				ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
 					var opt = self.request({name: 'readEMailTemplate', 
 						template: 'password-reset-email.eml',
@@ -545,8 +550,8 @@ UserDB.prototype.passwordReset = buscomponent.provideWQT('client-password-reset'
 						});
 					});
 				});
-			});
-		});
+			}));
+		}));
 	});
 });
 
@@ -582,7 +587,7 @@ UserDB.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', 
 				return cb('create-invite-link-not-verif');
 		}
 		
-		crypto.randomBytes(16, function(ex, buf) {
+		crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
 			var key = buf.toString('hex');
 			var sendKeyToCaller = ctx.access.has('userdb');
 			ctx.query('INSERT INTO invitelink ' +
@@ -606,7 +611,7 @@ UserDB.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', 
 					cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
 				});
 			});
-		});
+		}));
 	});
 });
 
@@ -717,7 +722,8 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							cb('reg-success', {uid: uid}, 'repush');
 						else 
 							self.sendRegisterEmail(query,
-								new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access, parentComponent: self}),
+								new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access,
+									parentComponent: self}),
 								xdata,
 								cb);
 					});
@@ -810,7 +816,7 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 				};
 				
 				if (query.password)
-					self.generatePWKey(query.password, onPWGenerated);
+					self.generatePWKey(query.password, ctx.errorWrap(onPWGenerated));
 				else
 					onPWGenerated(ctx.user.pwsalt, ctx.user.pwhash);
 			};

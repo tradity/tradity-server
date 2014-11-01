@@ -6,6 +6,8 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
 function BackgroundWorker () {
+	BackgroundWorker.super_.apply(this, arguments);
+	
 	this.quoteLoader = null;
 }
 util.inherits(BackgroundWorker, buscomponent.BusComponent);

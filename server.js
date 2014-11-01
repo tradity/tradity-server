@@ -13,6 +13,8 @@ var buscomponent = require('./stbuscomponent.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
 function SoTradeServer () {
+	SoTradeServer.super_.apply(this, arguments);
+	
 	this.httpServer = null;
 	this.io = null;
 	this.store = null;

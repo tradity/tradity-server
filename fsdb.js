@@ -16,7 +16,9 @@ function sha256(s) {
 }
 
 function FileStorageDB () {
+	FileStorageDB.super_.apply(this, arguments);
 }
+
 util.inherits(FileStorageDB, buscomponent.BusComponent);
 
 FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {

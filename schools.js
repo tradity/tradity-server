@@ -11,6 +11,7 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
 function SchoolsDB () {
+	SchoolsDB.super_.apply(this, arguments);
 }
 
 util.inherits(SchoolsDB, buscomponent.BusComponent);

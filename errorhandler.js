@@ -6,6 +6,7 @@ var util = require('util');
 var buscomponent = require('./stbuscomponent.js');
 
 function ErrorHandler() {
+	ErrorHandler.super_.apply(this, arguments);
 }
 
 util.inherits(ErrorHandler, buscomponent.BusComponent);

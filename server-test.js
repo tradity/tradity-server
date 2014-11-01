@@ -211,6 +211,15 @@ socket.on('connect', function() {
 			case 'list-own-depot':
 				assert.equal(data.code, 'list-own-depot-success');
 				emit('query', {
+					type: 'list-transactions',
+					id: 'list-transactions',
+					key: key
+				});
+				break;
+			case 'list-transactions':
+				assert.equal(data.code, 'list-transactions-success');
+				assert.ok(data.results);
+				emit('query', {
 					type: 'get-user-info',
 					id: 'get-user-info-1',
 					lookfor: ownUid,

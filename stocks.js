@@ -781,6 +781,19 @@ StocksDB.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot
 	});
 });
 
+StocksDB.prototype.listTransactions = buscomponent.provideQT('client-list-transactions', function(query, ctx, cb) {
+	ctx.query('SELECT t.*, a.name AS aname, p.name AS pname, s.name AS stockname FROM transactionlog AS t ' +
+		'LEFT JOIN users AS a ON a.id = t.a_user ' +
+		'LEFT JOIN users AS p ON p.id = t.p_user ' +
+		'LEFT JOIN stocks AS s ON s.stockid = t.stocktextid ' +
+		'WHERE t.a_user = ? OR t.p_user = ? ', [ctx.user.id, ctx.user.id], function(results) {
+		for (var i = 0; i < results.length; ++i)
+			results[i].json = results[i].json ? JSON.parse(results[i].json) : {};
+
+		cb('list-transactions-success', { results: results });
+	});
+});
+
 StocksDB.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx, cb) {
 	this.getServerConfig(function(cfg) {
 		ctx.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh '+

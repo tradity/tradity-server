@@ -816,7 +816,7 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 								uid = res.insertId;
 								conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
 									'street, zipcode, town) VALUES (?, ?, ?, ?, ?, ?, ?, ?); ' +
-									'INSERT INTO users_finance(id,wprovision, lprovision) VALUES (?, ?, ?)',
+									'INSERT INTO users_finance(id, wprovision, lprovision) VALUES (?, ?, ?)',
 									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
 									uid, cfg.defaultWProvision, cfg.defaultLProvision], function() {

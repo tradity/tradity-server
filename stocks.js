@@ -166,7 +166,7 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 			lprovFees+' AS lfees, '+lprovMin+' AS lmin, '+
 			'f.id AS fid, l.id AS lid '+
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
-			'JOIN users AS f ON ds.userid = f.id JOIN users AS l ON s.leader = l.id AND f.id != l.id', [],
+			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', [],
 		function(dsr) {
 			if (!dsr.length) {
 				conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
@@ -186,8 +186,8 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 						'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
 						'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
 						'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
-					conn.query('UPDATE users AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalfees, totalfees, dsr[j].fid], function() {
-					conn.query('UPDATE users AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+					conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalfees, totalfees, dsr[j].fid], function() {
+					conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 						[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
 						if (++complete == dsr.length) 
 							conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() {

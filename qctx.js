@@ -30,6 +30,20 @@ function QContext(obj) {
 
 util.inherits(QContext, buscomponent.BusComponent);
 
+QContext.prototype.clone = function() {
+	var c = new QContext({
+		user: this.user,
+		access: this.access.clone(),
+		parentComponent: this
+	});
+	
+	c.properties = _.clone(this.properties);
+	c.debugHandlers = this.debugHandlers.slice();
+	c.errorHandlers = this.errorHandlers.slice();
+	
+	return c;
+};
+
 QContext.prototype.errorWrap = function(callback) {
 	var self = this;
 	

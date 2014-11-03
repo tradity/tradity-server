@@ -97,7 +97,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	this.pushSelfInfo();
 	
 	// fetch regular events
-	this.request({name: 'feedFetchEvents', query: query, ctx: this.ctx}, _.bind(function(evlist) {
+	this.request({name: 'feedFetchEvents', query: query, ctx: this.ctx.clone()}, _.bind(function(evlist) {
 		_.each(evlist, _.bind(function(ev) {
 			this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
 		}, this));
@@ -136,7 +136,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 		var curUnixTime = Date.now();
 		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
 			this.lastInfoPush = curUnixTime;
-			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, ctx: this.ctx, xdata: this.pickTextFields()}, _.bind(function(code, info) {
+			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, ctx: this.ctx.clone(), xdata: this.pickTextFields()}, _.bind(function(code, info) {
 				assert.ok(code == 'get-user-info-success');
 				assert.ok(info);
 				
@@ -172,13 +172,13 @@ ConnectionData.prototype.response = function(data) {
 };
 
 ConnectionData.prototype.onUserConnected = function() {
-	this.request({name: 'checkAchievements', ctx: this.ctx});
+	this.request({name: 'checkAchievements', ctx: this.ctx.clone()});
 };
 
 ConnectionData.prototype.onLogout = function() {
 	var self = this;
 	
-	self.request({name: 'updateUserStatistics', ctx: self.ctx, user: self.ctx.user, force: true}, function() {
+	self.request({name: 'updateUserStatistics', ctx: self.ctx.clone(), user: self.ctx.user, force: true}, function() {
 		self.ctx.user = null;
 		self.ctx.access = new Access();
 		self.ctx.setProperty('lastSessionUpdate', null);
@@ -192,6 +192,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 	(query.signedContent ? function(cont) {
 		self.request({
 			name: 'verifySignedMessage',
+			ctx: self.ctx.clone(),
 			msg: query.signedContent
 		}, function(verified) {
 			if (verified)
@@ -219,7 +220,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		assert.ok(self.bus);
 		assert.ok(self.socket);
 		
-		self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx}, function(user) {
+		self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()}, function(user) {
 			if (!self.bus) {
 				assert.ok(!self.socket);
 				return;
@@ -257,7 +258,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				if (extra == 'repush' && self.bus && self.socket) {
 					self.lastInfoPush = 0;
 					
-					self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx}, function(newUser) {
+					self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()}, function(newUser) {
 						if (newUser)
 							self.ctx.user = newUser;
 						
@@ -301,7 +302,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 					self.request({
 						name: 'client-' + query.type,
 						query: query,
-						ctx: self.ctx,
+						ctx: self.ctx.clone(),
 						xdata: self.pickTextFields()
 					}, cb);
 				} catch (e) {

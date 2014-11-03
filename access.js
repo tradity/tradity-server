@@ -2,8 +2,18 @@
 
 // server,filesystem,stocks,userdb,moderate,schooldb,email_verif,login_override
 var Access = function() {
-	this.dropAll();
+	this.areas = [];
+	this.hasAnyAccess = false;
+	
+	// above code is equiv to this.dropAll();
 };
+
+Access.prototype.clone = function() {
+	var a = new Access();
+	a.areas = this.areas.slice();
+	a.hasAnyAccess = this.hasAnyAccess;
+	return a;
+}
 
 Access.fromJSON = function(j) {
 	var a = new Access();

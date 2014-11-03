@@ -4,7 +4,7 @@ var sio = require('socket.io-client');
 var fs = require('fs');
 var assert = require('assert');
 var util = require('util');
-var _ = require('underscore');
+var _ = require('lodash');
 
 var cfg = require('./config.js').config;
 var SignedMessagingDB = require('./signedmsg.js').SignedMessagingDB;
@@ -210,6 +210,15 @@ socket.on('connect', function() {
 				break;
 			case 'list-own-depot':
 				assert.equal(data.code, 'list-own-depot-success');
+				emit('query', {
+					type: 'list-transactions',
+					id: 'list-transactions',
+					key: key
+				});
+				break;
+			case 'list-transactions':
+				assert.equal(data.code, 'list-transactions-success');
+				assert.ok(data.results);
 				emit('query', {
 					type: 'get-user-info',
 					id: 'get-user-info-1',

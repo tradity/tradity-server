@@ -13,7 +13,7 @@
 		"socket.io": "~1.2.0",
 		"socket.io-client": "~1.2.0",
 		"socket.io-adapter": "*",
-		"underscore": ">=1.6.0",
+		"lodash": "~2.4.1",
 		"lapack": "*",
 		"datejs": "1.0.0-rc1",
 		"iconv": "*",

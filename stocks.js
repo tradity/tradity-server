@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var _ = require('underscore');
+var _ = require('lodash');
 var util = require('util');
 var lapack = require('lapack');
 var assert = require('assert');
@@ -159,46 +159,55 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 StocksDB.prototype.updateProvisions = function (ctx, cb) {
 	ctx.getConnection(function (conn) {
 	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, stocks AS s READ;', [], function() {
+	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
+	'stocks AS s READ, transactionlog WRITE;', [], function() {
 		conn.query('SELECT ' +
-			'ds.depotentryid AS dsid, '+
+			'ds.depotentryid AS dsid, s.stockid AS stocktextid, '+
 			wprovFees+' AS wfees, '+wprovMax+' AS wmax, '+
 			lprovFees+' AS lfees, '+lprovMin+' AS lmin, '+
 			'f.id AS fid, l.id AS lid '+
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
 			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', [],
 		function(dsr) {
-			if (!dsr.length) {
-				conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
-				return cb();
-			}
+		if (!dsr.length) {
+			conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
+			return cb();
+		}
+		
+		var complete = 0;
+		for (var j = 0; j < dsr.length; ++j) { _.partial(function(j) {
+			assert.ok(dsr[j].wfees >= 0);
+			assert.ok(dsr[j].lfees <= 0);
+			dsr[j].wfees = parseInt(dsr[j].wfees);
+			dsr[j].lfees = parseInt(dsr[j].lfees);
 			
-			var complete = 0;
-			for (var j = 0; j < dsr.length; ++j) {
-				_.partial(function(j) {
-					assert.ok(dsr[j].wfees >= 0);
-					assert.ok(dsr[j].lfees <= 0);
-					
-					var dsid = dsr[j].dsid;
-					var totalfees = dsr[j].wfees + dsr[j].lfees;
-					
-					conn.query('UPDATE depot_stocks AS ds SET ' +
-						'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
-						'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
-						'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
-					conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalfees, totalfees, dsr[j].fid], function() {
-					conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
-						[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
-						if (++complete == dsr.length) 
-							conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() {
-								conn.release();
-								cb();
-							});
+			var dsid = dsr[j].dsid;
+			var totalfees = dsr[j].wfees + dsr[j].lfees;
+			
+			(Math.abs(totalfees) < 1 ? function(cont) { cont(); } : function(cont) {
+			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
+				'(NULL, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)', 
+				[dsr[j].stocktextid, dsr[j].fid, dsr[j].lid, totalfees, JSON.stringify({reason: 'regular-provisions'})],
+				cont);
+			})(function() {
+			conn.query('UPDATE depot_stocks AS ds SET ' +
+				'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
+				'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
+				'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
+			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
+				[totalfees, totalfees, dsr[j].fid], function() {
+			conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+				[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
+				if (++complete == dsr.length) 
+					conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() {
+						conn.release();
+						cb();
 					});
-					});
-					});
-				}, j)();
-			}
+			});
+			});
+			});
+			});
+		}, j)(); }
 		});
 	});
 	});
@@ -294,7 +303,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 			for (var k = 0; k < cusers.length; ++k)
 				cuserIdToIndex[cusers[k]] = k;
 			
-			var A = identityMatrix(n); // slightly faster than the underscore equivalent via 2 map()s
+			var A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
 			var B = _.map(_.range(n), function() { return [0.0, 0.0]; });
 			var prov_sum = _.map(_.range(n), function() { return [0.0]; });
 			
@@ -472,7 +481,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 		lid = leadertest[1];
 	
 	var xstr = '%' + str.replace(/%/g, '\\%') + '%';
-	ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS  ask, stocks.bid AS bid, '+
+	ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, '+
 		'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
 		'FROM stocks ' +
 		'JOIN users ON stocks.leader = users.id ' +
@@ -580,7 +589,8 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	ctx.getConnection(function(conn) {
 	
 	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks WRITE, users_finance AS l WRITE, users_finance AS f WRITE, users AS fu WRITE, stocks AS s READ, orderhistory WRITE;', [], function() {
+	'LOCK TABLES depot_stocks WRITE, users_finance AS l WRITE, users_finance AS f WRITE, users AS fu WRITE, ' +
+	'stocks AS s READ, orderhistory WRITE, transactionlog WRITE;', [], function() {
 	var commit = function() {
 		conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
 	};
@@ -676,6 +686,11 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			return cb('stock-buy-over-pieces-limit');
 		}
 		
+		var fee = Math.max(Math.abs(cfg['transaction-fee-perc'] * price), cfg['transaction-fee-min']);
+		
+		conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
+			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)', 
+			[ctx.user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount], function(oh_res) {
 		(amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0)) && r.lid ? function(cont) {
 			var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
 			var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
@@ -685,16 +700,16 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			
 			var totalprovPay = wprovPay + lprovPay;
 			
-			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?', [totalprovPay, totalprovPay, ctx.user.id], function() {
-				conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
-					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid], cont);
+			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
+				'VALUES (?, "provision", ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
+				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({reason: 'trade'})], function() {
+			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
+				[totalprovPay, totalprovPay, ctx.user.id], function() {
+			conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+				[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid], cont);
+			});
 			});
 		} : function(cont) { cont(); })(function() {
-			var fee = Math.max(Math.abs(cfg['transaction-fee-perc'] * price), cfg['transaction-fee-min']);
-			
-			conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
-				'VALUES(?,?,?,?,UNIX_TIMESTAMP(),?,?,?,?,?)',
-				[ctx.user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount], function(oh_res) {
 			ctx.feed({
 				'type': 'trade',
 				'targetid': oh_res.insertId,
@@ -709,6 +724,11 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			var perfv = amount >= 0 ? 'bought' : 'sold';
 			var perffull = perfn + '_' + perfv;
 			
+			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
+				'(?, "stockprice", ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?), ' +
+				'(?, "fee",        ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?)',
+				[oh_res.insertId, r.stockid, ctx.user.id, price, JSON.stringify({reason: 'trade'}),
+				 oh_res.insertId, r.stockid, ctx.user.id, fee,   JSON.stringify({reason: 'trade'})], function() {
 			conn.query('UPDATE users AS fu SET tradecount = tradecount+1 WHERE id = ?', [ctx.user.id], function() {
 			conn.query('UPDATE users_finance AS f SET freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
 				perffull + '=' + perffull + ' + ABS(?) ' +
@@ -739,6 +759,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		});
 		});
 		});
+		});
 	});
 	});
 	});
@@ -757,6 +778,19 @@ StocksDB.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot
 		'WHERE userid = ? AND amount != 0',
 		[ctx.user.id], function(results) {
 		cb('list-own-depot-success', {'results': results});
+	});
+});
+
+StocksDB.prototype.listTransactions = buscomponent.provideQT('client-list-transactions', function(query, ctx, cb) {
+	ctx.query('SELECT t.*, a.name AS aname, p.name AS pname, s.name AS stockname FROM transactionlog AS t ' +
+		'LEFT JOIN users AS a ON a.id = t.a_user ' +
+		'LEFT JOIN users AS p ON p.id = t.p_user ' +
+		'LEFT JOIN stocks AS s ON s.stockid = t.stocktextid ' +
+		'WHERE t.a_user = ? OR t.p_user = ? ', [ctx.user.id, ctx.user.id], function(results) {
+		for (var i = 0; i < results.length; ++i)
+			results[i].json = results[i].json ? JSON.parse(results[i].json) : {};
+
+		cb('list-transactions-success', { results: results });
 	});
 });
 

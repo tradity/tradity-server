@@ -4,7 +4,7 @@ var Access = require('./access.js').Access;
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
-var _ = require('underscore');
+var _ = require('lodash');
 
 function QContext(obj) {
 	var self = this;
@@ -29,6 +29,20 @@ function QContext(obj) {
 };
 
 util.inherits(QContext, buscomponent.BusComponent);
+
+QContext.prototype.clone = function() {
+	var c = new QContext({
+		user: this.user,
+		access: this.access.clone(),
+		parentComponent: this
+	});
+	
+	c.properties = _.clone(this.properties);
+	c.debugHandlers = this.debugHandlers.slice();
+	c.errorHandlers = this.errorHandlers.slice();
+	
+	return c;
+};
 
 QContext.prototype.errorWrap = function(callback) {
 	var self = this;

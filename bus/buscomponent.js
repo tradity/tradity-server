@@ -1,7 +1,7 @@
 (function () { "use strict";
 
 var assert = require('assert');
-var _ = require('underscore');
+var _ = require('lodash');
 
 function BusComponent () {
 	this.bus = null;

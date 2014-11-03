@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var _ = require('underscore');
+var _ = require('lodash');
 var util = require('util');
 var crypto = require('crypto');
 var assert = require('assert');
@@ -304,8 +304,8 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 				if (query.nohistory) 
 					return cb('get-user-info-success', {result: xuser});
 			
-				ctx.query('SELECT oh.*,u.name AS leadername FROM orderhistory AS oh ' +
-					'LEFT JOIN users AS u ON oh.leader = u.id ' + 
+				ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
+					'LEFT JOIN users AS l ON oh.leader = l.id ' + 
 					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
 					[xuser.uid, (!ctx.user || (xuser.delayorderhist && xuser.uid != ctx.user.uid && !ctx.access.has('stocks')))

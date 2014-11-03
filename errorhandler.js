@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var _ = require('underscore');
+var _ = require('lodash');
 var fs = require('fs');
 var util = require('util');
 var buscomponent = require('./stbuscomponent.js');

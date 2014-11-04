@@ -49,6 +49,9 @@ Database.prototype._init = function(cb) {
 				self.emitImmediate('change-readability-mode', { readonly: true });
 		});
 		
+		self.wConnectionPool.on('remove', function() { self.emitError(new Error('DB lost write connection')); });
+		self.rConnectionPool.on('remove', function() { self.emitError(new Error('DB lost read connection')); });
+		
 		self.inited = true;
 		self.openConnections = 0;
 		

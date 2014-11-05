@@ -701,7 +701,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			var totalprovPay = wprovPay + lprovPay;
 			
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
-				'VALUES (?, "provision", ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
+				'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
 				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({reason: 'trade'})], function() {
 			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
 				[totalprovPay, totalprovPay, ctx.user.id], function() {

@@ -157,7 +157,7 @@ var lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
 var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 
 StocksDB.prototype.updateProvisions = function (ctx, cb) {
-	ctx.getConnection(function (conn) {
+	ctx.getConnection(function (conn, commit) {
 	conn.query('SET autocommit = 0; ' +
 	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
 	'stocks AS s READ, transactionlog WRITE;', [], function() {
@@ -170,7 +170,7 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', [],
 		function(dsr) {
 		if (!dsr.length) {
-			conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
+			commit();
 			return cb();
 		}
 		
@@ -199,10 +199,7 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 			conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 				[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
 				if (++complete == dsr.length) 
-					conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() {
-						conn.release();
-						cb();
-					});
+					commit(cb);
 			});
 			});
 			});
@@ -232,7 +229,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 	
 	self.getServerConfig(function(cfg) {
 	
-	ctx.getConnection(function (conn) {
+	ctx.getConnection(function (conn, commit) {
 	conn.query('SET autocommit = 0; ' +
 		'LOCK TABLES depot_stocks AS ds READ, users_finance WRITE, stocks AS s WRITE;', [], function() {
 	conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
@@ -376,28 +373,30 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 				
 				if (++complete == users.length) {
 					var lmuComputationsComplete = Date.now();
-					conn.query(updateQuery + 'COMMIT; UNLOCK TABLES; SET autocommit = 1;', updateParams, function() {
-						conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
-							'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
-							[users[i]], function(res) {
-							conn.release();
-							
-							var lmuEnd = Date.now();
-							console.log('lmu timing: ' +
-								presgesvTotalTime + ' ms pre-sgesv total, ' +
-								sgesvTotalTime + ' ms sgesv total, ' +
-								postsgesvTotalTime + ' ms post-sgesv total, ' +
-								(lmuEnd - lmuStart) + ' ms lmu total, ' +
-								(lmuFetchData - lmuStart) + ' ms fetching, ' +
-								(lmuEnd - lmuComputationsComplete) + ' ms writing');
-							
-							for (var j = 0; j < res.length; ++j) {
-								process.nextTick(_.bind(_.partial(function(r) {
-									self.emitGlobal('stock-update', r);
-								}, res[j]), self));
-							}
-							
-							cb();
+					conn.query(updateQuery, updateParams, function() {
+						commit(false, function() {
+							conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
+								'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
+								[users[i]], function(res) {
+								conn.release();
+								
+								var lmuEnd = Date.now();
+								console.log('lmu timing: ' +
+									presgesvTotalTime + ' ms pre-sgesv total, ' +
+									sgesvTotalTime + ' ms sgesv total, ' +
+									postsgesvTotalTime + ' ms post-sgesv total, ' +
+									(lmuEnd - lmuStart) + ' ms lmu total, ' +
+									(lmuFetchData - lmuStart) + ' ms fetching, ' +
+									(lmuEnd - lmuComputationsComplete) + ' ms writing');
+								
+								for (var j = 0; j < res.length; ++j) {
+									process.nextTick(_.bind(_.partial(function(r) {
+										self.emitGlobal('stock-update', r);
+									}, res[j]), self));
+								}
+								
+								cb();
+							});
 						});
 					});
 				}
@@ -586,19 +585,12 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	
-	ctx.getConnection(function(conn) {
+	ctx.getConnection(function(conn, commit, rollback) {
 	
 	conn.query('SET autocommit = 0; ' +
 	'LOCK TABLES depot_stocks WRITE, users_finance AS l WRITE, users_finance AS f WRITE, users AS fu WRITE, ' +
 	'stocks AS s READ, orderhistory WRITE, transactionlog WRITE;', [], function() {
-	var commit = function() {
-		conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
-	};
 	
-	var rollback = function() {
-		conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
-	};
-		
 	conn.query('SELECT s.*, ' +
 		'depot_stocks.amount AS amount, ' +
 		'depot_stocks.amount * s.lastvalue AS money, ' +

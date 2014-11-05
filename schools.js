@@ -223,15 +223,13 @@ SchoolsDB.prototype.createSchool = buscomponent.provideWQT('client-create-school
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	
-	ctx.getConnection(function(conn) {
+	ctx.getConnection(function(conn, commit, rollback) {
 		conn.query('START TRANSACTION', [], function() {
 		conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)], function(r) {
 			assert.equal(r.length, 1);
 			if (r[0].c == 1 || !query.schoolname.trim() || 
 				!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
-				conn.query('ROLLBACK', function() {
-					conn.release();
-				});
+				rollback();
 				
 				return cb('create-school-already-exists');
 			}
@@ -241,9 +239,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideWQT('client-create-school
 					[String(query.schoolname), String(query.schoolpath)], function(res) {
 					ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': ctx.user.id});
 					
-					conn.query('COMMIT', function() {
-						conn.release();
-					});
+					commit();
 					
 					cb('create-school-success');
 				});
@@ -254,9 +250,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideWQT('client-create-school
 			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(String(query.schoolpath))], function(r) {
 				assert.equal(r.length, 1);
 				if (r[0].c != 1) {
-					conn.query('ROLLBACK', function() {
-						conn.release();
-					});
+					rollback();
 					
 					return cb('create-school-missing-parent');
 				}

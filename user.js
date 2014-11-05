@@ -105,7 +105,7 @@ UserDB.prototype.login = buscomponent.provide('client-login',
 	
 	/* use an own connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
-	ctx.getConnection(function(conn) {
+	ctx.getConnection(function(conn, commit) {
 		conn.query('SELECT id, pwsalt, pwhash FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 			if (res.length == 0) {
 				cb('login-badname');
@@ -149,7 +149,9 @@ UserDB.prototype.login = buscomponent.provide('client-login',
 						conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 							'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
 							[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function() {
+							commit(function() {
 								cb('login-success', {key: key, uid: uid}, 'repush');
+							});
 						});
 						});
 					}
@@ -666,20 +668,11 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	
 	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
-	ctx.getConnection(function(conn) {
+	ctx.getConnection(function(conn, commit, rollback) {
 	conn.query('SET autocommit = 0; ' +
 		'LOCK TABLES users WRITE, users_finance WRITE, users_data WRITE, stocks WRITE, betakeys WRITE, ' +
 		'inviteaccept WRITE, invitelink READ, schoolmembers WRITE, schooladmins WRITE' +
 		(query.school ? ', schools WRITE' : '') + ';', [], function() {
-	
-	var commit = function(cb) {
-		cb = cb || function() {};
-		conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); cb(); });
-	};
-	
-	var rollback = function() {
-		conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;', [], function() { conn.release(); });
-	};
 	
 	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[query.email, query.name, uid], function(res) {

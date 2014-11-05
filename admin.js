@@ -75,7 +75,7 @@ AdminDB.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _re
 	if (uid != uid) // NaN
 		return cb('format-error');
 	
-	ctx.getConnection(function(conn) {
+	ctx.getConnection(function(conn, commit) {
 		conn.query('START TRANSACTION', [], function() {
 		conn.query('DELETE FROM sessions WHERE uid = ?', [uid], function() {
 		conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid], function() {
@@ -85,8 +85,7 @@ AdminDB.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _re
 		conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE id = ?', [uid], function() {
 		conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
 		'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid], function() {
-			conn.query('COMMIT', [], function() {
-				conn.release();
+			commit(function() {
 				cb('delete-user-success');
 			});
 		});

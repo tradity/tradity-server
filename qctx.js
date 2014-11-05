@@ -149,13 +149,41 @@ QContext.prototype.getConnection = function(readonly, cb) {
 	}
 	
 	self.request({readonly: readonly, name: 'dbGetConnection'}, function(conn) {
-		cb({
+		/* wrapper object for better debugging, no semantic change */
+		var conn_ = {
 			release: _.bind(conn.release, conn),
 			query: function(query, args, cb) {
 				self.debug('Executing query [bound]', query, args);
 				conn.query(query, args, (cb || function() {}));
 			}
-		});
+		};
+		
+		var postTransaction = function(doRelease, ecb) {
+			if (typeof doRelease == 'function') {
+				ecb = doRelease;
+				doRelease = true;
+			}
+			
+			if (typeof doRelease == 'undefined')
+				doRelease = true;
+			
+			ecb = ecb || function() {};
+			
+			if (doRelease)
+				conn.release();
+			ecb();
+		};
+		
+		/* convenience functions for rollback and commit with implicit release */
+		var commit = function(doRelease, ecb) {
+			conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', [], function() { postTransaction(doRelease, ecb); });
+		};
+		
+		var rollback = function(doRelease, ecb) {
+			conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;', [], function() { postTransaction(doRelease, ecb); });
+		};
+		
+		cb(conn_, commit, rollback);
 	}); 
 };
 

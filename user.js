@@ -220,7 +220,7 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 			(fulldata ? '' : 'IF(realnamepublish != 0,giv_name,NULL) AS ') + ' giv_name, ' +
 			(fulldata ? '' : 'IF(realnamepublish != 0,fam_name,NULL) AS ') + ' fam_name, ' +
 			'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
-			join + /* needs query.since parameter */
+			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere +
 			'LIMIT ?, ?', 

@@ -90,7 +90,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, ctx, user
 			if (!hasBeenAchieved)
 				return;
 			
-			ctx.query('REPLACE INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
+			ctx.query('REPLACE LOW_PRIORITY INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
 				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version], function(res) {
 				ctx.feed({
 					type: 'achievement',
@@ -187,7 +187,7 @@ AchievementsDB.prototype.clientAchievement = buscomponent.provideWQT('client-ach
 	if (self.clientAchievements.indexOf(query.name) == -1)
 		return cb('achievement-unknown-name');
 	
-	ctx.query('REPLACE INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
+	ctx.query('REPLACE LOW_PRIORITY INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
 		self.emitImmediate('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
 		cb('achievement-success');

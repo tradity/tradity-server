@@ -38,7 +38,7 @@ function Bus () {
 	this.busNodeInfoQueued = false;
 	
 	this.packetLog = [];
-	this.packetLogLength = 4096;
+	this.packetLogLength = 1536;
 	
 	this.components = [];
 	this.transports = [];
@@ -609,6 +609,10 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 			
 			try {
 				if (scope == 'nearest') {
+					// re-send in case the packet got lost (disconnect or similar)
+					if (responsePackets.length == 0)
+						return self.requestScoped(req, onReply, scope);
+					
 					assert.equal(responsePackets.length, 1);
 					
 					onReply.apply(self, responsePackets[0].args);

@@ -285,8 +285,11 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 						self.fetchEvents(query);
 						return cb('fetching-events');
 					case 'init-bus-transport':
-						if (!masterAuthorization || query.time < Date.now() - 200000)
+						if (!masterAuthorization)
 							return cb('permission-denied');
+						
+						if (query.time < Date.now() - 200000 || query.time > Date.now())
+							return cb('invalid-time');
 						
 						self.ctx.setProperty('isBusTransport', true);
 						self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));

@@ -38,12 +38,6 @@ MiscDB.prototype.artificialError = buscomponent.provideQT('client-artificial-err
 	ctx.emitError(new Error('Client-induced non-failure'));
 });
 
-MiscDB.prototype.clientGetConfig = buscomponent.provide('client-server-config', ['reply'], function(cb) {
-	this.getServerConfig(function(cfg) {
-		cb('server-config-success', {'config': _.pick(cfg, cfg.clientconfig)});
-	});
-});
-
 MiscDB.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatistics', ['reply'], function(cb) {
 	var ctx = new qctx.QContext({parentComponent: this});
 	

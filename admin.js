@@ -56,6 +56,9 @@ AdminDB.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv(
 }));
 
 AdminDB.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-user', _reqpriv('server', function(query, ctx, cb) {
+	if (parseInt(query.uid) != query.uid)
+		return cb('permission-denied');
+	
 	ctx.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [parseInt(query.uid)], function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)

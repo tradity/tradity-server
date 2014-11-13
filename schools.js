@@ -1,10 +1,6 @@
 (function () { "use strict";
 
-function parentPath(x) {
-	var match = x.match(/((\/[\w_-]+)+)\/[\w_-]+$/);
-	return match ? match[1] : '/';
-}
-
+var commonUtil = require('common/util.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
@@ -128,7 +124,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 					'JOIN schoolmembers AS sm ON sm.uid = oh.userid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
 					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {
 					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
-						s.parentPath = parentPath(s.path);
+						s.parentPath = commonUtil.parentPath(s.path);
 						self.loadSchoolInfo(s.parentPath, ctx, cfg, function(code, result) {
 							assert.equal(code, 'get-school-info-success');
 							
@@ -247,7 +243,9 @@ SchoolsDB.prototype.createSchool = buscomponent.provideWQT('client-create-school
 			
 			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
 				createCB();
-			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(String(query.schoolpath))], function(r) {
+			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
+				[commonUtil.parentPath(String(query.schoolpath))],
+				function(r) {
 				assert.equal(r.length, 1);
 				if (r[0].c != 1) {
 					rollback();

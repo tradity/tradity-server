@@ -1,10 +1,6 @@
 (function () { "use strict";
 
-function parentPath(x) {
-	var match = String(x).match(/((\/[\w_-]+)+)\/[\w_-]+$/);
-	return match ? match[1] : '/';
-}
-
+var commonUtil = require('common/util.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
@@ -133,9 +129,9 @@ AdminDB.prototype.renameSchool = buscomponent.provideWQT('client-rename-school',
 		if (r.length == 0)
 			return cb('rename-school-notfound');
 
-		ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [parentPath(query.schoolpath || '/')], function(pr) {
+		ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [commonUtil.parentPath(query.schoolpath || '/')], function(pr) {
 			assert.equal(pr.length, 1);
-			if (pr[0].c !== (parentPath(query.schoolpath || '/') != '/' ? 1 : 0))
+			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath || '/') != '/' ? 1 : 0))
 				return cb('rename-school-notfound');
 			
 			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath || '/')], function(er) {
@@ -166,7 +162,7 @@ AdminDB.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _
 		
 		if (sr.length == 0 || ((mr.length == 0 || mr[0].path == sr[0].path) && query.masterschool != null))
 			return cb('join-schools-notfound');
-		if (mr.length > 0 && parentPath(mr[0].path) != parentPath(sr[0].path))
+		if (mr.length > 0 && commonUtil.parentPath(mr[0].path) != commonUtil.parentPath(sr[0].path))
 			return cb('join-schools-diff-parent');
 		
 		ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [parseInt(query.masterschool), parseInt(query.subschool)], function() {

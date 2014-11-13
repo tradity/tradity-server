@@ -5,13 +5,13 @@ var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
-function FeedControllerDB () {
-	FeedControllerDB.super_.apply(this, arguments);
+function FeedController () {
+	FeedController.super_.apply(this, arguments);
 };
 
-util.inherits(FeedControllerDB, buscomponent.BusComponent);
+util.inherits(FeedController, buscomponent.BusComponent);
 
-FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
+FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
 	var self = this;
 	
 	assert.ok(data.type);
@@ -82,7 +82,7 @@ FeedControllerDB.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', '
 	});
 });
 
-FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx, cb) {
+FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx, cb) {
 	ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
@@ -115,7 +115,7 @@ FeedControllerDB.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents
 	});
 });
 
-FeedControllerDB.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx, cb) {
+FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx, cb) {
 	if (parseInt(query.eventid) != query.eventid)
 		return cb('format-error');
 	
@@ -124,7 +124,7 @@ FeedControllerDB.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-
 	});
 });
 
-FeedControllerDB.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx, cb) {
+FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx, cb) {
 	if (!query.comment)
 		return cb('format-error');
 	
@@ -175,6 +175,6 @@ FeedControllerDB.prototype.commentEvent = buscomponent.provideWQT('client-commen
 	});
 });
 
-exports.FeedControllerDB = FeedControllerDB;
+exports.FeedController = FeedController;
 
 })();

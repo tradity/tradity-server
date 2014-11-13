@@ -8,9 +8,9 @@ var util = require('util');
 var _ = require('lodash');
 
 var cfg = require('./config.js').config;
-var SignedMessagingDB = require('./signedmsg.js').SignedMessagingDB;
+var SignedMessaging = require('./signedmsg.js').SignedMessaging;
 
-var smdb = new SignedMessagingDB();
+var smdb = new SignedMessaging();
 smdb.useConfig(cfg);
 var options = process.argv.splice(2);
 

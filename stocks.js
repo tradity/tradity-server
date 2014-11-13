@@ -9,15 +9,15 @@ require('datejs');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
-function StocksDB () {
-	StocksDB.super_.apply(this, arguments);
+function Stocks () {
+	Stocks.super_.apply(this, arguments);
 	
 	this.quoteLoader = null;
 }
 
-util.inherits(StocksDB, buscomponent.BusComponent);
+util.inherits(Stocks, buscomponent.BusComponent);
 
-StocksDB.prototype.onBusConnect = function() {
+Stocks.prototype.onBusConnect = function() {
 	var self = this;
 	
 	this.request({name: 'getStockQuoteLoader'}, function(ql) {
@@ -32,11 +32,11 @@ StocksDB.prototype.onBusConnect = function() {
 	});
 };
 
-StocksDB.prototype.stocksFilter = function(cfg, rec) {
+Stocks.prototype.stocksFilter = function(cfg, rec) {
 	return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == cfg.requireCurrency;
 };
 
-StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
+Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
 	var self = this;
 	
 	cb = cb || function() {};
@@ -48,7 +48,7 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 	
 	var xcb = function() {
 		var rcbET = Date.now();
-		console.log('StocksDB rcb in ' + (rcbET - rcbST) + ' ms');
+		console.log('Stocks rcb in ' + (rcbET - rcbST) + ' ms');
 		cb();
 	};
 	
@@ -78,7 +78,7 @@ StocksDB.prototype.regularCallback = buscomponent.provide('regularCallbackStocks
 	});
 });
 
-StocksDB.prototype.updateRankingInformation = function(ctx, cb) {
+Stocks.prototype.updateRankingInformation = function(ctx, cb) {
 	var self = this;
 	
 	cb = cb || function() {};
@@ -92,7 +92,7 @@ StocksDB.prototype.updateRankingInformation = function(ctx, cb) {
 	});	
 }
 
-StocksDB.prototype.updateValueHistory = function(ctx, cb) {
+Stocks.prototype.updateValueHistory = function(ctx, cb) {
 	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
 	ctx.query('INSERT INTO tickshistory (userid, ticks, time) SELECT id, ticks, UNIX_TIMESTAMP() FROM users');
 	
@@ -102,17 +102,17 @@ StocksDB.prototype.updateValueHistory = function(ctx, cb) {
 		'DROP TABLE users_dindex', [], cb);
 }
 
-StocksDB.prototype.dailyCallback = function(ctx, cb) {
+Stocks.prototype.dailyCallback = function(ctx, cb) {
 	cb = cb || function() {};
 	
 	ctx.query('UPDATE stocks SET daystartvalue = bid', [], cb);
 }
 
-StocksDB.prototype.weeklyCallback = function(ctx, cb) {
+Stocks.prototype.weeklyCallback = function(ctx, cb) {
 	ctx.query('UPDATE stocks SET weekstartvalue = bid', [], cb);
 }
 
-StocksDB.prototype.cleanUpUnusedStocks = function(ctx, cb) {
+Stocks.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 	this.getServerConfig(function(cfg) {
 		cb = cb || function() {};
 		
@@ -126,7 +126,7 @@ StocksDB.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 	});
 }
 
-StocksDB.prototype.updateStockValues = function(ctx, cb) {
+Stocks.prototype.updateStockValues = function(ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
@@ -156,7 +156,7 @@ var lprovMin = 'LEAST(ds.provision_lwm, s.bid)';
 var lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
 var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 
-StocksDB.prototype.updateProvisions = function (ctx, cb) {
+Stocks.prototype.updateProvisions = function (ctx, cb) {
 	ctx.getConnection(function (conn, commit) {
 	conn.query('SET autocommit = 0; ' +
 	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
@@ -222,7 +222,7 @@ function identityMatrix(n) {
 	return A;
 }
 
-StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
+Stocks.prototype.updateLeaderMatrix = function(ctx, cb) {
 	var self = this;
 	
 	var lmuStart = Date.now();
@@ -416,7 +416,7 @@ StocksDB.prototype.updateLeaderMatrix = function(ctx, cb) {
 	});
 }
 
-StocksDB.prototype.updateRecord = function(ctx, rec) {
+Stocks.prototype.updateRecord = function(ctx, rec) {
 	var self = this;
 	
 	if (rec.failure)
@@ -452,7 +452,7 @@ StocksDB.prototype.updateRecord = function(ctx, rec) {
 		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], emitSUEvent);
 };
 
-StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx, cb) {
+Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx, cb) {
 	var self = this;
 	
 	this.getServerConfig(function(cfg) {
@@ -521,7 +521,7 @@ StocksDB.prototype.searchStocks = buscomponent.provideQT('client-stock-search', 
 	});
 });
 
-StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen', ['sxname', 'cfg', 'reply'], function(sxname, cfg, cb) {
+Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen', ['sxname', 'cfg', 'reply'], function(sxname, cfg, cb) {
 	assert.ok(sxname);
 	assert.ok(cfg);
 	
@@ -542,7 +542,7 @@ StocksDB.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOp
 	return res;
 });
 
-StocksDB.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ctx, cb) {
+Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ctx, cb) {
 	var self = this;
 	
 	ctx.query('SELECT s.*, ds.* FROM stocks AS s JOIN depot_stocks AS ds ON ds.stockid = s.id WHERE s.leader = ?', [ctx.user.id], function(res) {
@@ -570,7 +570,7 @@ StocksDB.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, 
 	});
 });
 
-StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
+Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	['query', 'ctx', 'forceNow', 'reply'], function(query, ctx, forceNow, cb) {
 	var self = this;
 	
@@ -758,7 +758,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	});
 });
 
-StocksDB.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot', function(query, ctx, cb) {
+Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot', function(query, ctx, cb) {
 	ctx.query('SELECT '+
 		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, '+
 		's.stockid AS stockid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, '+
@@ -773,7 +773,7 @@ StocksDB.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot
 	});
 });
 
-StocksDB.prototype.listTransactions = buscomponent.provideQT('client-list-transactions', function(query, ctx, cb) {
+Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transactions', function(query, ctx, cb) {
 	ctx.query('SELECT t.*, a.name AS aname, p.name AS pname, s.name AS stockname FROM transactionlog AS t ' +
 		'LEFT JOIN users AS a ON a.id = t.a_user ' +
 		'LEFT JOIN users AS p ON p.id = t.p_user ' +
@@ -786,7 +786,7 @@ StocksDB.prototype.listTransactions = buscomponent.provideQT('client-list-transa
 	});
 });
 
-StocksDB.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx, cb) {
+Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx, cb) {
 	this.getServerConfig(function(cfg) {
 		ctx.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh '+
 			'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
@@ -810,6 +810,6 @@ StocksDB.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info'
 	});
 });
 
-exports.StocksDB = StocksDB;
+exports.Stocks = Stocks;
 
 })();

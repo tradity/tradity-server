@@ -15,13 +15,13 @@ function sha256(s) {
 	return h.read().toString('hex');
 }
 
-function FileStorageDB () {
-	FileStorageDB.super_.apply(this, arguments);
+function FileStorage () {
+	FileStorage.super_.apply(this, arguments);
 }
 
-util.inherits(FileStorageDB, buscomponent.BusComponent);
+util.inherits(FileStorage, buscomponent.BusComponent);
 
-FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
+FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
 	var self = this;
 	
 	var ctx = new qctx.QContext({parentComponent: self});
@@ -106,7 +106,7 @@ FileStorageDB.prototype.handle = buscomponent.provide('handleFSDBRequest', ['req
 	});
 });
 
-FileStorageDB.prototype.publish = buscomponent.provide('client-publish',
+FileStorage.prototype.publish = buscomponent.provide('client-publish',
 	['query', 'ctx', 'groupassoc', 'reply'], function(query, ctx, groupassoc, cb) {
 	var self = this;
 	
@@ -216,6 +216,6 @@ FileStorageDB.prototype.publish = buscomponent.provide('client-publish',
 	});
 });
 
-exports.FileStorageDB = FileStorageDB;
+exports.FileStorage = FileStorage;
 
 })();

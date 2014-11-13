@@ -219,8 +219,8 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 			'((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) - (now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
 			(fulldata ? '' : 'IF(realnamepublish != 0,giv_name,NULL) AS ') + ' giv_name, ' +
 			(fulldata ? '' : 'IF(realnamepublish != 0,fam_name,NULL) AS ') + ' fam_name, ' +
-			'(SELECT SUM(xp) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
-			join + /* needs query.since parameter */
+			'(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
+			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere +
 			'LIMIT ?, ?', 

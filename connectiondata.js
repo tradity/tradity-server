@@ -288,7 +288,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 						if (!masterAuthorization)
 							return cb('permission-denied');
 						
-						if (query.time < Date.now() - 1800000 || query.time > Date.now())
+						if (query.time < Date.now() - 900000 || query.time > Date.now() + 900000)
 							return cb('invalid-time');
 						
 						self.ctx.setProperty('isBusTransport', true);

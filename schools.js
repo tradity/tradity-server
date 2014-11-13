@@ -134,12 +134,12 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 							
 							s.parentSchool = result;
 							
-							s.config = _.defaults(s.config, s.parentSchool.config, cfg.schoolConfigDefaults);
+							s.config = _.deepupdate({}, cfg.schoolConfigDefaults, s.parentSchool.config, s.config);
 							
 							cb('get-school-info-success', s);
 						});
 					} else {
-						s.config = _.defaults(s.config, cfg.schoolConfigDefaults);
+						s.config = _.deepupdate({}, cfg.schoolConfigDefaults, s.config);
 						
 						cb('get-school-info-success', s);
 					}

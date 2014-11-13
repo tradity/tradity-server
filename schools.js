@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var commonUtil = require('common/util.js');
+var commonUtil = require('./common/util.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');

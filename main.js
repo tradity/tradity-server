@@ -160,7 +160,7 @@ function worker() {
 		].concat(process.isBackgroundWorker ? [
 			'./background-worker.js', './dqueries.js'
 		] : [
-			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js'
+			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js', './chats.js'
 		]);
 
 		loadComponents(componentsForLoading);

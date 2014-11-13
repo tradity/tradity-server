@@ -144,15 +144,12 @@ User.prototype.login = buscomponent.provide('client-login',
 					} else {
 						self.regularCallback({}, ctx);
 						
-						conn.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
-							[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
 						conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 							'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
 							[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function() {
 							commit(function() {
 								cb('login-success', {key: key, uid: uid}, 'repush');
 							});
-						});
 						});
 					}
 				});

@@ -11,7 +11,7 @@ var buscomponent = require('./stbuscomponent.js');
 /**
  * Provides client requests for small-scale finance updates and display.
  * @public
- * @module stocks-financeupdate
+ * @module stocks
  */
 
 /**
@@ -489,30 +489,33 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
  *                                   unmet preconditions.
  * @param {int} query.amount  The number of stocks to buy/sell.
  * 
- * @return {object} Returns with <code>stock-buy-success</code> in case of success,
- *                  <code>stock-buy-stock-not-found</code> in case no stock according to
- *                  <code>.leader</code>/<code>.stockid</code> was found,
- *                  <code>stock-buy-email-not-verif</code> in case a leader stock was requested
- *                  and the buying user’s e-mail was not verified yet,
- *                  <code>stock-buy-autodelay-sxnotopen</code> in case the stock exchange was not open
- *                  and the query was added to the delayed queries list,
- *                  <code>stock-buy-sxnotopen</code> in case the stock exchange was not open
+ * @return {object} Returns with <ul>
+ *                  <li><code>stock-buy-success</code> in case of success</li>
+ *                  <li><code>stock-buy-stock-not-found</code> in case no stock according to
+ *                  <code>.leader</code>/<code>.stockid</code> was found</li>
+ *                  <li><code>stock-buy-email-not-verif</code> in case a leader stock was requested
+ *                  and the buying user’s e-mail was not verified yet</li>
+ *                  <li><code>stock-buy-autodelay-sxnotopen</code> in case the stock exchange was not open
+ *                  and the query was added to the delayed queries list</li>
+ *                  <li><code>stock-buy-sxnotopen</code> in case the stock exchange was not open
  *                  and the query was <em>not</em> added to the delayed queries list (e.g. due to
- *                  <code>_isDelayed</code> being set,
- *                  <code>stock-buy-not-enough-stocks</code> in case the user attempted to sell more
- *                  shares than he previously possessed,
- *                  <code>stock-buy-out-of-money</code> in case the user attempted to buy more shares
- *                  than his financial situation allows,
- *                  <code>stock-buy-over-pieces-limit</code> in case the user attempted to buy
- *                  more shares than there are available on the current day,
- *                  <code>stock-buy-single-paper-share-exceed</code> in case the trade would result in
+ *                  <code>_isDelayed</code> being set</li>
+ *                  <li><code>stock-buy-not-enough-stocks</code> in case the user attempted to sell more
+ *                  shares than he previously possessed</li>
+ *                  <li><code>stock-buy-out-of-money</code> in case the user attempted to buy more shares
+ *                  than his financial situation allows</li>
+ *                  <li><code>stock-buy-over-pieces-limit</code> in case the user attempted to buy
+ *                  more shares than there are available on the current day</li>
+ *                  <li><code>stock-buy-single-paper-share-exceed</code> in case the trade would result in
  *                  more then the configured maximum share of the total user value being invested in
- *                  this specific stock, or a common error code and,
- *                  in case of success, sets <code>.tradeid</code> and <code>.fee</code> accordingly.
+ *                  this specific stock, or a common error code</li>
+ *                  </ul>
+ *                  and, in case of success, sets <code>.tradeid</code> and <code>.fee</code> accordingly.
  * 
  * @noreadonly
  * @function c2s~stock-buy
  */
+StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	['query', 'ctx', 'forceNow', 'reply'], function(query, ctx, forceNow, cb) {
 	var self = this;
 	

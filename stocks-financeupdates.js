@@ -35,7 +35,27 @@ var lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
 var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 
 /**
- * Update all provision values in the user finance fields
+ * Update all provision values in the user finance fields.
+ * 
+ * The provisions are calculated according to: <br />
+ * <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *     <mrow>
+ *         Gain provision =
+ *         (max{HWM - bid} - HWM) · (number of shares)
+ *         · <mfrac><mrow>(gain provision percentage)</mrow><mrow>100</mrow></mfrac>
+ *     </mrow>
+ *     <mrow>
+ *         Loss provision =
+ *         (min{LWM - bid} - LWM) · (number of shares)
+ *         · <mfrac><mrow>(loss provision percentage)</mrow><mrow>100</mrow></mfrac>
+ *     </mrow>
+ * </math> <br />
+ * where HWM and LWM stand for high and low water mark, respectively.
+ * 
+ * After paying the provisions, all HWMs and LWMs are set to their new marks.
+ * They are not – as it was the case in earlier revisions of this software –
+ * reset after a given amount of time, but rather persist over the entire span
+ * of time in which the users holds shares of the corresponding leader.
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access
  * 

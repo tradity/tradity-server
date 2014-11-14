@@ -11,15 +11,16 @@ var qctx = require('./qctx.js');
 require('datejs');
 
 /**
- * Provides client requests for small-scale finance updates and display.
+ * Provides all single-user non-financial client requests.
+ * 
  * @public
- * @module stocks-financeupdate
+ * @module user
  */
 
 /**
- * Main object of the {@link module:stocks} module
+ * Main object of the {@link module:user} module
  * @public
- * @constructor module:stocks~Stocks
+ * @constructor module:user~User
  * @augments module:stbuscomponent~STBusComponent
  */
 function User () {
@@ -28,14 +29,37 @@ function User () {
 
 util.inherits(User, buscomponent.BusComponent);
 
+/**
+ * Generates a password hash and salt combination.
+ * 
+ * @param {string} pw  The password string to generate a salt+hash for.
+ * @param {function} cb  A 2-parameter function called with (salt, hash)
+ *                       when done hashing.
+ * 
+ * @function module:user~User#generatePWKey
+ */
 User.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, function(ex, buf) {
 		var pwsalt = buf.toString('hex');
-		var pwhash = commonUtil.sha256(pwsalt + pw);
+		var pwhash = commonUtil.sha256(pwsalt + String(pw));
 		cb(pwsalt, pwhash);
 	});
 };
 
+/**
+ * Sends an invite e-mail to a user.
+ * 
+ * @param {object} data  General information on sender and receiver of the e-mail.
+ * @param {string} data.sender.name  The username of the sender.
+ * @param {string} data.sender.email  The e-mail address of the sender.
+ * @param {string} data.email  The e-mail adress of the receiver.
+ * @param {string} data.url  The URL of the invite link.
+ * @param {function} cb  A callback which will be called with either
+ *                       <code>create-invite-link-failed</code> or
+ *                       <code>create-invite-link-success</code>.
+ * 
+ * @function module:user~User#sendInviteEmail
+ */
 User.prototype.sendInviteEmail = function(data, cb) {
 	var self = this;
 	
@@ -54,6 +78,19 @@ User.prototype.sendInviteEmail = function(data, cb) {
 	});
 };
 
+/**
+ * Sends the registation e-mail to a new user or after an e-mail address change.
+ * 
+ * @param {object} data  General information on the receiver of the email.
+ * @param {string} data.name  The username of the receiver.
+ * @param {string} data.email  The e-mail adress of the receiver.
+ * @param {string} data.url  The URL of the e-mail address confirmation link.
+ * @param {function} cb  A callback which will be called with either
+ *                       <code>reg-email-failed</code> or
+ *                       <code>reg-success</code>.
+ * 
+ * @function module:user~User#sendRegisterEmail
+ */
 User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	var self = this;
 	
@@ -93,11 +130,37 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	});
 };
 
+/**
+ * Lists the most popular stocks.
+ * 
+ * These are ordered according to a weighted average of the money amounts
+ * involved in the relevant trades, specifically:
+ * 
+ * <ul>
+ *     <li>No trades older than 3 weeks are taken into consideration</li>
+ *     <li>Each trade’s value is added to its stock according to:
+ *         <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *             <mfrac>
+ *                 <mrow>|money involved in trade|</mrow>
+ *                 <mrow>|time difference now - trade time in seconds + 300|</mrow>
+ *             </mfrac>
+ *         </math>
+ *     </li>
+ * </ul>
+ * 
+ * @return {object} Returns with <code>list-popular-stocks-success</code>,
+ *                  with <code>.results</code> being set to a list of stocks,
+ *                  which carry the properties <code>stockid, stockname, moneysum, wsum</code>,
+ *                  the latter being the sum of the above formula over all trades for that stock.
+ * 
+ * @function c2s~list-popular-stocks
+ */
 User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx, cb) {
 	ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 		'SUM(ABS(money)) AS moneysum, ' +
 		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 		'FROM orderhistory AS oh ' +
+		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
 		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [], function(popular) {
 		cb('list-popular-stocks-success', {'results': popular});
 	});

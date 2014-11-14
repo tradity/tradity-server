@@ -183,12 +183,10 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 		'JOIN users_data ON users_data.id = u.id ' +
 		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid ' +
 		'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
-		'JOIN valuehistory AS past_va ON past_va.userid = u.id ' +
-		'JOIN (SELECT userid, MIN(time) AS t FROM valuehistory WHERE time > ? GROUP BY userid) AS past_locator_va ' +
-			'ON past_va.userid = past_locator_va.userid AND past_va.time = past_locator_va.t ' +
-		'JOIN valuehistory AS now_va ON now_va.userid = u.id ' +
-		'JOIN (SELECT userid, MAX(time) AS t FROM valuehistory WHERE time < ? GROUP BY userid) AS now_locator_va ' +
-			'ON now_va.userid = now_locator_va.userid AND now_va.time = now_locator_va.t ';
+		'JOIN (SELECT userid, MIN(time) AS min_t, MAX(time) AS max_t FROM valuehistory ' +
+			'WHERE time > ? AND time < ? GROUP BY userid) AS locator_va ON u.id = locator_va.userid ' +
+		'JOIN valuehistory AS past_va ON past_va.userid = u.id AND past_va.time = locator_va.min_t ' +
+		'JOIN valuehistory AS now_va ON now_va.userid = u.id AND now_va.time = locator_va.max_t ';
 			
 	if (!query.includeAll) 
 		likestringWhere += ' AND email_verif != 0 ';

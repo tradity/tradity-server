@@ -536,6 +536,7 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
 	conn.query('SELECT s.*, ' +
 		'depot_stocks.amount AS amount, ' +
 		'depot_stocks.amount * s.lastvalue AS money, ' +
+		'depot_stocks.provision_hwm, depot_stocks.provision_lwm, s.bid, ' +
 		's.bid - depot_stocks.provision_hwm AS hwmdiff, ' +
 		's.bid - depot_stocks.provision_lwm AS lwmdiff, ' +
 		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
@@ -636,7 +637,13 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
 			
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
 				'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
-				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({reason: 'trade'})], function() {
+				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({
+					reason: 'trade',
+					provision_hwm: r.provision_hwm,
+					provision_lwm: r.provision_lwm,
+					bid: r.bid,
+					depot_amount: amount
+				})], function() {
 			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
 				[totalprovPay, totalprovPay, ctx.user.id], function() {
 			conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',

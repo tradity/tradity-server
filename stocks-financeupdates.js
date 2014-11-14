@@ -47,11 +47,12 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
 	'stocks AS s READ, transactionlog WRITE;', [], function() {
 		conn.query('SELECT ' +
-			'ds.depotentryid AS dsid, s.stockid AS stocktextid, '+
-			wprovFees+' AS wfees, '+wprovMax+' AS wmax, '+
-			lprovFees+' AS lfees, '+lprovMin+' AS lmin, '+
-			'f.id AS fid, l.id AS lid '+
-			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
+			'ds.depotentryid AS dsid, s.stockid AS stocktextid, ' +
+			wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
+			lprovFees + ' AS lfees, ' + lprovMin + ' AS lmin, ' +
+			'ds.provision_hwm, ds.provision_lwm, s.bid, ds.amount, ' +
+			'f.id AS fid, l.id AS lid ' +
+			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid ' +
 			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', [],
 		function(dsr) {
 		if (!dsr.length) {
@@ -72,7 +73,13 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 			(Math.abs(totalfees) < 1 ? function(cont) { cont(); } : function(cont) {
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
 				'(NULL, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[dsr[j].stocktextid, dsr[j].fid, dsr[j].lid, totalfees, JSON.stringify({reason: 'regular-provisions'})],
+				[dsr[j].stocktextid, dsr[j].fid, dsr[j].lid, totalfees, JSON.stringify({
+					reason: 'regular-provisions',
+					provision_hwm: dsr[j].provision_hwm,
+					provision_lwm: dsr[j].provision_lwm,
+					bid: dsr[j].bid,
+					depot_amount: dsr[j].amount
+				})],
 				cont);
 			})(function() {
 			conn.query('UPDATE depot_stocks AS ds SET ' +

@@ -32,14 +32,13 @@ function _reqpriv (required, f) {
 Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _reqpriv('userdb', function(query, ctx, cb) {
 	ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, users.id AS uid, tradecount, ' +
 		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, registertime, ' +
-		'logins.logintime AS lastlogintime, schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
+		'schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
 		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=users.id) AS commentcount, '+
 		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=users.id) AS lastcommenttime FROM users ' +
 		'JOIN users_data ON users.id = users_data.id ' +
 		'JOIN users_finance ON users.id = users_finance.id ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
-		'LEFT JOIN schools ON schools.id = sm.schoolid ' +
-		'LEFT JOIN logins ON logins.id = (SELECT id FROM logins AS l WHERE l.uid = users.id ORDER BY logintime DESC LIMIT 1)',
+		'LEFT JOIN schools ON schools.id = sm.schoolid ',
 		[], function(userlist) {
 		cb('list-all-users-success', {results: userlist});
 	});
@@ -184,16 +183,6 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
 		'WHERE s.leader = ?', [parseInt(query.uid)], function(res) {
 		
 		cb('get-followers-success', {results: res});
-	});
-}));
-
-Admin.prototype.getUserLogins = buscomponent.provideQT('client-get-user-logins', _reqpriv('userdb', function(query, ctx, cb) {
-	ctx.query('SELECT * FROM logins WHERE uid = ?', [parseInt(query.uid)], function(res) {
-		_.each(res, function(e) {
-			e.headers = JSON.parse(e.headers);
-		});
-		
-		cb('get-user-logins-success', {results: res});
 	});
 }));
 

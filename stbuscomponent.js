@@ -5,6 +5,18 @@ var _ = require('lodash');
 
 var buscomponent = require('./bus/buscomponent.js');
 
+/**
+ * Provides Tradity-specific extensions to the general {@link module:buscomponent} module
+ * @public
+ * @module stbuscomponent
+ */
+
+/**
+ * Main object of the {@link module:stbuscomponent} module
+ * @public
+ * @constructor module:stbuscomponent~STBusComponent
+ * @augments module:buscomponent~BusComponent
+ */
 function STBusComponent () {
 	STBusComponent.super_.apply(this, arguments);
 }

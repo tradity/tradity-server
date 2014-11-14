@@ -87,6 +87,7 @@ ConnectionData.prototype.toString = function() {
 
 ConnectionData.uniqueCount = 0;
 
+// TODO: tag documentation for these types
 ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod', 'ping', 'school-exists', 'server-config'];
 
 ConnectionData.prototype.fetchEvents = function(query) {

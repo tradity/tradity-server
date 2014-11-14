@@ -270,9 +270,7 @@ socket.on('connect', function() {
 					type: 'get-ranking',
 					id: 'get-ranking-1',
 					rtype: 'general',
-					key: key,
-					startindex: 0,
-					endindex: 20000000
+					key: key
 				});
 				break;
 			case 'get-ranking-1':

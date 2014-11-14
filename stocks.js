@@ -76,6 +76,7 @@ Stocks.prototype.stocksFilter = function(cfg, rec) {
  * @param {Query} query.provisions  Run {@link busreq~updateProvisions}
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
+ * @function busreq~regularCallbackStocks
  */
 Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
 	var self = this;
@@ -247,8 +248,8 @@ Stocks.prototype.updateStockValues = function(ctx, cb) {
 
 /**
  * Represents the values and properties of a stock at a given time.
- * @typedef StockRecord
- * @type object
+ * @typedef module:stocks~StockRecord
+ * @type {object}
  * 
  * @property {string} symbol  A unique identifier (e.g. ISIN) of the stock
  * @property {number} lastvalue  The current stock value (1/10000 units)
@@ -267,7 +268,7 @@ Stocks.prototype.updateStockValues = function(ctx, cb) {
  * Also, for each record, emit a <code>stock-update</code> event on the bus.
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
- * @param {StockRecord} cb  A callback to be called when the processing is done
+ * @param {module:stocks~StockRecord} cb  A callback to be called when the processing is done
  * 
  * @function module:stocks~Stocks#updateRecord
  */
@@ -314,7 +315,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
  * 
  * @return {object} Returns with <code>stock-search-success</code>,
  *                  <code>stock-search-too-short</code> or a common error code and,
- *                  in case of success, sets <code>.results</code> to a {StockRecord[]}.
+ *                  in case of success, sets <code>.results</code> to a {module:stocks~StockRecord[]}.
  * 
  * @function c2s~stock-search
  */
@@ -395,7 +396,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
  * 
  * @return {object} Returns with <code>stock-search-success</code>,
  *                  <code>stock-search-too-short</code> or a common error code and,
- *                  in case of success, sets <code>.results</code> to a {StockRecord[]}.
+ *                  in case of success, sets <code>.results</code> to a {module:stocks~StockRecord[]}.
  * @param {function} reply  Returns true iff <code>sxname</code> is currently open.
  * 
  * @function busreq~stockExchangeIsOpen
@@ -712,9 +713,9 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 
 /**
  * Represents an entry in the depot of a user.
- * @typedef DepotEntry
+ * @typedef module:stocks~DepotEntry
  * @type object
- * @augments StockRecord
+ * @augments module:stocks~StockRecord
  * 
  * @property {int} amount  The number of shares currently being held.
  * @property {int} buytime  The unix timestamp of the least recent trade pertaining to this entry.
@@ -737,7 +738,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
  * List all stocks of the requesting user.
  * 
  * @return {object} Returns with <code>list-own-depot-success</code> or a common error code and,
- *                  in case of success, sets <code>.results</code> as a {DepotEntry[]} accordingly.
+ *                  in case of success, sets <code>.results</code> as a {module:stocks~DepotEntry[]} accordingly.
  * 
  * @function c2s~list-own-depot
  */
@@ -759,7 +760,7 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
 /**
  * Represents a generic payment.
  * Other properties than those given below depent on the transaction type.
- * @typedef TransactionLogEntry
+ * @typedef module:stocks~TransactionLogEntry
  * @type object
  * 
  * @property {string} type  The kind of payment (<code>fee</code>, <code>stockprice</code>,
@@ -778,7 +779,7 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
  * List all transactions involving the requesting user.
  * 
  * @return {object} Returns with <code>list-transactions-success</code> or a common error code and,
- *                  in case of success, sets <code>.results</code> as a {TransactionLogEntry[]} accordingly.
+ *                  in case of success, sets <code>.results</code> as a {module:stocks~TransactionLogEntry[]} accordingly.
  * 
  * @function c2s~list-transactions
  */

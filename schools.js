@@ -216,11 +216,10 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 };
 
 /**
- * A school info object, as returned by {@link c2s~get-school-info}
+ * A school info object (specializes {@link Event}), as returned by {@link c2s~get-school-info}
  * 
  * @typedef module:schools~schoolinfo
  * @type {object}
- * @augments Event
  * 
  * @property {int} id  A numerical school id.
  * @property {string} name  A human-readable name for the school/group.

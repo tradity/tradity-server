@@ -21,12 +21,6 @@ Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', 
 	cb('own-options-success', {'result': r});
 });
 
-Misc.prototype.logout = buscomponent.provideQT('client-logout', function(query, ctx, cb) {
-	this.request({name: 'logout', query: query, ctx: ctx}, function(code) {
-		cb('logout-success', null, 'logout');
-	});
-});
-
 Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx, cb) {
 	cb('pong', {'uid': ctx.user ? ctx.user.uid : null});
 });

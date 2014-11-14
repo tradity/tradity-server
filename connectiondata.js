@@ -265,8 +265,6 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 						
 						self.pushSelfInfo();
 					});
-				} else if (extra == 'logout') {
-					self.onLogout();
 				}
 				
 				self.response(obj);
@@ -300,6 +298,9 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 							return cb('permission-denied');
 						self.ctx.setProperty('debugEnabled', query.debugMode);
 						return cb('set-debug-mode-success');
+					case 'logout':
+						self.onLogout();
+						// fall-through
 				}
 				
 				try {

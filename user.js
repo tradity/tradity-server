@@ -166,6 +166,24 @@ User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-s
 	});
 });
 
+/**
+ * Logs a user into his account.
+ * 
+ * This is usually achieved by creating a session and writing it
+ * into the database. Should, however, the server be in read-only mode,
+ * a message is created and signed with this server’s private key which
+ * is valid for one day.
+ * 
+ * @param {string} query.name  A user name or e-mail address.
+ * @param {string} quer.pw  The user’s password.
+ * 
+ * @return {object} Returns with <code>login-wrongpw</code>,
+ *                  <code>login-badname</code>, <code>login-success</code> or a common error code and,
+ *                  in case of success, sets <code>.key</code> (a session id) and <code>.uid</code>
+ *                  accordingly.
+ * 
+ * @function c2s~login
+ */
 User.prototype.login = buscomponent.provide('client-login', 
 	['query', 'ctx', 'xdata', 'ignorePassword', 'reply'], function(query, ctx, xdata, ignorePassword, cb) {
 	var self = this;
@@ -231,17 +249,128 @@ User.prototype.login = buscomponent.provide('client-login',
 	});
 });
 
-User.prototype.logout = buscomponent.provideWQT('logout', function(query, ctx, cb) {
+/**
+ * Logs a user out of his account.
+ * 
+ * @return {object} Returns with <code>logout-success</code> or a common error code.
+ * 
+ * @function c2s~logout
+ */
+User.prototype.logout = buscomponent.provideWQT('client-logout', function(query, ctx, cb) {
 	ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)], function() {
 		cb('logout-success');
 	});
 });
 
+/**
+ * Represents the information publicly available about a single user.
+ * @typedef module:user~UserEntryBase
+ * @type object
+ * 
+ * @property {int} uid  Often aliased to <code>id</code>, this is the user’s numerical id.
+ *                      Use of the attribute <code>id</code> is deprecated, though, and it
+ *                      will be removed somewhen in the future.
+ * @property {string} name  The name chosen by the user.
+ * @property {int} school  Usually the numerical id of the group in which this user is a member.
+ * @property {string} schoolpath  The path of the school in which this user is a member.
+ * @property {string} schoolname  The human-readable name of the school in which this user is a member.
+ * @property {?int} jointime  The unix timestamp of the time when this user joined their current group.
+ * @property {?boolean} pending  If this user is a group member, this flag indicates whether
+ *                               the user has been accepted yet.
+ * @property {?boolean} hastraded  Indicates whether the user has traded at least once.
+ * @property {number} totalvalue  The total value of the user at the most recent available data point.
+ * @property {number} prov_sum    The total sum of provisions for this user at the most recent available data point.
+ * @property {?string} giv_name  This user’s given name.
+ * @property {?string} fam_name  This user’s family name.
+ * @property {number} xp  This user’s experience point count.
+ */
+
+/**
+ * Represents the information available about a single user in the ranking table,
+ * extending {@link module:user~UserEntryBase}.
+ * <br>
+ * The following variables will be used for brevity:
+ * <ul>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>P</mi><mn>now</mn></msub> = current possession of follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>P</mi><mn>past</mn></msub> = past possession of follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>B</mi><mn>now</mn></msub> = current <abbr title="accumulated">acc.</abbr> value of
+ *              bought follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>B</mi><mn>past</mn></msub> = past <abbr title="accumulated">acc.</abbr> value of
+ *              bought follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>S</mi><mn>now</mn></msub> = current <abbr title="accumulated">acc.</abbr> value of
+ *              sold follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>S</mi><mn>past</mn></msub> = past <abbr title="accumulated">acc.</abbr> value of
+ *              sold follower shares</mrow>
+ *     </math></li>
+ * </ul>
+ * @typedef module:user~RankingEntry
+ * @type object
+ * 
+ * @property {number} past_totalvalue  The total value of the user at the oldest available data point.
+ * @property {number} past_prov_sum    The total sum of provisions for this user at the oldest available data point.
+ * @property {number} fperf    The relative performance gained via follower shares in the given time span as given by:
+ *                             <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *                                 <mfrac>
+ *                                     <mrow><msub><mi>P</mi><mn>now</mn></msub> +
+ *                                           <msub><mi>S</mi><mn>now</mn></msub> -
+ *                                           <msub><mi>S</mi><mn>past</mn></msub></mrow>
+ *                                     <mrow><msub><mi>B</mi><mn>now</mn></msub> -
+ *                                           <msub><mi>B</mi><mn>past</mn></msub> +
+ *                                           <msub><mi>P</mi><mn>past</mn></msub></mrow>
+ *                                 </mfrac>
+ *                             </math>
+ * @property {number} fperfval An absolute performance measure as given by:
+ *                             <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *                                 <mfrac>
+ *                                     <mrow>(<msub><mi>P</mi><mn>now</mn></msub> +
+ *                                            <msub><mi>S</mi><mn>now</mn></msub> -
+ *                                            <msub><mi>S</mi><mn>past</mn></msub>) -
+ *                                           (<msub><mi>B</mi><mn>now</mn></msub> -
+ *                                            <msub><mi>B</mi><mn>past</mn></msub> +
+ *                                            <msub><mi>P</mi><mn>past</mn></msub>)</mrow>
+ *                                     <mrow>max{70 % · default starting value, past total value}</mrow>
+ *                                 </mfrac>
+ *                             </math>
+ */
+
+/**
+ * Lists all users and the information necessary for evaluating and displaying rankings.
+ * 
+ * It might be helpful to understand that none of the evaluation of ranking information
+ * is performed on the server side; It is rather gathered and sent to the client,
+ * so that it can create various ranking tables from the raw data for a number of ranking
+ * criteria and filters.
+ * 
+ * For each user, the first value history entries after the starting time and last before
+ * the end time will be used to provide the requested data.
+ * Since not necessarily <em>all</em> users have been registered during the entire period
+ * in between, the ranking does <em>not</em> start and end for all users at the same time.
+ * 
+ * @param {?int} [since=0]  The ranking starting time as a unix timestamp.
+ * @param {?int} [upto=now]  The ranking end time as a unix timestamp.
+ * @param {?string} [search]  A string to use for filtering by user names and,
+ *                            if permitted by the them, their real names.
+ * @param {?int|string} [schoolid]  When given, only return users in the group specified
+ *                                  by this id or path.
+ * 
+ * @return {object} Returns with <code>get-ranking-success</code> or a common error code
+ *                  and populates <code>.result</code> with a {@link module:user~RankingEntry[]}
+ * 
+ * @function c2s~get-ranking
+ */
 User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx, cb) {
 	var self = this;
-	
-	query.startindex = parseInt(query.startindex) || 0;
-	query.endindex = parseInt(query.endindex) || (1 << 20);
 	
 	query.since = parseInt(query.since) || 0;
 	query.upto = parseInt(query.upto) || (Date.now() / 1000);
@@ -292,15 +421,71 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			'(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
 			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
-			likestringWhere +
-			'LIMIT ?, ?', 
-			[query.since, query.upto].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]),
+			likestringWhere
+			[query.since, query.upto].concat(likestringUnit),
 		function(ranking) {
 			cb('get-ranking-success', {'result': ranking});
 		});
 	});
 });
 
+/**
+ * Represents the information publicly available about a single user including some performance data,
+ * extending {@link module:user~UserEntryBase}.
+ * @typedef module:user~UserEntry
+ * @type object
+ * 
+ * @property {boolean} schoolpending  Alias of what is called <code>pending</code>.
+ * @property {boolean} schooljointime  Alias of what is called <code>jointime</code>.
+ * @property {boolean} dschoolid  Alias of what is called <code>schoolid</code>.
+ * 
+ * @property {int} birthday  A user’s birthday as a unix timestamp.
+ * @property {string} desc  A user’s self-chosen description text.
+ * @property {number} wprovision  The provision for followers to pay when they
+ *                                profit from this leader’s gains (in per cent).
+ * @property {number} lprovision  The provision for followers to pay when they
+ *                                suffer from this leader’s losses (in per cent).
+ * @property {int} lstockid  The stock id associated with this user as a leader.
+ * @property {?string} profilepic  A reference to a profile image for this user.
+ * @property {int} registerevent  The event id of this user’s registration.
+ *                                Useful for commenting onto the user’s pinboard.
+ * @property {int} registertime  The unix timestamp of this user’s registration.
+ * @property {number} dayfperf  Day following performance. See {@link module:user~RankingEntry}.
+ * @property {number} dayoperf  Day non-following performance. See {@link module:user~RankingEntry}.
+ * @property {number} weekfperf  Week following performance. See {@link module:user~RankingEntry}.
+ * @property {number} weekoperf  Week non-following performance. See {@link module:user~RankingEntry}.
+ * @property {number} totalfperf  All-time following performance. See {@link module:user~RankingEntry}.
+ * @property {number} totaloperf  All-time non-following performance. See {@link module:user~RankingEntry}.
+ * @property {number} freemoney  Money currently available to the user.
+ * @property {number} prov_sum  Total earns (or losses, if negative) by acting as a leader
+ *                              and receiving provision.
+ * @property {number} weekstarttotalvalue  Total value at the start of the week.
+ * @property {number} daystarttotalvalue   Total value at the start of the day.
+ * @property {?int} f_count  Number of current followers.
+ * @property {?int} f_amount  Number of shares currently sold followers.
+ * @property {Array} schools  All schools of which this user is a member as <code>{path, id, name}</code> objects.
+ * 
+ * @property {boolean} isSelf  Indicates whether this user object corresponds to the user which requested it.
+ */
+
+/**
+ * Return all available information on a single user.
+ * 
+ * @param {string|int} query.lookfor  The user id or name for which data should be returned.
+ *                                    As a special value, '$self' can be used to inspect own data.
+ * @param {?boolean} query.nohistory  If true, returns only direct user information;
+ *                                    Otherwise, all available information.
+ * 
+ * @return {object} Returns with <code>get-user-info-success</code>, 
+ *                  <code>get-user-info-notfound</code> or a common error code
+ *                  and populates <code>.result</code> with a {@link module:user~UserEntry},
+ *                  <code>.orders</code> with a trade info list,
+ *                  <code>.achievements</code> with an achievement info list,
+ *                  <code>.values</code> with finance history data and
+ *                  <code>.pinboard</code> with a {@link Comment[]} array of pinboard entries.
+ * 
+ * @function c2s~get-user-info
+ */
 User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx, cb) {
 	var self = this;
 	
@@ -407,6 +592,19 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 	});
 });
 
+/**
+ * Regularly called function to perform various cleanup and update tasks.
+ * 
+ * Flushes outdated sessions out of the system and weekly 
+ * removes memberless groups that were not created by 
+ * administrative users.
+ * 
+ * @param {Query} query  A query structure, indicating which actions should be performed
+ * @param {Query} query.weekly  Clean up schools without members
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * 
+ * @function busreq~regularCallbackUser
+ */
 User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
 	cb = cb || function() {};
 	
@@ -431,18 +629,32 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 	});
 });
 
+/**
+ * Verify a user’s e-mail address with the key from the confirmation link.
+ * 
+ * @param {string} query.uid  The assigned user id.
+ * @param {string} quer.key   The key from the confirmation link.
+ * 
+ * @return {object} Returns with <code>email-verify-failure</code>,
+ *                  <code>email-verify-already-verified</code>,
+ *                  or passes on information to {@link c2s~login}.
+ * 
+ * @function c2s~emailverif
+ */
 User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', function(query, ctx, xdata, cb) {
 	var self = this;
 	
 	var uid = parseInt(query.uid);
 	var key = String(query.key);
 	
+	if (uid != query.uid)
+		return cb('format-error');
+	
 	ctx.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
 	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], function(res) {
 		if (res.length != 2) {
 			console.warn('strange email-verif stuff', res);
-			cb('email-verify-failure');
-			return;
+			return cb('email-verify-failure');
 		}
 		
 		var email = null;
@@ -480,6 +692,21 @@ User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', funct
 	});
 });
 
+/**
+ * Write session and statistics information to the database.
+ * 
+ * Sets the session’s last use date to make sure it does not expire.
+ * This function usually writes data at most once per minute to 
+ * reduce database writes.
+ * 
+ * @param {module:user~UserEntry} user  The currently active user
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
+ * @param {boolean} force  If true, writes the data even if waiting would have been 
+ *                         the normal response.
+ * @param {function} cb  Callback that will be called when the cleanup is done.
+ * 
+ * @function busreq~updateUserStatistics
+ */
 User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
 	['user', 'ctx', 'force', 'reply'], function(user, ctx, force, reply)
 {
@@ -503,6 +730,18 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 	reply();
 });
 
+/**
+ * Load information on the current user from the database.
+ * 
+ * This function is usually one of the first ones called on each client query.
+ * 
+ * @param {string} key  The current session id.
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
+ * @param {function} cb  Callback that will be called with a {module:user~UserEntry} object
+ *                       (or null in case of no match or an expired session).
+ * 
+ * @function busreq~loadSessionUser
+ */
 User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx', 'reply'], function(key, ctx, cb) {
 	var self = this;
 	
@@ -879,10 +1118,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 								uid = res.insertId;
 								conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
 									'street, zipcode, town) VALUES (?, ?, ?, ?, ?, ?, ?, ?); ' +
-									'INSERT INTO users_finance(id, wprovision, lprovision) VALUES (?, ?, ?)',
+									'INSERT INTO users_finance(id, wprovision, lprovision, freemoney, totalvalue) '+
+									'VALUES (?, ?, ?, ?, ?)',
 									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
-									uid, cfg.defaultWProvision, cfg.defaultLProvision], function() {
+									uid, cfg.defaultWProvision, cfg.defaultLProvision,
+									cfg.defaultStartingMoney, cfg.defaultStartingMoney], function() {
 								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 								conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 									['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity'], _.bind(updateCB, self, res));

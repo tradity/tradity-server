@@ -341,15 +341,6 @@ socket.on('connect', function() {
 				assert.equal(data.code, 'get-server-statistics-success');
 				assert.ok(data.servers && _.isArray(data.servers));
 				emit('query', {
-					type: 'server-config',
-					id: 'server-config'
-				});
-				break;
-			case 'server-config':
-				assert.equal(data.code, 'server-config-success');
-				assert.ok(data.config);
-				assert.ok(data.config.normalLoginTime);
-				emit('query', {
 					type: 'reset-user',
 					id: 'reset-user',
 					uid: ownUid

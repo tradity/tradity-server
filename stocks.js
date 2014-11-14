@@ -162,11 +162,12 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
 	'stocks AS s READ, transactionlog WRITE;', [], function() {
 		conn.query('SELECT ' +
-			'ds.depotentryid AS dsid, s.stockid AS stocktextid, '+
-			wprovFees+' AS wfees, '+wprovMax+' AS wmax, '+
-			lprovFees+' AS lfees, '+lprovMin+' AS lmin, '+
-			'f.id AS fid, l.id AS lid '+
-			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid '+
+			'ds.depotentryid AS dsid, s.stockid AS stocktextid, ' +
+			wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
+			lprovFees + ' AS lfees, ' + lprovMin + ' AS lmin, ' +
+			'ds.provision_hwm, ds.provision_lwm, s.bid, ds.amount, ' +
+			'f.id AS fid, l.id AS lid ' +
+			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid ' +
 			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', [],
 		function(dsr) {
 		if (!dsr.length) {
@@ -187,7 +188,13 @@ StocksDB.prototype.updateProvisions = function (ctx, cb) {
 			(Math.abs(totalfees) < 1 ? function(cont) { cont(); } : function(cont) {
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
 				'(NULL, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[dsr[j].stocktextid, dsr[j].fid, dsr[j].lid, totalfees, JSON.stringify({reason: 'regular-provisions'})],
+				[dsr[j].stocktextid, dsr[j].fid, dsr[j].lid, totalfees, JSON.stringify({
+					reason: 'regular-provisions',
+					provision_hwm: dsr[j].provision_hwm,
+					provision_lwm: dsr[j].provision_lwm,
+					bid: dsr[j].bid,
+					depot_amount: dsr[j].amount
+				})],
 				cont);
 			})(function() {
 			conn.query('UPDATE depot_stocks AS ds SET ' +
@@ -594,6 +601,7 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	conn.query('SELECT s.*, ' +
 		'depot_stocks.amount AS amount, ' +
 		'depot_stocks.amount * s.lastvalue AS money, ' +
+		'depot_stocks.provision_hwm, depot_stocks.provision_lwm, s.bid, ' +
 		's.bid - depot_stocks.provision_hwm AS hwmdiff, ' +
 		's.bid - depot_stocks.provision_lwm AS lwmdiff, ' +
 		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
@@ -694,7 +702,13 @@ StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
 				'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
-				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({reason: 'trade'})], function() {
+				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({
+					reason: 'trade',
+					provision_hwm: r.provision_hwm,
+					provision_lwm: r.provision_lwm,
+					bid: r.bid,
+					depot_amount: amount
+				})], function() {
 			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
 				[totalprovPay, totalprovPay, ctx.user.id], function() {
 			conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',

@@ -26,6 +26,11 @@
  */
 
 /**
+ * Dummy module to represent the namespace of server-to-client event pushes
+ * @namespace s2c
+ */
+
+/**
  * Basic game event structure.
  * @typedef Event
  * @type {object}

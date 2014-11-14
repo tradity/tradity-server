@@ -156,7 +156,7 @@ function worker() {
 		}
 		
 		var componentsForLoading = [
-			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './user.js'
+			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js' './user.js'
 		].concat(process.isBackgroundWorker ? [
 			'./background-worker.js', './dqueries.js'
 		] : [

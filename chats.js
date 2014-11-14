@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+
 var buscomponent = require('./stbuscomponent.js');
 
 function Chats () {

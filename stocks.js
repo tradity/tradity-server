@@ -763,8 +763,10 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
  *                          <code>provision</code>)
  * @property {?int} orderid  The order ID of the relevant trade.
  * @property {string} stocktextid  The stock identifier (ISIN/etc.) of the relevant stock.
- * @property {int} a_user   The active user of this transaction (buyer, follower, etc.).
- * @property {?int} p_user  The passive user of this transaction (leader etc.).
+ * @property {int}     a_user The active user of this transaction (buyer, follower, etc.).
+ * @property {string}  aname  The active user’s name
+ * @property {?int}    p_user The passive user of this transaction (leader etc.).
+ * @property {?string} pname  The passive user’s name
  * @property {number} amount  The amount of money passed in this transaction.
  * @property {int} time  The unix timestamp of this transaction.
  */

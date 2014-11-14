@@ -3,18 +3,25 @@
 var _ = require('lodash');
 var util = require('util');
 var crypto = require('crypto');
+var commonUtil = require('./common/util.js');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 require('datejs');
 
-function sha256(s) {
-	var h = crypto.createHash('sha256');
-	h.end(s);
-	return h.read().toString('hex');
-}
+/**
+ * Provides client requests for small-scale finance updates and display.
+ * @public
+ * @module stocks-financeupdate
+ */
 
+/**
+ * Main object of the {@link module:stocks} module
+ * @public
+ * @constructor module:stocks~Stocks
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function User () {
 	User.super_.apply(this, arguments);
 }
@@ -24,7 +31,7 @@ util.inherits(User, buscomponent.BusComponent);
 User.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, function(ex, buf) {
 		var pwsalt = buf.toString('hex');
-		var pwhash = sha256(pwsalt + pw);
+		var pwhash = commonUtil.sha256(pwsalt + pw);
 		cb(pwsalt, pwhash);
 	});
 };
@@ -115,7 +122,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			var uid = res[0].id;
 			var pwsalt = res[0].pwsalt;
 			var pwhash = res[0].pwhash;
-			if (pwhash != sha256(pwsalt + pw) && !ignorePassword) {
+			if (pwhash != commonUtil.sha256(pwsalt + pw) && !ignorePassword) {
 				cb('login-wrongpw');
 				return;
 			}

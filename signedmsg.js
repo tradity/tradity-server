@@ -7,17 +7,17 @@ var crypto = require('crypto');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
-function SignedMessagingDB () {
-	SignedMessagingDB.super_.apply(this, arguments);
+function SignedMessaging () {
+	SignedMessaging.super_.apply(this, arguments);
 	
 	this.privateKey = null;
 	this.publicKeys = [];
 	this.algorithm = 'RSA-SHA256';
 }
 
-util.inherits(SignedMessagingDB, buscomponent.BusComponent);
+util.inherits(SignedMessaging, buscomponent.BusComponent);
 
-SignedMessagingDB.prototype.onBusConnect = function() {
+SignedMessaging.prototype.onBusConnect = function() {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
@@ -25,14 +25,14 @@ SignedMessagingDB.prototype.onBusConnect = function() {
 	});
 };
 
-SignedMessagingDB.prototype.useConfig = function(cfg) {
+SignedMessaging.prototype.useConfig = function(cfg) {
 	this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
 	this.publicKeys = fs.readFileSync(cfg.publicKeys, {encoding: 'utf-8'})
 		.replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
 	this.algorithm = cfg.signatureAlgorithm || this.algorithm;
 }
 
-SignedMessagingDB.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg', 'reply'], function(msg, cb) {
+SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg', 'reply'], function(msg, cb) {
 	var self = this;
 	var string = new Buffer(JSON.stringify(msg)).toString('base64');
 	var sign = crypto.createSign('RSA-SHA256');
@@ -43,7 +43,7 @@ SignedMessagingDB.prototype.createSignedMessage = buscomponent.provide('createSi
 	});
 });
 
-SignedMessagingDB.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage', ['msg', 'reply'], function(msg, cb) {
+SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage', ['msg', 'reply'], function(msg, cb) {
 	var self = this;
 	
 	var msg_ = msg.split('~');
@@ -74,11 +74,11 @@ SignedMessagingDB.prototype.verifySignedMessage = buscomponent.provide('verifySi
 	verifySingleKey(0);
 });
 
-exports.SignedMessagingDB = SignedMessagingDB;
+exports.SignedMessaging = SignedMessaging;
 
 /* small test script */
 if (require.main === module) {
-	var smdb = new SignedMessagingDB();
+	var smdb = new SignedMessaging();
 	smdb.privateKey = '-----BEGIN RSA PRIVATE KEY-----\n' +
 	'MIIEogIBAAKCAQEA1+x4pXKTYzlg7kb6dpQ0TX8HhDF7L6G0Jg0whCy6ssCZgLKX\n' +
 	'a5t/Fp0Zv1SI7DzUVswCyxHs2Yi/tBE8Vw+PAltsC127I2uabReueCaEFfOs4e+7\n' +

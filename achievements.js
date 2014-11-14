@@ -6,16 +6,16 @@ var assert = require('assert');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
-function AchievementsDB () {
-	AchievementsDB.super_.apply(this, arguments);
+function Achievements () {
+	Achievements.super_.apply(this, arguments);
 	
 	this.achievementList = [];
 	this.clientAchievements = [];
 };
 
-util.inherits(AchievementsDB, buscomponent.BusComponent);
+util.inherits(Achievements, buscomponent.BusComponent);
 
-AchievementsDB.prototype.onBusConnect = function() {
+Achievements.prototype.onBusConnect = function() {
 	var self = this;
 	
 	self.request({name: 'getAchievementList'}, function(al) {
@@ -30,7 +30,7 @@ AchievementsDB.prototype.onBusConnect = function() {
 	});
 };
 
-AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
+Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
 	var self = this;
 	
 	if (ctx.getProperty('readonly'))
@@ -45,7 +45,7 @@ AchievementsDB.prototype.checkAchievements = buscomponent.provide('checkAchievem
 	});
 });
 
-AchievementsDB.prototype.checkAchievement = function(achievementEntry, ctx, userAchievements_) {
+Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAchievements_) {
 	var self = this;
 	
 	if (!ctx.user)
@@ -118,7 +118,7 @@ AchievementsDB.prototype.checkAchievement = function(achievementEntry, ctx, user
 	});
 };
 
-AchievementsDB.prototype.registerObserver = function(achievementEntry) {
+Achievements.prototype.registerObserver = function(achievementEntry) {
 	var self = this;
 	
 	var ctx = new qctx.QContext({parentComponent: self});
@@ -137,7 +137,7 @@ AchievementsDB.prototype.registerObserver = function(achievementEntry) {
 	});
 };
 
-AchievementsDB.prototype.registerAchievements = function(list) {
+Achievements.prototype.registerAchievements = function(list) {
 	var self = this;
 	
 	list = _.map(list, function(achievementEntry) {
@@ -163,7 +163,7 @@ AchievementsDB.prototype.registerAchievements = function(list) {
 	self.markClientAchievements();
 };
 
-AchievementsDB.prototype.markClientAchievements = function(list) {
+Achievements.prototype.markClientAchievements = function(list) {
 	var self = this;
 	
 	_.each(self.achievementList, function(ach) {
@@ -171,11 +171,11 @@ AchievementsDB.prototype.markClientAchievements = function(list) {
 	});
 };
 
-AchievementsDB.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx, cb) {
+Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx, cb) {
 	cb('list-all-achievements-success', {result: this.achievementList});
 }),
 
-AchievementsDB.prototype.clientAchievement = buscomponent.provideWQT('client-achievement', function(query, ctx, cb) {
+Achievements.prototype.clientAchievement = buscomponent.provideWQT('client-achievement', function(query, ctx, cb) {
 	var self = this;
 	
 	if (query.name)
@@ -194,6 +194,6 @@ AchievementsDB.prototype.clientAchievement = buscomponent.provideWQT('client-ach
 	});
 });
 
-exports.AchievementsDB = AchievementsDB;
+exports.Achievements = Achievements;
 
 })();

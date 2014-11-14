@@ -6,13 +6,13 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var templates = require('./templates-compiled.js');
 
-function TemplateLoaderDB () {
-	TemplateLoaderDB.super_.apply(this, arguments);
+function TemplateLoader () {
+	TemplateLoader.super_.apply(this, arguments);
 };
 
-util.inherits(TemplateLoaderDB, buscomponent.BusComponent);
+util.inherits(TemplateLoader, buscomponent.BusComponent);
 
-TemplateLoaderDB.prototype.readTemplate = buscomponent.provide('readTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
+TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
 	var t = templates[template];
 	
 	if (!t) {
@@ -34,7 +34,7 @@ TemplateLoaderDB.prototype.readTemplate = buscomponent.provide('readTemplate', [
 	return cb(t);
 });
 
-TemplateLoaderDB.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
+TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
 	this.readTemplate(template, variables, function(t) {
 		var headerend = t.indexOf('\n\n');
 		
@@ -63,7 +63,7 @@ TemplateLoaderDB.prototype.readEMailTemplate = buscomponent.provide('readEMailTe
 	});
 });
 
-exports.TemplateLoaderDB = TemplateLoaderDB;
+exports.TemplateLoader = TemplateLoader;
 
 })();
 

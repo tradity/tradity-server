@@ -6,14 +6,14 @@ var assert = require('assert');
 var nodemailer = require('nodemailer');
 var buscomponent = require('./stbuscomponent.js');
 
-function MailerDB () {
-	MailerDB.super_.apply(this, arguments);
+function Mailer () {
+	Mailer.super_.apply(this, arguments);
 	this.mailer = null;
 };
 
-util.inherits(MailerDB, buscomponent.BusComponent);
+util.inherits(Mailer, buscomponent.BusComponent);
 
-MailerDB.prototype._init = function(cb) {
+Mailer.prototype._init = function(cb) {
 	var self = this;
 	
 	this.getServerConfig(function(cfg) {
@@ -23,7 +23,7 @@ MailerDB.prototype._init = function(cb) {
 	});
 };
 
-MailerDB.prototype.sendMail = buscomponent.provide('sendMail', ['opt', 'reply'], buscomponent.needsInit(function(opt, cb) {
+Mailer.prototype.sendMail = buscomponent.provide('sendMail', ['opt', 'reply'], buscomponent.needsInit(function(opt, cb) {
 	assert.ok(this.mailer);
 	
 	this.getServerConfig(function(cfg) {
@@ -36,7 +36,7 @@ MailerDB.prototype.sendMail = buscomponent.provide('sendMail', ['opt', 'reply'],
 	});
 }));
 
-exports.MailerDB = MailerDB;
+exports.Mailer = Mailer;
 
 })();
 

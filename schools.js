@@ -6,11 +6,11 @@ var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
-function SchoolsDB () {
-	SchoolsDB.super_.apply(this, arguments);
+function Schools () {
+	Schools.super_.apply(this, arguments);
 }
 
-util.inherits(SchoolsDB, buscomponent.BusComponent);
+util.inherits(Schools, buscomponent.BusComponent);
 
 function _reqschooladm (f, soft, scdb, status) {
 	soft = soft || false;
@@ -37,7 +37,7 @@ function _reqschooladm (f, soft, scdb, status) {
 	};
 }
 
-SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 'status', 'schoolid', 'reply'],
+Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 'status', 'schoolid', 'reply'],
 	function(ctx, status, schoolid, cb)
 {
 	var self = this;
@@ -64,7 +64,7 @@ SchoolsDB.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx'
 	});
 });
 
-SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
+Schools.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
 	ctx.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +
 		'FROM schools AS c ' +
 		'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
@@ -73,7 +73,7 @@ SchoolsDB.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
 		'WHERE c.id = ?', [parseInt(schoolid)], cb);
 };
 
-SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
+Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 	var self = this;
 	
 	ctx.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
@@ -147,7 +147,7 @@ SchoolsDB.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 	});
 };
 
-SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info', function(query, ctx, cb) {
+Schools.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info', function(query, ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
@@ -157,19 +157,19 @@ SchoolsDB.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-in
 	});
 });
 
-SchoolsDB.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx, cb) {
+Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx, cb) {
 	ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [String(query.lookfor)], function(res) {
 		cb('school-exists-success', {exists: res.length > 0, path: res.length > 0 ? res[0].path : null});
 	});
 });
 
-SchoolsDB.prototype.changeDescription = buscomponent.provideWQT('client-school-change-description', _reqschooladm(function(query, ctx, cb) {
+Schools.prototype.changeDescription = buscomponent.provideWQT('client-school-change-description', _reqschooladm(function(query, ctx, cb) {
 	ctx.query('UPDATE schools SET descpage = ? WHERE id = ?', [String(query.descpage), parseInt(query.schoolid)], function() {
 		cb('school-change-description-success');
 	});
 }));
 
-SchoolsDB.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx, cb) {
+Schools.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx, cb) {
 	ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
 		[parseInt(query.schoolid), parseInt(query.uid)], function() {
 		if (query.status == 'member') {
@@ -186,7 +186,7 @@ SchoolsDB.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-
 	});
 }));
 
-SchoolsDB.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-comment', _reqschooladm(function(query, ctx, cb) {
+Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-comment', _reqschooladm(function(query, ctx, cb) {
 	var self = this;
 	
 	ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
@@ -205,7 +205,7 @@ SchoolsDB.prototype.deleteComment = buscomponent.provideWQT('client-school-delet
 	});
 }));
 
-SchoolsDB.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx, cb) {
+Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx, cb) {
 	ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
 		[parseInt(query.uid), parseInt(query.schoolid)], function() {
 		ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
@@ -215,7 +215,7 @@ SchoolsDB.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user'
 	});
 }));
 
-SchoolsDB.prototype.createSchool = buscomponent.provideWQT('client-create-school', function(query, ctx, cb) {
+Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school', function(query, ctx, cb) {
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	
@@ -260,7 +260,7 @@ SchoolsDB.prototype.createSchool = buscomponent.provideWQT('client-create-school
 	});
 });
 
-SchoolsDB.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx, cb) {
+Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx, cb) {
 	var where = 'WHERE 1 ';
 	var params = [];
 	if (query.parentPath) {
@@ -284,7 +284,7 @@ SchoolsDB.prototype.listSchools = buscomponent.provideQT('client-list-schools', 
 	);
 });
 
-SchoolsDB.prototype.publishBanner = buscomponent.provideQT('client-school-publish-banner', function(query, ctx, cb) {
+Schools.prototype.publishBanner = buscomponent.provideQT('client-school-publish-banner', function(query, ctx, cb) {
 	query.role = 'schools.banner';
 	
 	_reqschooladm(_.bind(function(query, ctx, cb) {
@@ -292,12 +292,12 @@ SchoolsDB.prototype.publishBanner = buscomponent.provideQT('client-school-publis
 	}, this), false, this)(query, ctx, cb);
 });
 
-SchoolsDB.prototype.createInviteLink = buscomponent.provideQT('client-create-invite-link', function(query, ctx, cb) {
+Schools.prototype.createInviteLink = buscomponent.provideQT('client-create-invite-link', function(query, ctx, cb) {
 	_reqschooladm(_.bind(function(query, ctx, cb) {
 		this.request({name: 'createInviteLink', query: query, ctx: ctx}, cb);
 	}, this), true, this)(query, ctx, cb);
 });
 
-exports.SchoolsDB = SchoolsDB;
+exports.Schools = Schools;
 
 })();

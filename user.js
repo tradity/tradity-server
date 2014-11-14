@@ -15,13 +15,13 @@ function sha256(s) {
 	return h.read().toString('hex');
 }
 
-function UserDB () {
-	UserDB.super_.apply(this, arguments);
+function User () {
+	User.super_.apply(this, arguments);
 }
 
-util.inherits(UserDB, buscomponent.BusComponent);
+util.inherits(User, buscomponent.BusComponent);
 
-UserDB.prototype.generatePWKey = function(pw, cb) {
+User.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, function(ex, buf) {
 		var pwsalt = buf.toString('hex');
 		var pwhash = sha256(pwsalt + pw);
@@ -29,7 +29,7 @@ UserDB.prototype.generatePWKey = function(pw, cb) {
 	});
 };
 
-UserDB.prototype.sendInviteEmail = function(data, cb) {
+User.prototype.sendInviteEmail = function(data, cb) {
 	var self = this;
 	
 	self.request({name: 'readEMailTemplate', 
@@ -47,7 +47,7 @@ UserDB.prototype.sendInviteEmail = function(data, cb) {
 	});
 };
 
-UserDB.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
+User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	var self = this;
 	
 	ctx.access.drop('email_verif');
@@ -86,7 +86,7 @@ UserDB.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	});
 };
 
-UserDB.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx, cb) {
+User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx, cb) {
 	ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 		'SUM(ABS(money)) AS moneysum, ' +
 		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
@@ -96,7 +96,7 @@ UserDB.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
 	});
 });
 
-UserDB.prototype.login = buscomponent.provide('client-login', 
+User.prototype.login = buscomponent.provide('client-login', 
 	['query', 'ctx', 'xdata', 'ignorePassword', 'reply'], function(query, ctx, xdata, ignorePassword, cb) {
 	var self = this;
 	
@@ -144,15 +144,12 @@ UserDB.prototype.login = buscomponent.provide('client-login',
 					} else {
 						self.regularCallback({}, ctx);
 						
-						conn.query('INSERT INTO logins(cdid, ip, logintime, uid, headers) VALUES(?, ?, UNIX_TIMESTAMP(), ?, ?)',
-							[xdata.cdid, xdata.remoteip, uid, JSON.stringify(xdata.hsheaders)], function() {
 						conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 							'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
 							[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime], function() {
 							commit(function() {
 								cb('login-success', {key: key, uid: uid}, 'repush');
 							});
-						});
 						});
 					}
 				});
@@ -161,13 +158,13 @@ UserDB.prototype.login = buscomponent.provide('client-login',
 	});
 });
 
-UserDB.prototype.logout = buscomponent.provideWQT('logout', function(query, ctx, cb) {
+User.prototype.logout = buscomponent.provideWQT('logout', function(query, ctx, cb) {
 	ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)], function() {
 		cb('logout-success');
 	});
 });
 
-UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx, cb) {
+User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx, cb) {
 	var self = this;
 	
 	query.startindex = parseInt(query.startindex) || 0;
@@ -231,7 +228,7 @@ UserDB.prototype.getRanking = buscomponent.provideQT('client-get-ranking', funct
 	});
 });
 
-UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx, cb) {
+User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
@@ -337,7 +334,7 @@ UserDB.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', fu
 	});
 });
 
-UserDB.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
+User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
 	cb = cb || function() {};
 	
 	if (ctx.getProperty('readonly'))
@@ -361,7 +358,7 @@ UserDB.prototype.regularCallback = buscomponent.provide('regularCallbackUser', [
 	});
 });
 
-UserDB.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', function(query, ctx, xdata, cb) {
+User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', function(query, ctx, xdata, cb) {
 	var self = this;
 	
 	var uid = parseInt(query.uid);
@@ -410,7 +407,7 @@ UserDB.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', fun
 	});
 });
 
-UserDB.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
+User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
 	['user', 'ctx', 'force', 'reply'], function(user, ctx, force, reply)
 {
 	reply = reply || function() {};
@@ -433,7 +430,7 @@ UserDB.prototype.updateUserStatistics = buscomponent.provide('updateUserStatisti
 	reply();
 });
 
-UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx', 'reply'], function(key, ctx, cb) {
+User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx', 'reply'], function(key, ctx, cb) {
 	var self = this;
 	
 	var signedLogin = (key[0] == ':');
@@ -485,17 +482,17 @@ UserDB.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key
 	});
 });
 
-UserDB.prototype.register = buscomponent.provideWQTX('client-register', function(query, ctx, xdata, cb) {
+User.prototype.register = buscomponent.provideWQTX('client-register', function(query, ctx, xdata, cb) {
 	if (ctx.user !== null)
 		return cb('already-logged-in');
 	this.updateUser(query, 'register', ctx, xdata, cb);
 });
 
-UserDB.prototype.changeOptions = buscomponent.provideWQTX('client-change-options', function(query, ctx, xdata, cb) {
+User.prototype.changeOptions = buscomponent.provideWQTX('client-change-options', function(query, ctx, xdata, cb) {
 	this.updateUser(query, 'change', ctx, xdata, cb);
 });
 
-UserDB.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx, cb) {
+User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
@@ -527,7 +524,7 @@ UserDB.prototype.resetUser = buscomponent.provideWQT('client-reset-user', functi
 	});
 });
 
-UserDB.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx, cb) {
+User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx, cb) {
 	var self = this;
 	
 	if (ctx.user)
@@ -566,7 +563,7 @@ UserDB.prototype.passwordReset = buscomponent.provideWQT('client-password-reset'
 	});
 });
 
-UserDB.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invite-key-info', function(query, ctx, cb) {
+User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invite-key-info', function(query, ctx, cb) {
 	var self = this;
 	
 	ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)], function(res) {
@@ -584,7 +581,7 @@ UserDB.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invite-ke
 	});
 });
 
-UserDB.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
+User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
@@ -626,7 +623,7 @@ UserDB.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', 
 	});
 });
 
-UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
+User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
@@ -870,7 +867,7 @@ UserDB.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	});
 };
 
-UserDB.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx, cb) {
+User.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx, cb) {
 	ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
 		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?',
 		[String(query.stockid)], function(res) {
@@ -900,7 +897,7 @@ UserDB.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', 
 	});
 });
 
-UserDB.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx, cb) {
+User.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx, cb) {
 	ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, String(query.stockid)], function() {
 		ctx.feed({
 			type: 'watch-remove',
@@ -913,7 +910,7 @@ UserDB.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-rem
 	}); 
 });
 
-UserDB.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show', function(query, ctx, cb) {
+User.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show', function(query, ctx, cb) {
 	ctx.query('SELECT s.*, s.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
 		'lastusetime AS lastactive, IF(rw.watched IS NULL, 0, 1) AS friends ' +
 		'FROM watchlists AS w ' +
@@ -927,7 +924,7 @@ UserDB.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show',
 	});
 });
 
-UserDB.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx, cb) {
+User.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx, cb) {
 	var whereString = '';
 	var params = [];
 	
@@ -1041,7 +1038,7 @@ UserDB.prototype.getChat = buscomponent.provideQT('client-chat-get', function(qu
 	});
 });
 
-UserDB.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', function(query, ctx, cb) {
+User.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', function(query, ctx, cb) {
 	var self = this;
 	
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
@@ -1086,7 +1083,7 @@ UserDB.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', 
 	});
 });
 
-UserDB.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx, cb) {
+User.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx, cb) {
 	ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
 		'eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +
@@ -1112,6 +1109,6 @@ UserDB.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', 
 	});
 });
 
-exports.UserDB = UserDB;
+exports.User = User;
 
 })();

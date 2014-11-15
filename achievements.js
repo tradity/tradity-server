@@ -7,7 +7,7 @@ var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
- * Achievement checking and awarding system
+ * Achievement checking and awarding system.
  * 
  * @public
  * @module achievements

@@ -7,6 +7,24 @@ var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides infrastructure for delaying queries until certain conditions are met.
+ * @public
+ * @module dqueries
+ */
+
+/**
+ * Main object of the {@link module:dqueries} module
+ * 
+ * @property {object} queries  A local copy of the delayed queries table.
+ * @property {object} neededStocks  A stock id -> list of delayed queries map; The latter
+ *                                  will be informed about updates on the stock data.
+ * @property {string[]} queryTypes  A list of {@link c2s} query types which may be delayed.
+ * 
+ * @public
+ * @constructor module:dqueries~DelayedQueries
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function DelayedQueries () {
 	DelayedQueries.super_.apply(this, arguments);
 	
@@ -33,6 +51,11 @@ DelayedQueries.prototype.onBusConnect = function() {
 	this.loadDelayedQueries();
 };
 
+/**
+ * Return all stocks which the delayed queries database needs as a string array.
+ * 
+ * @function busreq~neededStocksDQ
+ */
 DelayedQueries.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ', ['reply'], function(cb) {
 	var neededIDs = _.chain(this.neededStocks).keys().map(function(id) {
 		return id.substr(2);
@@ -42,6 +65,15 @@ DelayedQueries.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ'
 	return neededIDs;
 });
 
+/**
+ * Checks the preconditions for a singled delayed query and,
+ * if they are met, executes it.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {Query} query  The delayed query to be checked.
+ * 
+ * @function module:dqueries~DelayedQueries#checkAndExecute
+ */
 DelayedQueries.prototype.checkAndExecute = function(ctx, query) {
 	var self = this;
 	
@@ -54,6 +86,12 @@ DelayedQueries.prototype.checkAndExecute = function(ctx, query) {
 	});
 };
 
+/**
+ * Load all delayed queries from the database and populate the
+ * local structures with the data.
+ * 
+ * @function module:dqueries~DelayedQueries#loadDelayedQueries
+ */
 DelayedQueries.prototype.loadDelayedQueries = function() {
 	var self = this;
 	
@@ -69,6 +107,14 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
 	});
 };
 
+/**
+ * List all delayed queries for the current user.
+ * 
+ * @return {object}  Returns with <code>dquery-list-success</code> and sets
+ *                   <code>.results</code> accordingly to a list of delayed queries.
+ * 
+ * @function c2s~dquery-list
+ */
 DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquery-list', function(query, ctx, cb) {
 	cb('dquery-list-success', {
 		'results': (_.chain(this.queries).values()
@@ -78,6 +124,16 @@ DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquer
 	});
 });
 
+/**
+ * Delete a delayed request of the current user.
+ * 
+ * @param {int} query.queryid  The delayed query’s numerical id.
+ * 
+ * @return {object}  Returns with <code>dquery-remove-success</code> or
+ *                   <code>dquery-remove-notfound</code>.
+ * 
+ * @function c2s~dquery-remove
+ */
 DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx, cb) {
 	var queryid = query.queryid;
 	if (this.queries[queryid] && this.queries[queryid].userinfo.id == ctx.user.id) {
@@ -88,6 +144,21 @@ DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquer
 	}
 });
 
+/**
+ * Add a delayed request by the current user.
+ * 
+ * @param {int} query.query  The query which is to be delayed
+ * @param {string} query.query.retainUntilCode  If set, retain the query in the delayed 
+ *                                              queries database until the return code
+ *                                              matches this string.
+ * @param {string} query.condition  The conditions under which the query
+ *                                  will be executed. See
+ *                                  {@link module:dqueries~DelayedQueries#parseCondition}.
+ * 
+ * @return {object}  Returns with <code>dquery-success</code> or a common error code.
+ * 
+ * @function c2s~dquery
+ */
 DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquery', function(query, ctx, cb) {
 	var self = this;
 	
@@ -115,6 +186,14 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 	});
 });
 
+/**
+ * Load a delayed query into the local delayed queries list.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {object} query  The delayed query database entry.
+ * 
+ * @function module:dqueries~DelayedQueries#addQuery
+ */
 DelayedQueries.prototype.addQuery = function(ctx, query) {
 	assert.ok(query);
 
@@ -129,6 +208,14 @@ DelayedQueries.prototype.addQuery = function(ctx, query) {
 	this.checkAndExecute(ctx, query);
 };
 
+/**
+ * Indicate that a delayed query requires information on a certain stock.
+ * 
+ * @param {int} queryid  The numerical delayed query id.
+ * @param {string} stock  The stock’s id (ISIN/etc.).
+ * 
+ * @function module:dqueries~DelayedQueries#addQuery
+ */
 DelayedQueries.prototype.addNeededStock = function(queryid, stock) {
 	if (this.neededStocks['s-'+stock]) {
 		assert.equal(_.indexOf(this.neededStocks['s-'+stock], queryid), -1);
@@ -138,6 +225,29 @@ DelayedQueries.prototype.addNeededStock = function(queryid, stock) {
 	}
 };
 
+/**
+ * Parse a delayed query condition string.
+ * 
+ * Currently, such a string can consist of various clauses
+ * joined by <code>'∧'</code> (logical and), each of which
+ * are comparisons using &lt; or &gt; of certain variables.
+ * 
+ * @example
+ * stock::US90184L1026::exchange-open > 0 ∧ stock::US90184L1026::bid > 331000
+ * @example
+ * stock::US90184L1026::exchange-open > 0
+ * @example
+ * time > 1416085723 ∧ time < 1416095723
+ * 
+ * @param {string} str  The condition string to be checked
+ * 
+ * @return {object}  Returns an object where <code>.check(ctx, cb)</code>
+ *                   is a callback for checking whether the condition is currently met
+ *                   and where <code>.neededStocks</code> is a list of stock ids
+ *                   required to have accurate database information for checking.
+ * 
+ * @function module:dqueries~DelayedQueries#parseCondition
+ */
 DelayedQueries.prototype.parseCondition = function(str) {
 	var clauses = str.split('∧');
 	var cchecks = [];
@@ -215,6 +325,13 @@ DelayedQueries.prototype.parseCondition = function(str) {
 	};
 };
 
+/**
+ * Execute a delayed query and, if appropiate, removes it from the list.
+ * 
+ * @param {object} query  The delayed query.
+ * 
+ * @function module:dqueries~DelayedQueries#executeQuery
+ */
 DelayedQueries.prototype.executeQuery = function(query) {
 	var self = this;
 	
@@ -234,6 +351,14 @@ DelayedQueries.prototype.executeQuery = function(query) {
 	});
 };
 
+/**
+ * Removes a delayed query from the local structures and the database.
+ * 
+ * @param {object} query  The delayed query.
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * 
+ * @function module:dqueries~DelayedQueries#removeQuery
+ */
 DelayedQueries.prototype.removeQuery = function(query, ctx) {
 	var self = this;
 	
@@ -247,6 +372,14 @@ DelayedQueries.prototype.removeQuery = function(query, ctx) {
 	});
 };
 
+/**
+ * Removes a delayed query from the local structures and the database.
+ * 
+ * @param {object} query  The delayed query.
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * 
+ * @function module:dqueries~DelayedQueries#removeQuery
+ */
 DelayedQueries.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['ctx', 'reply'], function(ctx, cb) {
 	var toBeDeleted = [];
 	for (var queryid in this.queries) {

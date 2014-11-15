@@ -96,7 +96,7 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
 	});
 }));
 
-Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user', _reqpriv('userdb', function(query, ctx, cb) {
+Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx, cb) {
 	ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
 		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)], function() {
 		cb('change-user-email-success');

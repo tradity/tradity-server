@@ -12,6 +12,7 @@ function FeedController () {
 util.inherits(FeedController, buscomponent.BusComponent);
 
 // TODO: document the Comment type
+// TODO: document the various feed event types
 
 FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
 	var self = this;

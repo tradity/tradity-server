@@ -167,7 +167,7 @@ User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-s
 });
 
 /**
- * Logs a user into his account.
+ * Logs a user into their account.
  * 
  * This is usually achieved by creating a session and writing it
  * into the database. Should, however, the server be in read-only mode,
@@ -387,7 +387,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 		'JOIN valuehistory AS past_va ON past_va.userid = u.id AND past_va.time = locator_va.min_t ' +
 		'JOIN valuehistory AS now_va ON now_va.userid = u.id AND now_va.time = locator_va.max_t ';
 			
-	if (!query.includeAll) 
+	if (!query.includeAll)
 		likestringWhere += ' AND email_verif != 0 ';
 
 	if (query.search) {
@@ -628,12 +628,13 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
  * Verify a user’s e-mail address with the key from the confirmation link.
  * 
  * @param {string} query.uid  The assigned user id.
- * @param {string} quer.key   The key from the confirmation link.
+ * @param {string} query.key  The key from the confirmation link.
  * 
  * @return {object} Returns with <code>email-verify-failure</code>,
  *                  <code>email-verify-already-verified</code>,
  *                  or passes on information to {@link c2s~login}.
  * 
+ * @noreadonly
  * @function c2s~emailverif
  */
 User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', function(query, ctx, xdata, cb) {
@@ -789,147 +790,62 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 	});
 });
 
+/**
+ * Sets up a new user.
+ * See {@link module:user~User#updateUser} for detailed documentation,
+ * including parameters and possible return codes.
+ * 
+ * @noreadonly
+ * @function c2s~register
+ */
 User.prototype.register = buscomponent.provideWQTX('client-register', function(query, ctx, xdata, cb) {
 	if (ctx.user !== null)
 		return cb('already-logged-in');
 	this.updateUser(query, 'register', ctx, xdata, cb);
 });
 
+/**
+ * Changes the settings and general information for the current user.
+ * See {@link module:user~User#updateUser} for detailed documentation,
+ * including parameters and possible return codes.
+ * 
+ * @noreadonly
+ * @function c2s~change-options
+ */
 User.prototype.changeOptions = buscomponent.provideWQTX('client-change-options', function(query, ctx, xdata, cb) {
 	this.updateUser(query, 'change', ctx, xdata, cb);
 });
 
-User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx, cb) {
-	var self = this;
-	
-	self.getServerConfig(function(cfg) {
-		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
-			return cb('permission-denied');
-		
-		assert.ok(ctx.user);
-		assert.ok(ctx.access);
-		
-		ctx.query('DELETE FROM depot_stocks WHERE userid = ?', [ctx.user.uid], function() {
-		ctx.query('UPDATE users_finance SET freemoney = 1000000000, totalvalue = 1000000000, ' +
-			'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
-			'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
-			'wprov_sum = 0, lprov_sum = 0 ' + 
-			'WHERE id = ?', [ctx.user.uid], function() {
-			self.request({name: 'sellAll', query: query, ctx: ctx}, function() {
-				ctx.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
-					'daystartvalue = 10000000, weekstartvalue = 10000000, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [ctx.user.uid], function() {
-					ctx.query('DELETE FROM valuehistory WHERE userid = ?', [ctx.user.uid], function() {
-						ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid});
-						self.request({name: 'dqueriesResetUser', ctx: ctx}, function() {
-							cb('reset-user-success');
-						});
-					});
-				});
-			});
-		});
-		});
-	});
-});
-
-User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx, cb) {
-	var self = this;
-	
-	if (ctx.user)
-		return cb('already-logged-in');
-	
-	var name = String(query.name);
-	
-	ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
-		[name, name], function(res) {
-		if (res.length == 0)
-			return cb('password-reset-notfound');
-		
-		var u = res[0];
-		assert.ok(u);
-		
-		crypto.randomBytes(6, ctx.errorWrap(function(ex, buf) {
-			var pw = buf.toString('hex');
-			self.generatePWKey(pw, ctx.errorWrap(function(salt, hash) {
-				ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
-					var opt = self.request({name: 'readEMailTemplate', 
-						template: 'password-reset-email.eml',
-						variables: {'password': pw, 'username': query.name, 'email': u.email},
-					}, function(opt) {
-						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
-							if (error) {
-								cb('password-reset-failed');
-								self.emitError(error);
-							} else {
-								cb('password-reset-success');
-							}
-						});
-					});
-				});
-			}));
-		}));
-	});
-});
-
-User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invite-key-info', function(query, ctx, cb) {
-	var self = this;
-	
-	ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)], function(res) {
-		if (res.length == 0) {
-			cb('get-invitekey-info-notfound');
-		} else {
-			self.getServerConfig(function(cfg) {
-				assert.equal(res.length, 1);
-				
-				res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
-				
-				cb('get-invitekey-info-success', {result: res[0]});
-			});
-		}
-	});
-});
-
-User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
-	var self = this;
-	
-	self.getServerConfig(function(cfg) {
-		query.email = query.email ? String(query.email) : null;
-		
-		if (!ctx.access.has('userdb')) {
-			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
-				return cb('create-invite-link-invalid-email');
-			
-			if (!ctx.access.has('email_verif'))
-				return cb('create-invite-link-not-verif');
-		}
-		
-		crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
-			var key = buf.toString('hex');
-			var sendKeyToCaller = ctx.access.has('userdb');
-			ctx.query('INSERT INTO invitelink ' +
-				'(uid, `key`, email, ctime, schoolid) VALUES ' +
-				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
-				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
-		
-				(query.email ? function(cont) {
-					self.sendInviteEmail({
-						sender: ctx.user,
-						email: query.email,
-						url: url
-					}, function(status) {
-						cont(status);
-					});
-				} : function(cont) {
-					sendKeyToCaller = true;
-					cont('create-invite-link-success');
-				})(function(status) {
-					cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
-				});
-			});
-		}));
-	});
-});
-
+/**
+ * Updates or creates the info for the current user.
+ * invoked by registering or changing one’s options.
+ * 
+ * If necessary (in case of registration or when changing the
+ * e-mail address), {@link module:user~User#sendRegisterEmail}
+ * will be called and determines the return code of this function.
+ * 
+ * This method is currently in horrible shape and should be refactored.
+ * 
+ * @return {object} This method can return with the following codes:
+ *                  <ul>
+ *                      <li><code>reg-too-short-pw</code></li>
+ *                      <li><code>reg-name-invalid-char</code></li>
+ *                      <li><code>invalid-provision</code></li>
+ *                      <li><code>reg-beta-necessary</code></li>
+ *                      <li><code>reg-email-already-present</code></li>
+ *                      <li><code>reg-name-already-present</code></li>
+ *                      <li><code>reg-success</code></li>
+ *                      <li><code>reg-unknown-school</code></li>
+ *                      <li>
+ *                          <code>reg-email-failed</code> as per 
+ *                          {@link module:user~User#sendRegisterEmail}
+ *                      </li>
+ *                      <li>or a common error code</li>
+ *                  </ul>
+ * 
+ * @noreadonly
+ * @function module:user~User#updateUser
+ */
 User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	var self = this;
 	
@@ -1176,60 +1092,174 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	});
 };
 
-User.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx, cb) {
-	ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
-		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?',
-		[String(query.stockid)], function(res) {
-		if (res.length == 0)
-			return cb('watchlist-add-notfound');
-		var uid = res[0].uid;
-		if (uid == ctx.user.id)
-			return cb('watchlist-add-self');
+/**
+ * Resets the current user financially into his initial state.
+ * This is only available for users with appropiate privileges
+ * or when resets are allowed (config option <code>.resetAllowed</code>)
+ * 
+ * @return {object}  Returns with <code>reset-user-success</code> or
+ *                   a common error code.
+ * 
+ * @noreadonly
+ * @function c2s~reset-user
+ */
+User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx, cb) {
+	var self = this;
+	
+	self.getServerConfig(function(cfg) {
+		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
+			return cb('permission-denied');
 		
-		ctx.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
-			[ctx.user.id, res[0].bid, String(query.stockid)], function(r) {
-			ctx.feed({
-				type: 'watch-add',
-				targetid: r.insertId,
-				srcuser: 
-				ctx.user.id,
-				json: {
-					watched: query.stockid, 
-					watcheduser: uid,
-					watchedname: res[0].name
-				},
-				feedusers: uid ? [uid] : []
+		assert.ok(ctx.user);
+		assert.ok(ctx.access);
+		
+		ctx.query('DELETE FROM depot_stocks WHERE userid = ?', [ctx.user.uid], function() {
+		ctx.query('UPDATE users_finance SET freemoney = ?, totalvalue = ?, ' +
+			'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
+			'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
+			'wprov_sum = 0, lprov_sum = 0 ' + 
+			'WHERE id = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid], function() {
+			self.request({name: 'sellAll', query: query, ctx: ctx}, function() {
+				var val = cfg.defaultStartingMoney / 1000;
+				ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
+					'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
+					[val, val, val, val, val, ctx.user.uid], function() {
+					ctx.query('DELETE FROM valuehistory WHERE userid = ?', [ctx.user.uid], function() {
+						ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid});
+						self.request({name: 'dqueriesResetUser', ctx: ctx}, function() {
+							cb('reset-user-success');
+						});
+					});
+				});
 			});
-			
-			cb('watchlist-add-success');
-		}); 
+		});
+		});
 	});
 });
 
-User.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx, cb) {
-	ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, String(query.stockid)], function() {
-		ctx.feed({
-			type: 'watch-remove',
-			targetid: null,
-			srcuser: ctx.user.id,
-			json: { watched: query.stockid }
-		});
+/**
+ * Resets the current user’s password.
+ * Currently, a new password is mailed to the user; This will change
+ * due to #268 into sending a link to a password reset page.
+ * 
+ * @return {object}  Returns with <code>password-reset-success</code> or
+ *                   a common error code.
+ * 
+ * @noreadonly
+ * @function c2s~password-reset
+ */
+User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx, cb) {
+	var self = this;
+	
+	if (ctx.user)
+		return cb('already-logged-in');
+	
+	var name = String(query.name);
+	
+	ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
+		[name, name], function(res) {
+		if (res.length == 0)
+			return cb('password-reset-notfound');
 		
-		cb('watchlist-remove-success');
-	}); 
+		var u = res[0];
+		assert.ok(u);
+		
+		crypto.randomBytes(6, ctx.errorWrap(function(ex, buf) {
+			var pw = buf.toString('hex');
+			self.generatePWKey(pw, ctx.errorWrap(function(salt, hash) {
+				ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
+					var opt = self.request({name: 'readEMailTemplate', 
+						template: 'password-reset-email.eml',
+						variables: {'password': pw, 'username': query.name, 'email': u.email},
+					}, function(opt) {
+						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
+							if (error) {
+								cb('password-reset-failed');
+								self.emitError(error);
+							} else {
+								cb('password-reset-success');
+							}
+						});
+					});
+				});
+			}));
+		}));
+	});
 });
 
-User.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show', function(query, ctx, cb) {
-	ctx.query('SELECT s.*, s.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
-		'lastusetime AS lastactive, IF(rw.watched IS NULL, 0, 1) AS friends ' +
-		'FROM watchlists AS w ' +
-		'JOIN stocks AS s ON w.watched = s.id ' +
-		'JOIN stocks AS rs ON rs.leader = w.watcher ' +
-		'LEFT JOIN users ON users.id = s.leader ' +
-		'LEFT JOIN watchlists AS rw ON rw.watched = rs.id AND rw.watcher = s.leader ' +
-		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
-		'WHERE w.watcher = ?', [ctx.user.id], function(res) {
-		cb('watchlist-show-success', {'results': res});
+/**
+ * Returns basic information on an invitation key.
+ * 
+ * @return {object}  Returns with <code>get-invitekey-info-notfound</code>
+ *                   or <code>get-invitekey-info-success</code> and, in the
+ *                   latter case, sets <code>.result.email</code> and 
+ *                   <code>.result.schoolid</code> appropiately.
+ * 
+ * @function c2s~get-invitekey-info
+ */
+User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-info', function(query, ctx, cb) {
+	var self = this;
+	
+	ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)], function(res) {
+		if (res.length == 0) {
+			cb('get-invitekey-info-notfound');
+		} else {
+			self.getServerConfig(function(cfg) {
+				assert.equal(res.length, 1);
+				
+				res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
+				
+				cb('get-invitekey-info-success', {result: res[0]});
+			});
+		}
+	});
+});
+
+/**
+ * See {@link c2s~create-invite-link} for specifications.
+ * 
+ * @noreadonly
+ * @function busreq~createInviteLink
+ */
+User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
+	var self = this;
+	
+	self.getServerConfig(function(cfg) {
+		query.email = query.email ? String(query.email) : null;
+		
+		if (!ctx.access.has('userdb')) {
+			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
+				return cb('create-invite-link-invalid-email');
+			
+			if (!ctx.access.has('email_verif'))
+				return cb('create-invite-link-not-verif');
+		}
+		
+		crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
+			var key = buf.toString('hex');
+			var sendKeyToCaller = ctx.access.has('userdb');
+			ctx.query('INSERT INTO invitelink ' +
+				'(uid, `key`, email, ctime, schoolid) VALUES ' +
+				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
+				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
+				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
+		
+				(query.email ? function(cont) {
+					self.sendInviteEmail({
+						sender: ctx.user,
+						email: query.email,
+						url: url
+					}, function(status) {
+						cont(status);
+					});
+				} : function(cont) {
+					sendKeyToCaller = true;
+					cont('create-invite-link-success');
+				})(function(status) {
+					cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
+				});
+			});
+		}));
 	});
 });
 

@@ -271,6 +271,7 @@ Schools.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info
  *                  the existence of the given group, and in case it exists, <code>.path</code>
  *                  will contain its path identifier.
  * 
+ * @loginignore
  * @function c2s~school-exists
  */
 Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx, cb) {
@@ -459,6 +460,7 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
  * @return {object} Returns with <code>list-schools-success</code> or a common error code.
  * 
  * @noreadonly
+ * @loginignore
  * @function c2s~list-schools
  */
 Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx, cb) {

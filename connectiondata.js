@@ -9,6 +9,14 @@ var dt = require('./bus/directtransport.js');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 
+/**
+ * Main entry point for all game-relevant
+ * <code>client &lt;-&gt; server<code> communication
+ * 
+ * @public
+ * @module connectiondata
+ */
+
 function ConnectionData(socket) {
 	ConnectionData.super_.apply(this, arguments);
 	
@@ -87,7 +95,6 @@ ConnectionData.prototype.toString = function() {
 
 ConnectionData.uniqueCount = 0;
 
-// TODO: tag documentation for these types
 ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod', 'ping', 'school-exists'];
 
 ConnectionData.prototype.fetchEvents = function(query) {

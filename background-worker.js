@@ -12,6 +12,7 @@ function BackgroundWorker () {
 }
 util.inherits(BackgroundWorker, buscomponent.BusComponent);
 
+// @loginignore
 BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx, cb) {
 	var self = this;
 	

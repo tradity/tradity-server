@@ -182,6 +182,7 @@ User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-s
  *                  in case of success, sets <code>.key</code> (a session id) and <code>.uid</code>
  *                  accordingly.
  * 
+ * @loginignore
  * @function c2s~login
  */
 User.prototype.login = buscomponent.provide('client-login', 
@@ -796,6 +797,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
  * including parameters and possible return codes.
  * 
  * @noreadonly
+ * @loginignore
  * @function c2s~register
  */
 User.prototype.register = buscomponent.provideWQTX('client-register', function(query, ctx, xdata, cb) {
@@ -1145,6 +1147,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  * @return {object}  Returns with <code>password-reset-success</code> or
  *                   a common error code.
  * 
+ * @loginignore
  * @noreadonly
  * @function c2s~password-reset
  */

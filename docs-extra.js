@@ -32,6 +32,9 @@
 
 /**
  * Basic game event structure.
+ * These game events are only a subset of possible server-to-client events,
+ * but represent a large share of the latter group.
+ * 
  * @typedef Event
  * @type {object}
  * 

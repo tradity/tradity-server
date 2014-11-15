@@ -430,7 +430,7 @@ Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen
  * @param {function} cb  A callback to be called when all shares have been sold.
  * 
  * @noreadonly
- * @function busreq~stockExchangeIsOpen
+ * @function busreq~sellAll
  */
 Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ctx, cb) {
 	var self = this;

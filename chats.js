@@ -6,12 +6,58 @@ var assert = require('assert');
 
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides methods for in-game chat messaging.
+ * 
+ * @public
+ * @module chats
+ */
+
+/**
+ * Main object of the {@link module:chats} module
+ * 
+ * @public
+ * @constructor module:chats~Chats
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function Chats () {
 	Chats.super_.apply(this, arguments);
 }
 
 util.inherits(Chats, buscomponent.BusComponent);
 
+/**
+ * Represents an ingame chat session.
+ * 
+ * @typedef module:chats~Chat
+ * @type object
+ * 
+ * @property {int} chatid  A numerical id for this chat.
+ * @property {int} chatstartevent  The chat event id. Use this for messaging (i.e.,
+ *                                 commenting on this event).
+ * @property {int[]} endpoints  The numerical ids of all chat participants.
+ * @property {Comment[]} messages  A list of chat messages.
+ */
+
+/**
+ * Fetch or create a specific chat.
+ * 
+ * @param {?object[]} query.endpoints  Array of small user objects of the
+ *                                     other participants in the chat.
+ * @param {?module:user~UserEntryBase[]} query.members  Array of full user objects for the 
+ *                                                      participants.
+ * @param {?int} query.chatid  The numerical chat id. Either this or query.endpoints
+ *                             need to be set.
+ * @param {?boolean} query.failOnMissing  If there is no such chat, do not create it.
+ * @param {?boolean} query.noMessages  If set, do not load the chat messages.
+ * 
+ * @return {object} Returns with <code>chat-get-notfound</code>,
+ *                  <code>chat-get-success</code> or a common error code.
+ *                  and populates <code>.chat</code> with a
+ *                  {@link module:chats~Chat}
+ * 
+ * @function c2s~get-chat
+ */
 Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(query, ctx, cb) {
 	var whereString = '';
 	var params = [];
@@ -50,14 +96,20 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 	ctx.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
 		'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
 		'WHERE ' + whereString + ' ' +
-		'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC LIMIT 1', params, function(chatlist) {
+		'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC ' +
+		'LIMIT 1', params, function(chatlist) {
 		((chatlist.length == 0) ? function(cont) {
-			if (query.failOnMissing)
+			if (query.failOnMissing || !query.endpoints)
 				return cont(null);
 			
 			if (ctx.getProperty('readonly'))
 				return cb('server-readonly');
 			
+			ctx.query('SELECT COUNT(*) AS c FROM users WHERE id IN (' + query.endpoints.join(',') + ')',
+				[] , function(endpointUserCount) {
+				if (endpointUserCount[0].c != query.endpoints.length)
+					return cont(null);
+				
 			ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.id], function(res) {
 				var members = [];
 				var memberValues = [];
@@ -79,6 +131,7 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 						cont({chatid: res.insertId, eventid: eventid});
 					});
 				});
+			});
 			});
 		} : function(cont) {
 			cont(chatlist[0]);
@@ -126,6 +179,17 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 	});
 });
 
+/**
+ * Add a user to a specific chat.
+ * 
+ * @param {int} userid  The numerical id of the user to be added.
+ * @param {int} chatid  The numerical id of the target chat.
+ * 
+ * @return {object} Returns with <code>chat-adduser-notfound</code>,
+ *                  <code>chat-adduser-success</code> or a common error code.
+ * 
+ * @function c2s~chat-adduser
+ */
 Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser', function(query, ctx, cb) {
 	var self = this;
 	
@@ -171,7 +235,16 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
 	});
 });
 
-Chats.prototype.listAllChatss = buscomponent.provideQT('client-list-all-chats', function(query, ctx, cb) {
+/**
+ * List all chats for the current user.
+ * 
+ * @return {object} Returns with <code>list-all-chats-success</code>
+ *                  or a common error code and populates <code>.chats</code>
+ *                  with an {@link module:chats~Chat}
+ * 
+ * @function c2s~list-all-chats
+ */
+Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx, cb) {
 	ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
 		'eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +

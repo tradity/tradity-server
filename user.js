@@ -371,7 +371,8 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 	var self = this;
 	
 	query.since = parseInt(query.since) || 0;
-	query.upto = parseInt(query.upto) || (Date.now() / 1000);
+	query.upto = parseInt(query.upto) || parseInt(Date.now() / 10000) * 10;
+	// upto is rounded so that the SQL query cache will be used more effectively
 	
 	if (parseInt(query.since) != query.since)
 		return cb('format-error');

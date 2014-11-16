@@ -19,6 +19,16 @@ var sio = require('socket.io-client');
 var af = require('./arivafinance.js');
 var achievementList = require('./achievement-list.js');
 
+/**
+ * Main entry point of this software.
+ * This manages – mostly – initial setup, loading modules and
+ * coordinating workers. But honestly, the code has grown
+ * somewhat unstructured and should be refactored before larger
+ * modifications are made to it.
+ * 
+ * @module main
+ */
+
 var bwpid = null;
 
 Error.stackTraceLimit = cfg.stackTraceLimit || 20;

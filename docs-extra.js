@@ -14,6 +14,15 @@
  * @param {module:qctx~QContext} ctx
  * @param {callback} reply
  */
+/**
+ * General format for advanced client request handlers.
+ * @callback QTXCallback
+ * 
+ * @param {Query} query    The query, as presented by the client.
+ * @param {module:qctx~QContext} ctx
+ * @param {object} xdata
+ * @param {callback} reply
+ */
 
 /**
  * Dummy module to represent the bus namespace

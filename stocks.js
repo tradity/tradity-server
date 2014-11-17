@@ -516,7 +516,7 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
  * @noreadonly
  * @function c2s~stock-buy
  */
-StocksDB.prototype.buyStock = buscomponent.provide('client-stock-buy',
+Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	['query', 'ctx', 'forceNow', 'reply'], function(query, ctx, forceNow, cb) {
 	var self = this;
 	

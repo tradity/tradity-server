@@ -418,9 +418,9 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			'(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
 			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
-			likestringWhere
+			likestringWhere,
 			[query.since, query.upto].concat(likestringUnit),
-		function(ranking) {
+			function(ranking) {
 			cb('get-ranking-success', {'result': ranking});
 		});
 	});

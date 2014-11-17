@@ -54,27 +54,21 @@ User.prototype.generatePWKey = function(pw, cb) {
  * @param {string} data.sender.email  The e-mail address of the sender.
  * @param {string} data.email  The e-mail adress of the receiver.
  * @param {string} data.url  The URL of the invite link.
- * @param {function} cb  A callback which will be called with either
- *                       <code>create-invite-link-failed</code> or
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback which will be called with
  *                       <code>create-invite-link-success</code>.
  * 
  * @function module:user~User#sendInviteEmail
  */
-User.prototype.sendInviteEmail = function(data, cb) {
+User.prototype.sendInviteEmail = function(data, ctx, cb) {
 	var self = this;
 	
-	self.request({name: 'readEMailTemplate', 
+	self.request({name: 'sendTemplateMail', 
 		template: 'invite-email.eml',
+		ctx: ctx,
 		variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
-	}, function(opt) {
-		self.request({name: 'sendMail', opt: opt}, function(error, resp) {
-			if (error) {
-				cb('create-invite-link-failed');
-				self.emitError(error);
-			} else {
-				cb('create-invite-link-success');
-			}
-		});
+	}, function() {
+		cb('create-invite-link-success');
 	});
 };
 
@@ -85,8 +79,7 @@ User.prototype.sendInviteEmail = function(data, cb) {
  * @param {string} data.name  The username of the receiver.
  * @param {string} data.email  The e-mail adress of the receiver.
  * @param {string} data.url  The URL of the e-mail address confirmation link.
- * @param {function} cb  A callback which will be called with either
- *                       <code>reg-email-failed</code> or
+ * @param {function} cb  A callback which will be called with
  *                       <code>reg-success</code>.
  * 
  * @function module:user~User#sendRegisterEmail
@@ -111,18 +104,12 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 				self.getServerConfig(function(cfg) {
 					var url = cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, ctx.user.id).replace(/\{\$hostname\}/g, cfg.hostname);
 					
-					self.request({name: 'readEMailTemplate', 
+					self.request({name: 'sendTemplateMail', 
 						template: 'register-email.eml',
+						ctx: ctx,
 						variables: {'url': url, 'username': data.name, 'email': data.email}
-					}, function(opt) {
-						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
-							if (error) {
-								cb('reg-email-failed', loginResp, 'repush');
-								self.emitError(error);
-							} else {
-								cb('reg-success', loginResp, 'repush');
-							}
-						});
+					}, function() {
+						cb('reg-success', loginResp, 'repush');
 					});
 				});
 			});
@@ -1145,7 +1132,8 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  * Currently, a new password is mailed to the user; This will change
  * due to #268 into sending a link to a password reset page.
  * 
- * @return {object}  Returns with <code>password-reset-success</code> or
+ * @return {object}  Returns with <code>password-reset-success</code>, 
+ *                   <code>password-reset-notfound</code>, or
  *                   a common error code.
  * 
  * @loginignore
@@ -1172,18 +1160,12 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 			var pw = buf.toString('hex');
 			self.generatePWKey(pw, ctx.errorWrap(function(salt, hash) {
 				ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
-					var opt = self.request({name: 'readEMailTemplate', 
+					var opt = self.request({name: 'sendTemplateMail', 
 						template: 'password-reset-email.eml',
+						ctx: ctx,
 						variables: {'password': pw, 'username': query.name, 'email': u.email},
-					}, function(opt) {
-						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
-							if (error) {
-								cb('password-reset-failed');
-								self.emitError(error);
-							} else {
-								cb('password-reset-success');
-							}
-						});
+					}, function() {
+						cb('password-reset-success');
 					});
 				});
 			}));
@@ -1253,7 +1235,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 						sender: ctx.user,
 						email: query.email,
 						url: url
-					}, function(status) {
+					}, ctx, function(status) {
 						cont(status);
 					});
 				} : function(cont) {

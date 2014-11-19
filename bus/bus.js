@@ -291,6 +291,12 @@ Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
 	if (!doNotLocalize)
 		this.localizeBusGraph();
 	
+	// fail early in case we cannot use one of our own edges as a transport
+	this.busGraph.getElementById(this.id).edgesWith(this.busGraph.elements()).forEach(function(e) {
+		assert.ok(e);
+		assert.ok(e.data().emit);
+	});
+	
 	this.busGraphUpdated();
 };
 
@@ -431,11 +437,13 @@ Bus.prototype.handleIncomingRequest = function(req) {
 	assert.ok(req.requestId);
 	
 	req.data.reply = function() {
+		var args = Array.prototype.slice.call(arguments);
+		
 		self.handleBusPacket(self.filterOutput({
 			sender: self.id,
 			seenBy: [],
 			recipients: [req.sender],
-			args: Array.prototype.slice.call(arguments),
+			args: args,
 			responseTo: req.requestId,
 			type: 'response'
 		}, 'response'));

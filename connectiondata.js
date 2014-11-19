@@ -28,6 +28,7 @@ var Access = require('./access.js').Access;
  * @property pushEventsTimer  A setTimeout() timer for pushing events to the user
  * @property {int} lastInfoPush  Timestamp of the last <code>self-info</code> push
  *                               (Other than most timestamps in this software, this is in ms!)
+ * @property {int} connectTime  Timestamp of connection establishment. (Also in ms!).
  * @property {int} mostRecentEventTime  The time of the most recent game event transmitted
  *                                      via this connection.
  * @property {socket} socket  The underlying socket.io instance
@@ -48,10 +49,13 @@ var Access = require('./access.js').Access;
 function ConnectionData(socket) {
 	ConnectionData.super_.apply(this, arguments);
 	
+	var now = Date.now();
+	
 	this.ctx = new qctx.QContext();
 	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
 	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
-	this.cdid = Date.now() + '-' + this.remoteip + '-' + commonUtil.locallyUnique();
+	this.cdid = now + '-' + this.remoteip + '-' + commonUtil.locallyUnique();
+	this.connectTime = now;
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
 	this.mostRecentEventTime = 0;
@@ -115,6 +119,7 @@ ConnectionData.prototype.stats = function() {
 		ip: this.remoteip,
 		xff: this.hsheaders['x-forwarded-for'],
 		xrip: this.hsheaders['x-real-ip'],
+		connectTime: this.connectTime,
 		unanswered: this.unansweredCount,
 		readonly: this.ctx.getProperty('readonly')
 	};
@@ -127,7 +132,7 @@ ConnectionData.prototype.stats = function() {
  * @function module:connectiondata~ConnectionData#pickXDataFields
  */
 ConnectionData.prototype.pickXDataFields = function() {
-	return _.pick(this, 'ctx', 'remoteip', 'hsheaders', 'cdid', 'lastInfoPush', 'mostRecentEventTime');
+	return _.pick(this, 'ctx', 'remoteip', 'hsheaders', 'cdid', 'lastInfoPush', 'mostRecentEventTime', 'connectTime');
 };
 
 ConnectionData.prototype.toString = function() {

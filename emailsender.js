@@ -80,7 +80,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		
 		(ctx ? function(cont) {
 			ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype) ' +
-				'VALUES (?, ?, UNIX_TIMESTAMP(), ?)',
+				'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?)',
 				[(ctx.user && ctx.user.id) || null, shortId, template || null, mailtype], cont);
 		} : function(cont) { cont(); })(function() {
 			self.mailer.sendMail(opt, function(err, status) {

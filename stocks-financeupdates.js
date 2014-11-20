@@ -337,4 +337,6 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	});
 });
 
+exports.StocksFinanceUpdates = StocksFinanceUpdates;
+
 })();

@@ -96,7 +96,7 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 	
 	self.cleanUpUnusedStocks(ctx, function() {
 	self.updateStockValues(ctx, function() {
-	self.request('updateLeaderMatrix', {ctx: ctx}, function() {
+	self.request({name: 'updateLeaderMatrix', ctx: ctx}, function() {
 		var provcb = function() {
 			self.updateRankingInformation(ctx, function() {
 				if (query.weekly) {
@@ -112,7 +112,7 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 		};
 		
 		if (query.provisions)
-			self.request('updateProvisions', {ctx: ctx}, provcb);
+			self.request({name: 'updateProvisions', ctx: ctx}, provcb);
 		else
 			provcb();
 	});

@@ -19,7 +19,8 @@
 		"iconv": "*",
 		"unionfind": "*",
 		"cytoscape": "*",
-		"lzma-native": ">=0.1.1"
+		"lzma-native": ">=0.1.6",
+		"q": "~1.1.1",
 	},
 	"preferGlobal": false,
 	"private": true

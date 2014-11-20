@@ -49,6 +49,7 @@ function provideQTX(name, fn) { return provide(name, ['query', 'ctx', 'xdata', '
 function provideWQT(name, fn)  { return provideW(name, ['query', 'ctx', 'reply'], fn); };
 function provideWQTX(name, fn) { return provideW(name, ['query', 'ctx', 'xdata', 'reply'], fn); };
 
+exports.provideW    = provideW;
 exports.provideQT   = provideQT;
 exports.provideQTX  = provideQTX;
 exports.provideWQT  = provideWQT;

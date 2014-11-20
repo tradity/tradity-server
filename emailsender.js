@@ -37,7 +37,7 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 	});
 });
 
-Mailer.prototype.emailBounced = buscomponent.provide('client-email-bounced', ['query', 'internal', 'ctx', 'reply'],
+Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx', 'reply'],
 	function(query, internal, ctx, cb)
 {
 	cb = cb || function() {};
@@ -70,6 +70,8 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 	assert.ok(self.mailer);
 	
 	self.getServerConfig(function(cfg) {
+		var origTo = opt.to;
+		
 		if (cfg.mail.forceTo)
 			opt.to = cfg.mail.forceTo;
 		if (cfg.mail.forceFrom)
@@ -78,10 +80,11 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		var shortId = commonUtil.sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
 		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
 		
-		(ctx ? function(cont) {
-			ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype) ' +
-				'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?)',
-				[(ctx.user && ctx.user.id) || null, shortId, template || null, mailtype], cont);
+		(ctx && !ctx.getProperty('readonly') ? function(cont) {
+			ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
+				'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
+				[(ctx.user && ctx.user.id) || null, String(shortId), String(template) || null,
+				String(mailtype), String(origTo)], cont);
 		} : function(cont) { cont(); })(function() {
 			self.mailer.sendMail(opt, function(err, status) {
 				if (err || status && status.rejected.length > 0)

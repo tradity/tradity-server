@@ -1,6 +1,7 @@
 From: tech@tradity.de
 Subject: Tradity Registrierung („${username}“)
 To: ${email}
+X-Mailtype: register
 
 <p>
 Hallo ${username}, <br />

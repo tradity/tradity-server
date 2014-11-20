@@ -25,26 +25,49 @@ Mailer.prototype._init = function(cb) {
 };
 
 Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
-	['variables', 'template', 'ctx', 'reply'],
-	function(variables, template, ctx, cb) {
+	['variables', 'template', 'ctx', 'mailtype', 'reply'],
+	function(variables, template, ctx, mailtype, cb) {
 	var self = this;
 	
 	self.request({name: 'readEMailTemplate', 
 		template: template,
 		variables: variables || {},
 	}, function(opt) {
-		self.sendMail(opt, ctx, onFailure, template, cb);
+		self.sendMail(opt, ctx, template, mailtype || opt.headers.xMailtype || '', cb);
 	});
 });
 
-Mailer.prototype.sendMail = buscomponent.provide('sendMail', ['opt', 'ctx', 'template', 'reply'],
-	buscomponent.needsInit(function(opt, ctx, template, cb)
+Mailer.prototype.emailBounced = buscomponent.provide('client-email-bounced', ['query', 'internal', 'ctx', 'reply'],
+	function(query, internal, ctx, cb)
+{
+	cb = cb || function() {};
+	
+	if (!ctx)
+		ctx = new QContext({parentComponent: this});
+	
+	if (!internal && !ctx.access.has('email-bounces'))
+		return cb('permission-denied');
+	
+	ctx.query('SELECT mailid, uid FROM sentemails WHERE messageid = ?', [String(query.messageId)], function(r) {
+		if (r.length == 0)
+			return cb('email-bounced-notfound');
+		
+		assert.equal(r.length, 1);
+		var mail = r[0];
+		
+		ctx.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP() WHERE mailid = ?', [mail.mailid], function() {
+			ctx.feed({'type': 'email-bounced', 'targetid': mail.mailid, 'srcuser': mail.uid, 'noFollowers': true});
+		});
+	});
+});
+
+Mailer.prototype.sendMail = buscomponent.provide('sendMail',
+	['opt', 'ctx', 'template', 'mailtype', 'reply'],
+	buscomponent.needsInit(function(opt, ctx, template, mailtype, cb)
 {
 	var self = this;
 	
 	assert.ok(self.mailer);
-	
-	onFailure = onFailure || function() {};
 	
 	self.getServerConfig(function(cfg) {
 		if (cfg.mail.forceTo)
@@ -56,13 +79,13 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail', ['opt', 'ctx', 'tem
 		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
 		
 		(ctx ? function(cont) {
-			ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename) ' +
+			ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype) ' +
 				'VALUES (?, ?, UNIX_TIMESTAMP(), ?)',
-				[(ctx.user && ctx.user.id) || null, shortId, template || null], cont);
+				[(ctx.user && ctx.user.id) || null, shortId, template || null, mailtype], cont);
 		} : function(cont) { cont(); })(function() {
 			self.mailer.sendMail(opt, function(err, status) {
 				if (err || status && status.rejected.length > 0)
-					onFailure();
+					self.emailBounced({messageId: shortId}, true, ctx);
 				
 				if (err)
 					self.emitError(err);

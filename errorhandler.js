@@ -40,7 +40,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 			if (cfg && cfg.mail) {
 				var opt = _.clone(cfg.mail['error-base']);
 				opt.text = longErrorText;
-				self.request({name: 'sendMail', opt: opt}, function (error, resp) {
+				self.request({name: 'sendMail', mailtype: 'error', opt: opt}, function (error, resp) {
 					if (error)
 						self.err(error, true);
 				});

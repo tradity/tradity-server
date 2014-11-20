@@ -90,7 +90,8 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky, url AS profilepic, ' +
-		'achievements.achname, achievements.xp ' +
+		'achievements.achname, achievements.xp, sentemails.messageid, sentemails.sendingtime, sentemails.bouncetime, ' +
+		'sentemails.mailtypeid ' +
 		'FROM events_users ' +
 		'JOIN events ON events_users.eventid = events.eventid ' +
 		'LEFT JOIN ecomments AS c ON c.commentid = events.targetid AND events.type="comment" ' +
@@ -102,6 +103,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'LEFT JOIN achievements ON achievements.achid = events.targetid AND events.type="achievement" ' +
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification" ' +
 		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
+		'LEFT JOIN sentemails ON sentemails.mailid = events.targetid AND events.type="email-bounced" ' +
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
 		[ctx.user.uid, query ? parseInt(query.since) : 0, query && query.count !== null ? parseInt(query.count) : 100000], function(r) {
 		cb(_.chain(r).map(function(ev) {

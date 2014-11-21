@@ -218,8 +218,6 @@ function connectToSocketIORemote(remote) {
 			socket = null;
 		});
 		
-		socket.on('error', function(e) { manager.emitError(e); });
-		
 		socket.on('connect', function() {
 			socket.on('response', function(response) {
 				assert.equal(response.e, 'raw');

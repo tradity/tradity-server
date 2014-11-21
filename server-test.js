@@ -16,12 +16,13 @@ var socket = new sotradeClient.SoTradeConnection({logDevCheck: true});
 var schoolid = 'Musterschule';
 var schoolname = schoolid;
 
+/* “global” variables */
+var t = Date.now() * (process.id | 0x100); // Unique user name
+var email = t + '@invalid.invalid';
+var password = 'musterpw' + t;
+var ownUid = null; // own user id as soon as available
+
 socket.once('server-config').then(function() {
-	var t = Date.now() * (process.id | 0x100);
-	var email = t + '@invalid.invalid';
-	var password = 'musterpw' + t;
-	var ownUid = null;
-	
 	return socket.emit('list-schools');
 }).then(function(data) {
 	assert.equal(data.code, 'list-schools-success');

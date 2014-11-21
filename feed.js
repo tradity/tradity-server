@@ -5,15 +5,49 @@ var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides interfaces to the user feeds and event tables
+ * 
+ * @public
+ * @module feed
+ */
+
+/**
+ * Main object of the {@link module:feed} module
+ * @public
+ * @constructor module:feed~FeedController
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function FeedController () {
 	FeedController.super_.apply(this, arguments);
 };
 
 util.inherits(FeedController, buscomponent.BusComponent);
 
-// TODO: document the Comment type
-// TODO: document the various feed event types
-
+/**
+ * Inserts an event into the event tables and user feeds.
+ * 
+ * Your local {@link module:qctx~QContext}’s <code>feed</code> method
+ * invokes this – if available, consider using it in order to map all
+ * actions to the current context.
+ * 
+ * @property {string} data.type  A short identifier for the kind of event
+ * @property {int} data.srcuser  The numerical identifier of the user who
+ *                               caused this event
+ * @property {object} data.json  Additional information specific to the event type
+ * @property {boolean} data.everyone  Write this event to all user feeds
+ * @property {boolean} data.noFollowers  Do not write this event automatically to
+ *                                       follower feeds
+ * @property {int[]}  data.feedusers  A list of users to whose feeds this event should
+ *                                    be written
+ * @property {int}  data.feedchat   The ID of a chat of which all members should be
+ *                                   notified of this event
+ * @property {int}  data.feedschool  The ID of a group of which all members should be
+ *                                   notified of this event
+ * @property {module:qctx~QContext} ctx  A QContext to provide database access
+ * 
+ * @function busreq~feed
+ */
 FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
 	var self = this;
 	
@@ -85,6 +119,14 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
 	});
 });
 
+/**
+ * Loads events for a given user’s feed.
+ * 
+ * @param {int} query.since  A unix timestamp indicating the maximum age of events
+ * @param {?int} query.count  A maximum count of events to return
+ * 
+ * @function busreq~feedFetchEvents
+ */
 FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx, cb) {
 	ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
@@ -105,7 +147,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
 		'LEFT JOIN sentemails ON sentemails.mailid = events.targetid AND events.type="email-bounced" ' +
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
-		[ctx.user.uid, query ? parseInt(query.since) : 0, query && query.count !== null ? parseInt(query.count) : 100000], function(r) {
+		[ctx.user.uid, query ? parseInt(query.since) : 0, query && query.count !== null ? parseInt(query.count) : 1000000], function(r) {
 		cb(_.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
@@ -120,6 +162,15 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 	});
 });
 
+/**
+ * Indicates that the current user has been notified a given event.
+ * 
+ * @param {int} query.eventid  The numerical identifier of the target event.
+ * 
+ * @return {object}  Returns with <code>mark-as-seen-success</code> or a common error code.
+ * 
+ * @function c2s~mark-as-seen
+ */
 FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx, cb) {
 	if (parseInt(query.eventid) != query.eventid)
 		return cb('format-error');
@@ -129,6 +180,18 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
 	});
 });
 
+/**
+ * Comment on a gieven event.
+ * 
+ * @param {string} query.comment  The comment’s text.
+ * @param {boolean} query.ishtml  Whether the comment’s content should be considered HTML.
+ * @param {int} query.eventid  The numerical identifier of the target event.
+ * 
+ * @return {object}  Returns with <code>comment-success</code>, <code>comment-notfound</code>
+ *                   or a common error code.
+ * 
+ * @function c2s~comment
+ */
 FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx, cb) {
 	if (!query.comment)
 		return cb('format-error');

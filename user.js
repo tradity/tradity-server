@@ -235,7 +235,7 @@ User.prototype.login = buscomponent.provide('client-login',
 });
 
 /**
- * Logs a user out of his account.
+ * Logs a user out of their account.
  * 
  * @return {object} Returns with <code>logout-success</code> or a common error code.
  * 
@@ -465,7 +465,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
  *                  and populates <code>.result</code> with a {@link module:user~UserEntry},
  *                  <code>.orders</code> with a trade info list,
  *                  <code>.achievements</code> with an achievement info list,
- *                  <code>.values</code> with finance history data and
+ *                  <code>.values</code> with finance history data (see also {@link s2c~trade}) and
  *                  <code>.pinboard</code> with a {@link Comment[]} array of pinboard entries.
  * 
  * @function c2s~get-user-info
@@ -807,6 +807,35 @@ User.prototype.changeOptions = buscomponent.provideWQTX('client-change-options',
 });
 
 /**
+ * Indicates that a user changed their username
+ * 
+ * @typedef s2c~user-namechange
+ * @type {Event}
+ * 
+ * @property {string} oldname  The user’s name before the change
+ * @property {string} newname  The user’s name after the change
+ */
+
+/**
+ * Indicates that a user changed their leader provisions
+ * 
+ * @typedef s2c~user-provchange
+ * @type {Event}
+ * 
+ * @property {int} oldwprov  The user’s gain provision before the change
+ * @property {int} newwprov  The user’s gain provision after the change
+ * @property {int} oldlprov  The user’s loss provision before the change
+ * @property {int} newlprov  The user’s loss provision after the change
+ */
+
+/**
+ * Indicates that a user changed their description text
+ * 
+ * @typedef s2c~user-descchange
+ * @type {Event}
+ */
+
+/**
  * Updates or creates the info for the current user.
  * invoked by registering or changing one’s options.
  * 
@@ -958,11 +987,6 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 						});
 						});
 						
-						if (query.name != ctx.user.name) {
-							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': query.name}});
-							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
-						}
-						
 						if (query.school != ctx.user.school) {
 							if (query.school == null)
 								conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
@@ -974,6 +998,11 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							
 							if (ctx.user.school != null) 
 								conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
+						}
+						
+						if (query.name != ctx.user.name) {
+							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': query.name}});
+							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
 						}
 
 						if (query.wprovision != ctx.user.wprovision || query.lprovision != ctx.user.lprovision)
@@ -1083,7 +1112,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 };
 
 /**
- * Resets the current user financially into his initial state.
+ * Resets the current user financially into their initial state.
  * This is only available for users with appropiate privileges
  * or when resets are allowed (config option <code>.resetAllowed</code>)
  * 

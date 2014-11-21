@@ -44,6 +44,8 @@
  * These game events are only a subset of possible server-to-client events,
  * but represent a large share of the latter group.
  * 
+ * See {@link s2c} for a comprehensive list of events.
+ * 
  * @typedef Event
  * @type {object}
  * 
@@ -56,4 +58,20 @@
  * @property {int} srcuser  The event id of the user which caused the event.
  *                          Often, this will be accompanied by more information on this user
  *                          (e.g. a property <code>srcusername</code>).
+ */
+
+/**
+ * Information for a single trade comment/pinboard entry/etc.
+ * 
+ * @typedef Comment
+ * @type {object}
+ * 
+ * @property {int} commentid  A numerical identifier of this comment
+ * @property {int} commenter  The numerical id of the comment author
+ * @property {string} username  The user name chosen by the comment author
+ * @property {?string} profilepic  A reference to a profile image for the comment
+ *                                 author
+ * @property {string} comment  The actual comment text
+ * @property {boolean} trustedhtml  Whether <code>comment</code> contains
+ *                                  HTML that can safely be displayed
  */

@@ -54,8 +54,7 @@ if (query.timeout) {
 
 socket.once('server-config').then(function() {
 	return socket.emit(query.type, query)
-});
-.then(function(data) {
+}).then(function(data) {
 	if (!query.lurk)
 		process.exit(0);
 }).done();

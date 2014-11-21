@@ -5,6 +5,29 @@ var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides access to a (MySQL) database for storing and fetching information
+ * 
+ * @public
+ * @module dbbackend
+ */
+
+/**
+ * Main object of the {@link module:dbbackend} module
+ * 
+ * @augments module:stbuscomponent~STBusComponent
+ * 
+ * @property {object} dbmod  The node.js module for database connection
+ * @property {object} wConnectionPool  A connection pool for connections
+ *                                     requiring write access.
+ * @property {object} rConnectionPool  A connection pool for connections
+ *                                     not requiring write access.
+ * @property {int} openConnections  The current count of in-use connections
+ * @property {boolean} isShuttingDown  Flag that indicates server shutdown
+ * 
+ * @public
+ * @constructor module:dbbackend~Database
+ */
 function Database () {
 	Database.super_.apply(this, arguments);
 	
@@ -84,6 +107,18 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
 	}
 });
 
+/**
+ * Executes an SQL query on the database.
+ * Your local {@link module:qctx~QContext}’s <code>query</code> method
+ * invokes this – if available, consider using it in order to map all
+ * actions to the current context.
+ * 
+ * @param {string} query  The SQL query
+ * @param {Array} args  Parameters to escape and insert into the query
+ * @param {boolean} readonly  Indicates whether this query can use the read-only pool
+ * 
+ * @function busreq~dbQuery
+ */
 Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly', 'reply'],
 	buscomponent.needsInit(function(query, args, readonly, cb)
 {
@@ -97,6 +132,18 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
 	});
 }));
 
+/**
+ * Returns a database connection (for internal use).
+ * Your local {@link module:qctx~QContext}’s <code>getConnection</code>
+ * method invokes this – if available, consider using it in order to map
+ * all actions to the current context.
+ * 
+ * @param {boolean} autorelease  Whether to release the connection after 1 query
+ * @param {boolean} readonly  Indicates whether the connection can
+ *                            be from the read-only pool
+ * 
+ * @function module:dbbackend~Database#_getConnection
+ */
 Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, readonly, cb) {
 	var self = this;
 	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
@@ -160,10 +207,17 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 	});
 });
 
-Database.prototype.escape = buscomponent.needsInit(function(str) {
-	return this.dbmod.escape(str);
-});
-
+/**
+ * Returns a database connection (for public use).
+ * Your local {@link module:qctx~QContext}’s <code>getConnection</code>
+ * method invokes this – if available, consider using it in order to map
+ * all actions to the current context.
+ * 
+ * @param {boolean} readonly  Indicates whether the connection can
+ *                            be from the read-only pool
+ * 
+ * @function busreq~dbGetConection
+ */
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['readonly', 'reply'], function(readonly, conncb) {
 	var self = this;
 	

@@ -71,6 +71,17 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
 });
 
 /**
+ * Information about an user achievement.
+ * 
+ * @typedef s2c~achievement
+ * @type {Event}
+ * 
+ * @property {string} achname  The achievement type identifier
+ * @property {int} xp  The amount of XP awarded to the user for completing
+ *                     this achievement
+ */
+
+/**
  * Represents an achievement completed by a single user.
  * 
  * @typedef module:achievements~Achievement
@@ -142,11 +153,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 				ctx.feed({
 					type: 'achievement',
 					srcuser: uid,
-					targetid: res.insertId,
-					json: {
-						achname: achievementEntry.name,
-						xp: achievementEntry.xp
-					}
+					targetid: res.insertId
 				});
 				
 				process.nextTick(function() {

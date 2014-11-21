@@ -124,6 +124,13 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 });
 
 /**
+ * Indicates the upload of files by users.
+ * 
+ * @typedef s2c~file-publish
+ * @type {Event}
+ */
+
+/**
  * Publishes a file.
  * 
  * @param {boolean} query.proxy  Whether the content of this file is hosted remotely

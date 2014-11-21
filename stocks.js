@@ -461,6 +461,29 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
 });
 
 /**
+ * Indicates that a user has made a stock trade.
+ * 
+ * @typedef s2c~trade
+ * @type {Event}
+ * 
+ * @property {int} delay  Indicates that the event publishing has been delayed
+ *                        by a given amount of time
+ * @property {int} traderid  The numerical identifier of the trading user
+ * @property {string} tradername  The chosen name of the trading user
+ * @property {string} stocktextid  An identifier (e.g. ISIN) for the traded stock
+ * @property {?int} leader  If set, indicates the numerical user id of the leader
+ *                          associated with the stock
+ * @property {int} money  The amount of money paid for buying the stock shares
+ *                        (negative in case of selling)
+ * @property {int} amount  The number of bought shares (negative in case of selling)
+ * @property {int} prevmoney  The value of the previously held shares
+ * @property {int} prevamount  The previously held number of shares
+ * @property {int} buytime  A unix timestamp indicating when the trade occurred
+ * @property {int} fee  The fee paid for executing the trade
+ * @property {string} stockname  A human-readable name of the traded stock
+ */
+
+/**
  * Buys or sells a given amount of a given stock.
  * 
  * Selling is indicated by buying negative amounts.
@@ -502,9 +525,9 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
  *                  and the query was <em>not</em> added to the delayed queries list (e.g. due to
  *                  <code>_isDelayed</code> being set</li>
  *                  <li><code>stock-buy-not-enough-stocks</code> in case the user attempted to sell more
- *                  shares than he previously possessed</li>
+ *                  shares than they previously possessed</li>
  *                  <li><code>stock-buy-out-of-money</code> in case the user attempted to buy more shares
- *                  than his financial situation allows</li>
+ *                  than their financial situation allows</li>
  *                  <li><code>stock-buy-over-pieces-limit</code> in case the user attempted to buy
  *                  more shares than there are available on the current day</li>
  *                  <li><code>stock-buy-single-paper-share-exceed</code> in case the trade would result in

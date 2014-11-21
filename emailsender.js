@@ -37,6 +37,8 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 	});
 });
 
+// TODO: Document email-bounced
+
 Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx', 'reply'],
 	function(query, internal, ctx, cb)
 {

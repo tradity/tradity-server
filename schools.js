@@ -382,6 +382,18 @@ Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', 
 }));
 
 /**
+ * Informs users that a new group/school has been created.
+ * 
+ * @typedef s2c~school-create
+ * @type {Event}
+ * 
+ * @property {int} schoolid  The numerical ID of the new school
+ * @property {string} schoolname  The human-readable name of the new school
+ * @property {string} schoolpath  The new school’s path indicating its place in the
+ *                                school tree
+ */
+
+/**
  * Creates a new school.
  * 
  * @param {?string} query.schoolpath  The path for the new school. If not given,

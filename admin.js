@@ -246,6 +246,17 @@ Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstic
 }));
 
 /**
+ * A notice from the admins to the general community.
+ * 
+ * @typedef s2c~mod-notification
+ * @type {Event}
+ * 
+ * @property {string} notifcontent  The HTML string to display to the readers
+ * @property {boolean} sticky  Whether to move the notification to the to of
+ *                             the feed when displaying
+ */
+
+/**
  * Inserts a message into all user feeds.
  * 
  * @param {string} query.content  The message to be displayed.

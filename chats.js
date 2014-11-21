@@ -40,6 +40,15 @@ util.inherits(Chats, buscomponent.BusComponent);
  */
 
 /**
+ * Informs users about starting a chat with them.
+ * 
+ * @typedef s2c~chat-start
+ * @type {Event}
+ * 
+ * @property {int[]} endpoints  The list of numerical user ids of all chat members
+ */
+
+/**
  * Fetch or create a specific chat.
  * 
  * @param {?object[]} query.endpoints  Array of small user objects of the
@@ -178,6 +187,17 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 		});
 	});
 });
+
+/**
+ * Informs users about new participants in chats
+ * 
+ * @typedef s2c~chat-user-added
+ * @type {Event}
+ * 
+ * @property {int[]} endpoints  The list of numerical user ids of all chat members
+ * @property {int} addedChats  The numerical user id of the new participant
+ * @property {string} addedChatsName  The chosen user name of the new participant
+ */
 
 /**
  * Add a user to a specific chat.

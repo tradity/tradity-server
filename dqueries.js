@@ -326,6 +326,16 @@ DelayedQueries.prototype.parseCondition = function(str) {
 };
 
 /**
+ * Informs users of delayed queries having been executed.
+ * 
+ * This event incorporates all fields from the delayed queries
+ * info set by the originating user.
+ * 
+ * @typedef s2c~dquery~exec
+ * @type {Event}
+ */
+
+/**
  * Execute a delayed query and, if appropiate, removes it from the list.
  * 
  * @param {object} query  The delayed query.

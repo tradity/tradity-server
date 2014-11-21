@@ -25,6 +25,17 @@ function Watchlist () {
 util.inherits(Watchlist, buscomponent.BusComponent);
 
 /**
+ * Indicates that one user added a stock or another user to their watchlist.
+ * 
+ * @typedef s2c~watch-add
+ * @type {Event}
+ * 
+ * @property {int} watched  The numerical ID of the watched stock
+ * @property {?int} watcheduser  The numerical ID of the watched leader
+ * @property {?string} watchedname  The name chosen by the watched leader
+ */
+
+/**
  * Adds a stock to the current user’s watchlist.
  * 
  * @param {string} query.stockid  The numerical stock id of the stock to be added.
@@ -64,6 +75,15 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
 		}); 
 	});
 });
+
+/**
+ * Indicates that one user removed a stock or another user from their watchlist.
+ * 
+ * @typedef s2c~watch-add
+ * @type {Event}
+ * 
+ * @property {int} watched  The numerical ID of the watched stock
+ */
 
 /**
  * Removes an entry to the current user’s watchlist.

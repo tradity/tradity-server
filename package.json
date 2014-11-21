@@ -21,6 +21,8 @@
 		"cytoscape": "*",
 		"lzma-native": ">=0.1.6",
 		"q": "~1.1.1",
+		"iconv": "~2.1.4",
+		"mailparser": "~0.4.6"
 	},
 	"preferGlobal": false,
 	"private": true

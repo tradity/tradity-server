@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 (function () { "use strict";
 
 Error.stackTraceLimit = Infinity;
@@ -51,11 +52,12 @@ if (query.timeout) {
 	}, query.timeout * 1000);
 }
 
-socket.on('server-config', function() {
-	socket.emit(query.type, query, function(data) {
-		if (!query.lurk)
-			process.exit(0);
-	});
+socket.once('server-config').then(function() {
+	return socket.emit(query.type, query)
 });
+.then(function(data) {
+	if (!query.lurk)
+		process.exit(0);
+}).done();
 
 })();

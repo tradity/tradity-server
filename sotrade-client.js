@@ -6,6 +6,12 @@ var _ = require('lodash');
 
 function NodeSoTradeConnection (opt) {
 	var cfg = require('./config.js').config;
+	opt = opt || {};
+	
+	if (!opt.url) {
+		var protocol = cfg.http.secure ? 'https' : 'http';
+		opt.url = protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + (cfg.wsporte || cfg.wsports[0]);
+	}
 	
 	try {
 		if (!opt.messageSigner) {

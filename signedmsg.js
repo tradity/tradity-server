@@ -7,6 +7,21 @@ var crypto = require('crypto');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides methods for signing and verifiying messages
+ * from other server or client instances.
+ * This allows authorized queries to be employed securely.
+ * 
+ * @public
+ * @module signedmsg
+ */
+
+/**
+ * Main object of the {@link module:signedmsg} module
+ * @public
+ * @constructor module:signedmsg~SignedMessaging
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function SignedMessaging () {
 	SignedMessaging.super_.apply(this, arguments);
 	
@@ -25,13 +40,30 @@ SignedMessaging.prototype.onBusConnect = function() {
 	});
 };
 
+/**
+ * Sets the server configuration to use and reads in the own private key,
+ * the accepted public keys and, optionally, a specified signing algorithm.
+ * 
+ * @function module:signedmsg~SignedMessaging#useConfig
+ */
 SignedMessaging.prototype.useConfig = function(cfg) {
 	this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
 	this.publicKeys = fs.readFileSync(cfg.publicKeys, {encoding: 'utf-8'})
 		.replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
 	this.algorithm = cfg.signatureAlgorithm || this.algorithm;
-}
+};
 
+/**
+ * Create a signed message for verification by other instances.
+ * Note that, while base64 encoding is applied, no encryption of
+ * any kind is being used.
+ * 
+ * @param {object} msg  An arbitrary object to be signed.
+ * 
+ * @return {string} Returns with a string containing the object and a signature.
+ * 
+ * @function busreq~createSignedMessage
+ */
 SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg', 'reply'], function(msg, cb) {
 	var self = this;
 	var string = new Buffer(JSON.stringify(msg)).toString('base64');
@@ -43,6 +75,17 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
 	});
 });
 
+/**
+ * Parse and verify a signed message created by 
+ * {@link busreq~createSignedMessage}
+ * 
+ * @param {string} msg  The signed object.
+ * 
+ * @return {object} Returns the signed object in case the message came from
+ *                  an accepted public key or <code>null</code> otherwise.
+ * 
+ * @function busreq~verifySignedMessage
+ */
 SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage', ['msg', 'reply'], function(msg, cb) {
 	var self = this;
 	

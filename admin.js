@@ -382,12 +382,12 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
  * @return {object} Returns with <code>get-server-statistics-success</code> or
  *                  a common error code and, in case of success, sets
  *                  <code>.servers</code> to an array of results of
- *                  calls to {@link busreq~internal-get-server-statistics}.
+ *                  calls to {@link busreq~internalServerStatistics}.
  * 
  * @function c2s~get-server-statistics
  */
 Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx, cb) {
-	this.requestGlobal({name: 'internal-get-server-statistics'}, function(replies) {
+	this.requestGlobal({name: 'internalServerStatistics'}, function(replies) {
 		cb('get-server-statistics-success', {servers: replies});
 	});
 }));

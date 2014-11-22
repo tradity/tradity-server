@@ -60,7 +60,7 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 		template: template,
 		variables: variables || {},
 	}, function(opt) {
-		self.sendMail(opt, ctx, template, mailtype || opt.headers['x-mailtype'] || '', cb);
+		self.sendMail(opt, ctx, template, mailtype || opt.headers['X-Mailtype'] || '', cb);
 	});
 });
 

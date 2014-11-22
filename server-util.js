@@ -32,7 +32,8 @@ exports.sha256 = sha256;
  * -> { a: {b: 4, c: 8, d: 9}, x: 82, y: 42}
  * 
  * @param {object} orig  The original object. It will be modified and returned.
- * @param {object*} u  One or more objects that will be merged into the original one.
+ * @param {object} u  One or more objects that will be merged into the original one.
+ *                    Multiple parameters are accepted.
  * 
  * @return {object} A modified version of the original object.
  */

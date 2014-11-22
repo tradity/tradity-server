@@ -128,8 +128,8 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
  *     <li>Each trade’s value is added to its stock according to:
  *         <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
  *             <mfrac>
- *                 <mrow>|money involved in trade|</mrow>
- *                 <mrow>|time difference now - trade time in seconds + 300|</mrow>
+ *                 <mrow>| money involved in trade |</mrow>
+ *                 <mrow>| time difference now - trade time in seconds + 300 |</mrow>
  *             </mfrac>
  *         </math>
  *     </li>
@@ -299,6 +299,7 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  *              sold follower shares</mrow>
  *     </math></li>
  * </ul>
+ * 
  * @typedef module:user~RankingEntry
  * @type object
  * 

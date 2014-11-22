@@ -41,12 +41,12 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
  * <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
  *     <mrow>
  *         Gain provision =
- *         (max{HWM - bid} - HWM) · (number of shares)
+ *         (max{HWM, bid} - HWM) · (number of shares)
  *         · <mfrac><mrow>(gain provision percentage)</mrow><mrow>100</mrow></mfrac>
  *     </mrow>
  *     <mrow>
  *         Loss provision =
- *         (min{LWM - bid} - LWM) · (number of shares)
+ *         (min{LWM, bid} - LWM) · (number of shares)
  *         · <mfrac><mrow>(loss provision percentage)</mrow><mrow>100</mrow></mfrac>
  *     </mrow>
  * </math> <br />

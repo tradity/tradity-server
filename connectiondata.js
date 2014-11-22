@@ -331,7 +331,8 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		self.request({
 			name: 'verifySignedMessage',
 			ctx: self.ctx.clone(),
-			msg: query.signedContent
+			msg: query.signedContent,
+			maxAge: 900
 		}, function(verified) {
 			if (verified)
 				cont(verified, true);
@@ -440,9 +441,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				 * @param {?int} [query.weight=10]  A weight of this connection
 				 *                                  (for shortest path finding).
 				 * 
-				 * @return {object} Returns with <code>invalid-time</code> if the
-				 *                  current time and request timestamps deviate
-				 *                  too strongly, <code>init-bus-transport-success</code>
+				 * @return {object} Returns with <code>init-bus-transport-success</code>
 				 *                  or a common error code.
 				 * 
 				 * @function c2s~init-bus-transport
@@ -450,9 +449,6 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				case 'init-bus-transport':
 					if (!masterAuthorization)
 						return cb('permission-denied');
-					
-					if (query.time < Date.now() - 900000 || query.time > Date.now() + 900000)
-						return cb('invalid-time');
 					
 					self.ctx.setProperty('isBusTransport', true);
 					self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));

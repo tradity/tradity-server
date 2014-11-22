@@ -66,7 +66,7 @@ SignedMessaging.prototype.useConfig = function(cfg) {
  */
 SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg', 'reply'], function(msg, cb) {
 	var self = this;
-	var string = new Buffer(JSON.stringify(msg)).toString('base64');
+	var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
 	var sign = crypto.createSign('RSA-SHA256');
 	
 	sign.end(string, null, function() {
@@ -80,13 +80,17 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
  * {@link busreq~createSignedMessage}
  * 
  * @param {string} msg  The signed object.
+ * @param {?int} maxAge  An optional maximum age (in seconds) for considering
+ *                       the message valid
  * 
  * @return {object} Returns the signed object in case the message came from
  *                  an accepted public key or <code>null</code> otherwise.
  * 
  * @function busreq~verifySignedMessage
  */
-SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage', ['msg', 'reply'], function(msg, cb) {
+SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage',
+	['msg', 'maxAge', 'reply'], function(msg, maxAge, cb) 
+{
 	var self = this;
 	
 	var msg_ = msg.split('~');
@@ -107,10 +111,14 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 				// move current public key to first position (lru caching)
 				self.publicKeys.splice(0, 0, self.publicKeys.splice(i, 1)[0]);
 				
-				return cb(JSON.parse(new Buffer(string, 'base64').toString()));
-			} else {
-				verifySingleKey(i+1); // try next key
-			}
+				var stringparsed = string.split('#');
+				var objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
+				
+				if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
+					return cb(JSON.parse(new Buffer(objstring, 'base64').toString()));
+			} 
+			
+			verifySingleKey(i+1); // try next key
 		});
 	}
 	
@@ -168,7 +176,7 @@ if (require.main === module) {
 	
 	smdb.createSignedMessage(message, function(signed) {
 		console.log(signed);
-		smdb.verifySignedMessage(signed, function(message) {
+		smdb.verifySignedMessage(signed, 100, function(message) {
 			console.log('message.apeWants =', message.apeWants);
 		});
 	});

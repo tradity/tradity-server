@@ -191,7 +191,6 @@ function connectToSocketIORemote(remote) {
 		msg: {
 			type: 'init-bus-transport',
 			id: 'init-bus-transport',
-			time: Date.now(),
 			weight: remote.weight
 		}
 	}, function(signed) {
@@ -207,6 +206,8 @@ function connectToSocketIORemote(remote) {
 		
 		socket.on('disconnect', function() {
 			// auto-reconnect
+			socket.close();
+			socket = null;
 			connectToSocketIORemote(remote);
 		});
 		

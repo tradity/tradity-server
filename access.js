@@ -1,6 +1,23 @@
 (function () { "use strict";
 
-// server,filesystem,stocks,userdb,moderate,schooldb,email_verif,login_override
+/**
+ * Provides the {@link module:access~Access} object.
+ * 
+ * @public
+ * @module Access
+ */
+
+/**
+ * Represents the access levels in which server code gets executed.
+ * 
+ * Access levels are identified by simple strings, but #242 is
+ * basically about throwing them all out and introducing new ones.
+ * After that, there should be a list of the new levels with
+ * associated documentation.
+ * 
+ * @public
+ * @constructor module:access~Access
+ */
 var Access = function() {
 	this.areas = [];
 	this.hasAnyAccess = false;
@@ -8,6 +25,13 @@ var Access = function() {
 	// above code is equiv to this.dropAll();
 };
 
+/**
+ * Returns a copy of this access object.
+ * 
+ * @return {module:access~Access}  An access object with identical access levels.
+ * 
+ * @function module:access~Access#clone
+ */
 Access.prototype.clone = function() {
 	var a = new Access();
 	a.areas = this.areas.slice();
@@ -15,6 +39,17 @@ Access.prototype.clone = function() {
 	return a;
 }
 
+/**
+ * Creates a new access object from a JSON specification.
+ * See also {@link module:access~Access#toJSON}.
+ * 
+ * @param {string} j  A string describing the access levels.
+ * 
+ * @return {module:access~Access}  An access object with the access levels
+ *                                 speicified in <code>j<code>.
+ * 
+ * @function module:access~Access.fromJSON
+ */
 Access.fromJSON = function(j) {
 	var a = new Access();
 	if (!j)
@@ -25,6 +60,7 @@ Access.fromJSON = function(j) {
 	} else {
 		var p = JSON.parse(j);
 		
+		// note that this can handle both an array and the "*" string!
 		for (var i = 0; i < p.length; ++i) 
 			a.grant(p[i]);
 	}
@@ -32,6 +68,15 @@ Access.fromJSON = function(j) {
 	return a;
 };
 
+/**
+ * Serializes the access levels associated with this access object
+ * into a JSON string that can be passed to {@link module:access~Access.fromJSON}.
+ * 
+ * @return {string}  A short machine-readable description of the access
+ *                   levels associated with this access object.
+ * 
+ * @function module:access~Access#toJSON
+ */
 Access.prototype.toString =
 Access.prototype.toJSON = function() {
 	if (this.hasAnyAccess)
@@ -39,16 +84,41 @@ Access.prototype.toJSON = function() {
 	return JSON.stringify(this.areas);
 };
 
+/**
+ * Serializes the access levels associated with this access object
+ * into an array of access levels.
+ * 
+ * @return {string[]}  A list of the access levels associated with
+ *                     this access object, possibly including <code>"*"</code>.
+ * 
+ * @function module:access~Access#toJSON
+ */
 Access.prototype.toArray = function() {
 	if (this.hasAnyAccess)
 		return ['*'];
 	return this.areas;
 };
 
+/**
+ * Checks for privileges to a certain access level.
+ * 
+ * @param {string} area  The access level identifier.
+ * 
+ * @return {boolean}  Indicates whether access is present.
+ * 
+ * @function module:access~Access#has
+ */
 Access.prototype.has = function(area) {
 	return this.hasAnyAccess || (this.areas.indexOf(area) != -1);
 };
 
+/**
+ * Grants all access levels held by another access object.
+ * 
+ * @param {module:access~Access} otherAccess  Another access object.
+ * 
+ * @function module:access~Access#update
+ */
 Access.prototype.update = function(otherAccess) {
 	if (otherAccess.hasAnyAccess)
 		this.grant('*');
@@ -57,6 +127,14 @@ Access.prototype.update = function(otherAccess) {
 		this.grant(otherAccess.areas[i]);
 };
 
+/**
+ * Grants access to a specified access level.
+ * 
+ * @param {string} area  The access level to grant access to, or
+ *                       <code>"*"</code> to indicate full access.
+ * 
+ * @function module:access~Access#grant
+ */
 Access.prototype.grant = function(area) {
 	area = area.trim();
 	if (!area)
@@ -69,10 +147,23 @@ Access.prototype.grant = function(area) {
 		this.areas.push(area);
 };
 
+/**
+ * Grants full access to all access levels.
+ * 
+ * @function module:access~Access#grantAny
+ */
 Access.prototype.grantAny = function() {
 	this.hasAnyAccess = true;
 };
 
+/**
+ * Removes access to a specified access level.
+ * 
+ * @param {string} area  The access level to remove access from, or
+ *                       <code>"*"</code> to indicate removing full access.
+ * 
+ * @function module:access~Access#drop
+ */
 Access.prototype.drop = function(area) {
 	area = area.trim();
 	if (!area)
@@ -86,10 +177,23 @@ Access.prototype.drop = function(area) {
 		this.areas.splice(index, 1);
 };
 
+/**
+ * Drop full access, if previously held.
+ * Access levels that have been granted explicitly
+ * are not affected.
+ * 
+ * @function module:access~Access#dropAny
+ */
 Access.prototype.dropAny = function(area) {
 	this.hasAnyAccess = false;
 };
 
+/**
+ * Drop all access levels held by this objects,
+ * possibly including full access.
+ * 
+ * @function module:access~Access#dropAall
+ */
 Access.prototype.dropAll = function(area) {
 	this.dropAny();
 	this.areas = [];

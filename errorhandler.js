@@ -5,12 +5,37 @@ var fs = require('fs');
 var util = require('util');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides methods for handling, logging, and notifying about errors.
+ * 
+ * @public
+ * @module errorhandler
+ */
+
+/**
+ * Main object of the {@link module:errorhandler} module
+ * 
+ * @public
+ * @constructor module:errorhandler~ErrorHandler
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function ErrorHandler() {
 	ErrorHandler.super_.apply(this, arguments);
 }
 
 util.inherits(ErrorHandler, buscomponent.BusComponent);
 
+
+/**
+ * Listener for <code>error</code> events.
+ * 
+ * This logs the error and sends, if possible, an e-mail
+ * to notify about the error.
+ * The exact behaviour, such as the e-mail recipient, can be set
+ * in the server configuration.
+ * 
+ * @function module:errorhandler~ErrorHandler#err
+ */
 ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
 	var self = this;
 	

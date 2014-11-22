@@ -111,7 +111,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			finalize = finalize || function(res) { res.end(); };
 			
 			if (r.headers)
-				headers = _.deepupdate(headers, JSON.parse(r.headers));
+				headers = commonUtil.deepupdate(headers, JSON.parse(r.headers));
 			
 			res.writeHead(status, headers);
 			finalize(res);

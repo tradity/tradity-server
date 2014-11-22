@@ -126,7 +126,11 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
 	
 	if (loc.pathname.match(/^(\/dynamic)?\/?statistics/)) {
 		this.request({name: 'gatherPublicStatistics'}, function(result) {
-			res.writeHead(200, {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'max-age=500'});
+			res.writeHead(200, {
+				'Content-Type': 'application/json',
+				'Access-Control-Allow-Origin': '*', 'Cache-Control': 
+				'max-age=500'
+			});
 			res.end(JSON.stringify(result));
 		});
 

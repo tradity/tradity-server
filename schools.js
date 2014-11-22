@@ -198,12 +198,12 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 							
 							s.parentSchool = result;
 							
-							s.config = _.deepupdate({}, cfg.schoolConfigDefaults, s.parentSchool.config, s.config);
+							s.config = commonUtil.deepupdate({}, cfg.schoolConfigDefaults, s.parentSchool.config, s.config);
 							
 							cb('get-school-info-success', s);
 						});
 					} else {
-						s.config = _.deepupdate({}, cfg.schoolConfigDefaults, s.config);
+						s.config = commonUtil.deepupdate({}, cfg.schoolConfigDefaults, s.config);
 						
 						cb('get-school-info-success', s);
 					}

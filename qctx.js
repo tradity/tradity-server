@@ -10,7 +10,7 @@ var _ = require('lodash');
  * Provides the {@link module:qctx~QContext} object.
  * 
  * @public
- * @module watchlist
+ * @module qctx
  */
 
 /**

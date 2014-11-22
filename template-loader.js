@@ -6,13 +6,44 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var templates = require('./templates-compiled.js');
 
+/**
+ * Provides methods for reading in template files.
+ * 
+ * @public
+ * @module template-loader
+ */
+
+/**
+ * Main object of the {@link module:template-loader} module
+ * 
+ * @public
+ * @constructor module:template-loader~TemplateLoader
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function TemplateLoader () {
 	TemplateLoader.super_.apply(this, arguments);
 };
 
 util.inherits(TemplateLoader, buscomponent.BusComponent);
 
-TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
+/**
+ * Read a template and optionally substitute variables.
+ * The strings which are substituted are of the format
+ * <code>${varname}</code>.
+ * 
+ * @param {string} template  The file name of the remplate to read in.
+ * @param {?object} variables  An dictionary of variables to replace.
+ * 
+ * @return {string} Calls the reply callback with the template, variables
+ *                  having been substituted.
+ * 
+ * @function busreq~readTemplate
+ */
+TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
+	['template', 'variables', 'reply'],
+	function(template, variables, cb) 
+{
+	variables = variables || {};
 	var t = templates[template];
 	
 	if (!t) {
@@ -34,6 +65,17 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate', ['t
 	return cb(t);
 });
 
+/**
+ * Read an e-mail template and optionally substitute variables.
+ * This internally calls {@link busreq~readTemplate} and has the same 
+ * parameters, but header fields will be passend and an object suitable
+ * for passing to {@link busreq~sendMail} is returned rather than a string.
+ * 
+ * @param {string} template  The file name of the remplate to read in.
+ * @param {?object} variables  An dictionary of variables to replace.
+ * 
+ * @function busreq~readEMailTemplate
+ */
 TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
 	this.readTemplate(template, variables, function(t) {
 		var headerend = t.indexOf('\n\n');

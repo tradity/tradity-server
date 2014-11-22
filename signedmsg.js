@@ -18,6 +18,7 @@ var buscomponent = require('./stbuscomponent.js');
 
 /**
  * Main object of the {@link module:signedmsg} module
+ * 
  * @public
  * @constructor module:signedmsg~SignedMessaging
  * @augments module:stbuscomponent~STBusComponent

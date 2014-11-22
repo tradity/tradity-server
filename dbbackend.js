@@ -4,7 +4,7 @@ var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
-var commonUtil = require('./common/util.js');
+var serverUtil = require('./server-util.js');
 
 /**
  * Provides access to a (MySQL) database for storing and fetching information
@@ -53,7 +53,7 @@ Database.prototype._init = function(cb) {
 		
 		for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
 			var id = cfg.db.clusterOptions.order[i];
-			var opt = commonUtil.deepupdate(cfg.db.cluster[id], cfg.db);
+			var opt = serverUtil.deepupdate(cfg.db.cluster[id], cfg.db);
 			
 			if (opt.ssl === 'default')
 				opt.ssl = cfg.ssl || {};

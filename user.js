@@ -3,7 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var crypto = require('crypto');
-var commonUtil = require('./common/util.js');
+var serverUtil = require('./server-util.js');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
@@ -41,7 +41,7 @@ util.inherits(User, buscomponent.BusComponent);
 User.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, function(ex, buf) {
 		var pwsalt = buf.toString('hex');
-		var pwhash = commonUtil.sha256(pwsalt + String(pw));
+		var pwhash = serverUtil.sha256(pwsalt + String(pw));
 		cb(pwsalt, pwhash);
 	});
 };
@@ -191,7 +191,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			var uid = res[0].id;
 			var pwsalt = res[0].pwsalt;
 			var pwhash = res[0].pwhash;
-			if (pwhash != commonUtil.sha256(pwsalt + pw) && !ignorePassword) {
+			if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
 				cb('login-wrongpw');
 				return;
 			}

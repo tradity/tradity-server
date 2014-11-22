@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var commonUtil = require('./common/util.js');
+var serverUtil = require('./server-util.js');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
 var buscomponent = require('./stbuscomponent.js');
@@ -148,7 +149,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		if (cfg.mail.forceFrom)
 			opt.from = cfg.mail.forceFrom;
 		
-		var shortId = commonUtil.sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
+		var shortId = serverUtil.sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
 		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
 		
 		(ctx && !ctx.getProperty('readonly') ? function(cont) {

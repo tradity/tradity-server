@@ -1,6 +1,7 @@
 (function () { "use strict";
 
 var commonUtil = require('./common/util.js');
+var serverUtil = require('./server-util.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
@@ -198,12 +199,12 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 							
 							s.parentSchool = result;
 							
-							s.config = commonUtil.deepupdate({}, cfg.schoolConfigDefaults, s.parentSchool.config, s.config);
+							s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults, s.parentSchool.config, s.config);
 							
 							cb('get-school-info-success', s);
 						});
 					} else {
-						s.config = commonUtil.deepupdate({}, cfg.schoolConfigDefaults, s.config);
+						s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults, s.config);
 						
 						cb('get-school-info-success', s);
 					}

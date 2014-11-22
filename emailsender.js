@@ -112,7 +112,7 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 		var mail = r[0];
 		
 		ctx.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
-			[mail.mailid, String(query.diagnostic_code || '')], function() {
+			[String(query.diagnostic_code || ''), mail.mailid], function() {
 			ctx.feed({'type': 'email-bounced', 'targetid': mail.mailid, 'srcuser': mail.uid, 'noFollowers': true});
 			cb('email-bounced-success');
 		});

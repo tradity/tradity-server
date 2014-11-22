@@ -60,7 +60,7 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 		template: template,
 		variables: variables || {},
 	}, function(opt) {
-		self.sendMail(opt, ctx, template, mailtype || opt.headers.xMailtype || '', cb);
+		self.sendMail(opt, ctx, template, mailtype || opt.headers['x-mailtype'] || '', cb);
 	});
 });
 
@@ -75,7 +75,8 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
  * @property {int} bouncetime  The unix timestamp of receiving the failure notification.
  * @property {string} mailtype  The e-mail type as set by the caller of
  *                              {@link busreq~sendMail}.
- * @property {string} recipient  The <code>To:</code> mail adress.
+ * @property {string} mailrecipient  The <code>To:</code> mail adress.
+ * @property {string} diagnostic_code  The diagnostic code send by the rejecting server.
  */
 
 /**

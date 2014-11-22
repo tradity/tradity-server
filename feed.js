@@ -133,7 +133,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky, url AS profilepic, ' +
 		'achievements.achname, achievements.xp, sentemails.messageid, sentemails.sendingtime, sentemails.bouncetime, ' +
-		'sentemails.mailtype, sentemails.recipient AS mailrecipient ' +
+		'sentemails.mailtype, sentemails.recipient AS mailrecipient, sentmails.diagnostic_code ' +
 		'FROM events_users ' +
 		'JOIN events ON events_users.eventid = events.eventid ' +
 		'LEFT JOIN ecomments AS c ON c.commentid = events.targetid AND events.type="comment" ' +

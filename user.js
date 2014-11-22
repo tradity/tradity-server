@@ -63,7 +63,7 @@ User.prototype.generatePWKey = function(pw, cb) {
 User.prototype.sendInviteEmail = function(data, ctx, cb) {
 	var self = this;
 	
-	self.request({name: 'sendTemplateMail', 
+	self.request({name: 'sendTemplateMail',
 		template: 'invite-email.eml',
 		ctx: ctx,
 		variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}

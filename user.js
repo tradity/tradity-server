@@ -1239,6 +1239,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
  */
 User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
 	var self = this;
+	var uid = ctx.user.id;
 	
 	self.getServerConfig(function(cfg) {
 		query.email = query.email ? String(query.email) : null;
@@ -1257,7 +1258,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 			ctx.query('INSERT INTO invitelink ' +
 				'(uid, `key`, email, ctime, schoolid) VALUES ' +
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
+				[uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
 				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
 		
 				(query.email ? function(cont) {

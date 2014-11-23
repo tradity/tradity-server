@@ -46,7 +46,7 @@ Access.prototype.clone = function() {
  * @param {string} j  A string describing the access levels.
  * 
  * @return {module:access~Access}  An access object with the access levels
- *                                 speicified in <code>j<code>.
+ *                                 speicified in <code>j</code>.
  * 
  * @function module:access~Access.fromJSON
  */

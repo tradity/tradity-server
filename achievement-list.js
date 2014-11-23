@@ -13,7 +13,7 @@ var assert = require('assert');
 /**
  * Represents a single type of achievement.
  * 
- * @typedef module:achievement-list~AchievementTypeType
+ * @typedef module:achievement-list~AchievementType
  * @type object
  * 
  * @property {string} name  An unique achievement id.

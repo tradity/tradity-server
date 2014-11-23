@@ -137,7 +137,8 @@ function identityMatrix(n) {
 /**
  * Update the leader matrix values.
  * This is quite complicated and deserves to be documented somewhere else
- * and in greater detail (e.g., at https://doc.tradity.de/math/math.pdf).
+ * and in greater detail (e.g., at
+ * <a href="https://doc.tradity.de/math/math.pdf">https://doc.tradity.de/math/math.pdf</a>).
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access
  * 

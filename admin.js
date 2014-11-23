@@ -203,7 +203,7 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
  * @return {object} Returns with <code>change-user-email-success</code> or
  *                  a common error code.
  * 
- * @function c2s~change-user
+ * @function c2s~change-user-email
  */
 Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx, cb) {
 	ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',

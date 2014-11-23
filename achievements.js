@@ -71,7 +71,7 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
 });
 
 /**
- * Information about an user achievement.
+ * Information about a user achievement.
  * 
  * @typedef s2c~achievement
  * @type {Event}

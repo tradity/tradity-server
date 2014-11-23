@@ -202,8 +202,8 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 /**
  * Add a user to a specific chat.
  * 
- * @param {int} userid  The numerical id of the user to be added.
- * @param {int} chatid  The numerical id of the target chat.
+ * @param {int} query.userid  The numerical id of the user to be added.
+ * @param {int} query.chatid  The numerical id of the target chat.
  * 
  * @return {object} Returns with <code>chat-adduser-notfound</code>,
  *                  <code>chat-adduser-success</code> or a common error code.

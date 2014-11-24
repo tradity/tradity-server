@@ -163,6 +163,9 @@ User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-s
  * 
  * @param {string} query.name  A user name or e-mail address.
  * @param {string} query.pw  The user’s password.
+ * @param {boolean} query.stayloggedin  Whether the user wishes to be logged in
+ *                                      for an extended period of time (e.g. when
+ *                                      using their personal computer).
  * 
  * @return {object} Returns with <code>login-wrongpw</code>,
  *                  <code>login-badname</code>, <code>login-success</code> or a common error code and,

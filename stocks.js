@@ -208,8 +208,7 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 			ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
 				'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 ' +
 				'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 ' +
-				'OR leader IS NOT NULL', [cfg.lrutimeLimit],
-				cb);
+				'OR leader IS NOT NULL', [], cb);
 		});
 	});
 }
@@ -227,7 +226,8 @@ Stocks.prototype.updateStockValues = function(ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
-		ctx.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
+		ctx.query('SELECT * FROM stocks ' +
+			'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
 		[cfg.lrutimeLimit, cfg.refetchLimit], function(res) {
 			var stocklist = _.pluck(res, 'stockid');
 			
@@ -648,7 +648,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			return cb('stock-buy-over-pieces-limit');
 		}
 		
-		var fee = Math.max(Math.abs(cfg['transaction-fee-perc'] * price), cfg['transaction-fee-min']);
+		var fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
 		
 		conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
 			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)', 
@@ -799,7 +799,12 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
  */
 
 /**
- * List all transactions involving the requesting user.
+ * List all transactions involving the requesting user, i.e. all payments
+ * between users (like provisions) or between the user and the game
+ * (like trading prices and fees).
+ * 
+ * This enhances transparency of a user’s financial assets by giving
+ * detailed information on time, amount and reason of payments.
  * 
  * @return {object} Returns with <code>list-transactions-success</code> or a common error code and,
  *                  in case of success, sets <code>.results</code> as a {module:stocks~TransactionLogEntry[]} accordingly.

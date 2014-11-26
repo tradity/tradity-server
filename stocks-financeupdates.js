@@ -62,10 +62,13 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
  * @function busreq~updateProvisions
  */
 StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updateProvisions', ['ctx', 'reply'], function (ctx, cb) {
-	ctx.getConnection(function (conn, commit) {
-	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
-	'stocks AS s READ, transactionlog WRITE;', [], function() {
+	ctx.startTransaction([
+		{ name: 'depot_stocks', alias: 'ds', mode: 'w' },
+		{ name: 'users_finance', alias: 'l', mode: 'w' },
+		{ name: 'users_finance', alias: 'f', mode: 'w' },
+		{ name: 'stocks', alias: 's', mode: 'r' },
+		{ name: 'transactionlog', mode: 'r' }
+	], function(conn, commit) {
 		conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, s.stockid AS stocktextid, ' +
 			wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
@@ -119,7 +122,6 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 		}, j)(); }
 		});
 	});
-	});
 });
 
 function identityMatrix(n) {
@@ -151,9 +153,11 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	
 	self.getServerConfig(function(cfg) {
 	
-	ctx.getConnection(function (conn, commit) {
-	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES depot_stocks AS ds READ, users_finance WRITE, stocks AS s WRITE;', [], function() {
+	ctx.startTransaction({
+		depot_stocks: { alias: 'ds', mode: 'r' },
+		users_finance: { mode: 'w' },
+		stocks: { alias: 's', mode: 'w' }
+	}, function (conn, commit) {
 	conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
 		'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', [], function(users) {
 	conn.query(
@@ -323,7 +327,6 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 				});
 			});
 		});
-	});
 	});
 	});
 	});

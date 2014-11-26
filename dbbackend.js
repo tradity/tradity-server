@@ -123,12 +123,16 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
 Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly', 'reply'],
 	buscomponent.needsInit(function(query, args, readonly, cb)
 {
+	var self = this, origArgs = arguments;
+	
 	if (readonly !== false && readonly !== true)
 		readonly = (query.trim().indexOf('SELECT') == 0);
 	
-	this._getConnection(true, readonly, function(connection) {
+	self._getConnection(true, function /* restart */() {
+		self._query.apply(self, origArgs);
+	}, readonly, function(connection) {
 		connection.query(query, args || [], function() {
-			cb.apply(this, arguments);
+			cb.apply(self, arguments);
 		});
 	});
 }));
@@ -140,12 +144,14 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
  * all actions to the current context.
  * 
  * @param {boolean} autorelease  Whether to release the connection after 1 query
+ * @param {function} restart  Callback which will be invoked in case the query resulted in
+ *                            a state in which the query/transaction needs to be restarted
  * @param {boolean} readonly  Indicates whether the connection can
  *                            be from the read-only pool
  * 
  * @function module:dbbackend~Database#_getConnection
  */
-Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, readonly, cb) {
+Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly, cb) {
 	var self = this;
 	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
 	assert.ok (pool);
@@ -167,43 +173,53 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 			return conn.release();
 		};
 		
+		var query = function(q, args, cb) {
+			conn.query(q, args, function(err, res) {
+				if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
+					release();
+					
+					return restart();
+				}
+				
+				var exception = null;
+				
+				if (!err) {
+					try {
+						cb(res);
+					} catch (e) {
+						exception = e;
+					}
+				}
+				
+				if (err || exception) {
+					if (!readonly)
+						conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+					
+					// make sure that the error event is emitted -> release() will be called in next tick
+					process.nextTick(release);
+					
+					if (err) {
+						// query-related error
+						var datajson = JSON.stringify(args);
+						var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
+					
+						self.emitError(q ? new Error(
+							err + '\nCaused by ' + querydesc
+						) : err);
+					} else {
+						// exception in callback
+						self.emitError(exception);
+					}
+				}
+				
+				if (err || exception || autorelease) {
+					release();
+				}
+			});
+		};
+		
 		cb({
-			query: function(q, args, cb) {
-				conn.query(q, args, function(err, res) {
-					var exception = null;
-					
-					if (!err) {
-						try {
-							cb(res);
-						} catch (e) {
-							exception = e;
-						}
-					}
-					
-					if (err || exception) {
-						if (!readonly)
-							conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
-						
-						// make sure that the error event is emitted -> release() will be called in next tick
-						process.nextTick(release);
-						
-						if (err) {
-							// query-related error
-							var datajson = JSON.stringify(args);
-							var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
-						
-							self.emitError(q ? new Error(
-								err + '\nCaused by ' + querydesc
-							) : err);
-						} else {
-							// exception in callback
-							self.emitError(exception);
-						}
-					} else if (autorelease) {
-						release();
-					}
-				});
-			}, release: release
+			query: query, release: release
 		});
 	});
 });
@@ -216,19 +232,19 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
  * 
  * @param {boolean} readonly  Indicates whether the connection can
  *                            be from the read-only pool
+ * @param {function} restart  Callback that will be invoked when the current transaction
+ *                            needs to be restarted
  * 
  * @function busreq~dbGetConection
  */
-Database.prototype.getConnection = buscomponent.provide('dbGetConnection', ['readonly', 'reply'], function(readonly, conncb) {
+Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
+	['readonly', 'restart', 'reply'], function(readonly, restart, conncb) 
+{
 	var self = this;
 	
 	assert.ok(readonly === true || readonly === false);
 	
-	self._getConnection(false, readonly, function(cn) {
-		if (!self.dbconnid)
-			self.dbconnid = 0;
-		var connid = ++self.dbconnid;
-		
+	self._getConnection(false, restart, readonly, function(cn) {
 		conncb({
 			query: function(q, data, cb) {
 				data = data || [];

@@ -572,11 +572,15 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	
-	ctx.getConnection(function(conn, commit, rollback) {
-	
-	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks WRITE, users_finance AS l WRITE, users_finance AS f WRITE, users AS fu WRITE, ' +
-	'stocks AS s READ, orderhistory WRITE, transactionlog WRITE;', [], function() {
+	ctx.startTransaction([
+		{ name: 'depot_stocks', mode: 'w' },
+		{ name: 'users_finance', alias: 'l', mode: 'w' },
+		{ name: 'users_finance', alias: 'f', mode: 'w' },
+		{ name: 'users', alias: 'fu', mode: 'w' },
+		{ name: 'stocks', alias: 's', mode: 'r' },
+		{ name: 'orderhistory', mode: 'w' },
+		{ name: 'transactionlog', mode: 'w'}
+	], function(conn, commit, rollback) {
 	
 	conn.query('SELECT s.*, ' +
 		'depot_stocks.amount AS amount, ' +
@@ -746,7 +750,6 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		});
 		});
 		});
-	});
 	});
 	});
 	});

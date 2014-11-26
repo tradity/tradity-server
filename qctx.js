@@ -364,7 +364,7 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 			mode = {'r': 'READ', 'w': 'WRITE'}[mode];
 			assert.ok(mode);
 			
-			init += tablename + (alias ? 'AS ' + alias : ' ') + mode;
+			init += tablename + (alias ? ' AS ' + alias : '') + ' ' + mode;
 			
 			if (i < tables.length - 1)
 				init +=  ', ';

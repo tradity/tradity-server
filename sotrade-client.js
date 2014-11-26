@@ -37,9 +37,13 @@ function NodeSoTradeConnection (opt) {
 		console.error(e);
 	}
 	
+	var socketopts = opt.socketopts || {};
+	if (!socketopts.transports)
+		socketopts.transports = ['websocket'];
+	
 	var url = opt.url;
 	if (url && !opt.connect)
-		opt.connect = function() { return sio.connect(url, opt.socketopts); };
+		opt.connect = function() { return sio.connect(url, socketopts); };
 	
 	if (typeof opt.logDevCheck == 'undefined')
 		opt.logDevCheck = true;

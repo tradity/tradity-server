@@ -64,12 +64,13 @@ for (var i = 0; i < dailyLoginAchievements.length; ++i) {
 			} },
 			xp: 30 + 10 * count,
 			check: function(uid, userAchievements, cfg, ctx, cb) {
-				ctx.query('SELECT MAX(daycount) AS maxdaycount FROM ' +
+				cb(false);
+				/*ctx.query('SELECT MAX(daycount) AS maxdaycount FROM ' +
 					'(SELECT @s := IF(t - @r = 0, 0, @s+1) AS daycount, @r := t FROM ' +
 						'(SELECT time, MAX(ticks) AS t ' +
 						'FROM tickshistory WHERE userid = ? GROUP BY FLOOR(time/86400)) AS dayticks, ' +
 					'(SELECT @r := 0, @s := 0) AS cbase) AS dx', [uid],
-					function(res) { cb(res[0].maxdaycount >= count); });
+					function(res) { cb(res[0].maxdaycount >= count); });*/
 			},
 			version: 0,
 			prereqAchievements: prevCount ? [ 'DAILY_LOGIN_DAYS_' + prevCount ] : [],

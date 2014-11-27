@@ -711,7 +711,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
 	} else {
 		ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]);
-		ctx.query('UPDATE users SET ticks = ? + ticks WHERE id = ?', [ctx.getProperty('pendingTicks'), user.id]);
+		ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ctx.getProperty('pendingTicks'), user.id]);
 		ctx.setProperty('pendingTicks', 0);
 		ctx.setProperty('lastSessionUpdate', now);
 	}

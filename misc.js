@@ -82,7 +82,7 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-dead
 	ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)', [], function(r) {
 	var id = r.insertId;
 	
-	ctx.startTransaction(function /* restart*/() {
+	ctx.startTransaction(function /*restart*/() {
 		cb('artificial-deadlock-success');
 	}, function(conn1, commit1, rollback1) {
 		ctx.startTransaction(function(conn2, commit2, rollback2) {

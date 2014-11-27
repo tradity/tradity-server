@@ -62,10 +62,13 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
  * @function busreq~updateProvisions
  */
 StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updateProvisions', ['ctx', 'reply'], function (ctx, cb) {
-	ctx.getConnection(function (conn, commit) {
-	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
-	'stocks AS s READ, transactionlog WRITE;', [], function() {
+	ctx.startTransaction([
+		{ name: 'depot_stocks', alias: 'ds', mode: 'w' },
+		{ name: 'users_finance', alias: 'l', mode: 'w' },
+		{ name: 'users_finance', alias: 'f', mode: 'w' },
+		{ name: 'stocks', alias: 's', mode: 'r' },
+		{ name: 'transactionlog', mode: 'r' }
+	], function(conn, commit) {
 		conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, s.stockid AS stocktextid, ' +
 			wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
@@ -119,7 +122,6 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 		}, j)(); }
 		});
 	});
-	});
 });
 
 function identityMatrix(n) {
@@ -137,7 +139,8 @@ function identityMatrix(n) {
 /**
  * Update the leader matrix values.
  * This is quite complicated and deserves to be documented somewhere else
- * and in greater detail (e.g., at https://doc.tradity.de/math/math.pdf).
+ * and in greater detail (e.g., at
+ * <a href="https://doc.tradity.de/math/math.pdf">https://doc.tradity.de/math/math.pdf</a>).
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access
  * 
@@ -150,9 +153,11 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	
 	self.getServerConfig(function(cfg) {
 	
-	ctx.getConnection(function (conn, commit) {
-	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES depot_stocks AS ds READ, users_finance WRITE, stocks AS s WRITE;', [], function() {
+	ctx.startTransaction({
+		depot_stocks: { alias: 'ds', mode: 'r' },
+		users_finance: { mode: 'w' },
+		stocks: { alias: 's', mode: 'w' }
+	}, function (conn, commit) {
 	conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
 		'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', [], function(users) {
 	conn.query(
@@ -192,8 +197,6 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		if (users.length == 0)
 			return cb();
 		
-		var complete = 0;
-		
 		// find connected components
 		var uf = new UnionFind(users.length);
 		for (var i = 0; i < res_leader.length; ++i)
@@ -211,7 +214,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		var updateQuery = '';
 		var updateParams = [];
 		
-		for (var ci_ in components) { (function() {
+		for (var ci_ in components) {
 			var componentStartTime = Date.now();
 			var ci = ci_;
 			var cusers = components[ci];
@@ -277,7 +280,6 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 			//console.log(JSON.stringify(A),JSON.stringify(B),JSON.stringify(userIdToIndex),JSON.stringify(X));
 
 			for (var i = 0; i < n; ++i) {
-				_.bind(function(i) {
 				assert.notStrictEqual(X[i],  null);
 				assert.notStrictEqual(Xa[i], null);
 				assert.equal(X[i],  X[i]);
@@ -292,42 +294,39 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 				updateQuery += 'UPDATE users_finance SET totalvalue = ? WHERE id = ?;';
 				updateParams.push(X[i] + prov_sum[i], cusers[i]);
 				
-				if (++complete == users.length) {
-					var lmuComputationsComplete = Date.now();
-					conn.query(updateQuery, updateParams, function() {
-						commit(false, function() {
-							conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
-								'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
-								[users[i]], function(res) {
-								conn.release();
-								
-								var lmuEnd = Date.now();
-								console.log('lmu timing: ' +
-									presgesvTotalTime + ' ms pre-sgesv total, ' +
-									sgesvTotalTime + ' ms sgesv total, ' +
-									postsgesvTotalTime + ' ms post-sgesv total, ' +
-									(lmuEnd - lmuStart) + ' ms lmu total, ' +
-									(lmuFetchData - lmuStart) + ' ms fetching, ' +
-									(lmuEnd - lmuComputationsComplete) + ' ms writing');
-								
-								for (var j = 0; j < res.length; ++j) {
-									process.nextTick(_.bind(_.partial(function(r) {
-										self.emitGlobal('stock-update', r);
-									}, res[j]), self));
-								}
-								
-								cb();
-							});
-						});
-					});
-				}
-				}, self, i)();
 			}
 			
 			var componentEndTime = Date.now();
 			postsgesvTotalTime += componentEndTime - sgesvET;
-		})(); }
-	});
+		}
+		
+		var lmuComputationsComplete = Date.now();
+		conn.query(updateQuery, updateParams, function() {
+			commit(false, function() {
+				conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
+					'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
+					[users[i]], function(res) {
+					conn.release();
+					
+					var lmuEnd = Date.now();
+					console.log('lmu timing: ' +
+						presgesvTotalTime + ' ms pre-sgesv total, ' +
+						sgesvTotalTime + ' ms sgesv total, ' +
+						postsgesvTotalTime + ' ms post-sgesv total, ' +
+						(lmuEnd - lmuStart) + ' ms lmu total, ' +
+						(lmuFetchData - lmuStart) + ' ms fetching, ' +
+						(lmuEnd - lmuComputationsComplete) + ' ms writing');
+					
+					for (var j = 0; j < res.length; ++j) {
+						process.nextTick(_.bind(_.partial(function(r) {
+							self.emitGlobal('stock-update', r);
+						}, res[j]), self));
+					}
+					
+					cb();
+				});
+			});
+		});
 	});
 	});
 	});

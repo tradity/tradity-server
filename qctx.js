@@ -241,16 +241,18 @@ QContext.prototype.query = function(query, args, cb) {
 };
 
 /**
- * Shorthand method for executing database queries.
+ * Shorthand method for fetching a single connection for database queries.
  * Mostly, see {@link busreq~dbGetConnection}.
  * 
  * @param {boolean} [readonly=false]  Whether the connection requires no write access.
+ * @param {function} restart  Callback that will be invoked when the current transaction
+ *                            needs restarting.
  * @param {function} cb  Callback that will be called with the new connection and 
  *                       commit() and rollback() shortcuts (both releasing the connection).
  * 
  * @function module:qctx~QContext#getConnection
  */
-QContext.prototype.getConnection = function(readonly, cb) {
+QContext.prototype.getConnection = function(readonly, restart, cb) {
 	var self = this;
 	
 	if (typeof readonly == 'function') {
@@ -258,7 +260,7 @@ QContext.prototype.getConnection = function(readonly, cb) {
 		readonly = false;
 	}
 	
-	self.request({readonly: readonly, name: 'dbGetConnection'}, function(conn) {
+	self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}, function(conn) {
 		/* wrapper object for better debugging, no semantic change */
 		var conn_ = {
 			release: _.bind(conn.release, conn),
@@ -295,6 +297,84 @@ QContext.prototype.getConnection = function(readonly, cb) {
 		
 		cb(conn_, commit, rollback);
 	}); 
+};
+
+/**
+ * Fetch a single connection and prepare a transaction on it,
+ * optionally locking tables.
+ * 
+ * @param {boolean} [readonly=false]  Whether the transaction requires no write access.
+ * @param {object} [tablelocks={}]  An map of <code>table-name -> 'r' or 'w'</code> indicating 
+ *                                  which tables to lock. The dictionary values can also be
+ *                                  objects with the properties <code>mode, alias</code>,
+ *                                  or you can use an array with a <code>name</code> property.
+ * @param {function} [restart=true]  A callback that will be invoked when the transaction needs
+ *                                   restarting, e.g. in case of database deadlocks. Use
+ *                                   <code>true</code> to just rollback and call the startTransaction
+ *                                   callback again.
+ * @param {function} cb  Callback that will be called with the new connection and 
+ *                       commit() and rollback() shortcuts (both releasing the connection).
+ * 
+ * @function module:qctx~QContext#startTransaction
+ */
+QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb) {
+	var self = this, args = arguments;
+	
+	// argument shifting -- often, readonly and/or restart will not be given
+	if (typeof readonly !== 'boolean') {
+		cb = restart;
+		restart = tablelocks;
+		tablelocks = readonly;
+		readonly = false;
+	}
+	
+	if (typeof tablelocks !== 'object') {
+		cb = restart;
+		restart = tablelocks;
+		tablelocks = {};
+	}
+	
+	if (!cb) {
+		cb = restart;
+		restart = function() {
+			self.startTransaction.apply(self, args);
+		};
+	}
+	
+	assert.equal(typeof cb, 'function');
+	
+	tablelocks = tablelocks || {};
+	assert.ok(restart);
+	
+	self.getConnection(readonly, restart, function(conn, commit, rollback) {
+		var tables = _.keys(tablelocks);
+		var init = 'SET autocommit = 0; ';
+		
+		if (tables.length == 0)
+			init += 'START TRANSACTION ';
+		else
+			init += 'LOCK TABLES ';
+		
+		for (var i = 0; i < tables.length; ++i) {
+			var name = tables[i];
+			var mode = tablelocks[name].mode || tablelocks[name];
+			var alias = tablelocks[name].alias;
+			var tablename = tablelocks[name].name || name;
+			
+			mode = {'r': 'READ', 'w': 'WRITE'}[mode];
+			assert.ok(mode);
+			
+			init += tablename + (alias ? ' AS ' + alias : '') + ' ' + mode;
+			
+			if (i < tables.length - 1)
+				init +=  ', ';
+		}
+		
+		init += ';'
+		conn.query(init, [], function() {
+			cb(conn, commit, rollback);
+		});
+	});
 };
 
 /**

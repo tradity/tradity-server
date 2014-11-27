@@ -91,8 +91,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			if (req.headers['if-modified-since'])
 				preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
 			
-			preq.setHeader('User-Agent', 'tradity.de +' + serverUtil.sha256(r.hash + r.user) +
-				' (contact: tech@tradity.de) (NodeJS ' + process.version + ' http)');
+			preq.setHeader('User-Agent', cfg.userAgent);
 			preq.end();
 		} : function(cont) {
 			headers['Content-Type'] = r.mime;

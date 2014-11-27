@@ -162,7 +162,10 @@ User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-s
  * is valid for one day.
  * 
  * @param {string} query.name  A user name or e-mail address.
- * @param {string} quer.pw  The user’s password.
+ * @param {string} query.pw  The user’s password.
+ * @param {boolean} query.stayloggedin  Whether the user wishes to be logged in
+ *                                      for an extended period of time (e.g. when
+ *                                      using their personal computer).
  * 
  * @return {object} Returns with <code>login-wrongpw</code>,
  *                  <code>login-badname</code>, <code>login-success</code> or a common error code and,
@@ -181,7 +184,7 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	/* use an own connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
-	ctx.getConnection(function(conn, commit) {
+	ctx.startTransaction(function(conn, commit) {
 		conn.query('SELECT id, pwsalt, pwhash FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 			if (res.length == 0) {
 				cb('login-badname');
@@ -343,12 +346,12 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  * Since not necessarily <em>all</em> users have been registered during the entire period
  * in between, the ranking does <em>not</em> start and end for all users at the same time.
  * 
- * @param {?int} [since=0]  The ranking starting time as a unix timestamp.
- * @param {?int} [upto=now]  The ranking end time as a unix timestamp.
- * @param {?string} [search]  A string to use for filtering by user names and,
- *                            if permitted by the them, their real names.
- * @param {?int|string} [schoolid]  When given, only return users in the group specified
- *                                  by this id or path.
+ * @param {?int} [query.since=0]  The ranking starting time as a unix timestamp.
+ * @param {?int} [query.upto=now]  The ranking end time as a unix timestamp.
+ * @param {?string} [query.search]  A string to use for filtering by user names and,
+ *                                  if permitted by the them, their real names.
+ * @param {?int|string} [query.schoolid]  When given, only return users in the group specified
+ *                                        by this id or path.
  * 
  * @return {object} Returns with <code>get-ranking-success</code> or a common error code
  *                  and populates <code>.result</code> with a {@link module:user~RankingEntry[]}
@@ -908,12 +911,18 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	
 	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
-	ctx.getConnection(function(conn, commit, rollback) {
-	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES users WRITE, users_finance WRITE, users_data WRITE, stocks WRITE, betakeys WRITE, ' +
-		'inviteaccept WRITE, invitelink READ, schoolmembers WRITE, schooladmins WRITE' +
-		(query.school ? ', schools WRITE' : '') + ';', [], function() {
-	
+	ctx.startTransaction({
+		users: 'w',
+		users_finance: 'w',
+		users_data: 'w',
+		stocks: 'w',
+		betakeys: 'w',
+		inviteaccept: 'w',
+		invitelink: 'r',
+		schoolmembers: 'w',
+		schooladmins: 'w',
+		schools: 'w'
+	}, function(conn, commit, rollback) {
 	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[query.email, query.name, uid], function(res) {
 	conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
@@ -1104,7 +1113,6 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 			_.bind(schoolLookupCB, self)([]);
 		}
 	
-	});
 	});
 	});
 	});

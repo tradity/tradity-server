@@ -138,3 +138,4 @@ Information about server internals that may be relevant to non-programmers:
 * Calculation of provisions: See {@link busreq~updateProvisions}.
 * Calculation of follower rankings: See {@link module:user~RankingEntry}.
 * Ranking of popular stocks: See {@link c2s~list-popular-stocks}.
+* Transaction log for financial transparency: See {@link c2s~list-transactions}.

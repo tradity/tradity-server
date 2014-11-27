@@ -86,28 +86,48 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 	if (ctx.getProperty('readonly'))
 		return cb();
 		
-	var rcbST = Date.now();
+	var rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET;
+	rcbST = Date.now();
 	
 	var xcb = function() {
-		var rcbET = Date.now();
-		console.log('Stocks rcb in ' + (rcbET - rcbST) + ' ms');
+		rcbET = Date.now();
+		console.log('cleanUpUnusedStocks:      ' + (cuusET - rcbST) + ' ms');
+		console.log('updateStockValues:        ' + (usvET - cuusET) + ' ms');
+		console.log('updateLeaderMatrix:       ' + (ulmET - usvET) + ' ms');
+		console.log('updateProvisions:         ' + (upET - ulmET) + ' ms');
+		console.log('updateRankingInformation: ' + (uriET - upET) + ' ms');
+		console.log('updateValueHistory:       ' + (uvhET - uriET) + ' ms');
+		console.log('weeklyCallback:           ' + (wcbET - uvhET) + ' ms');
+		console.log('dailyCallback:            ' + (rcbET - wcbET) + ' ms');
+		console.log('Total stocks rcb:         ' + (rcbET - rcbST) + ' ms');
 		cb();
 	};
 	
 	self.cleanUpUnusedStocks(ctx, function() {
+	cuusET = Date.now();
 	self.updateStockValues(ctx, function() {
+	usvET = Date.now();
 	self.request({name: 'updateLeaderMatrix', ctx: ctx}, function() {
+		ulmET = Date.now();
 		var provcb = function() {
+			upET = Date.now();
 			self.updateRankingInformation(ctx, function() {
-				if (query.weekly) {
-					self.weeklyCallback(ctx, function() {
+				uriET = Date.now();
+				self.updateValueHistory(ctx, function() {
+					uvhET = Date.now();
+					if (query.weekly) {
+						self.weeklyCallback(ctx, function() {
+							wcbET = Date.now();
+							self.dailyCallback(ctx, xcb);
+						});
+					} else if (query.daily) {
+						wcbET = Date.now();
 						self.dailyCallback(ctx, xcb);
-					});
-				} else if (query.daily) {
-					self.dailyCallback(ctx, xcb);
-				} else {
-					xcb();
-				}
+					} else {
+						wcbET = Date.now();
+						xcb();
+					}
+				});
 			});
 		};
 		
@@ -138,9 +158,7 @@ Stocks.prototype.updateRankingInformation = function(ctx, cb) {
 		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
 			'WHERE userid=users_finance.id AND leader IS NOT NULL), ' +
 		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
-			'WHERE userid=users_finance.id AND leader IS NULL)', [], function() {
-		self.updateValueHistory(ctx, cb);
-	});	
+			'WHERE userid=users_finance.id AND leader IS NULL)', [], cb);
 }
 
 /**
@@ -208,8 +226,7 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 			ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
 				'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 ' +
 				'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 ' +
-				'OR leader IS NOT NULL', [cfg.lrutimeLimit],
-				cb);
+				'OR leader IS NOT NULL', [], cb);
 		});
 	});
 }
@@ -227,7 +244,8 @@ Stocks.prototype.updateStockValues = function(ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
-		ctx.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
+		ctx.query('SELECT * FROM stocks ' +
+			'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
 		[cfg.lrutimeLimit, cfg.refetchLimit], function(res) {
 			var stocklist = _.pluck(res, 'stockid');
 			
@@ -554,11 +572,15 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	
-	ctx.getConnection(function(conn, commit, rollback) {
-	
-	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks WRITE, users_finance AS l WRITE, users_finance AS f WRITE, users AS fu WRITE, ' +
-	'stocks AS s READ, orderhistory WRITE, transactionlog WRITE;', [], function() {
+	ctx.startTransaction([
+		{ name: 'depot_stocks', mode: 'w' },
+		{ name: 'users_finance', alias: 'l', mode: 'w' },
+		{ name: 'users_finance', alias: 'f', mode: 'w' },
+		{ name: 'users', alias: 'fu', mode: 'w' },
+		{ name: 'stocks', alias: 's', mode: 'r' },
+		{ name: 'orderhistory', mode: 'w' },
+		{ name: 'transactionlog', mode: 'w'}
+	], function(conn, commit, rollback) {
 	
 	conn.query('SELECT s.*, ' +
 		'depot_stocks.amount AS amount, ' +
@@ -648,7 +670,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			return cb('stock-buy-over-pieces-limit');
 		}
 		
-		var fee = Math.max(Math.abs(cfg['transaction-fee-perc'] * price), cfg['transaction-fee-min']);
+		var fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
 		
 		conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
 			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)', 
@@ -731,7 +753,6 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	});
 	});
 	});
-	});
 });
 
 /**
@@ -799,7 +820,12 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
  */
 
 /**
- * List all transactions involving the requesting user.
+ * List all transactions involving the requesting user, i.e. all payments
+ * between users (like provisions) or between the user and the game
+ * (like trading prices and fees).
+ * 
+ * This enhances transparency of a user’s financial assets by giving
+ * detailed information on time, amount and reason of payments.
  * 
  * @return {object} Returns with <code>list-transactions-success</code> or a common error code and,
  *                  in case of success, sets <code>.results</code> as a {module:stocks~TransactionLogEntry[]} accordingly.

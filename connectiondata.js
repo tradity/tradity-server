@@ -230,7 +230,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 	
 	this.getServerConfig(function(cfg) {
 		var curUnixTime = Date.now();
-		if (curUnixTime > this.lastInfoPush + cfg['infopush-mindelta']) {
+		if (curUnixTime > this.lastInfoPush + cfg.infopushMinDelta) {
 			this.lastInfoPush = curUnixTime;
 			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, ctx: this.ctx.clone(), xdata: this.pickXDataFields()}, _.bind(function(code, info) {
 				assert.ok(code == 'get-user-info-success');

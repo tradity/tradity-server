@@ -169,8 +169,7 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
 	if (ctx.user.id == uid)
 		return cb('delete-user-self-notallowed');
 	
-	ctx.getConnection(function(conn, commit) {
-		conn.query('START TRANSACTION', [], function() {
+	ctx.startTransaction(function(conn, commit) {
 		conn.query('DELETE FROM sessions WHERE uid = ?', [uid], function() {
 		conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid], function() {
 		conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid], function() {
@@ -182,7 +181,6 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
 			commit(function() {
 				cb('delete-user-success');
 			});
-		});
 		});
 		});
 		});
@@ -203,7 +201,7 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
  * @return {object} Returns with <code>change-user-email-success</code> or
  *                  a common error code.
  * 
- * @function c2s~change-user
+ * @function c2s~change-user-email
  */
 Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx, cb) {
 	ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',

@@ -422,8 +422,7 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	
-	ctx.getConnection(function(conn, commit, rollback) {
-		conn.query('START TRANSACTION', [], function() {
+	ctx.startTransaction(function(conn, commit, rollback) {
 		conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)], function(r) {
 			assert.equal(r.length, 1);
 			if (r[0].c == 1 || !query.schoolname.trim() || 
@@ -458,7 +457,6 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 				
 				createCB();
 			});
-		});
 		});
 	});
 });

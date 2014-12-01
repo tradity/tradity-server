@@ -49,36 +49,6 @@ var assert = require('assert');
 
 var AchievementList = [];
 
-var dailyLoginAchievements = _.range(2,21); 
-
-for (var i = 0; i < dailyLoginAchievements.length; ++i) {
-	(function() {
-		var count = dailyLoginAchievements[i];
-		var prevCount = i == 0 ? null : dailyLoginAchievements[i-1];
-		
-		AchievementList.push({
-			name: 'DAILY_LOGIN_DAYS_' + count,
-			fireOn: { 'client-get-user-info': function (ev, ctx, cb) {
-				var lf = ev.query.lookfor;
-				cb((lf && parseInt(lf) == lf ? [parseInt(lf)] : []).concat(ev.ctx.user ? [ev.ctx.user.id] : []));
-			} },
-			xp: 30 + 10 * count,
-			check: function(uid, userAchievements, cfg, ctx, cb) {
-				cb(false);
-				/*ctx.query('SELECT MAX(daycount) AS maxdaycount FROM ' +
-					'(SELECT @s := IF(t - @r = 0, 0, @s+1) AS daycount, @r := t FROM ' +
-						'(SELECT time, MAX(ticks) AS t ' +
-						'FROM tickshistory WHERE userid = ? GROUP BY FLOOR(time/86400)) AS dayticks, ' +
-					'(SELECT @r := 0, @s := 0) AS cbase) AS dx', [uid],
-					function(res) { cb(res[0].maxdaycount >= count); });*/
-			},
-			version: 0,
-			prereqAchievements: prevCount ? [ 'DAILY_LOGIN_DAYS_' + prevCount ] : [],
-			category: 'SOCIAL'
-		});
-	})();
-}
-
 var tradeCountAchievements = {1: 100, 2: 0, 5: 250, 10: 350, 25: 500, 50: 700, 100: 1000, 250: 1200};
 var tcaKeys = _.keys(tradeCountAchievements);
 
@@ -198,25 +168,46 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 	})();
 }
 
-var ClientAchievements = [['LEARNING_GREEN_INVESTMENTS', 100]];
+var ClientAchievements = [
+	{ name: 'LEARNING_GREEN_INVESTMENTS', xp: 100, requireVerified: false, category: 'LEARNING' }
+];
+
+var dailyLoginAchievements = _.range(2,21);
+
+for (var i = 0; i < dailyLoginAchievements.length; ++i) {
+	var count = dailyLoginAchievements[i];
+	var prevCount = i == 0 ? null : dailyLoginAchievements[i-1];
+	
+	ClientAchievements.push({
+		name: 'DAILY_LOGIN_DAYS_' + count,
+		xp: 30 + 10 * count,
+		requireVerified: true,
+		category: 'SOCIAL',
+		prereqAchievements: prevCount ? [ 'DAILY_LOGIN_DAYS_' + prevCount ] : [],
+	});
+}
 
 for (var i = 0; i < ClientAchievements.length; ++i) { (function() {
 	var achievement = ClientAchievements[i];
 	
 	AchievementList.push({
-		name: achievement[0],
-		fireOn: { 'clientside-achievement': function (ev, ctx, cb) { cb(ev.name == achievement[0] ? [ev.srcuser] : []); } },
-		xp: achievement[1],
+		name: achievement.name,
+		fireOn: { 'clientside-achievement': function (ev, ctx, cb) { cb(ev.name == achievement.name ? [ev.srcuser] : []); } },
+		xp: achievement.xp,
 		check: function(uid, userAchievements, cfg, ctx, cb) {
-			ctx.query('SELECT COUNT(*) AS c FROM achievements_client WHERE userid = ? AND achname = ?', [uid, achievement[0]], function(res) {
+			ctx.query('SELECT COUNT(*) AS c FROM achievements_client WHERE userid = ? AND achname = ? ' +
+				(achievement.requireVerified ? 'AND verified = 1 ' : ''),
+				[uid, achievement.name], function(res)
+			{
 				assert.equal(res.length, 1);
 				
 				cb(res[0].c > 0);
 			});
 		},
 		version: 0,
-		prereqAchievements: [],
-		category: 'LEARNING'
+		prereqAchievements: achievement.prereqAchievements || [],
+		implicatingAchievements: achievement.implicatingAchievements || [],
+		category: achievement.category
 	});
 })(); }
 
@@ -383,6 +374,6 @@ AchievementList.push({
 });
 
 exports.AchievementList = AchievementList;
-exports.ClientAchievements = _.pluck(ClientAchievements, 0);
+exports.ClientAchievements = _.pluck(ClientAchievements, 'name');
 
 })();

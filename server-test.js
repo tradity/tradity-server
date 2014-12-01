@@ -106,7 +106,7 @@ socket.once('server-config').then(function() {
 	assert.equal(data.code, 'stock-search-success');
 	return socket.emit('get-own-options');
 }).then(function(data) {
-	assert.equal(data.code, 'own-options-success');
+	assert.equal(data.code, 'get-own-options-success');
 	assert.ok(!data.pwhash);
 	ownUid = data.result.uid;
 	

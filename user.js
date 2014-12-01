@@ -1255,6 +1255,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
  */
 User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
 	var self = this;
+	ctx = ctx.clone(); // so we can’t lose the user object during execution
 	
 	self.getServerConfig(function(cfg) {
 		query.email = query.email ? String(query.email) : null;

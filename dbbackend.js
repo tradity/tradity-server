@@ -36,7 +36,10 @@ function Database () {
 	this.wConnectionPool = null;
 	this.rConnectionPool = null;
 	this.openConnections = 0;
+	this.deadlockCount = 0;
+	this.queryCount= 0;
 	this.isShuttingDown = false;
+	this.writableNodes = [];
 }
 
 util.inherits(Database, buscomponent.BusComponent);
@@ -109,6 +112,19 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
 });
 
 /**
+ * Provides some database usage statistics, like deadlock and query counts.
+ * 
+ * @function busreq~dbUsageStatistics
+ */
+Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', ['reply'], function(cb) {
+	cb({
+		deadlockCount: this.deadlockCount,
+		queryCount: this.queryCount,
+		writableNodes: this.writableNodes.length
+	});
+});
+
+/**
  * Executes an SQL query on the database.
  * Your local {@link module:qctx~QContext}’s <code>query</code> method
  * invokes this – if available, consider using it in order to map all
@@ -174,8 +190,11 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 		};
 		
 		var query = function(q, args, cb) {
+			self.queryCount++;
+			
 			conn.query(q, args, function(err, res) {
 				if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
+					self.deadlockCount++;
 					release();
 					
 					return restart();

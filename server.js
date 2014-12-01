@@ -66,21 +66,24 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 	var self = this;
 	
 	self.request({name: 'get-readability-mode'}, function(reply) {
-		cb({
-			readonly: reply.readonly,
-			pid: process.pid,
-			hostname: os.hostname(),
-			isBackgroundWorker: process.isBackgroundWorker,
-			creationTime: self.creationTime,
-			clients: _.map(self.clients, function(x) { return x.stats(); }),
-			bus: self.bus.stats(),
-			msgCount: self.msgCount,
-			msgLZMACount: self.msgLZMACount,
-			connectionCount: self.connectionCount,
-			deadQueryCount: self.deadQueryCount,
-			deadQueryLZMACount: self.deadQueryLZMACount,
-			deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
-			now: Date.now()
+		self.request({name: 'dbUsageStatistics'}, function(dbstats) {
+			cb({
+				readonly: reply.readonly,
+				pid: process.pid,
+				hostname: os.hostname(),
+				isBackgroundWorker: process.isBackgroundWorker,
+				creationTime: self.creationTime,
+				clients: _.map(self.clients, function(x) { return x.stats(); }),
+				bus: self.bus.stats(),
+				msgCount: self.msgCount,
+				msgLZMACount: self.msgLZMACount,
+				connectionCount: self.connectionCount,
+				deadQueryCount: self.deadQueryCount,
+				deadQueryLZMACount: self.deadQueryLZMACount,
+				deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
+				now: Date.now(),
+				dbstats: dbstats
+			});
 		});
 	});
 });

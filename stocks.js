@@ -2,13 +2,24 @@
 
 var _ = require('lodash');
 var util = require('util');
-var lapack = require('lapack');
 var assert = require('assert');
-var UnionFind = require('unionfind');
 require('datejs');
+
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides client requests for small-scale finance updates and display.
+ * @public
+ * @module stocks
+ */
+
+/**
+ * Main object of the {@link module:stocks} module
+ * @public
+ * @constructor module:stocks~Stocks
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function Stocks () {
 	Stocks.super_.apply(this, arguments);
 	
@@ -32,10 +43,41 @@ Stocks.prototype.onBusConnect = function() {
 	});
 };
 
+/**
+ * Indicates whether a [stock record]{@link StockRecord} is admissible for this game instance.
+ * This checks the stock exchange and the currency of the record against the game config.
+ * 
+ * @param {object} cfg   The server main config.
+ * @param {StockRecord}  rec The record to test.
+ * 
+ * @return {boolean} Whether the record is admissible for this game instance.
+ * 
+ * @function module:stocks~Stocks#stocksFilter
+ */
 Stocks.prototype.stocksFilter = function(cfg, rec) {
 	return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == cfg.requireCurrency;
 };
 
+/**
+ * Regularly called function to perform various cleanup and update tasks.
+ * 
+ * Calls the following functions (not necessarily all of these, but in the given order):
+ * {@link module:stocks~Stocks#cleanUpUnusedStocks}
+ * {@link module:stocks~Stocks#updateStockValues}
+ * {@link busreq~updateLeaderMatrix}
+ * {@link busreq~updateProvisions}
+ * {@link module:stocks~Stocks#updateRankingInformation}
+ * {@link module:stocks~Stocks#weeklyCallback}
+ * {@link module:stocks~Stocks#dailyCallback}
+ * 
+ * @param {Query} query  A query structure, indicating which functions of the above should be called:
+ * @param {Query} query.weekly  Run {@link module:stocks~Stocks#weeklyCallback}
+ * @param {Query} query.daily  Run {@link module:stocks~Stocks#dailyCallback}
+ * @param {Query} query.provisions  Run {@link busreq~updateProvisions}
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * 
+ * @function busreq~regularCallbackStocks
+ */
 Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
 	var self = this;
 	
@@ -44,33 +86,53 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 	if (ctx.getProperty('readonly'))
 		return cb();
 		
-	var rcbST = Date.now();
+	var rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET;
+	rcbST = Date.now();
 	
 	var xcb = function() {
-		var rcbET = Date.now();
-		console.log('Stocks rcb in ' + (rcbET - rcbST) + ' ms');
+		rcbET = Date.now();
+		console.log('cleanUpUnusedStocks:      ' + (cuusET - rcbST) + ' ms');
+		console.log('updateStockValues:        ' + (usvET - cuusET) + ' ms');
+		console.log('updateLeaderMatrix:       ' + (ulmET - usvET) + ' ms');
+		console.log('updateProvisions:         ' + (upET - ulmET) + ' ms');
+		console.log('updateRankingInformation: ' + (uriET - upET) + ' ms');
+		console.log('updateValueHistory:       ' + (uvhET - uriET) + ' ms');
+		console.log('weeklyCallback:           ' + (wcbET - uvhET) + ' ms');
+		console.log('dailyCallback:            ' + (rcbET - wcbET) + ' ms');
+		console.log('Total stocks rcb:         ' + (rcbET - rcbST) + ' ms');
 		cb();
 	};
 	
 	self.cleanUpUnusedStocks(ctx, function() {
+	cuusET = Date.now();
 	self.updateStockValues(ctx, function() {
-	self.updateLeaderMatrix(ctx, function() {
+	usvET = Date.now();
+	self.request({name: 'updateLeaderMatrix', ctx: ctx}, function() {
+		ulmET = Date.now();
 		var provcb = function() {
+			upET = Date.now();
 			self.updateRankingInformation(ctx, function() {
-				if (query.weekly) {
-					self.weeklyCallback(ctx, function() {
+				uriET = Date.now();
+				self.updateValueHistory(ctx, function() {
+					uvhET = Date.now();
+					if (query.weekly) {
+						self.weeklyCallback(ctx, function() {
+							wcbET = Date.now();
+							self.dailyCallback(ctx, xcb);
+						});
+					} else if (query.daily) {
+						wcbET = Date.now();
 						self.dailyCallback(ctx, xcb);
-					});
-				} else if (query.daily) {
-					self.dailyCallback(ctx, xcb);
-				} else {
-					xcb();
-				}
+					} else {
+						wcbET = Date.now();
+						xcb();
+					}
+				});
 			});
 		};
 		
 		if (query.provisions)
-			self.updateProvisions(ctx, provcb);
+			self.request({name: 'updateProvisions', ctx: ctx}, provcb);
 		else
 			provcb();
 	});
@@ -78,6 +140,15 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 	});
 });
 
+/**
+ * Updates follower finance data, specifically the <code>fperf_cur</code> and
+ * <code>operf_cur</code> values.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback to be called when the processing is done
+ * 
+ * @function module:stocks~Stocks#updateRankingInformation
+ */
 Stocks.prototype.updateRankingInformation = function(ctx, cb) {
 	var self = this;
 	
@@ -87,11 +158,18 @@ Stocks.prototype.updateRankingInformation = function(ctx, cb) {
 		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
 			'WHERE userid=users_finance.id AND leader IS NOT NULL), ' +
 		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
-			'WHERE userid=users_finance.id AND leader IS NULL)', [], function() {
-		self.updateValueHistory(ctx, cb);
-	});	
+			'WHERE userid=users_finance.id AND leader IS NULL)', [], cb);
 }
 
+/**
+ * Adds new entries to the global user finance history.
+ * These values can later be retrieved and used for charting and ranking.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback to be called when the processing is done
+ * 
+ * @function module:stocks~Stocks#updateValueHistory
+ */
 Stocks.prototype.updateValueHistory = function(ctx, cb) {
 	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
 	ctx.query('INSERT INTO tickshistory (userid, ticks, time) SELECT id, ticks, UNIX_TIMESTAMP() FROM users');
@@ -102,16 +180,44 @@ Stocks.prototype.updateValueHistory = function(ctx, cb) {
 		'DROP TABLE users_dindex', [], cb);
 }
 
+/**
+ * This function is intended to be called on each day start.
+ * The day start value property of all stocks is set to the current “bid” price.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback to be called when the processing is done
+ * 
+ * @function module:stocks~Stocks#dailyCallback
+ */
 Stocks.prototype.dailyCallback = function(ctx, cb) {
 	cb = cb || function() {};
 	
 	ctx.query('UPDATE stocks SET daystartvalue = bid', [], cb);
 }
 
+/**
+ * This function is intended to be called on each week start.
+ * The week start value property of all stocks is set to the current “bid” price.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback to be called when the processing is done
+ * 
+ * @function module:stocks~Stocks#weeklyCallback
+ */
 Stocks.prototype.weeklyCallback = function(ctx, cb) {
 	ctx.query('UPDATE stocks SET weekstartvalue = bid', [], cb);
 }
 
+/**
+ * Cleans up the stock tables.
+ * Deletes depot entries with 0 shares and sets the <code>lrutime</code> 
+ * (least recent use time) flag on all stocks.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback to be called when the processing is done
+ * 
+ * @function module:stocks~Stocks#cleanUpUnusedStocks
+ */
 Stocks.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 	this.getServerConfig(function(cfg) {
 		cb = cb || function() {};
@@ -120,17 +226,26 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 			ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
 				'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 ' +
 				'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 ' +
-				'OR leader IS NOT NULL', [cfg.lrutimeLimit],
-				cb);
+				'OR leader IS NOT NULL', [], cb);
 		});
 	});
 }
 
+/**
+ * Updates the stock tables.
+ * Fetches all stocks currently in use and updates the corresponding database values.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback to be called when the processing is done
+ * 
+ * @function module:stocks~Stocks#updateStockValues
+ */
 Stocks.prototype.updateStockValues = function(ctx, cb) {
 	var self = this;
 	
 	self.getServerConfig(function(cfg) {
-		ctx.query('SELECT * FROM stocks WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
+		ctx.query('SELECT * FROM stocks ' +
+			'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
 		[cfg.lrutimeLimit, cfg.refetchLimit], function(res) {
 			var stocklist = _.pluck(res, 'stockid');
 			
@@ -149,280 +264,32 @@ Stocks.prototype.updateStockValues = function(ctx, cb) {
 	});
 };
 
-var wprovMax = 'GREATEST(ds.provision_hwm, s.bid)';
-var wprovΔ = '(('+wprovMax+' - ds.provision_hwm) * ds.amount)';
-var wprovFees = '(('+wprovΔ+' * l.wprovision) / 100)';
-var lprovMin = 'LEAST(ds.provision_lwm, s.bid)';
-var lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
-var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
+/**
+ * Represents the values and properties of a stock at a given time.
+ * @typedef module:stocks~StockRecord
+ * @type {object}
+ * 
+ * @property {string} symbol  A unique identifier (e.g. ISIN) of the stock
+ * @property {number} lastvalue  The current stock value (1/10000 units)
+ * @property {number} ask  The current stock ask price (1/10000 units)
+ * @property {number} bid  The current stock bid price (1/10000 units)
+ * @property {string} name  A human-readable name for the stock
+ * @property {?string} leader   If this is a leader stock, this is the leader’s user id.
+ * @property {?int} leadername  If this is a leader stock, this is the leader’s user name.
+ * @property {string} exchange  A unique identifier of the stock exchange where the stock is being traded.
+ * @property {int} pieces  The number of shares of this stock that have been traded on the current day.
+ */
 
-Stocks.prototype.updateProvisions = function (ctx, cb) {
-	ctx.getConnection(function (conn, commit) {
-	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks AS ds WRITE, users_finance AS l WRITE, users_finance AS f WRITE, ' +
-	'stocks AS s READ, transactionlog WRITE;', [], function() {
-		conn.query('SELECT ' +
-			'ds.depotentryid AS dsid, s.stockid AS stocktextid, ' +
-			wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
-			lprovFees + ' AS lfees, ' + lprovMin + ' AS lmin, ' +
-			'ds.provision_hwm, ds.provision_lwm, s.bid, ds.amount, ' +
-			'f.id AS fid, l.id AS lid ' +
-			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid ' +
-			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', [],
-		function(dsr) {
-		if (!dsr.length) {
-			commit();
-			return cb();
-		}
-		
-		var complete = 0;
-		for (var j = 0; j < dsr.length; ++j) { _.partial(function(j) {
-			assert.ok(dsr[j].wfees >= 0);
-			assert.ok(dsr[j].lfees <= 0);
-			dsr[j].wfees = parseInt(dsr[j].wfees);
-			dsr[j].lfees = parseInt(dsr[j].lfees);
-			
-			var dsid = dsr[j].dsid;
-			var totalfees = dsr[j].wfees + dsr[j].lfees;
-			
-			(Math.abs(totalfees) < 1 ? function(cont) { cont(); } : function(cont) {
-			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
-				'(NULL, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[dsr[j].stocktextid, dsr[j].fid, dsr[j].lid, totalfees, JSON.stringify({
-					reason: 'regular-provisions',
-					provision_hwm: dsr[j].provision_hwm,
-					provision_lwm: dsr[j].provision_lwm,
-					bid: dsr[j].bid,
-					depot_amount: dsr[j].amount
-				})],
-				cont);
-			})(function() {
-			conn.query('UPDATE depot_stocks AS ds SET ' +
-				'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
-				'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
-				'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
-			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
-				[totalfees, totalfees, dsr[j].fid], function() {
-			conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
-				[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
-				if (++complete == dsr.length) 
-					commit(cb);
-			});
-			});
-			});
-			});
-		}, j)(); }
-		});
-	});
-	});
-};
-
-function identityMatrix(n) {
-	var A = [];
-	for (var i = 0; i < n; ++i) {
-		var row = [];
-		A.push(row);
-		for (var j = 0; j < n; ++j)
-			row[j] = (i == j ? 1.0 : 0.0);
-	}
-	
-	return A;
-}
-
-Stocks.prototype.updateLeaderMatrix = function(ctx, cb) {
-	var self = this;
-	
-	var lmuStart = Date.now();
-	
-	self.getServerConfig(function(cfg) {
-	
-	ctx.getConnection(function (conn, commit) {
-	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES depot_stocks AS ds READ, users_finance WRITE, stocks AS s WRITE;', [], function() {
-	conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
-		'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', [], function(users) {
-	conn.query(
-		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
-		'freemoney, users_finance.wprov_sum + users_finance.lprov_sum AS prov_sum ' +
-		'FROM depot_stocks AS ds ' +
-		'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
-		'LEFT JOIN users_finance ON ds.userid = users_finance.id ' +
-		'GROUP BY uid ', [], function(res_static) {
-	conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
-		'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0', [],
-		function(res_static2) {
-		res_static = res_static.concat(res_static2);
-	conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
-		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
-		users = _.uniq(_.pluck(users, 'uid'));
-		
-		var lmuFetchData = Date.now();
-		
-		var userIdToIndex = [];
-		for (var k = 0; k < users.length; ++k)
-			userIdToIndex[users[k]] = k;
-		
-		var userIdToResStaticIndex = [];
-		for (var k = 0; k < res_static.length; ++k)
-			userIdToResStaticIndex[res_static[k].uid] = k;
-			
-		var followerToResLeaderIndices = [];
-		for (var k = 0; k < res_leader.length; ++k) {
-			var fuid = res_leader[k].fuid;
-			if (followerToResLeaderIndices[fuid])
-				followerToResLeaderIndices[fuid].push(k);
-			else
-				followerToResLeaderIndices[fuid] = [k];
-		}
-		
-		if (users.length == 0)
-			return cb();
-		
-		var complete = 0;
-		
-		// find connected components
-		var uf = new UnionFind(users.length);
-		for (var i = 0; i < res_leader.length; ++i)
-			uf.union(userIdToIndex[res_leader[i].luid], userIdToIndex[res_leader[i].fuid]);
-		
-		var components = {};
-		for (var i = 0; i < users.length; ++i) {
-			if (!components[uf.find(i)])
-				components[uf.find(i)] = [users[i]];
-			else
-				components[uf.find(i)].push(users[i]);
-		}
-		
-		var sgesvTotalTime = 0, presgesvTotalTime = 0, postsgesvTotalTime = 0;
-		var updateQuery = '';
-		var updateParams = [];
-		
-		for (var ci_ in components) { (function() {
-			var componentStartTime = Date.now();
-			var ci = ci_;
-			var cusers = components[ci];
-			var n = cusers.length;
-			
-			var cuserIdToIndex = {};
-			for (var k = 0; k < cusers.length; ++k)
-				cuserIdToIndex[cusers[k]] = k;
-			
-			var A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
-			var B = _.map(_.range(n), function() { return [0.0, 0.0]; });
-			var prov_sum = _.map(_.range(n), function() { return [0.0]; });
-			
-			for (var k = 0; k < cusers.length; ++k) {
-				var uid = cusers[k];
-				
-				// res_static
-				{
-					var r = res_static[userIdToResStaticIndex[uid]];
-					var localIndex = cuserIdToIndex[uid];
-					
-					assert.strictEqual(r.uid, uid);
-					assert.ok(localIndex < n);
-					
-					if (r.valsum === null) // happens when one invests only in leaders
-						r.valsum = 0;
-					
-					B[localIndex] = [
-						r.valsum    + r.freemoney - r.prov_sum,
-						r.askvalsum + r.freemoney - r.prov_sum
-					];
-					prov_sum[localIndex] = r.prov_sum;
-				}
-				
-				// res_leader (is indexed by follwer uid)
-				var rlIndices = followerToResLeaderIndices[uid];
-				
-				if (rlIndices) for (var j = 0; j < rlIndices.length; ++j) {
-					var r = res_leader[rlIndices[j]];
-					
-					assert.equal(r.fuid, uid); // the follower part is already known
-					var l = cuserIdToIndex[r.luid]; // find leader uid
-					
-					// the leader MUST be in the same connected component
-					assert.notEqual(typeof l, 'undefined');
-					
-					A[k][l] -= r.amount / cfg.leaderValueShare;
-				}
-			}
-			
-			var sgesvST = Date.now();
-			var res = lapack.sgesv(A, B);
-			if (!res) {
-				self.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
-				return;
-			}
-			var sgesvET = Date.now();
-			sgesvTotalTime += sgesvET - sgesvST;
-			presgesvTotalTime += sgesvST - componentStartTime;
-			
-			var X =  _.pluck(res.X, 0);
-			var Xa = _.pluck(res.X, 1);
-			//console.log(JSON.stringify(A),JSON.stringify(B),JSON.stringify(userIdToIndex),JSON.stringify(X));
-
-			for (var i = 0; i < n; ++i) {
-				_.bind(function(i) {
-				assert.notStrictEqual(X[i],  null);
-				assert.notStrictEqual(Xa[i], null);
-				assert.equal(X[i],  X[i]);
-				assert.equal(Xa[i], Xa[i]);
-				assert.ok(cusers[i]);
-				
-				var lv  = X[i] / 100;
-				var lva = Math.max(Xa[i] / 100, 10000);
-				
-				updateQuery += 'UPDATE stocks AS s SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?;';
-				updateParams.push((lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]);
-				updateQuery += 'UPDATE users_finance SET totalvalue = ? WHERE id = ?;';
-				updateParams.push(X[i] + prov_sum[i], cusers[i]);
-				
-				if (++complete == users.length) {
-					var lmuComputationsComplete = Date.now();
-					conn.query(updateQuery, updateParams, function() {
-						commit(false, function() {
-							conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
-								'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
-								[users[i]], function(res) {
-								conn.release();
-								
-								var lmuEnd = Date.now();
-								console.log('lmu timing: ' +
-									presgesvTotalTime + ' ms pre-sgesv total, ' +
-									sgesvTotalTime + ' ms sgesv total, ' +
-									postsgesvTotalTime + ' ms post-sgesv total, ' +
-									(lmuEnd - lmuStart) + ' ms lmu total, ' +
-									(lmuFetchData - lmuStart) + ' ms fetching, ' +
-									(lmuEnd - lmuComputationsComplete) + ' ms writing');
-								
-								for (var j = 0; j < res.length; ++j) {
-									process.nextTick(_.bind(_.partial(function(r) {
-										self.emitGlobal('stock-update', r);
-									}, res[j]), self));
-								}
-								
-								cb();
-							});
-						});
-					});
-				}
-				}, self, i)();
-			}
-			
-			var componentEndTime = Date.now();
-			postsgesvTotalTime += componentEndTime - sgesvET;
-		})(); }
-	});
-	});
-	});
-	});
-	});
-	});
-	
-	});
-}
-
+/**
+ * Updates the stock tables.
+ * Fetches all stocks currently in use and updates the corresponding database values.
+ * Also, for each record, emit a <code>stock-update</code> event on the bus.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {module:stocks~StockRecord} cb  A callback to be called when the processing is done
+ * 
+ * @function module:stocks~Stocks#updateRecord
+ */
 Stocks.prototype.updateRecord = function(ctx, rec) {
 	var self = this;
 	
@@ -459,6 +326,17 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces], emitSUEvent);
 };
 
+/**
+ * Search for a stock by name, ISIN, etc.
+ * 
+ * @param {string} query.name  A string to search for in the stock name or an ISIN/WAN/etc.
+ * 
+ * @return {object} Returns with <code>stock-search-success</code>,
+ *                  <code>stock-search-too-short</code> or a common error code and,
+ *                  in case of success, sets <code>.results</code> to a {module:stocks~StockRecord[]}.
+ * 
+ * @function c2s~stock-search
+ */
 Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx, cb) {
 	var self = this;
 	
@@ -528,6 +406,19 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 	});
 });
 
+/**
+ * Indicates whether a given stock exchange is currently open
+ * 
+ * @param {string} sxname  A unique identifier of the stock exchange where the stock is being traded.
+ * @param {object} cfg  The main server config.
+ * 
+ * @return {object} Returns with <code>stock-search-success</code>,
+ *                  <code>stock-search-too-short</code> or a common error code and,
+ *                  in case of success, sets <code>.results</code> to a {module:stocks~StockRecord[]}.
+ * @param {function} reply  Returns true iff <code>sxname</code> is currently open.
+ * 
+ * @function busreq~stockExchangeIsOpen
+ */
 Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen', ['sxname', 'cfg', 'reply'], function(sxname, cfg, cb) {
 	assert.ok(sxname);
 	assert.ok(cfg);
@@ -549,6 +440,16 @@ Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen
 	return res;
 });
 
+/**
+ * Sells all shares held by a given user.
+ * 
+ * @param {Query} query  This goes ignored
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback to be called when all shares have been sold.
+ * 
+ * @noreadonly
+ * @function busreq~sellAll
+ */
 Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ctx, cb) {
 	var self = this;
 	
@@ -577,6 +478,85 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
 	});
 });
 
+/**
+ * Indicates that a user has made a stock trade.
+ * 
+ * @typedef s2c~trade
+ * @type {Event}
+ * 
+ * @property {int} delay  Indicates that the event publishing has been delayed
+ *                        by a given amount of time
+ * @property {int} traderid  The numerical identifier of the trading user
+ * @property {string} tradername  The chosen name of the trading user
+ * @property {string} stocktextid  An identifier (e.g. ISIN) for the traded stock
+ * @property {?int} leader  If set, indicates the numerical user id of the leader
+ *                          associated with the stock
+ * @property {int} money  The amount of money paid for buying the stock shares
+ *                        (negative in case of selling)
+ * @property {int} amount  The number of bought shares (negative in case of selling)
+ * @property {int} prevmoney  The value of the previously held shares
+ * @property {int} prevamount  The previously held number of shares
+ * @property {int} buytime  A unix timestamp indicating when the trade occurred
+ * @property {int} fee  The fee paid for executing the trade
+ * @property {string} stockname  A human-readable name of the traded stock
+ */
+
+/**
+ * Buys or sells a given amount of a given stock.
+ * 
+ * Selling is indicated by buying negative amounts.
+ * You can only specify amounts by integer numbers;
+ * The value and price of these shares is deduced from this number,
+ * and never the other way around.
+ * 
+ * Transaction fees are being handled here; Also, due provision
+ * will be transferred according to these calculations.
+ * 
+ * If this fails because the stock exchange was not open,
+ * the query will automatically be added to the
+ * [delayed queries database]{@link module:dqueries}.
+ * 
+ * @param {?int} query.leader  The id of a leader to buy shares from.
+ *                             Either leader or stockid must be given.
+ * @param {?string} query.stockid  The id of a stock to buy shares from.
+ *                                 Either leader or stockid must be given.
+ * @param {?object} query.dquerydata  A generic data object to be used with
+ *                                    delayed query support (for closed stock 
+ *                                    exchanges or unmet preconditions).
+ * @param {?boolean} query._isDelayed Flag to indicate that the query came from
+ *                                    the delayed queries list; Prevents multiple
+ *                                    listing in the delayed queries list.
+ * @param {?boolean} query.forceNow  Flag to indicate (for administrators) that
+ *                                   the query should be executed now, regardless of
+ *                                   unmet preconditions.
+ * @param {int} query.amount  The number of stocks to buy/sell.
+ * 
+ * @return {object} Returns with <ul>
+ *                  <li><code>stock-buy-success</code> in case of success</li>
+ *                  <li><code>stock-buy-stock-not-found</code> in case no stock according to
+ *                  <code>.leader</code>/<code>.stockid</code> was found</li>
+ *                  <li><code>stock-buy-email-not-verif</code> in case a leader stock was requested
+ *                  and the buying user’s e-mail was not verified yet</li>
+ *                  <li><code>stock-buy-autodelay-sxnotopen</code> in case the stock exchange was not open
+ *                  and the query was added to the delayed queries list</li>
+ *                  <li><code>stock-buy-sxnotopen</code> in case the stock exchange was not open
+ *                  and the query was <em>not</em> added to the delayed queries list (e.g. due to
+ *                  <code>_isDelayed</code> being set</li>
+ *                  <li><code>stock-buy-not-enough-stocks</code> in case the user attempted to sell more
+ *                  shares than they previously possessed</li>
+ *                  <li><code>stock-buy-out-of-money</code> in case the user attempted to buy more shares
+ *                  than their financial situation allows</li>
+ *                  <li><code>stock-buy-over-pieces-limit</code> in case the user attempted to buy
+ *                  more shares than there are available on the current day</li>
+ *                  <li><code>stock-buy-single-paper-share-exceed</code> in case the trade would result in
+ *                  more then the configured maximum share of the total user value being invested in
+ *                  this specific stock, or a common error code</li>
+ *                  </ul>
+ *                  and, in case of success, sets <code>.tradeid</code> and <code>.fee</code> accordingly.
+ * 
+ * @noreadonly
+ * @function c2s~stock-buy
+ */
 Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	['query', 'ctx', 'forceNow', 'reply'], function(query, ctx, forceNow, cb) {
 	var self = this;
@@ -592,11 +572,15 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	if (query.leader != null)
 		query.stockid = '__LEADER_' + query.leader + '__';
 	
-	ctx.getConnection(function(conn, commit, rollback) {
-	
-	conn.query('SET autocommit = 0; ' +
-	'LOCK TABLES depot_stocks WRITE, users_finance AS l WRITE, users_finance AS f WRITE, users AS fu WRITE, ' +
-	'stocks AS s READ, orderhistory WRITE, transactionlog WRITE;', [], function() {
+	ctx.startTransaction([
+		{ name: 'depot_stocks', mode: 'w' },
+		{ name: 'users_finance', alias: 'l', mode: 'w' },
+		{ name: 'users_finance', alias: 'f', mode: 'w' },
+		{ name: 'users', alias: 'fu', mode: 'w' },
+		{ name: 'stocks', alias: 's', mode: 'r' },
+		{ name: 'orderhistory', mode: 'w' },
+		{ name: 'transactionlog', mode: 'w'}
+	], function(conn, commit, rollback) {
 	
 	conn.query('SELECT s.*, ' +
 		'depot_stocks.amount AS amount, ' +
@@ -686,7 +670,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			return cb('stock-buy-over-pieces-limit');
 		}
 		
-		var fee = Math.max(Math.abs(cfg['transaction-fee-perc'] * price), cfg['transaction-fee-min']);
+		var fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
 		
 		conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
 			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)', 
@@ -769,9 +753,39 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	});
 	});
 	});
-	});
 });
 
+/**
+ * Represents an entry in the depot of a user.
+ * @typedef module:stocks~DepotEntry
+ * @type object
+ * @augments module:stocks~StockRecord
+ * 
+ * @property {int} amount  The number of shares currently being held.
+ * @property {int} buytime  The unix timestamp of the least recent trade pertaining to this entry.
+ * @property {number} buymoney  The (sum of the) money spent on buying/selling this stock (1/10000 units).
+ * @property {number} wprov_sum  The total of gain provisions for this leader stock (otherwise 0).
+ * @property {number} lprov_sum  The total of loss provisions for this leader stock (otherwise 0).
+ * @property {number} lastvalue  The current value of a single share.
+ * @property {number} ask  The current ask price of a single share.
+ * @property {number} bid  The current bid price of a single share.
+ * @property {number} total  The current bid value of this entry.
+ * @property {number} weekstartvalue  The bid value at the start of the week.
+ * @property {number} daystartvalue  The bid value at the start of the day.
+ * @property {?int} leader  The user id of this stock’s leader.
+ * @property {?string} leadername  The user name of this stock’s leader.
+ * @property {string} exchange  The stock exchange id on which this stock is being traded.
+ * @property {string} stockname  A human-redable name for this stock.
+ */
+
+/**
+ * List all stocks of the requesting user.
+ * 
+ * @return {object} Returns with <code>list-own-depot-success</code> or a common error code and,
+ *                  in case of success, sets <code>.results</code> as a {module:stocks~DepotEntry[]} accordingly.
+ * 
+ * @function c2s~list-own-depot
+ */
 Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot', function(query, ctx, cb) {
 	ctx.query('SELECT '+
 		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, '+
@@ -787,6 +801,37 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
 	});
 });
 
+/**
+ * Represents a generic payment.
+ * Other properties than those given below depent on the transaction type.
+ * @typedef module:stocks~TransactionLogEntry
+ * @type object
+ * 
+ * @property {string} type  The kind of payment (<code>fee</code>, <code>stockprice</code>,
+ *                          <code>provision</code>)
+ * @property {?int} orderid  The order ID of the relevant trade.
+ * @property {string} stocktextid  The stock identifier (ISIN/etc.) of the relevant stock.
+ * @property {int}     a_user The active user of this transaction (buyer, follower, etc.).
+ * @property {string}  aname  The active user’s name
+ * @property {?int}    p_user The passive user of this transaction (leader etc.).
+ * @property {?string} pname  The passive user’s name
+ * @property {number} amount  The amount of money passed in this transaction.
+ * @property {int} time  The unix timestamp of this transaction.
+ */
+
+/**
+ * List all transactions involving the requesting user, i.e. all payments
+ * between users (like provisions) or between the user and the game
+ * (like trading prices and fees).
+ * 
+ * This enhances transparency of a user’s financial assets by giving
+ * detailed information on time, amount and reason of payments.
+ * 
+ * @return {object} Returns with <code>list-transactions-success</code> or a common error code and,
+ *                  in case of success, sets <code>.results</code> as a {module:stocks~TransactionLogEntry[]} accordingly.
+ * 
+ * @function c2s~list-transactions
+ */
 Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transactions', function(query, ctx, cb) {
 	ctx.query('SELECT t.*, a.name AS aname, p.name AS pname, s.name AS stockname FROM transactionlog AS t ' +
 		'LEFT JOIN users AS a ON a.id = t.a_user ' +
@@ -800,6 +845,16 @@ Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transact
 	});
 });
 
+/**
+ * Lists info for a specific trade.
+ * 
+ * @return {object} Returns with <code>get-trade-info-notfound</code>,
+ *                  <code>get-trade-info-success</code> or a common error code and,
+ *                  in case of success, sets <code>.trade</code> and <code>.comments</code>
+ *                  accordingly.
+ * 
+ * @function c2s~get-trade-info
+ */
 Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx, cb) {
 	this.getServerConfig(function(cfg) {
 		ctx.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh '+

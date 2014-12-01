@@ -3,6 +3,50 @@
 var _ = require('lodash');
 var assert = require('assert');
 
+/**
+ * Provides the list of all game achievements.
+ * 
+ * @public
+ * @module achievement-list
+ */
+
+/**
+ * Represents a single type of achievement.
+ * 
+ * @typedef module:achievement-list~AchievementType
+ * @type object
+ * 
+ * @property {string} name  An unique achievement id.
+ * @property {object} fireOn  An associative array of [bus event] -> [callback]
+ *                            entries. When the specified bus event is emitted,
+ *                            the callback will be called with the event, a
+ *                            {@link module:qctx~QContext} and a second callback,
+ *                            the latter receiving a list of numerical user ids.
+ *                            The users in this list are then checked for having
+ *                            completed the achievement successfully.
+ * @property {int} xp  The amount XP to award to the user.
+ * @property {function} check  A callback to determine whether the user has completed
+ *                             this achievement. The parameters are
+ *                             a numerical user id, an [achievement id] -> achievement map
+ *                             for the user, the server config, a {@link module:qctx~QContext}
+ *                             and a callback which will be called with a boolean indicating
+ *                             the check result.
+ * @property {int} version  A version for this achievement type.
+ *                          This can be used for easier re-checking of achievements after
+ *                          changes to the achievement type.
+ * @property {string[]} prereqAchievements  Achievements that a user has to have before being able
+ *                                          to achieve this one.
+ * @property {string[]} implicatingAchievements Achievements that, when awarded to a user, imply that
+ *                                              they have completed this achievement.
+ * @property {string} category  A category identifier for this achievement type.
+ */
+ 
+/**
+ * Array of all currently available game achievements.
+ * 
+ * @constant {module:achievement-list~AchievementType[]} module:achievement-list~AchievementTypeList
+ */
+
 var AchievementList = [];
 
 var dailyLoginAchievements = _.range(2,21); 

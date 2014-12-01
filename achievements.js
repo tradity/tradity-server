@@ -6,6 +6,24 @@ var assert = require('assert');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Achievement checking and awarding system.
+ * 
+ * @public
+ * @module achievements
+ */
+
+/**
+ * Main entry point of {@link module:achievements}
+ * 
+ * @property {module:achievement-list~AchievementType[]} achievementList  List of avaiable achievements.
+ * @property {string[]} clientAchievements  List of ids of achievements which are complete
+ *                            solely on the client side.
+ * 
+ * @public
+ * @constructor module:achievements~Achievements
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function Achievements () {
 	Achievements.super_.apply(this, arguments);
 	
@@ -30,6 +48,13 @@ Achievements.prototype.onBusConnect = function() {
 	});
 };
 
+/**
+ * Checks the achievements for the current user for having been completed.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
+ * 
+ * @function busreq~sellAll
+ */
 Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
 	var self = this;
 	
@@ -45,6 +70,39 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
 	});
 });
 
+/**
+ * Information about a user achievement.
+ * 
+ * @typedef s2c~achievement
+ * @type {Event}
+ * 
+ * @property {string} achname  The achievement type identifier
+ * @property {int} xp  The amount of XP awarded to the user for completing
+ *                     this achievement
+ */
+
+/**
+ * Represents an achievement completed by a single user.
+ * 
+ * @typedef module:achievements~Achievement
+ * @type {object}
+ * 
+ * @property {int} achid  An unique numerical identifier for this achievement.
+ * @property {int} userid  The numerical id of the user who completed the achievement.
+ * @property {string} achname  The achievement type identifier for this achievement.
+ * @property {int} xp  The amount of XP awarded for this achievement.
+ * @property {int} version  The version of this achievement type when it was completed.
+ */
+
+/**
+ * Check a single achievement type for the current user for having been completed.
+ * 
+ * @param {module:achievement-list~AchievementType} achievementEntry  The achievement type to be checked.
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
+ * @param {?module:achievements~Achievement[]} userAchievements  A list of completed achievements of this user.
+ * 
+ * @function module:achievements~Achievements#checkAchievement
+ */
 Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAchievements_) {
 	var self = this;
 	
@@ -95,11 +153,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 				ctx.feed({
 					type: 'achievement',
 					srcuser: uid,
-					targetid: res.insertId,
-					json: {
-						achname: achievementEntry.name,
-						xp: achievementEntry.xp
-					}
+					targetid: res.insertId
 				});
 				
 				process.nextTick(function() {
@@ -118,7 +172,15 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 	});
 };
 
-Achievements.prototype.registerObserver = function(achievementEntry) {
+/**
+ * Registers all <code>fireOn</code> handlers for an achievement type.
+ * 
+ * @param {module:achievement-list~AchievementType} achievementEntry  The achievement type for which
+ *                                                                    event listeners will be installed.
+ * 
+ * @function module:achievements~Achievements#registerObservers
+ */
+Achievements.prototype.registerObservers = function(achievementEntry) {
 	var self = this;
 	
 	var ctx = new qctx.QContext({parentComponent: self});
@@ -137,6 +199,13 @@ Achievements.prototype.registerObserver = function(achievementEntry) {
 	});
 };
 
+/**
+ * Load and setup achievement types.
+ * 
+ * @param {module:achievement-list~AchievementType[]} list  The list of added achievement types.
+ * 
+ * @function module:achievements~Achievements#registerAchievements
+ */
 Achievements.prototype.registerAchievements = function(list) {
 	var self = this;
 	
@@ -157,13 +226,19 @@ Achievements.prototype.registerAchievements = function(list) {
 	_.each(list, function(achievementEntry) {
 		assert.notStrictEqual(achievementEntry.version, null);
 		
-		self.registerObserver(achievementEntry);
+		self.registerObservers(achievementEntry);
 	});
 	
 	self.markClientAchievements();
 };
 
-Achievements.prototype.markClientAchievements = function(list) {
+/**
+ * Sets the <code>isClientAchievement</code> flag on all achievement type entries
+ * which have been listed as client-side achievements.
+ * 
+ * @function module:achievements~Achievements#markClientAchievements
+ */
+Achievements.prototype.markClientAchievements = function() {
 	var self = this;
 	
 	_.each(self.achievementList, function(ach) {
@@ -171,18 +246,35 @@ Achievements.prototype.markClientAchievements = function(list) {
 	});
 };
 
+/**
+ * Lists all achievement types.
+ * 
+ * @return {object}  Returns with <code>list-all-achievements-success</code> and sets
+ *                   <code>.results</code> to a {module:achievement-list~AchievementType[]}.
+ * 
+ * @function c2s~list-all-achievements
+ */
 Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx, cb) {
 	cb('list-all-achievements-success', {result: this.achievementList});
-}),
+});
 
+/**
+ * Mark a client-side achievement as completed.
+ * 
+ * @param {string} query.name  The id of the achievement type which should be marked.
+ * 
+ * @return {object}  Returns with <code>achievement-unknown-name</code>,
+ *                   <code>achievement-success</code> or a common error code.
+ * 
+ * @function c2s~list-all-achievements
+ */
 Achievements.prototype.clientAchievement = buscomponent.provideWQT('client-achievement', function(query, ctx, cb) {
 	var self = this;
 	
-	if (query.name)
-		query.name = String(query.name);
-	
 	if (!query.name)
 		return cb('format-error');
+	
+	query.name = String(query.name);
 	
 	if (self.clientAchievements.indexOf(query.name) == -1)
 		return cb('achievement-unknown-name');

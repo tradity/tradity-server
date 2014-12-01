@@ -5,13 +5,33 @@ var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides an entry point for client-induced regular cleanup
+ * callbacks.
+ * 
+ * @public
+ * @module background-worker
+ */
+
+/**
+ * Main object of the {@link module:background-worker} module
+ * 
+ * @public
+ * @constructor module:background-worker~BackgroundWorker
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function BackgroundWorker () {
 	BackgroundWorker.super_.apply(this, arguments);
-	
-	this.quoteLoader = null;
 }
 util.inherits(BackgroundWorker, buscomponent.BusComponent);
 
+/**
+ * Calls {@link busreq~regularCallbackUser} and {@link regularCallbackStocks}.
+ * The query object is passed on to both of these.
+ * 
+ * @loginignore
+ * @function c2s~prod
+ */
 BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx, cb) {
 	var self = this;
 	

@@ -19,6 +19,16 @@ var sio = require('socket.io-client');
 var af = require('./arivafinance.js');
 var achievementList = require('./achievement-list.js');
 
+/**
+ * Main entry point of this software.
+ * This manages – mostly – initial setup, loading modules and
+ * coordinating workers. But honestly, the code has grown
+ * somewhat unstructured and should be refactored before larger
+ * modifications are made to it.
+ * 
+ * @module main
+ */
+
 var bwpid = null;
 
 Error.stackTraceLimit = cfg.stackTraceLimit || 20;
@@ -156,11 +166,11 @@ function worker() {
 		}
 		
 		var componentsForLoading = [
-			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './user.js'
+			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js', './user.js'
 		].concat(process.isBackgroundWorker ? [
 			'./background-worker.js', './dqueries.js'
 		] : [
-			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js'
+			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js', './chats.js', './watchlist.js'
 		]);
 
 		loadComponents(componentsForLoading);
@@ -181,7 +191,6 @@ function connectToSocketIORemote(remote) {
 		msg: {
 			type: 'init-bus-transport',
 			id: 'init-bus-transport',
-			time: Date.now(),
 			weight: remote.weight
 		}
 	}, function(signed) {
@@ -189,7 +198,11 @@ function connectToSocketIORemote(remote) {
 		if (sslOpts === 'default')
 			sslOpts = cfg.ssl;
 		
-		var socket = sio.connect(remote.url, sslOpts ? { agent: new https.Agent(sslOpts) } : null);
+		var socketopts = { transports: ['websocket'] };
+		if (sslOpts)
+			socketopts.agent = new https.Agent(sslOpts);
+		
+		var socket = sio.connect(remote.url, socketopts);
 		
 		socket.on('error', function(e) {
 			manager.emitError(e);
@@ -197,6 +210,8 @@ function connectToSocketIORemote(remote) {
 		
 		socket.on('disconnect', function() {
 			// auto-reconnect
+			socket.close();
+			socket = null;
 			connectToSocketIORemote(remote);
 		});
 		
@@ -207,8 +222,6 @@ function connectToSocketIORemote(remote) {
 			}
 			socket = null;
 		});
-		
-		socket.on('error', function(e) { manager.emitError(e); });
 		
 		socket.on('connect', function() {
 			socket.on('response', function(response) {

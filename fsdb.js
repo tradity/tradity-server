@@ -4,23 +4,39 @@ var _ = require('lodash');
 var util = require('util');
 var http = require('http');
 var https = require('https');
+var serverUtil = require('./server-util.js');
 var assert = require('assert');
-var crypto = require('crypto');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
-function sha256(s) {
-	var h = crypto.createHash('sha256');
-	h.end(s);
-	return h.read().toString('hex');
-}
+/**
+ * Provides an interface for publishing files and downloading them via HTTP.
+ * 
+ * @public
+ * @module fsdb
+ */
 
+/**
+ * Main object of the {@link module:fsdb} module
+ * @public
+ * @constructor module:msdb~FileStorage
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function FileStorage () {
 	FileStorage.super_.apply(this, arguments);
 }
 
 util.inherits(FileStorage, buscomponent.BusComponent);
 
+/**
+ * Handles an HTTP file request.
+ * 
+ * @param {object} request  The HTTP request object.
+ * @param {object} result  The HTTP result object.
+ * @param {object} requestURL  A parsed version of the request URL.
+ * 
+ * @function busreq~handleFSDBRequest
+ */
 FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
 	var self = this;
 	
@@ -75,7 +91,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			if (req.headers['if-modified-since'])
 				preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
 			
-			preq.setHeader('User-Agent', 'tradity.de +' + sha256(r.hash + r.user) + ' (contact: tech@tradity.de) (NodeJS ' + process.version + ' http)');
+			preq.setHeader('User-Agent', cfg.userAgent);
 			preq.end();
 		} : function(cont) {
 			headers['Content-Type'] = r.mime;
@@ -94,7 +110,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			finalize = finalize || function(res) { res.end(); };
 			
 			if (r.headers)
-				headers = _.deepupdate(headers, JSON.parse(r.headers));
+				headers = serverUtil.deepupdate(headers, JSON.parse(r.headers));
 			
 			res.writeHead(status, headers);
 			finalize(res);
@@ -106,6 +122,37 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 	});
 });
 
+/**
+ * Indicates the upload of files by users.
+ * 
+ * @typedef s2c~file-publish
+ * @type {Event}
+ */
+
+/**
+ * Publishes a file.
+ * 
+ * @param {boolean} query.proxy  Whether the content of this file is hosted remotely
+ *                               and this software acts as a proxy.
+ * @param {string} query.mime  The MIME type of this file.
+ * @param {string} query.role  A string identifying the role of this file. Allowed roles
+ *                             and user-unique roles can be specified in the server config.
+ * @param {boolean} query.base64  If truthy, then decode the file content from base64.
+ * @param {Buffer} query.content  The file contents (URI in case of proxy publishing).
+ * 
+ * @return {object} Returns with one of the following codes:
+ *                  <ul>
+ *                      <li><code>publish-proxy-not-allowed</code></li>
+ *                      <li><code>publish-inacceptable-mime</code></li>
+ *                      <li><code>publish-quota-exceed</code></li>
+ *                      <li><code>publish-inacceptable-role</code></li>
+ *                      <li><code>publish-success</code></li>
+ *                      <li>or a common error code</li>
+ *                  </ul>
+ * 
+ * @noreadonly
+ * @function c2s~publish
+ */
 FileStorage.prototype.publish = buscomponent.provide('client-publish',
 	['query', 'ctx', 'groupassoc', 'reply'], function(query, ctx, groupassoc, cb) {
 	var self = this;
@@ -167,7 +214,7 @@ FileStorage.prototype.publish = buscomponent.provide('client-publish',
 			}
 		}
 		
-		var filehash = sha256(content + String(Date.now())).substr(0, 32);
+		var filehash = serverUtil.sha256(content + String(Date.now())).substr(0, 32);
 		query.name = query.name ? String(query.name) : filehash;
 		
 		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');

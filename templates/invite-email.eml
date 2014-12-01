@@ -1,8 +1,8 @@
-Return-Path: bounce@tradity.de
 Sender: tech@tradity.de
 From: ${sendermail}
 Subject: Tradity Einladung („${sendername}“)
 To: ${email}
+X-Mailtype: invite
 
 <p>Der Benutzer „${sendername}“ hat Dich zum Börsenspiel Tradity eingeladen.
 <a href="${url}">Klicke hier, um mitzuspielen.</a></p>

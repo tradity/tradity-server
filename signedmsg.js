@@ -7,6 +7,22 @@ var crypto = require('crypto');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 
+/**
+ * Provides methods for signing and verifiying messages
+ * from other server or client instances.
+ * This allows authorized queries to be employed securely.
+ * 
+ * @public
+ * @module signedmsg
+ */
+
+/**
+ * Main object of the {@link module:signedmsg} module
+ * 
+ * @public
+ * @constructor module:signedmsg~SignedMessaging
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function SignedMessaging () {
 	SignedMessaging.super_.apply(this, arguments);
 	
@@ -25,16 +41,33 @@ SignedMessaging.prototype.onBusConnect = function() {
 	});
 };
 
+/**
+ * Sets the server configuration to use and reads in the own private key,
+ * the accepted public keys and, optionally, a specified signing algorithm.
+ * 
+ * @function module:signedmsg~SignedMessaging#useConfig
+ */
 SignedMessaging.prototype.useConfig = function(cfg) {
 	this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
 	this.publicKeys = fs.readFileSync(cfg.publicKeys, {encoding: 'utf-8'})
 		.replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
 	this.algorithm = cfg.signatureAlgorithm || this.algorithm;
-}
+};
 
+/**
+ * Create a signed message for verification by other instances.
+ * Note that, while base64 encoding is applied, no encryption of
+ * any kind is being used.
+ * 
+ * @param {object} msg  An arbitrary object to be signed.
+ * 
+ * @return {string} Returns with a string containing the object and a signature.
+ * 
+ * @function busreq~createSignedMessage
+ */
 SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg', 'reply'], function(msg, cb) {
 	var self = this;
-	var string = new Buffer(JSON.stringify(msg)).toString('base64');
+	var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
 	var sign = crypto.createSign('RSA-SHA256');
 	
 	sign.end(string, null, function() {
@@ -43,7 +76,22 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
 	});
 });
 
-SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage', ['msg', 'reply'], function(msg, cb) {
+/**
+ * Parse and verify a signed message created by 
+ * {@link busreq~createSignedMessage}
+ * 
+ * @param {string} msg  The signed object.
+ * @param {?int} maxAge  An optional maximum age (in seconds) for considering
+ *                       the message valid
+ * 
+ * @return {object} Returns the signed object in case the message came from
+ *                  an accepted public key or <code>null</code> otherwise.
+ * 
+ * @function busreq~verifySignedMessage
+ */
+SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage',
+	['msg', 'maxAge', 'reply'], function(msg, maxAge, cb) 
+{
 	var self = this;
 	
 	var msg_ = msg.split('~');
@@ -64,10 +112,14 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 				// move current public key to first position (lru caching)
 				self.publicKeys.splice(0, 0, self.publicKeys.splice(i, 1)[0]);
 				
-				return cb(JSON.parse(new Buffer(string, 'base64').toString()));
-			} else {
-				verifySingleKey(i+1); // try next key
-			}
+				var stringparsed = string.split('#');
+				var objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
+				
+				if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
+					return cb(JSON.parse(new Buffer(objstring, 'base64').toString()));
+			} 
+			
+			verifySingleKey(i+1); // try next key
 		});
 	}
 	
@@ -125,7 +177,7 @@ if (require.main === module) {
 	
 	smdb.createSignedMessage(message, function(signed) {
 		console.log(signed);
-		smdb.verifySignedMessage(signed, function(message) {
+		smdb.verifySignedMessage(signed, 100, function(message) {
 			console.log('message.apeWants =', message.apeWants);
 		});
 	});

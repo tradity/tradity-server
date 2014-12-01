@@ -1,3 +1,3 @@
 #!/bin/bash
 
-exit 0
+jsdoc *.js bus/*.js README.md --destination ./doc/

@@ -6,6 +6,28 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var _ = require('lodash');
 
+/**
+ * Provides the {@link module:qctx~QContext} object.
+ * 
+ * @public
+ * @module qctx
+ */
+
+/**
+ * Represents the context in which server code gets executed.
+ * 
+ * @property {?object} user  The current user’s object
+ * @property {module:access~Access} access  The current privilege level
+ * @property {object} properties  Various high-level properties
+ * @property {function[]} debugHandlers  Debug functions to be called when debugging is enabled
+ * @property {function[]} errorHandlers  Handlers in case of failures during code execution
+ *                                       under this context.
+ * @property {function[]} callbackFilters  Filters that are applied to bus request callbacks
+ * 
+ * @public
+ * @constructor module:qctx~QContext
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function QContext(obj) {
 	var self = this;
 	
@@ -30,6 +52,12 @@ function QContext(obj) {
 
 util.inherits(QContext, buscomponent.BusComponent);
 
+/**
+ * Return a copy of this QContext.
+ * 
+ * @return {module:qctx~QContext}  A shallow copy of this QContext.
+ * @function module:qctx~QContext#clonse
+ */
 QContext.prototype.clone = function() {
 	var c = new QContext({
 		user: this.user,
@@ -44,6 +72,14 @@ QContext.prototype.clone = function() {
 	return c;
 };
 
+/**
+ * Wrap a callback for exception handling by this callback.
+ * 
+ * @param {function} callback  A generic function to wrap
+ * 
+ * @return {function}  A callback of the same signature.
+ * @function module:qctx~QContext#errorWrap
+ */
 QContext.prototype.errorWrap = function(callback) {
 	var self = this;
 	
@@ -76,10 +112,26 @@ QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readabi
 		this.setProperty('readonly', event.readonly);
 });
 
+/**
+ * Serialize this QContext into a raw JS object.
+ * 
+ * @return {object}  An object to be passed to {@link module:qctx~fromJSON}
+ * @function module:qctx~QContext#toJSON
+ */
 QContext.prototype.toJSON = function() {
 	return { user: this.user, access: this.access, properties: this.properties };
 };
 
+/**
+ * Deserialize this JS object into a new QContext.
+ * 
+ * @param {object} j  A serialized version as returned by {@link module:qctx~QContext#toJSON}.
+ * @param {module:buscomponent~BusComponent} parentComponent  A parent component whose bus 
+ *                                                            should be connected to.
+ * 
+ * @return {object}  A freshly created {@link module:qctx~QContext}.
+ * @function module:qctx~QContext#errorWrap
+ */
 exports.fromJSON =
 QContext.fromJSON = function(j, parentComponent) {
 	var ctx = new QContext({parentComponent: parentComponent});
@@ -98,18 +150,54 @@ QContext.fromJSON = function(j, parentComponent) {
 	return ctx;
 };
 
+/**
+ * Adds a new property to the list of context properties.
+ * 
+ * @param {object} propInfo
+ * @param {string} propInfo.name  The name of this property
+ * @param {module:access~Access} propInfo.access  Access restrictions for
+ *                                                changing this property
+ * @param propInfo.value  The default/initial value for this property
+ * 
+ * @function module:qctx~QContext#addProperty
+ */
 QContext.prototype.addProperty = function(propInfo) {
 	this.properties[propInfo.name] = propInfo;
 };
 
+/**
+ * Fetches a property value.
+ * 
+ * @param {string} name  The property name.
+ * @return  The property value.
+ * 
+ * @function module:qctx~QContext#getProperty
+ */
 QContext.prototype.getProperty = function(name) {
 	return this.properties[name].value;
 };
 
+/**
+ * Returns whether a given property value exists.
+ * 
+ * @param {string} name  The property name.
+ * @return  True iff such a property exists.
+ * 
+ * @function module:qctx~QContext#hasProperty
+ */
 QContext.prototype.hasProperty = function(name) {
 	return this.properties[name] ? true : false;
 };
 
+/**
+ * Sets a property value.
+ * 
+ * @param {string} name  The property name.
+ * @param value  The new property value.
+ * @param {?boolean} hasAccess  If true, pass all access checks.
+ * 
+ * @function module:qctx~QContext#setProperty
+ */
 QContext.prototype.setProperty = function(name, value, hasAccess) {
 	if (!this.hasProperty(name))
 		throw new Error('Property ' + name + ' not defined yet');
@@ -131,16 +219,40 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
 		throw new Error('Access for changing property ' + name + ' not granted');
 };
 
+/**
+ * Shorthand method for pushing feed entries.
+ * See {@link busreq~feed}.
+ * 
+ * @function module:qctx~QContext#feed
+ */
 QContext.prototype.feed = function(data, onEventId) { 
 	return this.request({name: 'feed', data: data, ctx: this}, onEventId || function() {});
 };
 
+/**
+ * Shorthand method for executing database queries.
+ * See {@link busreq~dbQuery}.
+ * 
+ * @function module:qctx~QContext#query
+ */
 QContext.prototype.query = function(query, args, cb) {
 	this.debug('Executing query [unbound]', query, args);
 	return this.request({name: 'dbQuery', query: query, args: args}, cb); 
 };
 
-QContext.prototype.getConnection = function(readonly, cb) {
+/**
+ * Shorthand method for fetching a single connection for database queries.
+ * Mostly, see {@link busreq~dbGetConnection}.
+ * 
+ * @param {boolean} [readonly=false]  Whether the connection requires no write access.
+ * @param {function} restart  Callback that will be invoked when the current transaction
+ *                            needs restarting.
+ * @param {function} cb  Callback that will be called with the new connection and 
+ *                       commit() and rollback() shortcuts (both releasing the connection).
+ * 
+ * @function module:qctx~QContext#getConnection
+ */
+QContext.prototype.getConnection = function(readonly, restart, cb) {
 	var self = this;
 	
 	if (typeof readonly == 'function') {
@@ -148,7 +260,7 @@ QContext.prototype.getConnection = function(readonly, cb) {
 		readonly = false;
 	}
 	
-	self.request({readonly: readonly, name: 'dbGetConnection'}, function(conn) {
+	self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}, function(conn) {
 		/* wrapper object for better debugging, no semantic change */
 		var conn_ = {
 			release: _.bind(conn.release, conn),
@@ -187,6 +299,89 @@ QContext.prototype.getConnection = function(readonly, cb) {
 	}); 
 };
 
+/**
+ * Fetch a single connection and prepare a transaction on it,
+ * optionally locking tables.
+ * 
+ * @param {boolean} [readonly=false]  Whether the transaction requires no write access.
+ * @param {object} [tablelocks={}]  An map of <code>table-name -> 'r' or 'w'</code> indicating 
+ *                                  which tables to lock. The dictionary values can also be
+ *                                  objects with the properties <code>mode, alias</code>,
+ *                                  or you can use an array with a <code>name</code> property.
+ * @param {function} [restart=true]  A callback that will be invoked when the transaction needs
+ *                                   restarting, e.g. in case of database deadlocks. Use
+ *                                   <code>true</code> to just rollback and call the startTransaction
+ *                                   callback again.
+ * @param {function} cb  Callback that will be called with the new connection and 
+ *                       commit() and rollback() shortcuts (both releasing the connection).
+ * 
+ * @function module:qctx~QContext#startTransaction
+ */
+QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb) {
+	var self = this, args = arguments;
+	
+	// argument shifting -- often, readonly and/or restart will not be given
+	if (typeof readonly !== 'boolean') {
+		cb = restart;
+		restart = tablelocks;
+		tablelocks = readonly;
+		readonly = false;
+	}
+	
+	if (typeof tablelocks !== 'object') {
+		cb = restart;
+		restart = tablelocks;
+		tablelocks = {};
+	}
+	
+	if (!cb) {
+		cb = restart;
+		restart = function() {
+			self.startTransaction.apply(self, args);
+		};
+	}
+	
+	assert.equal(typeof cb, 'function');
+	
+	tablelocks = tablelocks || {};
+	assert.ok(restart);
+	
+	self.getConnection(readonly, restart, function(conn, commit, rollback) {
+		var tables = _.keys(tablelocks);
+		var init = 'SET autocommit = 0; ';
+		
+		if (tables.length == 0)
+			init += 'START TRANSACTION ';
+		else
+			init += 'LOCK TABLES ';
+		
+		for (var i = 0; i < tables.length; ++i) {
+			var name = tables[i];
+			var mode = tablelocks[name].mode || tablelocks[name];
+			var alias = tablelocks[name].alias;
+			var tablename = tablelocks[name].name || name;
+			
+			mode = {'r': 'READ', 'w': 'WRITE'}[mode];
+			assert.ok(mode);
+			
+			init += tablename + (alias ? ' AS ' + alias : '') + ' ' + mode;
+			
+			if (i < tables.length - 1)
+				init +=  ', ';
+		}
+		
+		init += ';'
+		conn.query(init, [], function() {
+			cb(conn, commit, rollback);
+		});
+	});
+};
+
+/**
+ * If debugging is enabled, pass the arguments of this method to the debug handlers.
+ * 
+ * @function module:qctx~QContext#debug
+ */
 QContext.prototype.debug = function() {
 	if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled'))
 		return;
@@ -195,6 +390,12 @@ QContext.prototype.debug = function() {
 		this.debugHandlers[i](Array.prototype.slice.call(arguments));
 };
 
+/**
+ * Call context-specific error handlers and pass on to
+ * {@link module:buscomponent~BusComponent#emitError}.
+ * 
+ * @function module:qctx~QContext#emitError
+ */
 QContext.prototype.emitError = function(e) {
 	this.debug('Caught error', e);
 	

@@ -3,50 +3,87 @@
 var _ = require('lodash');
 var util = require('util');
 var crypto = require('crypto');
+var serverUtil = require('./server-util.js');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 require('datejs');
 
-function sha256(s) {
-	var h = crypto.createHash('sha256');
-	h.end(s);
-	return h.read().toString('hex');
-}
+/**
+ * Provides all single-user non-financial client requests.
+ * 
+ * @public
+ * @module user
+ */
 
+/**
+ * Main object of the {@link module:user} module
+ * @public
+ * @constructor module:user~User
+ * @augments module:stbuscomponent~STBusComponent
+ */
 function User () {
 	User.super_.apply(this, arguments);
 }
 
 util.inherits(User, buscomponent.BusComponent);
 
+/**
+ * Generates a password hash and salt combination.
+ * 
+ * @param {string} pw  The password string to generate a salt+hash for.
+ * @param {function} cb  A 2-parameter function called with (salt, hash)
+ *                       when done hashing.
+ * 
+ * @function module:user~User#generatePWKey
+ */
 User.prototype.generatePWKey = function(pw, cb) {
 	crypto.randomBytes(16, function(ex, buf) {
 		var pwsalt = buf.toString('hex');
-		var pwhash = sha256(pwsalt + pw);
+		var pwhash = serverUtil.sha256(pwsalt + String(pw));
 		cb(pwsalt, pwhash);
 	});
 };
 
-User.prototype.sendInviteEmail = function(data, cb) {
+/**
+ * Sends an invite e-mail to a user.
+ * 
+ * @param {object} data  General information on sender and receiver of the e-mail.
+ * @param {string} data.sender.name  The username of the sender.
+ * @param {string} data.sender.email  The e-mail address of the sender.
+ * @param {string} data.email  The e-mail adress of the receiver.
+ * @param {string} data.url  The URL of the invite link.
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * @param {function} cb  A callback which will be called with
+ *                       <code>create-invite-link-success</code>.
+ * 
+ * @function module:user~User#sendInviteEmail
+ */
+User.prototype.sendInviteEmail = function(data, ctx, cb) {
 	var self = this;
 	
-	self.request({name: 'readEMailTemplate', 
+	self.request({name: 'sendTemplateMail',
 		template: 'invite-email.eml',
+		ctx: ctx,
 		variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
-	}, function(opt) {
-		self.request({name: 'sendMail', opt: opt}, function(error, resp) {
-			if (error) {
-				cb('create-invite-link-failed');
-				self.emitError(error);
-			} else {
-				cb('create-invite-link-success');
-			}
-		});
+	}, function() {
+		cb('create-invite-link-success');
 	});
 };
 
+/**
+ * Sends the registation e-mail to a new user or after an e-mail address change.
+ * 
+ * @param {object} data  General information on the receiver of the email.
+ * @param {string} data.name  The username of the receiver.
+ * @param {string} data.email  The e-mail adress of the receiver.
+ * @param {string} data.url  The URL of the e-mail address confirmation link.
+ * @param {function} cb  A callback which will be called with
+ *                       <code>reg-success</code>.
+ * 
+ * @function module:user~User#sendRegisterEmail
+ */
 User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	var self = this;
 	
@@ -67,18 +104,12 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 				self.getServerConfig(function(cfg) {
 					var url = cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, ctx.user.id).replace(/\{\$hostname\}/g, cfg.hostname);
 					
-					self.request({name: 'readEMailTemplate', 
+					self.request({name: 'sendTemplateMail', 
 						template: 'register-email.eml',
+						ctx: ctx,
 						variables: {'url': url, 'username': data.name, 'email': data.email}
-					}, function(opt) {
-						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
-							if (error) {
-								cb('reg-email-failed', loginResp, 'repush');
-								self.emitError(error);
-							} else {
-								cb('reg-success', loginResp, 'repush');
-							}
-						});
+					}, function() {
+						cb('reg-success', loginResp, 'repush');
 					});
 				});
 			});
@@ -86,16 +117,64 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 	});
 };
 
+/**
+ * Lists the most popular stocks.
+ * 
+ * These are ordered according to a weighted average of the money amounts
+ * involved in the relevant trades, specifically:
+ * 
+ * <ul>
+ *     <li>No trades older than 3 weeks are taken into consideration</li>
+ *     <li>Each trade’s value is added to its stock according to:
+ *         <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *             <mfrac>
+ *                 <mrow>| money involved in trade |</mrow>
+ *                 <mrow>| time difference now - trade time in seconds + 300 |</mrow>
+ *             </mfrac>
+ *         </math>
+ *     </li>
+ * </ul>
+ * 
+ * @return {object} Returns with <code>list-popular-stocks-success</code>,
+ *                  with <code>.results</code> being set to a list of stocks,
+ *                  which carry the properties <code>stockid, stockname, moneysum, wsum</code>,
+ *                  the latter being the sum of the above formula over all trades for that stock.
+ * 
+ * @function c2s~list-popular-stocks
+ */
 User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx, cb) {
 	ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 		'SUM(ABS(money)) AS moneysum, ' +
 		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 		'FROM orderhistory AS oh ' +
+		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
 		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [], function(popular) {
 		cb('list-popular-stocks-success', {'results': popular});
 	});
 });
 
+/**
+ * Logs a user into their account.
+ * 
+ * This is usually achieved by creating a session and writing it
+ * into the database. Should, however, the server be in read-only mode,
+ * a message is created and signed with this server’s private key which
+ * is valid for one day.
+ * 
+ * @param {string} query.name  A user name or e-mail address.
+ * @param {string} query.pw  The user’s password.
+ * @param {boolean} query.stayloggedin  Whether the user wishes to be logged in
+ *                                      for an extended period of time (e.g. when
+ *                                      using their personal computer).
+ * 
+ * @return {object} Returns with <code>login-wrongpw</code>,
+ *                  <code>login-badname</code>, <code>login-success</code> or a common error code and,
+ *                  in case of success, sets <code>.key</code> (a session id) and <code>.uid</code>
+ *                  accordingly.
+ * 
+ * @loginignore
+ * @function c2s~login
+ */
 User.prototype.login = buscomponent.provide('client-login', 
 	['query', 'ctx', 'xdata', 'ignorePassword', 'reply'], function(query, ctx, xdata, ignorePassword, cb) {
 	var self = this;
@@ -105,7 +184,7 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	/* use an own connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
-	ctx.getConnection(function(conn, commit) {
+	ctx.startTransaction(function(conn, commit) {
 		conn.query('SELECT id, pwsalt, pwhash FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 			if (res.length == 0) {
 				cb('login-badname');
@@ -115,7 +194,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			var uid = res[0].id;
 			var pwsalt = res[0].pwsalt;
 			var pwhash = res[0].pwhash;
-			if (pwhash != sha256(pwsalt + pw) && !ignorePassword) {
+			if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
 				cb('login-wrongpw');
 				return;
 			}
@@ -158,17 +237,129 @@ User.prototype.login = buscomponent.provide('client-login',
 	});
 });
 
-User.prototype.logout = buscomponent.provideWQT('logout', function(query, ctx, cb) {
+/**
+ * Logs a user out of their account.
+ * 
+ * @return {object} Returns with <code>logout-success</code> or a common error code.
+ * 
+ * @function c2s~logout
+ */
+User.prototype.logout = buscomponent.provideWQT('client-logout', function(query, ctx, cb) {
 	ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)], function() {
 		cb('logout-success');
 	});
 });
 
+/**
+ * Represents the information publicly available about a single user.
+ * @typedef module:user~UserEntryBase
+ * @type object
+ * 
+ * @property {int} uid  Often aliased to <code>id</code>, this is the user’s numerical id.
+ *                      Use of the attribute <code>id</code> is deprecated, though, and it
+ *                      will be removed somewhen in the future.
+ * @property {string} name  The name chosen by the user.
+ * @property {int} school  Usually the numerical id of the group in which this user is a member.
+ * @property {string} schoolpath  The path of the school in which this user is a member.
+ * @property {string} schoolname  The human-readable name of the school in which this user is a member.
+ * @property {?int} jointime  The unix timestamp of the time when this user joined their current group.
+ * @property {?boolean} pending  If this user is a group member, this flag indicates whether
+ *                               the user has been accepted yet.
+ * @property {?boolean} hastraded  Indicates whether the user has traded at least once.
+ * @property {number} totalvalue  The total value of the user at the most recent available data point.
+ * @property {number} prov_sum    The total sum of provisions for this user at the most recent available data point.
+ * @property {?string} giv_name  This user’s given name.
+ * @property {?string} fam_name  This user’s family name.
+ * @property {number} xp  This user’s experience point count.
+ */
+
+/**
+ * Represents the information available about a single user in the ranking table,
+ * extending {@link module:user~UserEntryBase}.
+ * <br>
+ * The following variables will be used for brevity:
+ * <ul>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>P</mi><mn>now</mn></msub> = current possession of follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>P</mi><mn>past</mn></msub> = past possession of follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>B</mi><mn>now</mn></msub> = current <abbr title="accumulated">acc.</abbr> value of
+ *              bought follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>B</mi><mn>past</mn></msub> = past <abbr title="accumulated">acc.</abbr> value of
+ *              bought follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>S</mi><mn>now</mn></msub> = current <abbr title="accumulated">acc.</abbr> value of
+ *              sold follower shares</mrow>
+ *     </math></li>
+ *     <li><math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *         <mrow><msub><mi>S</mi><mn>past</mn></msub> = past <abbr title="accumulated">acc.</abbr> value of
+ *              sold follower shares</mrow>
+ *     </math></li>
+ * </ul>
+ * 
+ * @typedef module:user~RankingEntry
+ * @type object
+ * 
+ * @property {number} past_totalvalue  The total value of the user at the oldest available data point.
+ * @property {number} past_prov_sum    The total sum of provisions for this user at the oldest available data point.
+ * @property {number} fperf    The relative performance gained via follower shares in the given time span as given by:
+ *                             <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *                                 <mfrac>
+ *                                     <mrow><msub><mi>P</mi><mn>now</mn></msub> +
+ *                                           <msub><mi>S</mi><mn>now</mn></msub> -
+ *                                           <msub><mi>S</mi><mn>past</mn></msub></mrow>
+ *                                     <mrow><msub><mi>B</mi><mn>now</mn></msub> -
+ *                                           <msub><mi>B</mi><mn>past</mn></msub> +
+ *                                           <msub><mi>P</mi><mn>past</mn></msub></mrow>
+ *                                 </mfrac>
+ *                             </math>
+ * @property {number} fperfval An absolute performance measure as given by:
+ *                             <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
+ *                                 <mfrac>
+ *                                     <mrow>(<msub><mi>P</mi><mn>now</mn></msub> +
+ *                                            <msub><mi>S</mi><mn>now</mn></msub> -
+ *                                            <msub><mi>S</mi><mn>past</mn></msub>) -
+ *                                           (<msub><mi>B</mi><mn>now</mn></msub> -
+ *                                            <msub><mi>B</mi><mn>past</mn></msub> +
+ *                                            <msub><mi>P</mi><mn>past</mn></msub>)</mrow>
+ *                                     <mrow>max{70 % · default starting value, past total value}</mrow>
+ *                                 </mfrac>
+ *                             </math>
+ */
+
+/**
+ * Lists all users and the information necessary for evaluating and displaying rankings.
+ * 
+ * It might be helpful to understand that none of the evaluation of ranking information
+ * is performed on the server side; It is rather gathered and sent to the client,
+ * so that it can create various ranking tables from the raw data for a number of ranking
+ * criteria and filters.
+ * 
+ * For each user, the first value history entries after the starting time and last before
+ * the end time will be used to provide the requested data.
+ * Since not necessarily <em>all</em> users have been registered during the entire period
+ * in between, the ranking does <em>not</em> start and end for all users at the same time.
+ * 
+ * @param {?int} [query.since=0]  The ranking starting time as a unix timestamp.
+ * @param {?int} [query.upto=now]  The ranking end time as a unix timestamp.
+ * @param {?string} [query.search]  A string to use for filtering by user names and,
+ *                                  if permitted by the them, their real names.
+ * @param {?int|string} [query.schoolid]  When given, only return users in the group specified
+ *                                        by this id or path.
+ * 
+ * @return {object} Returns with <code>get-ranking-success</code> or a common error code
+ *                  and populates <code>.result</code> with a {@link module:user~RankingEntry[]}
+ * 
+ * @function c2s~get-ranking
+ */
 User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx, cb) {
 	var self = this;
-	
-	query.startindex = parseInt(query.startindex) || 0;
-	query.endindex = parseInt(query.endindex) || (1 << 20);
 	
 	query.since = parseInt(query.since) || 0;
 	query.upto = parseInt(query.upto) || parseInt(Date.now() / 10000) * 10;
@@ -189,7 +380,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 		'JOIN valuehistory AS past_va ON past_va.userid = u.id AND past_va.time = locator_va.min_t ' +
 		'JOIN valuehistory AS now_va ON now_va.userid = u.id AND now_va.time = locator_va.max_t ';
 			
-	if (!query.includeAll) 
+	if (!query.includeAll)
 		likestringWhere += ' AND email_verif != 0 ';
 
 	if (query.search) {
@@ -218,15 +409,71 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			'(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
 			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
-			likestringWhere +
-			'LIMIT ?, ?', 
-			[query.since, query.upto].concat(likestringUnit).concat([query.startindex, query.endindex - query.startindex]),
-		function(ranking) {
+			likestringWhere,
+			[query.since, query.upto].concat(likestringUnit),
+			function(ranking) {
 			cb('get-ranking-success', {'result': ranking});
 		});
 	});
 });
 
+/**
+ * Represents the information publicly available about a single user including some performance data,
+ * extending {@link module:user~UserEntryBase}.
+ * @typedef module:user~UserEntry
+ * @type object
+ * 
+ * @property {boolean} schoolpending  Alias of what is called <code>pending</code>.
+ * @property {boolean} schooljointime  Alias of what is called <code>jointime</code>.
+ * @property {boolean} dschoolid  Alias of what is called <code>schoolid</code>.
+ * 
+ * @property {int} birthday  A user’s birthday as a unix timestamp.
+ * @property {string} desc  A user’s self-chosen description text.
+ * @property {number} wprovision  The provision for followers to pay when they
+ *                                profit from this leader’s gains (in per cent).
+ * @property {number} lprovision  The provision for followers to pay when they
+ *                                suffer from this leader’s losses (in per cent).
+ * @property {int} lstockid  The stock id associated with this user as a leader.
+ * @property {?string} profilepic  A reference to a profile image for this user.
+ * @property {int} registerevent  The event id of this user’s registration.
+ *                                Useful for commenting onto the user’s pinboard.
+ * @property {int} registertime  The unix timestamp of this user’s registration.
+ * @property {number} dayfperf  Day following performance. See {@link module:user~RankingEntry}.
+ * @property {number} dayoperf  Day non-following performance. See {@link module:user~RankingEntry}.
+ * @property {number} weekfperf  Week following performance. See {@link module:user~RankingEntry}.
+ * @property {number} weekoperf  Week non-following performance. See {@link module:user~RankingEntry}.
+ * @property {number} totalfperf  All-time following performance. See {@link module:user~RankingEntry}.
+ * @property {number} totaloperf  All-time non-following performance. See {@link module:user~RankingEntry}.
+ * @property {number} freemoney  Money currently available to the user.
+ * @property {number} prov_sum  Total earns (or losses, if negative) by acting as a leader
+ *                              and receiving provision.
+ * @property {number} weekstarttotalvalue  Total value at the start of the week.
+ * @property {number} daystarttotalvalue   Total value at the start of the day.
+ * @property {?int} f_count  Number of current followers.
+ * @property {?int} f_amount  Number of shares currently sold followers.
+ * @property {Array} schools  All schools of which this user is a member as <code>{path, id, name}</code> objects.
+ * 
+ * @property {boolean} isSelf  Indicates whether this user object corresponds to the user which requested it.
+ */
+
+/**
+ * Return all available information on a single user.
+ * 
+ * @param {string|int} query.lookfor  The user id or name for which data should be returned.
+ *                                    As a special value, '$self' can be used to inspect own data.
+ * @param {?boolean} query.nohistory  If true, returns only direct user information;
+ *                                    Otherwise, all available information.
+ * 
+ * @return {object} Returns with <code>get-user-info-success</code>, 
+ *                  <code>get-user-info-notfound</code> or a common error code
+ *                  and populates <code>.result</code> with a {@link module:user~UserEntry},
+ *                  <code>.orders</code> with a trade info list,
+ *                  <code>.achievements</code> with an achievement info list,
+ *                  <code>.values</code> with finance history data (see also {@link s2c~trade}) and
+ *                  <code>.pinboard</code> with a {@link Comment[]} array of pinboard entries.
+ * 
+ * @function c2s~get-user-info
+ */
 User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx, cb) {
 	var self = this;
 	
@@ -333,6 +580,19 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 	});
 });
 
+/**
+ * Regularly called function to perform various cleanup and update tasks.
+ * 
+ * Flushes outdated sessions out of the system and weekly 
+ * removes memberless groups that were not created by 
+ * administrative users.
+ * 
+ * @param {Query} query  A query structure, indicating which actions should be performed
+ * @param {Query} query.weekly  Clean up schools without members
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * 
+ * @function busreq~regularCallbackUser
+ */
 User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
 	cb = cb || function() {};
 	
@@ -357,18 +617,33 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 	});
 });
 
+/**
+ * Verify a user’s e-mail address with the key from the confirmation link.
+ * 
+ * @param {string} query.uid  The assigned user id.
+ * @param {string} query.key  The key from the confirmation link.
+ * 
+ * @return {object} Returns with <code>email-verify-failure</code>,
+ *                  <code>email-verify-already-verified</code>,
+ *                  or passes on information to {@link c2s~login}.
+ * 
+ * @noreadonly
+ * @function c2s~emailverif
+ */
 User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', function(query, ctx, xdata, cb) {
 	var self = this;
 	
 	var uid = parseInt(query.uid);
 	var key = String(query.key);
 	
+	if (uid != query.uid)
+		return cb('format-error');
+	
 	ctx.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
 	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?', [uid, uid, key], function(res) {
 		if (res.length != 2) {
 			console.warn('strange email-verif stuff', res);
-			cb('email-verify-failure');
-			return;
+			return cb('email-verify-failure');
 		}
 		
 		var email = null;
@@ -406,6 +681,21 @@ User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', funct
 	});
 });
 
+/**
+ * Write session and statistics information to the database.
+ * 
+ * Sets the session’s last use date to make sure it does not expire.
+ * This function usually writes data at most once per minute to 
+ * reduce database writes.
+ * 
+ * @param {module:user~UserEntry} user  The currently active user
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
+ * @param {boolean} force  If true, writes the data even if waiting would have been 
+ *                         the normal response.
+ * @param {function} cb  Callback that will be called when the cleanup is done.
+ * 
+ * @function busreq~updateUserStatistics
+ */
 User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
 	['user', 'ctx', 'force', 'reply'], function(user, ctx, force, reply)
 {
@@ -429,6 +719,18 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 	reply();
 });
 
+/**
+ * Load information on the current user from the database.
+ * 
+ * This function is usually one of the first ones called on each client query.
+ * 
+ * @param {string} key  The current session id.
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
+ * @param {function} cb  Callback that will be called with a {module:user~UserEntry} object
+ *                       (or null in case of no match or an expired session).
+ * 
+ * @function busreq~loadSessionUser
+ */
 User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx', 'reply'], function(key, ctx, cb) {
 	var self = this;
 	
@@ -481,147 +783,92 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 	});
 });
 
+/**
+ * Sets up a new user.
+ * See {@link module:user~User#updateUser} for detailed documentation,
+ * including parameters and possible return codes.
+ * 
+ * @noreadonly
+ * @loginignore
+ * @function c2s~register
+ */
 User.prototype.register = buscomponent.provideWQTX('client-register', function(query, ctx, xdata, cb) {
 	if (ctx.user !== null)
 		return cb('already-logged-in');
 	this.updateUser(query, 'register', ctx, xdata, cb);
 });
 
+/**
+ * Changes the settings and general information for the current user.
+ * See {@link module:user~User#updateUser} for detailed documentation,
+ * including parameters and possible return codes.
+ * 
+ * @noreadonly
+ * @function c2s~change-options
+ */
 User.prototype.changeOptions = buscomponent.provideWQTX('client-change-options', function(query, ctx, xdata, cb) {
 	this.updateUser(query, 'change', ctx, xdata, cb);
 });
 
-User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx, cb) {
-	var self = this;
-	
-	self.getServerConfig(function(cfg) {
-		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
-			return cb('permission-denied');
-		
-		assert.ok(ctx.user);
-		assert.ok(ctx.access);
-		
-		ctx.query('DELETE FROM depot_stocks WHERE userid = ?', [ctx.user.uid], function() {
-		ctx.query('UPDATE users_finance SET freemoney = 1000000000, totalvalue = 1000000000, ' +
-			'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
-			'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
-			'wprov_sum = 0, lprov_sum = 0 ' + 
-			'WHERE id = ?', [ctx.user.uid], function() {
-			self.request({name: 'sellAll', query: query, ctx: ctx}, function() {
-				ctx.query('UPDATE stocks SET lastvalue = 10000000, ask = 10000000, bid = 10000000, ' +
-					'daystartvalue = 10000000, weekstartvalue = 10000000, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?', [ctx.user.uid], function() {
-					ctx.query('DELETE FROM valuehistory WHERE userid = ?', [ctx.user.uid], function() {
-						ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid});
-						self.request({name: 'dqueriesResetUser', ctx: ctx}, function() {
-							cb('reset-user-success');
-						});
-					});
-				});
-			});
-		});
-		});
-	});
-});
+/**
+ * Indicates that a user changed their username
+ * 
+ * @typedef s2c~user-namechange
+ * @type {Event}
+ * 
+ * @property {string} oldname  The user’s name before the change
+ * @property {string} newname  The user’s name after the change
+ */
 
-User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx, cb) {
-	var self = this;
-	
-	if (ctx.user)
-		return cb('already-logged-in');
-	
-	var name = String(query.name);
-	
-	ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
-		[name, name], function(res) {
-		if (res.length == 0)
-			return cb('password-reset-notfound');
-		
-		var u = res[0];
-		assert.ok(u);
-		
-		crypto.randomBytes(6, ctx.errorWrap(function(ex, buf) {
-			var pw = buf.toString('hex');
-			self.generatePWKey(pw, ctx.errorWrap(function(salt, hash) {
-				ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
-					var opt = self.request({name: 'readEMailTemplate', 
-						template: 'password-reset-email.eml',
-						variables: {'password': pw, 'username': query.name, 'email': u.email},
-					}, function(opt) {
-						self.request({name: 'sendMail', opt: opt}, function (error, resp) {
-							if (error) {
-								cb('password-reset-failed');
-								self.emitError(error);
-							} else {
-								cb('password-reset-success');
-							}
-						});
-					});
-				});
-			}));
-		}));
-	});
-});
+/**
+ * Indicates that a user changed their leader provisions
+ * 
+ * @typedef s2c~user-provchange
+ * @type {Event}
+ * 
+ * @property {int} oldwprov  The user’s gain provision before the change
+ * @property {int} newwprov  The user’s gain provision after the change
+ * @property {int} oldlprov  The user’s loss provision before the change
+ * @property {int} newlprov  The user’s loss provision after the change
+ */
 
-User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invite-key-info', function(query, ctx, cb) {
-	var self = this;
-	
-	ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)], function(res) {
-		if (res.length == 0) {
-			cb('get-invitekey-info-notfound');
-		} else {
-			self.getServerConfig(function(cfg) {
-				assert.equal(res.length, 1);
-				
-				res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
-				
-				cb('get-invitekey-info-success', {result: res[0]});
-			});
-		}
-	});
-});
+/**
+ * Indicates that a user changed their description text
+ * 
+ * @typedef s2c~user-descchange
+ * @type {Event}
+ */
 
-User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
-	var self = this;
-	
-	self.getServerConfig(function(cfg) {
-		query.email = query.email ? String(query.email) : null;
-		
-		if (!ctx.access.has('userdb')) {
-			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
-				return cb('create-invite-link-invalid-email');
-			
-			if (!ctx.access.has('email_verif'))
-				return cb('create-invite-link-not-verif');
-		}
-		
-		crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
-			var key = buf.toString('hex');
-			var sendKeyToCaller = ctx.access.has('userdb');
-			ctx.query('INSERT INTO invitelink ' +
-				'(uid, `key`, email, ctime, schoolid) VALUES ' +
-				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
-				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
-		
-				(query.email ? function(cont) {
-					self.sendInviteEmail({
-						sender: ctx.user,
-						email: query.email,
-						url: url
-					}, function(status) {
-						cont(status);
-					});
-				} : function(cont) {
-					sendKeyToCaller = true;
-					cont('create-invite-link-success');
-				})(function(status) {
-					cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
-				});
-			});
-		}));
-	});
-});
-
+/**
+ * Updates or creates the info for the current user.
+ * invoked by registering or changing one’s options.
+ * 
+ * If necessary (in case of registration or when changing the
+ * e-mail address), {@link module:user~User#sendRegisterEmail}
+ * will be called and determines the return code of this function.
+ * 
+ * This method is currently in horrible shape and should be refactored.
+ * 
+ * @return {object} This method can return with the following codes:
+ *                  <ul>
+ *                      <li><code>reg-too-short-pw</code></li>
+ *                      <li><code>reg-name-invalid-char</code></li>
+ *                      <li><code>invalid-provision</code></li>
+ *                      <li><code>reg-beta-necessary</code></li>
+ *                      <li><code>reg-email-already-present</code></li>
+ *                      <li><code>reg-name-already-present</code></li>
+ *                      <li><code>reg-success</code></li>
+ *                      <li><code>reg-unknown-school</code></li>
+ *                      <li>
+ *                          <code>reg-email-failed</code> as per 
+ *                          {@link module:user~User#sendRegisterEmail}
+ *                      </li>
+ *                      <li>or a common error code</li>
+ *                  </ul>
+ * 
+ * @noreadonly
+ * @function module:user~User#updateUser
+ */
 User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	var self = this;
 	
@@ -664,12 +911,18 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	
 	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
-	ctx.getConnection(function(conn, commit, rollback) {
-	conn.query('SET autocommit = 0; ' +
-		'LOCK TABLES users WRITE, users_finance WRITE, users_data WRITE, stocks WRITE, betakeys WRITE, ' +
-		'inviteaccept WRITE, invitelink READ, schoolmembers WRITE, schooladmins WRITE' +
-		(query.school ? ', schools WRITE' : '') + ';', [], function() {
-	
+	ctx.startTransaction({
+		users: 'w',
+		users_finance: 'w',
+		users_data: 'w',
+		stocks: 'w',
+		betakeys: 'w',
+		inviteaccept: 'w',
+		invitelink: 'r',
+		schoolmembers: 'w',
+		schooladmins: 'w',
+		schools: 'w'
+	}, function(conn, commit, rollback) {
 	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[query.email, query.name, uid], function(res) {
 	conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
@@ -744,11 +997,6 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 						});
 						});
 						
-						if (query.name != ctx.user.name) {
-							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': query.name}});
-							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
-						}
-						
 						if (query.school != ctx.user.school) {
 							if (query.school == null)
 								conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
@@ -760,6 +1008,11 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							
 							if (ctx.user.school != null) 
 								conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
+						}
+						
+						if (query.name != ctx.user.name) {
+							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': query.name}});
+							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
 						}
 
 						if (query.wprovision != ctx.user.wprovision || query.lprovision != ctx.user.lprovision)
@@ -805,10 +1058,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 								uid = res.insertId;
 								conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
 									'street, zipcode, town) VALUES (?, ?, ?, ?, ?, ?, ?, ?); ' +
-									'INSERT INTO users_finance(id, wprovision, lprovision) VALUES (?, ?, ?)',
+									'INSERT INTO users_finance(id, wprovision, lprovision, freemoney, totalvalue) '+
+									'VALUES (?, ?, ?, ?, ?)',
 									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
-									uid, cfg.defaultWProvision, cfg.defaultLProvision], function() {
+									uid, cfg.defaultWProvision, cfg.defaultLProvision,
+									cfg.defaultStartingMoney, cfg.defaultStartingMoney], function() {
 								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
 								conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 									['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity'], _.bind(updateCB, self, res));
@@ -861,250 +1116,175 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	});
 	});
 	});
-	});
 	
 	});
 };
 
-User.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx, cb) {
-	ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
-		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?',
-		[String(query.stockid)], function(res) {
-		if (res.length == 0)
-			return cb('watchlist-add-notfound');
-		var uid = res[0].uid;
-		if (uid == ctx.user.id)
-			return cb('watchlist-add-self');
-		
-		ctx.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
-			[ctx.user.id, res[0].bid, String(query.stockid)], function(r) {
-			ctx.feed({
-				type: 'watch-add',
-				targetid: r.insertId,
-				srcuser: 
-				ctx.user.id,
-				json: {
-					watched: query.stockid, 
-					watcheduser: uid,
-					watchedname: res[0].name
-				},
-				feedusers: uid ? [uid] : []
-			});
-			
-			cb('watchlist-add-success');
-		}); 
-	});
-});
-
-User.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx, cb) {
-	ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, String(query.stockid)], function() {
-		ctx.feed({
-			type: 'watch-remove',
-			targetid: null,
-			srcuser: ctx.user.id,
-			json: { watched: query.stockid }
-		});
-		
-		cb('watchlist-remove-success');
-	}); 
-});
-
-User.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show', function(query, ctx, cb) {
-	ctx.query('SELECT s.*, s.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
-		'lastusetime AS lastactive, IF(rw.watched IS NULL, 0, 1) AS friends ' +
-		'FROM watchlists AS w ' +
-		'JOIN stocks AS s ON w.watched = s.id ' +
-		'JOIN stocks AS rs ON rs.leader = w.watcher ' +
-		'LEFT JOIN users ON users.id = s.leader ' +
-		'LEFT JOIN watchlists AS rw ON rw.watched = rs.id AND rw.watcher = s.leader ' +
-		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
-		'WHERE w.watcher = ?', [ctx.user.id], function(res) {
-		cb('watchlist-show-success', {'results': res});
-	});
-});
-
-User.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx, cb) {
-	var whereString = '';
-	var params = [];
+/**
+ * Resets the current user financially into their initial state.
+ * This is only available for users with appropiate privileges
+ * or when resets are allowed (config option <code>.resetAllowed</code>)
+ * 
+ * @return {object}  Returns with <code>reset-user-success</code> or
+ *                   a common error code.
+ * 
+ * @noreadonly
+ * @function c2s~reset-user
+ */
+User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx, cb) {
+	var self = this;
 	
-	if (!query.endpoints || !query.endpoints.length) {
-		if (!query.chatid || parseInt(query.chatid) != query.chatid)
-			return cb('format-error');
+	self.getServerConfig(function(cfg) {
+		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
+			return cb('permission-denied');
 		
-		whereString += ' chatid = ?';
-		params.push(query.chatid);
-	} else {
-		if (query.chatid)
-			return cb('format-error');
+		assert.ok(ctx.user);
+		assert.ok(ctx.access);
 		
-		var containsOwnUser = false;
-		for (var i = 0; i < query.endpoints.length; ++i) {
-			var uid = query.endpoints[i];
-			containsOwnUser = containsOwnUser || (uid == ctx.user.id);
-			if (parseInt(uid) != uid)
-				return cb('format-error');
-		}
-		
-		if (!containsOwnUser && ctx.user)
-			query.endpoints.push(ctx.user.id);
-		
-		var endpointsList = query.endpoints.join(',');
-		var numEndpoints = query.endpoints.length;
-		
-		whereString += 
-			' (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.id = cm.userid WHERE cm.chatid = c.chatid ' +
-			'AND cm.userid IN (' +  endpointsList + ')) = ? ';
-		
-		params.push(numEndpoints);
-	}
-	
-	ctx.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
-		'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
-		'WHERE ' + whereString + ' ' +
-		'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC LIMIT 1', params, function(chatlist) {
-		((chatlist.length == 0) ? function(cont) {
-			if (query.failOnMissing)
-				return cont(null);
-			
-			if (ctx.getProperty('readonly'))
-				return cb('server-readonly');
-			
-			ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.id], function(res) {
-				var members = [];
-				var memberValues = [];
-				for (var i = 0; i < query.endpoints.length; ++i) {
-					members.push('(?, ?, UNIX_TIMESTAMP())');
-					memberValues.push(res.insertId);
-					memberValues.push(String(query.endpoints[i]));
-				}
-				
-				ctx.query('INSERT INTO chatmembers(chatid, userid, jointime) VALUES ' + members.join(','), memberValues, function() {
-					ctx.feed({
-						type: 'chat-start',
-						targetid: res.insertId, 
-						srcuser: ctx.user.id,
-						noFollowers: true,
-						feedusers: query.endpoints,
-						json: {endpoints: query.endpoints}
-					}, function(eventid) {
-						cont({chatid: res.insertId, eventid: eventid});
+		ctx.query('DELETE FROM depot_stocks WHERE userid = ?', [ctx.user.uid], function() {
+		ctx.query('UPDATE users_finance SET freemoney = ?, totalvalue = ?, ' +
+			'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
+			'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
+			'wprov_sum = 0, lprov_sum = 0 ' + 
+			'WHERE id = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid], function() {
+			self.request({name: 'sellAll', query: query, ctx: ctx}, function() {
+				var val = cfg.defaultStartingMoney / 1000;
+				ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
+					'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
+					[val, val, val, val, val, ctx.user.uid], function() {
+					ctx.query('DELETE FROM valuehistory WHERE userid = ?', [ctx.user.uid], function() {
+						ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid});
+						self.request({name: 'dqueriesResetUser', ctx: ctx}, function() {
+							cb('reset-user-success');
+						});
 					});
 				});
 			});
-		} : function(cont) {
-			cont(chatlist[0]);
-		})(function(chat) {
-			if (chat === null)
-				return cb('chat-get-notfound');
-			
-			assert.notStrictEqual(chat.chatid, null);
-			assert.notStrictEqual(chat.eventid, null);
-			
-			chat.endpoints = query.endpoints;
-			
-			if (query.noMessages)
-				return cb('chat-get-success', chat);
-			
-			ctx.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
-				'FROM chatmembers AS cm ' +
-				'JOIN users AS u ON u.id = cm.userid ' +
-				'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
-				'WHERE cm.chatid = ?', [chat.chatid], function(endpoints) {
-				assert.ok(endpoints.length > 0);
-				chat.endpoints = endpoints;
-				
-				var ownUserIsEndpoint = false;
-				for (var i = 0; i < chat.endpoints.length; ++i) {
-					if (chat.endpoints[i].uid == ctx.user.id) {
-						ownUserIsEndpoint = true;
-						break;
-					}
-				}
-				
-				if (!ownUserIsEndpoint)
-					return cb('chat-get-notfound');
-				
-				ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
-					'FROM ecomments AS c ' + 
-					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
-					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
-					'WHERE c.eventid = ?', [chat.chatstartevent], function(comments) {
-					chat.messages = comments;
-					cb('chat-get-success', {chat: chat});
-				});	
-			});
+		});
 		});
 	});
 });
 
-User.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', function(query, ctx, cb) {
+/**
+ * Resets the current user’s password.
+ * Currently, a new password is mailed to the user; This will change
+ * due to #268 into sending a link to a password reset page.
+ * 
+ * @return {object}  Returns with <code>password-reset-success</code>, 
+ *                   <code>password-reset-notfound</code>, or
+ *                   a common error code.
+ * 
+ * @loginignore
+ * @noreadonly
+ * @function c2s~password-reset
+ */
+User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx, cb) {
 	var self = this;
 	
-	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
-		return cb('format-error');
+	if (ctx.user)
+		return cb('already-logged-in');
 	
-	ctx.query('SELECT name FROM users WHERE id = ?', [query.userid], function(res) {
+	var name = String(query.name);
+	
+	ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
+		[name, name], function(res) {
 		if (res.length == 0)
-			return cb('chat-adduser-user-notfound');
+			return cb('password-reset-notfound');
 		
-		assert.equal(res.length, 1);
-		var username = res[0].name;
+		var u = res[0];
+		assert.ok(u);
 		
-		self.getChat({
-			chatid: query.chatid,
-			failOnMissing: true
-		}, ctx, function(status, chat) {
-			switch (status) {
-				case 'chat-get-notfound':
-					return cb('chat-adduser-chat-notfound');
-				case 'chat-get-success':
-					break;
-				default:
-					return cb(status); // assume other error
-			}
-			
-			ctx.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid], function(r) {
-				var feedusers = _.pluck(chat.endpoints, 'uid');
-				feedusers.push(query.userid);
-				
-				ctx.feed({
-					type: 'chat-user-added',
-					targetid: query.chatid, 
-					srcuser: ctx.user.id,
-					noFollowers: true,
-					feedusers: chat.endpoints,
-					json: {addedUser: query.userid, addedUserName: username, endpoints: chat.endpoints}
+		crypto.randomBytes(6, ctx.errorWrap(function(ex, buf) {
+			var pw = buf.toString('hex');
+			self.generatePWKey(pw, ctx.errorWrap(function(salt, hash) {
+				ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [salt, hash, u.id], function() {
+					var opt = self.request({name: 'sendTemplateMail', 
+						template: 'password-reset-email.eml',
+						ctx: ctx,
+						variables: {'password': pw, 'username': query.name, 'email': u.email},
+					}, function() {
+						cb('password-reset-success');
+					});
 				});
-				
-				cb('chat-adduser-success');
-			});
-		});
+			}));
+		}));
 	});
 });
 
-User.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx, cb) {
-	ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
-		'eventid AS chatstartevent ' +
-		'FROM chatmembers AS cmi ' +
-		'JOIN chats AS c ON c.chatid = cmi.chatid ' +
-		'JOIN chatmembers AS cm ON cm.chatid = c.chatid ' +
-		'JOIN users AS u ON cm.userid = u.id ' +
-		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
-		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
-		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" ' +
-		'WHERE cmi.userid = ?', [ctx.user.id], function(res) {
-		var ret = {};
+/**
+ * Returns basic information on an invitation key.
+ * 
+ * @return {object}  Returns with <code>get-invitekey-info-notfound</code>
+ *                   or <code>get-invitekey-info-success</code> and, in the
+ *                   latter case, sets <code>.result.email</code> and 
+ *                   <code>.result.schoolid</code> appropiately.
+ * 
+ * @function c2s~get-invitekey-info
+ */
+User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-info', function(query, ctx, cb) {
+	var self = this;
+	
+	ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)], function(res) {
+		if (res.length == 0) {
+			cb('get-invitekey-info-notfound');
+		} else {
+			self.getServerConfig(function(cfg) {
+				assert.equal(res.length, 1);
+				
+				res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
+				
+				cb('get-invitekey-info-success', {result: res[0]});
+			});
+		}
+	});
+});
+
+/**
+ * See {@link c2s~create-invite-link} for specifications.
+ * 
+ * @noreadonly
+ * @function busreq~createInviteLink
+ */
+User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
+	var self = this;
+	ctx = ctx.clone(); // so we can’t lose the user object during execution
+	
+	self.getServerConfig(function(cfg) {
+		query.email = query.email ? String(query.email) : null;
 		
-		for (var i = 0; i < res.length; ++i) {
-			if (!ret[res[i].chatid]) {
-				ret[res[i].chatid] = _.pick(res[i], 'chatid', 'creator', 'creatorname', 'chatstartevent');
-				ret[res[i].chatid].members = [];
-			}
+		if (!ctx.access.has('userdb')) {
+			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
+				return cb('create-invite-link-invalid-email');
 			
-			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername, profilepic: res[i].profilepic});
+			if (!ctx.access.has('email_verif'))
+				return cb('create-invite-link-not-verif');
 		}
 		
-		cb('list-all-chats-success', {chats: ret});
+		crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
+			var key = buf.toString('hex');
+			var sendKeyToCaller = ctx.access.has('userdb');
+			ctx.query('INSERT INTO invitelink ' +
+				'(uid, `key`, email, ctime, schoolid) VALUES ' +
+				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
+				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
+				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
+		
+				(query.email ? function(cont) {
+					self.sendInviteEmail({
+						sender: ctx.user,
+						email: query.email,
+						url: url
+					}, ctx, function(status) {
+						cont(status);
+					});
+				} : function(cont) {
+					sendKeyToCaller = true;
+					cont('create-invite-link-success');
+				})(function(status) {
+					cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
+				});
+			});
+		}));
 	});
 });
 

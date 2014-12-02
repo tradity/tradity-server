@@ -91,15 +91,15 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 	
 	var xcb = function() {
 		rcbET = Date.now();
-		console.log('cleanUpUnusedStocks:      ' + (cuusET - rcbST) + ' ms');
-		console.log('updateStockValues:        ' + (usvET - cuusET) + ' ms');
-		console.log('updateLeaderMatrix:       ' + (ulmET - usvET) + ' ms');
-		console.log('updateProvisions:         ' + (upET - ulmET) + ' ms');
-		console.log('updateRankingInformation: ' + (uriET - upET) + ' ms');
-		console.log('updateValueHistory:       ' + (uvhET - uriET) + ' ms');
-		console.log('weeklyCallback:           ' + (wcbET - uvhET) + ' ms');
-		console.log('dailyCallback:            ' + (rcbET - wcbET) + ' ms');
-		console.log('Total stocks rcb:         ' + (rcbET - rcbST) + ' ms');
+		console.log('cleanUpUnusedStocks:      ' + (cuusET  - rcbST)  + ' ms');
+		console.log('updateStockValues:        ' + (usvET   - cuusET) + ' ms');
+		console.log('updateLeaderMatrix:       ' + (ulmET   - usvET)  + ' ms');
+		console.log('updateProvisions:         ' + (upET    - ulmET)  + ' ms');
+		console.log('updateRankingInformation: ' + (uriET   - upET)   + ' ms');
+		console.log('updateValueHistory:       ' + (uvhET   - uriET)  + ' ms');
+		console.log('weeklyCallback:           ' + (wcbET   - uvhET)  + ' ms');
+		console.log('dailyCallback:            ' + (rcbET   - wcbET)  + ' ms');
+		console.log('Total stocks rcb:         ' + (rcbET   - rcbST)  + ' ms');
 		cb();
 	};
 	
@@ -159,7 +159,7 @@ Stocks.prototype.updateRankingInformation = function(ctx, cb) {
 			'WHERE userid=users_finance.id AND leader IS NOT NULL), ' +
 		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
 			'WHERE userid=users_finance.id AND leader IS NULL)', [], cb);
-}
+};
 
 /**
  * Adds new entries to the global user finance history.
@@ -178,7 +178,7 @@ Stocks.prototype.updateValueHistory = function(ctx, cb) {
 		'INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT users_finance.id, ' + copyFields + ', UNIX_TIMESTAMP() ' +
 		'FROM users_finance JOIN users_dindex ON users_dindex.id = users_finance.id WHERE users_dindex.deletiontime IS NULL; ' +
 		'DROP TABLE users_dindex', [], cb);
-}
+};
 
 /**
  * This function is intended to be called on each day start.
@@ -193,7 +193,7 @@ Stocks.prototype.dailyCallback = function(ctx, cb) {
 	cb = cb || function() {};
 	
 	ctx.query('UPDATE stocks SET daystartvalue = bid', [], cb);
-}
+};
 
 /**
  * This function is intended to be called on each week start.
@@ -206,7 +206,7 @@ Stocks.prototype.dailyCallback = function(ctx, cb) {
  */
 Stocks.prototype.weeklyCallback = function(ctx, cb) {
 	ctx.query('UPDATE stocks SET weekstartvalue = bid', [], cb);
-}
+};
 
 /**
  * Cleans up the stock tables.
@@ -229,7 +229,7 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx, cb) {
 				'OR leader IS NOT NULL', [], cb);
 		});
 	});
-}
+};
 
 /**
  * Updates the stock tables.

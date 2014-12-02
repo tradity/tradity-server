@@ -67,7 +67,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 		{ name: 'users_finance', alias: 'l', mode: 'w' },
 		{ name: 'users_finance', alias: 'f', mode: 'w' },
 		{ name: 'stocks', alias: 's', mode: 'r' },
-		{ name: 'transactionlog', mode: 'r' }
+		{ name: 'transactionlog', mode: 'w' }
 	], function(conn, commit) {
 		conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, s.stockid AS stocktextid, ' +

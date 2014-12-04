@@ -995,11 +995,11 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid], function() {
 						conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
 							'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-							'clientopt = ? WHERE id = ?',
+							'clientopt = ?, dla_optin = ? WHERE id = ?',
 							[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 							query.birthday, String(query.desc), String(query.street),
 							String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-							query.traditye?1:0, uid], function() {
+							query.traditye?1:0, query.dla_optin?1:0, uid], function() {
 						conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
 							[query.wprovision, query.lprovision, uid], updateCB);
 						});

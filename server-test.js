@@ -47,7 +47,8 @@ socket.once('server-config').then(function() {
 		street: '',
 		town: '',
 		zipcode: '',
-		traditye: 0
+		traditye: 0,
+		dla_optin: 0
 	});
 }).then(function(data) {
 	assert.equal(data.code, 'reg-success');

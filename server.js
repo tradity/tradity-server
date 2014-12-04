@@ -10,6 +10,7 @@ var url = require('url');
 var sio = require('socket.io');
 var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
 var buscomponent = require('./stbuscomponent.js');
+var qctx = require('./qctx.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
 /**
@@ -82,7 +83,8 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 				deadQueryLZMACount: self.deadQueryLZMACount,
 				deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
 				now: Date.now(),
-				dbstats: dbstats
+				dbstats: dbstats,
+				qcontexts: qctx.QContext.getMasterQueryContext().getStatistics(true)
 			});
 		});
 	});

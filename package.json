@@ -23,6 +23,7 @@
 		"q": "~1.1.2",
 		"iconv": "~2.1.4",
 		"mailparser": "~0.4.6"
+		"weak": "~0.3.3"
 	},
 	"preferGlobal": false,
 	"private": true

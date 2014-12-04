@@ -1,6 +1,7 @@
 (function () { "use strict";
 
 var _ = require('lodash');
+var q = require('q');
 var util = require('util');
 var assert = require('assert');
 var qctx = require('./qctx.js');
@@ -259,6 +260,29 @@ Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-al
 });
 
 /**
+ * Return a string to the user that can be used for verifying that
+ * they have been active on a given day.
+ * 
+ * @return {object}  Returns with <code>get-daily-login-certificate-success</code>
+ *                   and sets <code>.cert</code> appropiately.
+ * 
+ * @function c2s~get-daily-login-certificate
+ */
+Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('client-get-daily-login-certificate',
+	function(query, ctx, cb)
+{
+	var today = new Date().toJSON().substr(0, 10);
+	
+	this.request({name: 'createSignedMessage', msg: {
+		uid: ctx.user.id,
+		date: today,
+		certType: 'wasOnline'
+	}}, function(cert) {
+		cb('get-daily-login-certificate-success', {cert: cert});
+	});
+});
+
+/**
  * Mark a client-side achievement as completed.
  * 
  * @param {string} query.name  The id of the achievement type which should be marked.
@@ -266,9 +290,12 @@ Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-al
  * @return {object}  Returns with <code>achievement-unknown-name</code>,
  *                   <code>achievement-success</code> or a common error code.
  * 
- * @function c2s~list-all-achievements
+ * @function c2s~achievements
  */
-Achievements.prototype.clientAchievement = buscomponent.provideWQT('client-achievement', function(query, ctx, cb) {
+Achievements.prototype.clientAchievement = buscomponent.provideW('client-achievement',
+	['query', 'ctx', 'verified', 'reply'],
+	function(query, ctx, verified, cb)
+{
 	var self = this;
 	
 	if (!query.name)
@@ -279,11 +306,64 @@ Achievements.prototype.clientAchievement = buscomponent.provideWQT('client-achie
 	if (self.clientAchievements.indexOf(query.name) == -1)
 		return cb('achievement-unknown-name');
 	
-	ctx.query('REPLACE LOW_PRIORITY INTO achievements_client (userid, achname) VALUES(?, ?)', [ctx.user.id, query.name], function() {
+	ctx.query('REPLACE LOW_PRIORITY INTO achievements_client (userid, achname, verified) VALUES(?, ?, ?)',
+		[ctx.user.id, query.name, verified || 0], function()
+	{
 		self.emitImmediate('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
 		cb('achievement-success');
 	});
+});
+
+/**
+ * Mark a client-side daily login achievement as completed.
+ * 
+ * @param {string} query.certs  A list of activity certificates.
+ * 
+ * @return {object}  Returns with <code>dl-achievement-success</code>
+ *                   or a common error code.
+ * 
+ * @function c2s~dl-achievement
+ */
+Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-achievement', function(query, ctx, cb) {
+	var self = this;
+	var uid = ctx.user.id;
+	
+	if (!query.certs || !query.certs.map)
+		return cb('format-error');
+	
+	q.all(query.certs.map(function(cert) {
+		return self.request({
+			name: 'verifySignedMessage',
+			maxAge: 100 * 24 * 60 * 60,
+			msg: cert
+		}).then(function(verifCert) {
+			return verifCert;
+		});
+	})).then(function(verifiedCerts) {
+		var dates = verifiedCerts
+			.map(function(c) { return c[0]; })
+			.filter(function(c) { return c && c.uid == uid && c.certType == 'wasOnline'; })
+			.map(function(c) { return new Date(c.date); })
+			.sort(function(a, b) { return a.getTime() - b.getTime(); }); // ascending sort
+		
+		var currentStreak = 1;
+		var longestStreak = 1;
+		for (var i = 1; i < dates.length; ++i) {
+			// not beautiful, but works
+			if (dates[i].getTime() - dates[i-1].getTime() == 86400000)
+				++currentStreak;
+			else
+				currentStreak = 1;
+			
+			longestStreak = Math.max(longestStreak, currentStreak);
+		}
+		
+		for (var i = 2; i <= Math.min(longestStreak, 20); ++i)
+			self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1, function() {});
+		
+		cb('dl-achievement-success');
+	}).done();
 });
 
 exports.Achievements = Achievements;

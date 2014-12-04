@@ -30,6 +30,8 @@ var _ = require('lodash');
  * @property {object[]} tableLocks  A list of held table locks.
  * @property {int} queryCount  The number of executed single database queries.
  * @property {int} incompleteQueryCount  The number of not-yet-completed single database queries.
+ * @property {string} creationStack  A stack trace of this query context’s construction call
+ * @property {int} creationTime  Millisecond unix timestmap of this query context’s construction call
  * 
  * @public
  * @constructor module:qctx~QContext
@@ -53,6 +55,8 @@ function QContext(obj) {
 	self.openConnections = [];
 	self.queryCount = 0;
 	self.incompleteQueryCount = 0;
+	self.creationStack = getStack();
+	self.creationTime = Date.now();
 	
 	self.callbackFilters.push(function(callback) {
 		return self.errorWrap(callback);
@@ -70,8 +74,23 @@ function QContext(obj) {
 	if (!parentQCtx && !obj.isMasterQCTX)
 		parentQCtx = QContext.getMasterQueryContext();
 	
+	function ondestroy(_ctx) {
+		if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
+			console.log('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
+			console.log(JSON.stringify(_ctx));
+			
+			try {
+				_ctx.emitError('Query context cannot be destroyed with held resources');
+			} catch (e) { console.log(e); }
+			
+			setTimeout(function() {
+				process.exit(122);
+			}, 1500);
+		}
+	}
+	
 	if (parentQCtx)
-		parentQCtx.childContexts.push(weak(this));
+		parentQCtx.childContexts.push(weak(this, ondestroy));
 	
 	self.addProperty({name: 'debugEnabled', value: false, access: 'server'});
 };
@@ -520,6 +539,9 @@ QContext.prototype.getStatistics = function(recurse) {
 	rv.openConnections = _.compact(this.openConnections);
 	rv.queryCount = this.queryCount;
 	rv.incompleteQueryCount = this.incompleteQueryCount;
+	
+	rv.creationTime = this.creationTime;
+	rv.creationStack = this.creationStack;
 	
 	if (recurse)
 		rv.childContexts = _.map(this.childContexts, function(c) { return c.getStatistics(true); });

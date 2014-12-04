@@ -58,12 +58,17 @@ util.inherits(SoTradeServer, buscomponent.BusComponent);
 /**
  * Return general and statistical information on this server instance
  * 
+ * @param {boolean} qctxDebug  Whether to include debugging information on the local QContexts
+ * 
  * @return {object} Returns with most information on a {module:server~SoTradeServer} object
  * @function busreq~internalServerStatistics
  */
 SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('internalServerStatistics',
-	['reply'], function(cb)
+	['qctxDebug', 'reply'], function(qctxDebug, cb)
 {
+	if (typeof gc == 'function')
+		gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
+	
 	var self = this;
 	
 	self.request({name: 'get-readability-mode'}, function(reply) {
@@ -84,7 +89,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 				deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
 				now: Date.now(),
 				dbstats: dbstats,
-				qcontexts: qctx.QContext.getMasterQueryContext().getStatistics(true)
+				qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
 			});
 		});
 	});

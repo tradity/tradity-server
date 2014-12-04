@@ -647,7 +647,9 @@ Bus.prototype.stats = function() {
 		lostPackets: this.lostPackets,
 		id: this.id,
 		components: this.components,
-		busGraph: this.busGraph.json()
+		busGraph: this.busGraph.json(),
+		packetLogCount: this.packetLogCount,
+		packetLogLength: this.packetLog.length
 	};
 };
 

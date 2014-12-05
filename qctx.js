@@ -80,7 +80,7 @@ function QContext(obj) {
 			console.log(JSON.stringify(_ctx));
 			
 			try {
-				_ctx.emitError('Query context cannot be destroyed with held resources');
+				_ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
 			} catch (e) { console.log(e); }
 			
 			setTimeout(function() {

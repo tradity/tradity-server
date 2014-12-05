@@ -10,6 +10,7 @@ var url = require('url');
 var sio = require('socket.io');
 var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
 var buscomponent = require('./stbuscomponent.js');
+var qctx = require('./qctx.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
 /**
@@ -57,12 +58,17 @@ util.inherits(SoTradeServer, buscomponent.BusComponent);
 /**
  * Return general and statistical information on this server instance
  * 
+ * @param {boolean} qctxDebug  Whether to include debugging information on the local QContexts
+ * 
  * @return {object} Returns with most information on a {module:server~SoTradeServer} object
  * @function busreq~internalServerStatistics
  */
 SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('internalServerStatistics',
-	['reply'], function(cb)
+	['qctxDebug', 'reply'], function(qctxDebug, cb)
 {
+	if (typeof gc == 'function')
+		gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
+	
 	var self = this;
 	
 	self.request({name: 'get-readability-mode'}, function(reply) {
@@ -82,7 +88,8 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 				deadQueryLZMACount: self.deadQueryLZMACount,
 				deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
 				now: Date.now(),
-				dbstats: dbstats
+				dbstats: dbstats,
+				qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
 			});
 		});
 	});

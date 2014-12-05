@@ -11,12 +11,14 @@ var buscomponent = require('./stbuscomponent.js');
 /**
  * Provides internally used functions for large-scale finance updates,
  * i.e. provisions and leader stock values.
+ * 
  * @public
  * @module stocks-financeupdate
  */
 
 /**
  * Main object of the {@link module:stocks-financeupdate} module
+ * 
  * @public
  * @constructor module:stocks-financeupdate~StocksFinanceUpdate
  * @augments module:stbuscomponent~STBusComponent

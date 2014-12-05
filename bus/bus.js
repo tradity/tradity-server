@@ -40,6 +40,8 @@ function Bus () {
 	this.packetLog = [];
 	this.packetLogLength = 1536;
 	
+	this.pingIntervalMs = 85000; // 85 seconds between transport pings
+	
 	this.components = [];
 	this.transports = [];
 	this.removedTransports = [];
@@ -189,6 +191,7 @@ Bus.prototype.addTransport = function(transport, done) {
 	
 	transport.emit('bus::handshakeSYN', {id: self.id, edgeId: edgeId});
 	
+	var pingInterval = null, disconnected = false, waitingForPing = false;
 	transport.on('bus::nodeInfoInitial', function(data) { // ~ ACK after SYN-ACK
 		if (data.id == self.id)
 			return;
@@ -221,10 +224,47 @@ Bus.prototype.addTransport = function(transport, done) {
 		
 		self.emitBusNodeInfoSoon();
 		
+		if (!transport.noPingWeight && pingInterval === null) {
+			// pings are sent, again, in a TCP-handshake-like manner, i.e.
+			// A->B, B->A, A->B (indicated by the “stage” counter)
+			var emitInitialPing = function() {
+				if (disconnected)
+					return;
+				
+				if (waitingForPing) // ping larger than interval
+					transport.weight = self.pingIntervalMs;
+				
+				waitingForPing = true;
+				transport.emit('bus::ping', {outTime: Date.now(), stage: 0});
+			};
+			
+			pingInterval = setInterval(emitInitialPing, self.pingIntervalMs);
+			process.nextTick(emitInitialPing);
+		}
+		
 		if (!doneCalled) {
 			doneCalled = true;
 			done();
 		}
+	});
+	
+	transport.on('bus::ping', function(data) {
+		assert.strictEqual(parseInt(data.outTime), data.outTime);
+		assert.strictEqual(parseInt(data.stage), data.stage);
+		
+		var now = Date.now();
+		waitingForPing = false;
+		
+		var oldWeight = transport.weight;
+		if (data.stage > 0) {
+			transport.weight = now - data.outTime;
+			
+			if (transport.weight != oldWeight)
+				self.emitBusNodeInfoSoon();
+		}
+		
+		if (data.stage < 2 && !disconnected)
+			transport.emit('bus::ping', {outTime: data.outTime, stage: data.stage + 1});
 	});
 	
 	transport.on('bus::packet', function(p) {
@@ -239,6 +279,11 @@ Bus.prototype.addTransport = function(transport, done) {
 	});
 	
 	transport.on('disconnect', function() {
+		if (pingInterval !== null) {
+			clearInterval(pingInterval);
+			pingInterval = null;
+		}
+		
 		self.removedTransports.push(transport.id);
 		self.busGraph.remove(self.busGraph.getElementById(transport.id));
 		
@@ -250,7 +295,6 @@ Bus.prototype.addTransport = function(transport, done) {
 		self.localizeBusGraph();
 		
 		self.busGraphUpdated();
-		
 	});
 };
 
@@ -268,7 +312,11 @@ Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
 	var pluckID = function(e) { return e.id(); };
 	
 	var remoteBusGraph = cytoscape(busnode.graph);
-	this.busGraph = this.busGraph.union(remoteBusGraph);
+	
+	// remove all own edges from the remote bus graph, then take the union and
+	// add our own edges later on
+	remoteBusGraph.remove(remoteBusGraph.getElementById(this.id));
+	this.busGraph = remoteBusGraph.union(this.busGraph);
 	
 	// Remove edges from the graph of which the remote node is an endpoint (but we are not)
 	// and which are not present in the remote graph;
@@ -286,8 +334,9 @@ Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
 	
 	this.busGraph.getElementById(busnode.id).data().handledEvents = busnode.handledEvents;
 	
-	// localization may be supressed, e. g. because this is an initial node info
+	// localization can be supressed, e. g. because we just received an initial node info
 	// and the edge that keeps the graph connected is yet to be added
+	// (localizing refers to taking only the current connected component)
 	if (!doNotLocalize)
 		this.localizeBusGraph();
 	
@@ -572,7 +621,7 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 	
 	onReply = onReply || function() {};
 	
-	var requestId = self.id + '-' + (++self.curId);
+	var requestId = self.id + '-' + (self.curId++);
 	var recipients = self.expandScope(scope, req.name);
 	
 	// scope is now array of target ids
@@ -647,7 +696,9 @@ Bus.prototype.stats = function() {
 		lostPackets: this.lostPackets,
 		id: this.id,
 		components: this.components,
-		busGraph: this.busGraph.json()
+		busGraph: this.busGraph.json(),
+		packetLogCount: this.packetLogCount,
+		packetLogLength: this.packetLog.length
 	};
 };
 

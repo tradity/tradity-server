@@ -107,9 +107,7 @@ ConnectionData.prototype.onBusConnect = function() {
  */
 ConnectionData.prototype.stats = function() {
 	return {
-		lzma: this.ctx.getProperty('lzmaSupport'),
-		isBusTransport: this.ctx.getProperty('isBusTransport'),
-		remoteProtocolVersion: this.ctx.getProperty('remoteProtocolVersion'),
+		ctx: this.ctx.getStatistics(false),
 		user: this.ctx.user ? { name: this.ctx.user.name, uid: this.ctx.user.uid } : null,
 		lastInfoPush: this.lastInfoPush,
 		mostRecentEventTime: this.mostRecentEventTime,

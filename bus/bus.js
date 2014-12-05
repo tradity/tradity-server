@@ -40,7 +40,7 @@ function Bus () {
 	this.packetLog = [];
 	this.packetLogLength = 1536;
 	
-	this.pingIntervalMs = 35000; // 35 seconds between transport pings
+	this.pingIntervalMs = 85000; // 85 seconds between transport pings
 	
 	this.components = [];
 	this.transports = [];
@@ -227,7 +227,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (!transport.noPingWeight && pingInterval === null) {
 			// pings are sent, again, in a TCP-handshake-like manner, i.e.
 			// A->B, B->A, A->B (indicated by the “stage” counter)
-			pingInterval = setInterval(function() {
+			var emitInitialPing = function() {
 				if (disconnected)
 					return;
 				
@@ -236,7 +236,10 @@ Bus.prototype.addTransport = function(transport, done) {
 				
 				waitingForPing = true;
 				transport.emit('bus::ping', {outTime: Date.now(), stage: 0});
-			}, self.pingIntervalMs);
+			};
+			
+			pingInterval = setInterval(emitInitialPing, self.pingIntervalMs);
+			process.nextTick(emitInitialPing);
 		}
 		
 		if (!doneCalled) {

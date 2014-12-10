@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 (function () { "use strict";
 
 Error.stackTraceLimit = Infinity;

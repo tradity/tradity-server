@@ -16,7 +16,6 @@ function Bus () {
 	self.pid = process.pid;
 	self.id = self.determineBusID();
 	self.handledEvents = [];
-	self.lzma = new lzma.LZMA();
 	
 	self.curId = 0;
 	self.busGraph = cytoscape({
@@ -78,7 +77,7 @@ function Bus () {
 		if (!Buffer.isBuffer(data))
 			data = new Buffer(data);
 		
-		self.lzma.decompress(data, function(data) {
+		lzma.decompress(data, function(data) {
 			data = JSON.parse(data);
 			assert.ok(data.id && _.isString(data.id));
 			assert.ok(data.graph);
@@ -133,8 +132,8 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
 		handledEvents: self.handledEvents,
 		graph: self.busGraph.json()
 	};
-	
-	self.lzma.compress(JSON.stringify(info), 3, function(encodedInfo) {
+
+	lzma.compress(JSON.stringify(info), {preset: 3}, function(encodedInfo) {
 		// note that initial infos are transport events, whereas
 		// non-initial infos are bus events (and therefore bus packets)
 		if (initial) {
@@ -210,7 +209,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (!Buffer.isBuffer(data))
 			data = new Buffer(data);
 		
-		self.lzma.decompress(data, function(data) {
+		lzma.decompress(data, function(data) {
 			data = JSON.parse(data);
 			if (data.id == self.id)
 				return;

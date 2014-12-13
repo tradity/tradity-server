@@ -196,7 +196,7 @@ QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readabi
  * @function module:qctx~QContext#toJSON
  */
 QContext.prototype.toJSON = function() {
-	return { user: this.user, access: this.access, properties: this.properties };
+	return { user: this.user, access: this.access.toJSON(), properties: this.properties };
 };
 
 /**
@@ -218,11 +218,6 @@ QContext.fromJSON = function(j, parentComponent) {
 	ctx.user = j.user || null;
 	ctx.access = Access.fromJSON(j.access);
 	ctx.properties = j.properties || {};
-	
-	_.each(ctx.properties, function(value, key) {
-		if (!value.access)
-			value.access = function() { return false; };
-	});
 	
 	return ctx;
 };
@@ -293,7 +288,7 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
 	if (hasAccess)
 		this.properties[name].value = value;
 	else
-		throw new Error('Access for changing property ' + name + ' not granted');
+		throw new Error('Access for changing property ' + name + ' not granted ' + requiredAccess);
 };
 
 /**

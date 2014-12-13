@@ -43,6 +43,10 @@ mainBus.addInputFilter(function(packet) {
 	return packet;
 });
 
+mainBus.addOutputFilter(function(packet) {
+	return packet;
+});
+
 manager.getServerConfig = buscomponent.provide('getServerConfig', ['reply'], function(reply) { reply(cfg); });
 manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', ['reply'], function(reply) { reply(afql); });
 manager.getAchievementList = buscomponent.provide('getAchievementList', ['reply'], function(reply) { reply(achievementList.AchievementList); });

@@ -11,8 +11,8 @@ function DirectTransport(baseEmitter, weight, isLocal) {
 	assert.ok(baseEmitter);
 	
 	self.baseEmitter = baseEmitter;
-	self.isLocal = isLocal || false;
-	self.weight = weight || 1;
+	self.isLocal = isLocal || baseEmitter.isLocal || false;
+	self.weight = weight || baseEmitter.weight || 1;
 	
 	self.on = _.bind(self.baseEmitter.on, self.baseEmitter);
 	self.emit = _.bind(self.baseEmitter.emit, self.baseEmitter);

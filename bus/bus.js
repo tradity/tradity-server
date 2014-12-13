@@ -406,7 +406,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 		assert.ok(_.isString(recpId));
 		
 		if (recpId == self.id) {
-			// defer handling, since we might have received a message which invalides the bus graph
+			// defer handling, since we might have received a message which invalidates the bus graph
 			packetIsForSelf = true;
 		} else {
 			var targetNode = self.busGraph.getElementById(recpId);

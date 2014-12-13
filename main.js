@@ -44,6 +44,10 @@ mainBus.addInputFilter(function(packet) {
 });
 
 mainBus.addOutputFilter(function(packet) {
+	if (packet.data && packet.data.ctx && packet.data.ctx.toJSON &&
+	    !(packet.recipients.length == 1 && packet.recipients[0] == packet.sender)) // not local
+		packet.data.ctx = packet.data.ctx.toJSON();
+	
 	return packet;
 });
 

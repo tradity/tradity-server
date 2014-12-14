@@ -152,13 +152,15 @@ QContext.prototype.getChildContexts = function() {
 /**
  * Wrap a callback for exception handling by this callback.
  * 
- * @param {function} callback  A generic function to wrap
+ * @param {?function} callback  A generic function to wrap
  * 
  * @return {function}  A callback of the same signature.
  * @function module:qctx~QContext#errorWrap
  */
 QContext.prototype.errorWrap = function(callback) {
 	var self = this;
+	
+	callback = callback || function() {};
 	
 	return function() {
 		try {
@@ -350,7 +352,7 @@ QContext.prototype.getConnection = function(readonly, restart, cb) {
 			release: _.bind(conn.release, conn),
 			query: function(query, args, cb) {
 				self.debug('Executing query [bound]', query, args);
-				conn.query(query, args, (cb || function() {}));
+				conn.query(query, args, self.errorWrap(cb));
 			}
 		};
 		

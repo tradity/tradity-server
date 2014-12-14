@@ -43,6 +43,14 @@ mainBus.addInputFilter(function(packet) {
 	return packet;
 });
 
+mainBus.addOutputFilter(function(packet) {
+	if (packet.data && packet.data.ctx && packet.data.ctx.toJSON &&
+	    !(packet.recipients.length == 1 && packet.recipients[0] == packet.sender)) // not local
+		packet.data.ctx = packet.data.ctx.toJSON();
+	
+	return packet;
+});
+
 manager.getServerConfig = buscomponent.provide('getServerConfig', ['reply'], function(reply) { reply(cfg); });
 manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', ['reply'], function(reply) { reply(afql); });
 manager.getAchievementList = buscomponent.provide('getAchievementList', ['reply'], function(reply) { reply(achievementList.AchievementList); });

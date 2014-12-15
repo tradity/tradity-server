@@ -192,9 +192,16 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 		var query = function(q, args, cb) {
 			self.queryCount++;
 			
+			var rollback = function() {
+				if (!readonly)
+					conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+			};
+			
 			conn.query(q, args, function(err, res) {
 				if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
 					self.deadlockCount++;
+					rollback();
+					
 					release();
 					
 					return restart();
@@ -211,8 +218,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 				}
 				
 				if (err || exception) {
-					if (!readonly)
-						conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+					rollback();
 					
 					// make sure that the error event is emitted -> release() will be called in next tick
 					process.nextTick(release);

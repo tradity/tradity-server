@@ -352,6 +352,9 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  *                                  if permitted by the them, their real names.
  * @param {?int|string} [query.schoolid]  When given, only return users in the group specified
  *                                        by this id or path.
+ * @param {?boolean} [query.includeAll=false]  Whether users should be included that are not
+ *                                             considered qualified for ranking entries
+ *                                             (e.g. without verified e-mail address).
  * 
  * @return {object} Returns with <code>get-ranking-success</code> or a common error code
  *                  and populates <code>.result</code> with a {@link module:user~RankingEntry[]}

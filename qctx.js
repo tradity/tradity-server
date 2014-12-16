@@ -347,15 +347,6 @@ QContext.prototype.getConnection = function(readonly, restart, cb) {
 	var oci = self.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
 	
 	self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}, function(conn) {
-		/* wrapper object for better debugging, no semantic change */
-		var conn_ = {
-			release: _.bind(conn.release, conn),
-			query: function(query, args, cb) {
-				self.debug('Executing query [bound]', query, args);
-				conn.query(query, args, self.errorWrap(cb));
-			}
-		};
-		
 		var postTransaction = function(doRelease, ecb) {
 			delete self.openConnections[oci];
 			if (_.compact(self.openConnections) == [])
@@ -373,7 +364,21 @@ QContext.prototype.getConnection = function(readonly, restart, cb) {
 			
 			if (doRelease)
 				conn.release();
-			ecb();
+			return ecb();
+		};
+		
+		var oldrestart = restart;
+		restart = function() {
+			return postTransaction(oldrestart);
+		};
+		
+		/* return wrapper object for better debugging, no semantic change */
+		var conn_ = {
+			release: _.bind(conn.release, conn),
+			query: function(query, args, cb) {
+				self.debug('Executing query [bound]', query, args);
+				conn.query(query, args, self.errorWrap(cb));
+			}
 		};
 		
 		/* convenience functions for rollback and commit with implicit release */
@@ -436,10 +441,25 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 	if (tablelocks)
 		tli = self.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
 	
+	var cleanTLEntry = function() {
+		if (tli === null)
+			return;
+		
+		delete self.tableLocks[tli];
+		if (_.compact(self.tableLocks) == [])
+			self.tableLocks = [];
+	};
+	
 	assert.equal(typeof cb, 'function');
 	
 	tablelocks = tablelocks || {};
 	assert.ok(restart);
+	
+	var oldrestart = restart;
+	restart = function() {
+		cleanTLEntry();
+		return oldrestart.apply(this, arguments);
+	};
 	
 	self.getConnection(readonly, restart, function(conn, commit, rollback) {
 		var tables = _.keys(tablelocks);
@@ -466,15 +486,6 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 		}
 		
 		init += ';';
-		
-		var cleanTLEntry = function() {
-			if (tli === null)
-				return;
-			
-			delete self.tableLocks[tli];
-			if (_.compact(self.tableLocks) == [])
-				self.tableLocks = [];
-		};
 		
 		conn.query(init, [], function() {
 			cb(conn, function() {

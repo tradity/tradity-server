@@ -299,8 +299,13 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * 
  * @function module:qctx~QContext#feed
  */
-QContext.prototype.feed = function(data, onEventId) { 
-	return this.request({name: 'feed', data: data, ctx: this}, onEventId || function() {});
+QContext.prototype.feed = function(data, reply) {
+	var conn = data.conn || null;
+	delete data.conn;
+	var onEventId = data.onEventId || function() {};
+	delete data.onEventId;
+	
+	return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn}, reply || function() {});
 };
 
 /**

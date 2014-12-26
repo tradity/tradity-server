@@ -577,22 +577,26 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		{ name: 'users_finance', alias: 'l', mode: 'w' },
 		{ name: 'users_finance', alias: 'f', mode: 'w' },
 		{ name: 'users', alias: 'fu', mode: 'w' },
-		{ name: 'stocks', alias: 's', mode: 'r' },
+		{ name: 'stocks', mode: 'r' },
 		{ name: 'orderhistory', mode: 'w' },
-		{ name: 'transactionlog', mode: 'w'}
+		{ name: 'transactionlog', mode: 'w' },
+		{ name: 'stocks', alias: 'stocks1', mode: 'r' }, // feed
+		{ name: 'events', mode: 'w' }, // feed
+		{ name: 'events_users', mode: 'w' }, // feed
+		{ name: 'watchlists', mode: 'r' } // feed
 	], function(conn, commit, rollback) {
 	
-	conn.query('SELECT s.*, ' +
+	conn.query('SELECT stocks.*, ' +
 		'depot_stocks.amount AS amount, ' +
-		'depot_stocks.amount * s.lastvalue AS money, ' +
-		'depot_stocks.provision_hwm, depot_stocks.provision_lwm, s.bid, ' +
-		's.bid - depot_stocks.provision_hwm AS hwmdiff, ' +
-		's.bid - depot_stocks.provision_lwm AS lwmdiff, ' +
+		'depot_stocks.amount * stocks.lastvalue AS money, ' +
+		'depot_stocks.provision_hwm, depot_stocks.provision_lwm, stocks.bid, ' +
+		'stocks.bid - depot_stocks.provision_hwm AS hwmdiff, ' +
+		'stocks.bid - depot_stocks.provision_lwm AS lwmdiff, ' +
 		'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
-		'FROM stocks AS s ' +
-		'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = s.id ' +
-		'LEFT JOIN users_finance AS l ON s.leader = l.id AND depot_stocks.userid != l.id ' +
-		'WHERE s.stockid = ?', [ctx.user.id, String(query.stockid)], function(res) {
+		'FROM stocks ' +
+		'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = stocks.id ' +
+		'LEFT JOIN users_finance AS l ON stocks.leader = l.id AND depot_stocks.userid != l.id ' +
+		'WHERE stocks.stockid = ?', [ctx.user.id, String(query.stockid)], function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			rollback();
 			return cb('stock-buy-stock-not-found');
@@ -705,46 +709,47 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 				'targetid': oh_res.insertId,
 				'srcuser': ctx.user.id,
 				'json': {delay: !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
-				'feedusers': r.leader ? [r.leader] : []
-			});
-			
-			var tradeID = oh_res.insertId;
-			
-			var perfn = r.leader ? 'fperf' : 'operf';
-			var perfv = amount >= 0 ? 'bought' : 'sold';
-			var perffull = perfn + '_' + perfv;
-			
-			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
-				'(?, "stockprice", ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?), ' +
-				'(?, "fee",        ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?)',
-				[oh_res.insertId, r.stockid, ctx.user.id, price, JSON.stringify({reason: 'trade'}),
-				 oh_res.insertId, r.stockid, ctx.user.id, fee,   JSON.stringify({reason: 'trade'})], function() {
-			conn.query('UPDATE users AS fu SET tradecount = tradecount+1 WHERE id = ?', [ctx.user.id], function() {
-			conn.query('UPDATE users_finance AS f SET freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
-				perffull + '=' + perffull + ' + ABS(?) ' +
-				' WHERE id = ?', [price+fee, fee, price, ctx.user.id], function() {
-			if (!hadDepotStocksEntry) {
-				assert.ok(amount >= 0);
+				'feedusers': r.leader ? [r.leader] : [],
+				'conn': conn
+			}, function() {
+				var tradeID = oh_res.insertId;
 				
-				conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
-					[ctx.user.id, r.id, amount, price, ta_value, ta_value], function() {
-					commit();
-					cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
+				var perfn = r.leader ? 'fperf' : 'operf';
+				var perfv = amount >= 0 ? 'bought' : 'sold';
+				var perffull = perfn + '_' + perfv;
+				
+				conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
+					'(?, "stockprice", ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?), ' +
+					'(?, "fee",        ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?)',
+					[oh_res.insertId, r.stockid, ctx.user.id, price, JSON.stringify({reason: 'trade'}),
+					 oh_res.insertId, r.stockid, ctx.user.id, fee,   JSON.stringify({reason: 'trade'})], function() {
+				conn.query('UPDATE users AS fu SET tradecount = tradecount+1 WHERE id = ?', [ctx.user.id], function() {
+				conn.query('UPDATE users_finance AS f SET freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
+					perffull + '=' + perffull + ' + ABS(?) ' +
+					' WHERE id = ?', [price+fee, fee, price, ctx.user.id], function() {
+				if (!hadDepotStocksEntry) {
+					assert.ok(amount >= 0);
+					
+					conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
+						[ctx.user.id, r.id, amount, price, ta_value, ta_value], function() {
+						commit();
+						cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
+					});
+				} else {
+					conn.query('UPDATE depot_stocks SET ' +
+						'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
+						'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
+						'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
+						'amount = amount + ? ' +
+						'WHERE userid = ? AND stockid = ?', 
+						[price, price, amount, price, amount, amount, ctx.user.id, r.id], function() {
+						commit();
+						cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
+					});
+				}
 				});
-			} else {
-				conn.query('UPDATE depot_stocks SET ' +
-					'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
-					'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
-					'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
-					'amount = amount + ? ' +
-					'WHERE userid = ? AND stockid = ?', 
-					[price, price, amount, price, amount, amount, ctx.user.id, r.id], function() {
-					commit();
-					cb('stock-buy-success', {fee: fee, tradeid: tradeID}, 'repush');
 				});
-			}
-			});
-			});
+				});
 			});
 		});
 		});

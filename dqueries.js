@@ -355,8 +355,15 @@ DelayedQueries.prototype.executeQuery = function(query) {
 		var json = query.query.dquerydata || {};
 		json.result = code;
 		if (!query.query.retainUntilCode || query.query.retainUntilCode == code) {
-			ctx.feed({'type': 'dquery-exec', 'targetid': null, 'srcuser': query.userinfo.id, 'json': json, 'noFollowers': true});
-			self.removeQuery(query, ctx);
+			ctx.feed({
+				'type': 'dquery-exec',
+				'targetid': null,
+				'srcuser': query.userinfo.id,
+				'json': json,
+				'noFollowers': true
+			}, function() {
+				self.removeQuery(query, ctx);
+			});
 		}
 	});
 };

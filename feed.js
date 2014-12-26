@@ -31,26 +31,29 @@ util.inherits(FeedController, buscomponent.BusComponent);
  * invokes this – if available, consider using it in order to map all
  * actions to the current context.
  * 
- * @property {string} data.type  A short identifier for the kind of event
- * @property {int} data.srcuser  The numerical identifier of the user who
- *                               caused this event
- * @property {object} data.json  Additional information specific to the event type
- * @property {boolean} data.everyone  Write this event to all user feeds
- * @property {boolean} data.noFollowers  Do not write this event automatically to
- *                                       follower feeds
- * @property {int[]}  data.feedusers  A list of users to whose feeds this event should
- *                                    be written
- * @property {int}  data.feedchat   The ID of a chat of which all members should be
- *                                   notified of this event
- * @property {int}  data.feedschool  The ID of a group of which all members should be
- *                                   notified of this event
- * @property {module:qctx~QContext} ctx  A QContext to provide database access
+ * @param {string} data.type  A short identifier for the kind of event
+ * @param {int} data.srcuser  The numerical identifier of the user who
+ *                            caused this event
+ * @param {object} data.json  Additional information specific to the event type
+ * @param {boolean} data.everyone  Write this event to all user feeds
+ * @param {boolean} data.noFollowers  Do not write this event automatically to
+ *                                    follower feeds
+ * @param {int[]}  data.feedusers  A list of users to whose feeds this event should
+ *                                 be written
+ * @param {int}  data.feedchat   The ID of a chat of which all members should be
+ *                               notified of this event
+ * @param {int}  data.feedschool  The ID of a group of which all members should be
+ *                                notified of this event
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access
+ * @param {object} conn  An optional database connection to be used
  * 
  * @function busreq~feed
  */
-FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
+FeedController.prototype.feed = buscomponent.provide('feed',
+	['data', 'ctx', 'conn', 'onEventId', 'reply'], function(data, ctx, conn, onEventId, done) {
 	var self = this;
 	
+	done = done || function() {};
 	assert.ok(data.type);
 	assert.ok(data.type.length);
 	assert.ok(data.srcuser);
@@ -58,11 +61,9 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
 	var json = JSON.stringify(data.json ? data.json : {});
 	data = _.extend(data, data.json);
 	
-	process.nextTick(function() {
-		self.emitGlobal('feed-' + data.type, data);
-	});
+	conn = conn || ctx; // both db connections and QContexts expose .query()
 	
-	ctx.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
+	conn.query('INSERT INTO events(`type`, targetid, time, srcuser, json) VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?)',
 		[String(data.type), data.targetid ? parseInt(data.targetid) : null, parseInt(data.srcuser), json], function(r) {
 		var eventid = r.insertId;
 		onEventId(eventid);
@@ -80,9 +81,13 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
 			
 			if (!data.noFollowers) {
 				// all followers
-				subselects.push('SELECT ?, userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?');
+				subselects.push('SELECT ?, userid ' +
+					'FROM depot_stocks ' +
+					'JOIN stocks ON depot_stocks.stockid = stocks.id AND stocks.leader = ?');
 				// all users in watchlist
-				subselects.push('SELECT ?, w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ?');
+				subselects.push('SELECT ?, watcher ' +
+					'FROM stocks AS stocks1 ' +
+					'JOIN watchlists ON stocks1.id = watched WHERE stocks1.leader = ?');
 				params.push(eventid, data.srcuser, eventid, data.srcuser);
 			}
 			
@@ -113,8 +118,12 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
 			params = [eventid];
 		}
 		
-		ctx.query(query, params, function() {
-			self.emitGlobal('push-events');
+		conn.query(query, params, function() {
+			process.nextTick(function() {
+				self.emitGlobal('feed-' + data.type, data);
+				self.emitGlobal('push-events');
+				done();
+			});
 		});
 	});
 });

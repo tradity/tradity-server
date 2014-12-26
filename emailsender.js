@@ -7,6 +7,7 @@ var serverUtil = require('./server-util.js');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
 var buscomponent = require('./stbuscomponent.js');
+var qctx = require('./qctx.js');
 
 /**
  * Provides methods for sending e-mails.
@@ -100,7 +101,7 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 	cb = cb || function() {};
 	
 	if (!ctx)
-		ctx = new QContext({parentComponent: this});
+		ctx = new qctx.QContext({parentComponent: this});
 	
 	if (!internal && !ctx.access.has('email-bounces'))
 		return cb('permission-denied');
@@ -114,8 +115,14 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 		
 		ctx.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
 			[String(query.diagnostic_code || ''), mail.mailid], function() {
-			ctx.feed({'type': 'email-bounced', 'targetid': mail.mailid, 'srcuser': mail.uid, 'noFollowers': true});
-			cb('email-bounced-success');
+			ctx.feed({
+				'type': 'email-bounced',
+				'targetid': mail.mailid,
+				'srcuser': mail.uid,
+				'noFollowers': true
+			}, function() {
+				cb('email-bounced-success');
+			});
 		});
 	});
 });

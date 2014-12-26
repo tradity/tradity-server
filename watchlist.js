@@ -69,9 +69,9 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
 					watchedname: res[0].name
 				},
 				feedusers: uid ? [uid] : []
+			}, function() {
+				cb('watchlist-add-success');
 			});
-			
-			cb('watchlist-add-success');
 		}); 
 	});
 });
@@ -102,9 +102,9 @@ Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-
 			targetid: null,
 			srcuser: ctx.user.id,
 			json: { watched: String(query.stockid) }
+		}, function() {
+			cb('watchlist-remove-success');
 		});
-		
-		cb('watchlist-remove-success');
 	}); 
 });
 

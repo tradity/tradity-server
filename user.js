@@ -920,18 +920,23 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	
 	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
-	ctx.startTransaction({
-		users: 'w',
-		users_finance: 'w',
-		users_data: 'w',
-		stocks: 'w',
-		betakeys: 'w',
-		inviteaccept: 'w',
-		invitelink: 'r',
-		schoolmembers: 'w',
-		schooladmins: 'w',
-		schools: 'w'
-	}, function(conn, commit, rollback) {
+	ctx.startTransaction([
+		{ name: 'users', mode: 'w', },
+		{ name: 'users_finance', mode: 'w', },
+		{ name: 'users_data', mode: 'w', },
+		{ name: 'stocks', mode: 'w', },
+		{ name: 'betakeys', mode: 'w', },
+		{ name: 'inviteaccept', mode: 'w', },
+		{ name: 'invitelink', mode: 'r', },
+		{ name: 'schoolmembers', mode: 'w', },
+		{ name: 'schooladmins', mode: 'w', },
+		{ name: 'schools', mode: 'w', },
+		{ name: 'stocks', alias: 'stocks1', mode: 'r' }, // feed
+		{ name: 'events', mode: 'w' }, // feed
+		{ name: 'events_users', mode: 'w' }, // feed
+		{ name: 'depot_stocks', mode: 'r' }, // feed
+		{ name: 'watchlists', mode: 'r' } // feed
+	], function(conn, commit, rollback) {
 	conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 		[query.email, query.name, uid], function(res) {
 	conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
@@ -962,32 +967,41 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 					
 					query.school = res.insertId;
 					
-					gainUIDCBs.push(function() {
+					gainUIDCBs.push(function(cb) {
 						assert.ok(uid != null);
 						
-						ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': uid});
+						ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': uid}, cb);
 					});
 				}
 				
 				var updateCB = function(res) {
-					commit(function() {
-						if (uid === null)
-							uid = res.insertId;
-						
-						assert.ok(uid != null);
-						
-						for (var i = 0; i < gainUIDCBs.length; ++i)
-							gainUIDCBs[i]();
-
-						if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
-							cb('reg-success', {uid: uid}, 'repush');
-						else 
-							self.sendRegisterEmail(query,
-								new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access,
-									parentComponent: self}),
-								xdata,
-								cb);
-					});
+					if (uid === null)
+						uid = res.insertId;
+					
+					assert.ok(uid != null);
+					
+					// dummy callback so the completion handler gets called always
+					gainUIDCBs.push(function(cont) { cont(); });
+					var complete = 0;
+					
+					for (var i = 0; i < gainUIDCBs.length; ++i) {
+						gainUIDCBs[i](function() {
+							console.log(complete, 'complete');
+							if (++complete != gainUIDCBs.length)
+								return;
+							
+							commit(function() {
+								if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
+									cb('reg-success', {uid: uid}, 'repush');
+								else
+									self.sendRegisterEmail(query,
+										new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access,
+											parentComponent: self}),
+										xdata,
+										cb);
+							});
+						});
+					}
 				};
 				
 				var onPWGenerated = function(pwsalt, pwhash) {
@@ -1022,17 +1036,23 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 						}
 						
 						if (query.name != ctx.user.name) {
-							ctx.feed({'type': 'user-namechange', 'targetid': uid, 'srcuser': uid, json: {'oldname': ctx.user.name, 'newname': query.name}});
+							ctx.feed({
+								'type': 'user-namechange',
+								'targetid': uid,
+								'srcuser': uid,
+								'json': {'oldname': ctx.user.name, 'newname': query.name},
+								'conn': conn
+							});
 							conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
 						}
 
 						if (query.wprovision != ctx.user.wprovision || query.lprovision != ctx.user.lprovision)
 							ctx.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
 								{'oldwprov': ctx.user.wprovision, 'newwprov': query.wprovision,
-								 'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}});
+								 'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}, 'conn': conn});
 						
 						if (query.desc != ctx.user.desc)
-							ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid});
+							ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
 					} else {
 						if (query.betakey)
 							conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
@@ -1051,8 +1071,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 									inv.__schoolverif__ = 1;
 								}
 								
-								gainUIDCBs.push(function() {
-									conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
+								gainUIDCBs.push(function(cb) {
+									ctx.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid], cb);
 								});
 								
 								cont();
@@ -1075,7 +1095,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
 									uid, cfg.defaultWProvision, cfg.defaultLProvision,
 									cfg.defaultStartingMoney, cfg.defaultStartingMoney], function() {
-								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});
+								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid, 'conn': conn});
 								conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 									['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity'], _.bind(updateCB, self, res));
 									

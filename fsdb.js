@@ -227,15 +227,15 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
 				String(query.role), content, groupassoc, query.proxy ? 1:0], function(res) {
 				
-				if (ctx.user) {
+				(ctx.user ? function(cont) {
 					ctx.feed({
 						'type': 'file-publish',
 						'targetid': res.insertId,
 						'srcuser': ctx.user.id
-					});
-				}
-				
-				return cb('publish-success', null, 'repush');
+					}, cont);
+				} : function(cont) { cont(); })(function() {
+					return cb('publish-success', null, 'repush');
+				});
 			});
 		};
 		

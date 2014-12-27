@@ -135,9 +135,10 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 						srcuser: ctx.user.id,
 						noFollowers: true,
 						feedusers: query.endpoints,
-						json: {endpoints: query.endpoints}
-					}, function(eventid) {
-						cont({chatid: res.insertId, eventid: eventid});
+						json: {endpoints: query.endpoints},
+						onEventId: function(eventid) {
+							cont({chatid: res.insertId, eventid: eventid});
+						}
 					});
 				});
 			});
@@ -247,9 +248,9 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
 					noFollowers: true,
 					feedusers: chat.endpoints,
 					json: {addedChats: query.userid, addedChatsName: username, endpoints: chat.endpoints}
+				}, function() {
+					cb('chat-adduser-success');
 				});
-				
-				cb('chat-adduser-success');
 			});
 		});
 	});

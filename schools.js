@@ -433,13 +433,18 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 			}
 			
 			var createCB = function() {
-				conn.query('INSERT INTO schools (name,path) VALUES(?,?)',
+				conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
 					[String(query.schoolname), String(query.schoolpath)], function(res) {
-					ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': ctx.user.id});
-					
-					commit();
-					
-					cb('create-school-success');
+					ctx.feed({
+						'type': 'school-create',
+						'targetid': res.insertId,
+						'srcuser': ctx.user.id,
+						'conn': conn
+					}, function() {
+						commit();
+						
+						cb('create-school-success');
+					});
 				});
 			};
 			

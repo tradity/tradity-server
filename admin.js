@@ -267,8 +267,14 @@ Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstic
  */
 Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpriv('moderate', function(query, ctx, cb) {
 	ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [String(query.content), query.sticky ? 1 : 0], function(res) {
-		ctx.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': ctx.user.id, 'everyone': true});
-		cb('notify-all-success');
+		ctx.feed({
+			'type': 'mod-notification',
+			'targetid': res.insertId,
+			'srcuser': ctx.user.id,
+			'everyone': true
+		}, function() {
+			cb('notify-all-success');
+		});
 	});
 }));
 

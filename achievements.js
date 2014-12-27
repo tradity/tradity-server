@@ -155,9 +155,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 					type: 'achievement',
 					srcuser: uid,
 					targetid: res.insertId
-				});
-				
-				process.nextTick(function() {
+				}, function() {
 					_.each(self.achievementList, function(ae) {
 						// look for achievements of which we have changed the prereq/implicating achievements list
 						if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)

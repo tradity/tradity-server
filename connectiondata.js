@@ -381,7 +381,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 			self.ctx.access.update(access);
 			
 			if (masterAuthorization) {
-				console.log('Received query with master authorization of type', query.type);
+				console.log(self.bus.id, 'received query with master authorization of type', query.type);
 				self.ctx.access.grantAny();
 				if (user == null && query.uid != null)
 					user = {uid: query.uid, id: query.uid};

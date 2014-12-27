@@ -8,6 +8,7 @@ var os = require('os');
 var crypto = require('crypto');
 var cytoscape = require('cytoscape');
 var lzma = require('lzma-native');
+var objectHash = require('object-hash');
 
 function Bus () {
 	var self = this;
@@ -290,8 +291,6 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (p.seenBy.indexOf(self.id) != -1)
 			return;
 		
-		assert.notStrictEqual(p.sender, self.id);
-		
 		transport.msgCount++;
 		
 		self.handleBusPacket(p);
@@ -328,9 +327,12 @@ Bus.prototype.localizeBusGraph = function() {
 };
 
 Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
-	var pluckID = function(e) { return e.id(); };
-	
 	var remoteBusGraph = cytoscape(busnode.graph);
+	if (remoteBusGraph.gHash() == this.busGraph.gHash())
+		return;
+	
+	if (remoteBusGraph.getElementById(busnode.id).data().handledEvents.indexOf('client-prod') != -1)
+		console.log(this.id, 'knows that', busnode.id, 'handles prod');
 	
 	// remove all own edges from the remote bus graph, then take the union and
 	// add our own edges later on
@@ -411,6 +413,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 	self.msgCount++;
 	self.logPacket(packet);
 	
+	assert.ok(self.id);
 	assert.equal(packet.seenBy.indexOf(self.id), -1);
 	packet.seenBy.push(self.id);
 	
@@ -423,6 +426,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 		var recpId = packet.recipients[i];
 		assert.ok(recpId);
 		assert.ok(_.isString(recpId));
+		assert.ok(packet.seenBy.length > 0);
 		
 		if (recpId == self.id) {
 			// defer handling, since we might have received a message which invalidates the bus graph
@@ -436,8 +440,22 @@ Bus.prototype.handleBusPacket = function(packet) {
 			}
 			
 			var path = self.dijkstra.pathTo(targetNode);
-			assert.ok(path);
-			assert.ok(path.length >= 3); // at least source node, edge, target node
+			
+			// path.length >= 3: at least source node, edge, target node
+			if (!path || path.length < 3) {
+				/* no route -> probably not fully connected yet;
+				 * keep packet for a while */
+				var packet_ = _.clone(packet);
+				
+				packet_.recipients = [recpId];
+				packet_.seenBy = packet_.seenBy.slice(0, packet_.seenBy.length - 1);
+				
+				setTimeout(function() {
+					self.handleBusPacket(packet_);
+				}, 10);
+				
+				continue;
+			}
 			
 			// add recipient id to recipient list for this transport
 			var nextTransport = path[1].data();
@@ -765,6 +783,21 @@ cytoscape('collection', 'connectedComponent', function(root) {
 	return this.breadthFirstSearch(root).path.closedNeighborhood();
 });
 
+/* cytoscape graph hashing extension */
+cytoscape('core', 'gHash', function() {
+	var nodes = this.nodes();
+	
+	var nodeData = {};
+	nodes.forEach(function(v) {
+		nodeData[v.id()] = [
+			v.data().handledEvents,
+			v.edgesWith(nodes).map(function(e) { return e.id(); }).sort()
+		];
+	});
+	
+	return objectHash(nodeData);
+});
+
 /* cytoscape graph union extension */
 cytoscape('core', 'union', function(g2) {
 	var g1 = this;
@@ -800,6 +833,10 @@ function sha256(s) {
 	var h = crypto.createHash('sha256');
 	h.end(s);
 	return h.read().toString('hex');
+}
+
+function pluckID(e) {
+	return e.id();
 }
 
 })();

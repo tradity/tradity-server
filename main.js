@@ -110,11 +110,16 @@ if (cluster.isWorker) {
 	
 	var forkBackgroundWorker = function() {
 		var bw = cluster.fork();
+		var sentSBW = false;
+		
 		workers.push(bw);
 		
-		bw.on('online', function() {
-			registerWorker(bw, function() {
-				bw.send({cmd: 'startBackgroundWorker'});
+		registerWorker(bw, function() {
+			bw.on('message', function(msg) {
+				if (msg.cmd == 'startRequest' && !sentSBW) {
+					sentSBW = true;
+					bw.send({cmd: 'startBackgroundWorker'});
+				}
 			});
 		});
 		
@@ -124,11 +129,22 @@ if (cluster.isWorker) {
 	
 	var forkStandardWorker = function() {
 		var w = cluster.fork();
+		var sentSSW = false;
+		
 		workers.push(w);
 		
 		w.on('online', function() {
 			registerWorker(w, function() {
-				w.send({cmd: 'startStandardWorker', port: getFreePort(w.process.pid)});
+				w.on('message', function(msg) {
+					if (msg.cmd == 'startRequest' && !sentSSW) {
+						sentSSW = true;
+						
+						w.send({
+							cmd: 'startStandardWorker',
+							port: getFreePort(w.process.pid)
+						});
+					}
+				});
 			});
 		});
 	};
@@ -155,6 +171,10 @@ if (cluster.isWorker) {
 				forkBackgroundWorker();
 			else 
 				forkStandardWorker();
+		} else {
+			setTimeout(function() {
+				process.exit(0);
+			}, 2000);
 		}
 	});
 	
@@ -163,7 +183,16 @@ if (cluster.isWorker) {
 }
 
 function worker() {
+	var hasReceivedStartCommand = false;
+	var startRequestInterval = setInterval(function() {
+		if (!hasReceivedStartCommand)
+			process.send({cmd: 'startRequest'});
+	}, 250);
+	
 	process.on('message', function(msg) {
+		if (hasReceivedStartCommand)
+			return;
+		
 		if (msg.cmd == 'startBackgroundWorker') {
 			process.isBackgroundWorker = true;
 		} else if (msg.cmd == 'startStandardWorker') {
@@ -172,6 +201,9 @@ function worker() {
 		} else {
 			return;
 		}
+		
+		hasReceivedStartCommand = true;
+		clearInterval(startRequestInterval);
 		
 		var componentsForLoading = [
 			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js', './user.js'

@@ -34,7 +34,7 @@ function Bus () {
 	this.responseWaiters = {};
 	
 	this.msgCount = 0;
-	this.lostPackets = false;
+	this.lostPackets = 0;
 	this.busNodeInfoQueued = false;
 	
 	this.packetLog = [];

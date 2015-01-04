@@ -38,7 +38,7 @@ function Bus () {
 	self.responseWaiters = {};
 	
 	self.msgCount = 0;
-	self.lostPackets = false;
+	self.lostPackets = 0;
 	self.busNodeInfoQueued = false;
 	
 	self.packetLog = [];

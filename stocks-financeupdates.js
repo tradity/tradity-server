@@ -269,17 +269,15 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 			
 			var sgesvST = Date.now();
 			var res = lapack.sgesv(A, B);
-			if (!res) {
-				self.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
-				return;
-			}
+			if (!res)
+				return self.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
+			
 			var sgesvET = Date.now();
 			sgesvTotalTime += sgesvET - sgesvST;
 			presgesvTotalTime += sgesvST - componentStartTime;
 			
 			var X =  _.pluck(res.X, 0);
 			var Xa = _.pluck(res.X, 1);
-			//console.log(JSON.stringify(A),JSON.stringify(B),JSON.stringify(userIdToIndex),JSON.stringify(X));
 
 			for (var i = 0; i < n; ++i) {
 				assert.notStrictEqual(X[i],  null);

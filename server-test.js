@@ -47,6 +47,7 @@ socket.once('server-config').then(function() {
 		street: '',
 		town: '',
 		zipcode: '',
+		lang: 'de',
 		traditye: 0,
 		dla_optin: 0
 	});

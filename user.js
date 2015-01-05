@@ -401,8 +401,8 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			cont(ok);
 		});
 	} : function(cont) { cont(ctx.access.has('userdb')); })(function(fulldata) {
-		ctx.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
-			'tradecount != 0 as hastraded, ' + 
+		ctx.query('SELECT u.id AS uid, u.name AS name, c.path AS schoolpath, c.id AS school, c.name AS schoolname, ' +
+			'jointime, pending, tradecount != 0 AS hastraded, ' + 
 			'now_va.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
 			'now_va.wprov_sum + now_va.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
 			'((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) / (now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
@@ -884,22 +884,20 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 	self.getServerConfig(function(cfg) {
 		
 	var uid = ctx.user !== null ? ctx.user.id : null;
-	if (!query.name || !query.email) {
-		cb('format-error');
-		return;
-	}
+	if (!query.name || !query.email)
+		return cb('format-error');
 	
-	if ((query.password || type != 'change') && (!query.password || query.password.length < 5)) {
-		cb('reg-too-short-pw');
-		return;
-	}
+	if ((query.password || type != 'change') && (!query.password || query.password.length < 5))
+		return cb('reg-too-short-pw');
 	
 	query.email = String(query.email);
 	query.name = String(query.name);
-	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) || parseInt(query.name) == query.name) {
-		cb('reg-name-invalid-char');
-		return;
-	}
+	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) || parseInt(query.name) == query.name)
+		return cb('reg-name-invalid-char');
+	
+	query.lang = String(query.lang);
+	if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() != -1)
+		return cb('reg-invalid-language');
 	
 	query.giv_name = String(query.giv_name || '');
 	query.fam_name = String(query.fam_name || '');
@@ -998,11 +996,11 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid], function() {
 						conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
 							'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-							'clientopt = ?, dla_optin = ? WHERE id = ?',
+							'clientopt = ?, dla_optin = ?, lang = ? WHERE id = ?',
 							[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 							query.birthday, String(query.desc), String(query.street),
 							String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-							query.traditye?1:0, query.dla_optin?1:0, uid], function() {
+							query.traditye?1:0, query.dla_optin?1:0, query.lang, uid], function() {
 						conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
 							[query.wprovision, query.lprovision, uid], updateCB);
 						});
@@ -1068,11 +1066,11 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							function(res) {
 								uid = res.insertId;
 								conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
-									'street, zipcode, town) VALUES (?, ?, ?, ?, ?, ?, ?, ?); ' +
+									'street, zipcode, town, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
 									'INSERT INTO users_finance(id, wprovision, lprovision, freemoney, totalvalue) '+
 									'VALUES (?, ?, ?, ?, ?)',
 									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
-									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
+									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town), query.lang,
 									uid, cfg.defaultWProvision, cfg.defaultLProvision,
 									cfg.defaultStartingMoney, cfg.defaultStartingMoney], function() {
 								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});

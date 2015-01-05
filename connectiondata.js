@@ -107,9 +107,7 @@ ConnectionData.prototype.onBusConnect = function() {
  */
 ConnectionData.prototype.stats = function() {
 	return {
-		lzma: this.ctx.getProperty('lzmaSupport'),
-		isBusTransport: this.ctx.getProperty('isBusTransport'),
-		remoteProtocolVersion: this.ctx.getProperty('remoteProtocolVersion'),
+		ctx: this.ctx.getStatistics(false),
 		user: this.ctx.user ? { name: this.ctx.user.name, uid: this.ctx.user.uid } : null,
 		lastInfoPush: this.lastInfoPush,
 		mostRecentEventTime: this.mostRecentEventTime,
@@ -132,7 +130,7 @@ ConnectionData.prototype.stats = function() {
  * @function module:connectiondata~ConnectionData#pickXDataFields
  */
 ConnectionData.prototype.pickXDataFields = function() {
-	return _.pick(this, 'ctx', 'remoteip', 'hsheaders', 'cdid', 'lastInfoPush', 'mostRecentEventTime', 'connectTime');
+	return _.pick(this, 'remoteip', 'hsheaders', 'cdid', 'lastInfoPush', 'mostRecentEventTime', 'connectTime');
 };
 
 ConnectionData.prototype.toString = function() {
@@ -232,7 +230,15 @@ ConnectionData.prototype.pushSelfInfo = function() {
 		var curUnixTime = Date.now();
 		if (curUnixTime > this.lastInfoPush + cfg.infopushMinDelta) {
 			this.lastInfoPush = curUnixTime;
-			this.request({name: 'client-get-user-info', query: {lookfor: '$self', nohistory: true}, ctx: this.ctx.clone(), xdata: this.pickXDataFields()}, _.bind(function(code, info) {
+			this.request({
+				name: 'client-get-user-info',
+				query: {
+					lookfor: '$self',
+					nohistory: true
+				},
+				ctx: this.ctx.clone(),
+				xdata: this.pickXDataFields()
+			}, _.bind(function(code, info) {
 				assert.ok(code == 'get-user-info-success');
 				assert.ok(info);
 				

@@ -352,6 +352,9 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  *                                  if permitted by the them, their real names.
  * @param {?int|string} [query.schoolid]  When given, only return users in the group specified
  *                                        by this id or path.
+ * @param {?boolean} [query.includeAll=false]  Whether users should be included that are not
+ *                                             considered qualified for ranking entries
+ *                                             (e.g. without verified e-mail address).
  * 
  * @return {object} Returns with <code>get-ranking-success</code> or a common error code
  *                  and populates <code>.result</code> with a {@link module:user~RankingEntry[]}
@@ -711,7 +714,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
 	} else {
 		ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]);
-		ctx.query('UPDATE users SET ticks = ? + ticks WHERE id = ?', [ctx.getProperty('pendingTicks'), user.id]);
+		ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ctx.getProperty('pendingTicks'), user.id]);
 		ctx.setProperty('pendingTicks', 0);
 		ctx.setProperty('lastSessionUpdate', now);
 	}
@@ -771,6 +774,12 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 				user.id = user.uid;
 				user.realnamepublish = !!user.realnamepublish;
 				user.delayorderhist = !!user.delayorderhist;
+				
+				try {
+					user.clientopt = JSON.parse(user.clientopt);
+				} catch (e) {
+					user.clientopt = {};
+				}
 				
 				if (signedLogin)
 					user.sid = key;
@@ -988,10 +997,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							[String(query.name), pwhash, pwsalt, String(query.email), query.email == ctx.user.email ? 1 : 0, 
 							query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid], function() {
 						conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
-							'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ? WHERE id = ?',
+							'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
+							'clientopt = ?, dla_optin = ? WHERE id = ?',
 							[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 							query.birthday, String(query.desc), String(query.street),
-							String(query.zipcode), String(query.town), query.traditye?1:0, uid], function() {
+							String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
+							query.traditye?1:0, query.dla_optin?1:0, uid], function() {
 						conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
 							[query.wprovision, query.lprovision, uid], updateCB);
 						});
@@ -1247,7 +1258,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
  */
 User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
 	var self = this;
-	var uid = ctx.user.id;
+	ctx = ctx.clone(); // so we can’t lose the user object during execution
 	
 	self.getServerConfig(function(cfg) {
 		query.email = query.email ? String(query.email) : null;
@@ -1266,7 +1277,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 			ctx.query('INSERT INTO invitelink ' +
 				'(uid, `key`, email, ctime, schoolid) VALUES ' +
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
+				[ctx.user.uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
 				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
 		
 				(query.email ? function(cont) {

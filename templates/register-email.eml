@@ -5,7 +5,7 @@ X-Mailtype: register
 
 <p>
 Hallo ${username}, <br />
-Ich freue mich, dass Du bei Staffel 2 von Tradity dabei bist. Dein Account wurde erfolgreich eingerichtet. <br />
+Ich freue mich, dass Du bei Staffel 3 von Tradity dabei bist. Dein Account wurde hiermit erfolgreich eingerichtet. <br />
 Um Deine Registrierung für das Börsenspiel Tradity zu vollenden, gewinnberechtigt zu sein und die „Social Trading“-Funktion freizuschalten,
 bestätige bitte Deine E-Mail-Adresse: <a href="${url}">${url}</a>
 </p>
@@ -13,7 +13,7 @@ bestätige bitte Deine E-Mail-Adresse: <a href="${url}">${url}</a>
 <p>
 Ich und das gesamte Tradity-Team wünschen Dir viel Erfolg und drücken Dir die Daumen!
 Sollte irgendwas nicht in Ordnung sein oder solltest Du Fragen oder Anregungen haben, schreibe uns gern eine Mail an <a href="mailto:tech@tradity.de">tech@tradity.de</a>.
-Wir kümmern uns dann umgehend darum.
+Wir kümmern uns dann schnellstmöglich darum.
 </p>
 
 <p>

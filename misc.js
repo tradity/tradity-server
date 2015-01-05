@@ -23,7 +23,7 @@ util.inherits(Misc, buscomponent.BusComponent);
 /**
  * Return all information about the current user.
  * 
- * @return {object}  Returns with <code>own-options-success</code> and
+ * @return {object}  Returns with <code>get-own-options-success</code> and
  *                   sets <code>.result</code> to an {@link module:user~UserEntryBase}.
  * 
  * @function c2s~get-own-options
@@ -34,7 +34,26 @@ Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', 
 	var r = _.clone(ctx.user);
 	delete r.pwhash;
 	delete r.pwsalt;
-	cb('own-options-success', {'result': r});
+	cb('get-own-options-success', {'result': r});
+});
+
+/**
+ * Update the client storage for a certain user.
+ * 
+ * @return {object}  Returns with <code>set-clientstorage-success</code>.
+ * 
+ * @function c2s~set-clientstorage
+ */
+Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstorage', function(query, ctx, cb) {
+	try {
+		var storage = new Buffer(query.storage);
+	} catch (e) {
+		return cb('format-error');
+	}
+	
+	ctx.query('UPDATE users_data SET clientstorage = ? WHERE id = ?', [storage, ctx.user.id], function() {
+		cb('set-clientstorage-success');
+	});
 });
 
 /**
@@ -82,7 +101,7 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-dead
 	ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)', [], function(r) {
 	var id = r.insertId;
 	
-	ctx.startTransaction(function /* restart*/() {
+	ctx.startTransaction(function /*restart*/() {
 		cb('artificial-deadlock-success');
 	}, function(conn1, commit1, rollback1) {
 		ctx.startTransaction(function(conn2, commit2, rollback2) {

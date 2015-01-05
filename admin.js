@@ -100,7 +100,7 @@ function _reqpriv (required, f) {
  */
 Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _reqpriv('userdb', function(query, ctx, cb) {
 	ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, users.id AS uid, tradecount, ' +
-		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, ticks, registertime, ' +
+		'email, email_verif AS emailverif, wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, registertime, ' +
 		'schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
 		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=users.id) AS commentcount, '+
 		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=users.id) AS lastcommenttime FROM users ' +
@@ -377,6 +377,8 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
 /**
  * Return various server statistics information.
  * 
+ * @param {boolean} qctxDebug  Whether to include debugging information on the local QContexts
+ * 
  * @return {object} Returns with <code>get-server-statistics-success</code> or
  *                  a common error code and, in case of success, sets
  *                  <code>.servers</code> to an array of results of
@@ -385,7 +387,7 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
  * @function c2s~get-server-statistics
  */
 Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx, cb) {
-	this.requestGlobal({name: 'internalServerStatistics'}, function(replies) {
+	this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}, function(replies) {
 		cb('get-server-statistics-success', {servers: replies});
 	});
 }));

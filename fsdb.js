@@ -153,7 +153,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
  * @noreadonly
  * @function c2s~publish
  */
-FileStorage.prototype.publish = buscomponent.provide('client-publish',
+FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 	['query', 'ctx', 'groupassoc', 'reply'], function(query, ctx, groupassoc, cb) {
 	var self = this;
 	

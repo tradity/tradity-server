@@ -3,6 +3,7 @@
 var Access = require('./access.js').Access;
 var util = require('util');
 var assert = require('assert');
+var weak = require('weak');
 var buscomponent = require('./stbuscomponent.js');
 var _ = require('lodash');
 
@@ -23,6 +24,14 @@ var _ = require('lodash');
  * @property {function[]} errorHandlers  Handlers in case of failures during code execution
  *                                       under this context.
  * @property {function[]} callbackFilters  Filters that are applied to bus request callbacks
+ * @property {module:qctx~QContext[]} childContexts  A list of weak references to child QContexts
+ *                                                   (e.g. for debugging resource usage)
+ * @property {object[]} openConnections  A list of open database connections.
+ * @property {object[]} tableLocks  A list of held table locks.
+ * @property {int} queryCount  The number of executed single database queries.
+ * @property {int} incompleteQueryCount  The number of not-yet-completed single database queries.
+ * @property {string} creationStack  A stack trace of this query context’s construction call
+ * @property {int} creationTime  Millisecond unix timestmap of this query context’s construction call
  * 
  * @public
  * @constructor module:qctx~QContext
@@ -40,23 +49,68 @@ function QContext(obj) {
 	self.debugHandlers = [];
 	self.errorHandlers = [];
 	
+	self.isQContext = true;
+	self.childContexts = [];
+	self.tableLocks = [];
+	self.openConnections = [];
+	self.queryCount = 0;
+	self.incompleteQueryCount = 0;
+	self.creationStack = getStack();
+	self.creationTime = Date.now();
+	
 	self.callbackFilters.push(function(callback) {
 		return self.errorWrap(callback);
 	});
 	
-	if (obj.parentComponent)
+	var parentQCtx = null;
+	
+	if (obj.parentComponent) {
+		if (obj.isQContext)
+			parentQCtx = obj.parentComponent;
+		
 		self.setBusFromParent(obj.parentComponent);
+	}
+	
+	if (!parentQCtx && !obj.isMasterQCTX)
+		parentQCtx = QContext.getMasterQueryContext();
+	
+	function ondestroy(_ctx) {
+		if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
+			console.log('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
+			console.log(JSON.stringify(_ctx));
+			
+			try {
+				_ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
+			} catch (e) { console.log(e); }
+			
+			setTimeout(function() {
+				process.exit(122);
+			}, 1500);
+		}
+	}
+	
+	if (parentQCtx)
+		parentQCtx.childContexts.push(weak(this, ondestroy));
 	
 	self.addProperty({name: 'debugEnabled', value: false, access: 'server'});
 };
 
 util.inherits(QContext, buscomponent.BusComponent);
 
+QContext.masterQueryContext = null;
+
+QContext.getMasterQueryContext = function() {
+	if (QContext.masterQueryContext)
+		return QContext.masterQueryContext;
+	
+	QContext.masterQueryContext = new QContext({isMasterQCTX: true});
+};
+
 /**
  * Return a copy of this QContext.
  * 
  * @return {module:qctx~QContext}  A shallow copy of this QContext.
- * @function module:qctx~QContext#clonse
+ * @function module:qctx~QContext#clone
  */
 QContext.prototype.clone = function() {
 	var c = new QContext({
@@ -73,15 +127,40 @@ QContext.prototype.clone = function() {
 };
 
 /**
+ * List all child QContexts of this query context.
+ * Garbage collected QContexts are automatically excluded.
+ * 
+ * @return {module:qctx~QContext[]}  A list of QContexts.
+ * @function module:qctx~QContext#getChildContexts
+ */
+QContext.prototype.getChildContexts = function() {
+	var rv = [];
+	
+	for (var i = 0; i < this.childContexts.length; ++i) {
+		var r = weak.get(this.childContexts[i]);
+		if (weak.isDead(this.childContexts[i]))
+			delete this.childContexts[i];
+		rv.push(r);
+	}
+	
+	// remove deleted indices
+	this.childContexts = _.compact(this.childContexts);
+	
+	return rv;
+};
+
+/**
  * Wrap a callback for exception handling by this callback.
  * 
- * @param {function} callback  A generic function to wrap
+ * @param {?function} callback  A generic function to wrap
  * 
  * @return {function}  A callback of the same signature.
  * @function module:qctx~QContext#errorWrap
  */
 QContext.prototype.errorWrap = function(callback) {
 	var self = this;
+	
+	callback = callback || function() {};
 	
 	return function() {
 		try {
@@ -119,7 +198,7 @@ QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readabi
  * @function module:qctx~QContext#toJSON
  */
 QContext.prototype.toJSON = function() {
-	return { user: this.user, access: this.access, properties: this.properties };
+	return { user: this.user, access: this.access.toJSON(), properties: this.properties };
 };
 
 /**
@@ -141,11 +220,6 @@ QContext.fromJSON = function(j, parentComponent) {
 	ctx.user = j.user || null;
 	ctx.access = Access.fromJSON(j.access);
 	ctx.properties = j.properties || {};
-	
-	_.each(ctx.properties, function(value, key) {
-		if (!value.access)
-			value.access = function() { return false; };
-	});
 	
 	return ctx;
 };
@@ -216,7 +290,7 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
 	if (hasAccess)
 		this.properties[name].value = value;
 	else
-		throw new Error('Access for changing property ' + name + ' not granted');
+		throw new Error('Access for changing property ' + name + ' not granted ' + requiredAccess);
 };
 
 /**
@@ -236,8 +310,18 @@ QContext.prototype.feed = function(data, onEventId) {
  * @function module:qctx~QContext#query
  */
 QContext.prototype.query = function(query, args, cb) {
-	this.debug('Executing query [unbound]', query, args);
-	return this.request({name: 'dbQuery', query: query, args: args}, cb); 
+	cb = cb || function() {};
+	
+	var self = this;
+	self.debug('Executing query [unbound]', query, args);
+	self.incompleteQueryCount++;
+	
+	return this.request({name: 'dbQuery', query: query, args: args}, function() {
+		self.incompleteQueryCount--;
+		self.queryCount++;
+		
+		cb.apply(this, arguments);
+	}); 
 };
 
 /**
@@ -260,17 +344,14 @@ QContext.prototype.getConnection = function(readonly, restart, cb) {
 		readonly = false;
 	}
 	
+	var oci = self.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
+	
 	self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}, function(conn) {
-		/* wrapper object for better debugging, no semantic change */
-		var conn_ = {
-			release: _.bind(conn.release, conn),
-			query: function(query, args, cb) {
-				self.debug('Executing query [bound]', query, args);
-				conn.query(query, args, (cb || function() {}));
-			}
-		};
-		
 		var postTransaction = function(doRelease, ecb) {
+			delete self.openConnections[oci];
+			if (_.compact(self.openConnections) == [])
+				self.openConnections = [];
+			
 			if (typeof doRelease == 'function') {
 				ecb = doRelease;
 				doRelease = true;
@@ -283,7 +364,21 @@ QContext.prototype.getConnection = function(readonly, restart, cb) {
 			
 			if (doRelease)
 				conn.release();
-			ecb();
+			return ecb();
+		};
+		
+		var oldrestart = restart;
+		restart = function() {
+			return postTransaction(oldrestart);
+		};
+		
+		/* return wrapper object for better debugging, no semantic change */
+		var conn_ = {
+			release: _.bind(conn.release, conn),
+			query: function(query, args, cb) {
+				self.debug('Executing query [bound]', query, args);
+				conn.query(query, args, self.errorWrap(cb));
+			}
 		};
 		
 		/* convenience functions for rollback and commit with implicit release */
@@ -341,10 +436,30 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 		};
 	}
 	
+	var tli = null;
+	
+	if (tablelocks)
+		tli = self.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
+	
+	var cleanTLEntry = function() {
+		if (tli === null)
+			return;
+		
+		delete self.tableLocks[tli];
+		if (_.compact(self.tableLocks) == [])
+			self.tableLocks = [];
+	};
+	
 	assert.equal(typeof cb, 'function');
 	
 	tablelocks = tablelocks || {};
 	assert.ok(restart);
+	
+	var oldrestart = restart;
+	restart = function() {
+		cleanTLEntry();
+		return oldrestart.apply(this, arguments);
+	};
 	
 	self.getConnection(readonly, restart, function(conn, commit, rollback) {
 		var tables = _.keys(tablelocks);
@@ -370,9 +485,16 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 				init +=  ', ';
 		}
 		
-		init += ';'
+		init += ';';
+		
 		conn.query(init, [], function() {
-			cb(conn, commit, rollback);
+			cb(conn, function() {
+				cleanTLEntry();
+				return commit.apply(this, arguments);
+			}, function() {
+				cleanTLEntry();
+				return rollback.apply(this, arguments);
+			});
 		});
 	});
 };
@@ -405,6 +527,47 @@ QContext.prototype.emitError = function(e) {
 	QContext.super_.prototype.emitError.call(this, e);
 };
 
+/**
+ * Return some statistical information on this QContext,
+ * including its properties.
+ * 
+ * @param {boolean} recurse  If true, include all <code>.childContexts</code>’ statistics.
+ * 
+ * @function module:qctx~QContext#getStatistics
+ */
+QContext.prototype.getStatistics = function(recurse) {
+	assert.ok(recurse === true || recurse === false);
+	
+	var rv = {};
+	
+	for (var i in this.properties)
+		rv[i] = this.properties[i].value;
+	
+	rv.tableLocks = _.compact(this.tableLocks);
+	rv.openConnections = _.compact(this.openConnections);
+	rv.queryCount = this.queryCount;
+	rv.incompleteQueryCount = this.incompleteQueryCount;
+	
+	rv.creationTime = this.creationTime;
+	rv.creationStack = this.creationStack;
+	
+	if (recurse)
+		rv.childContexts = _.map(this.childContexts, function(c) { return c.getStatistics(true); });
+	
+	return rv;
+};
+
 exports.QContext = QContext;
+
+function getStack() {
+	var oldSTL, stack;
+	
+	oldSTL = Error.stackTraceLimit;
+	Error.stackTraceLimit = Math.max(40, oldSTL); // at least 40
+	stack = new Error().stack;
+	Error.stackTraceLimit = oldSTL;
+	
+	return stack;
+}
 
 })();

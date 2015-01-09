@@ -437,6 +437,7 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 	}
 	
 	var tli = null;
+	var notifyTimer = null;
 	
 	if (tablelocks)
 		tli = self.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
@@ -445,10 +446,23 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 		if (tli === null)
 			return;
 		
+		if (notifyTimer)
+			clearTimeout(notifyTimer);
+		
+		notifyTimer = null;
 		delete self.tableLocks[tli];
 		if (_.compact(self.tableLocks) == [])
 			self.tableLocks = [];
+		
+		tli = null;
 	};
+	
+	notifyTimer = setTimeout(function() {
+		if (tli === null)
+			return;
+		
+		self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
+	}, 60000);
 	
 	assert.equal(typeof cb, 'function');
 	

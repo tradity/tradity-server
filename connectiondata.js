@@ -368,7 +368,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		assert.ok(self.bus);
 		assert.ok(self.socket);
 		
-		self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()}, function(user) {
+		self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx}, function(user) {
 			if (!self.bus) {
 				assert.ok(!self.socket);
 				return;

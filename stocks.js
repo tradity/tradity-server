@@ -365,13 +365,16 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 		lid = leadertest[1];
 	
 	var xstr = '%' + str.replace(/%/g, '\\%') + '%';
-	ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, '+
+	ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
 		'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
 		'FROM stocks ' +
 		'JOIN users ON stocks.leader = users.id ' +
 		'JOIN users_finance ON users.id = users_finance.id ' +
 		'WHERE users.name LIKE ? OR users.id = ?', [xstr, lid], function(res1) {
-	ctx.query('SELECT *, 0 AS wprovision, 0 AS lprovision FROM stocks WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL', [xstr, xstr], function(res2) {
+	ctx.query('SELECT *, 0 AS wprovision, 0 AS lprovision ' +
+		'FROM stocks ' +
+		'WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL',
+		[xstr, xstr], function(res2) {
 		var externalSearchResultHandler = function(res3) {
 			var results = _.union(res1, _.map(res3, function(r) {
 				return {

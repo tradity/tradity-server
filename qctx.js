@@ -457,13 +457,6 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 		tli = null;
 	};
 	
-	notifyTimer = setTimeout(function() {
-		if (tli === null)
-			return;
-		
-		self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
-	}, 60000);
-	
 	assert.equal(typeof cb, 'function');
 	
 	tablelocks = tablelocks || {};
@@ -502,6 +495,14 @@ QContext.prototype.startTransaction = function(readonly, tablelocks, restart, cb
 		init += ';';
 		
 		conn.query(init, [], function() {
+			// install timer to notify in case that the transaction gets 'lost'
+			notifyTimer = setTimeout(function() {
+				if (tli === null)
+					return;
+				
+				self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
+			}, 60000);
+			
 			cb(conn, function() {
 				cleanTLEntry();
 				return commit.apply(this, arguments);

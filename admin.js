@@ -84,7 +84,7 @@ function _reqpriv (required, f) {
  *  wprov_sum: 0,
  *  lprov_sum: 0,
  *  registertime: 0,
- *  schoolpath: '/KIT',
+ *  schoolpath: '/kit',
  *  schoolid: 27,
  *  pending: 0,
  *  jointime: 0,
@@ -277,7 +277,7 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * This is the proper way to change a group’s supergroup.
  * 
  * @param {int} query.schoolid  The numerical id of the target school.
- * @param {string} query.schoolpath  The school’s new path.
+ * @param {string} query.schoolpath  The school’s new path. (Will be converted to lower case)
  * @param {string} query.schoolname  The school’s new human-readable name.
  * 
  * @return {object} Returns with <code>rename-school-notfound</code>,
@@ -287,16 +287,18 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * @function c2s~rename-school
  */
 Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _reqpriv('schooldb', function(query, ctx, cb) {
+	query.schoolpath = String(query.schoolpath || '/').toLowerCase();
+	
 	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)], function(r) {
 		if (r.length == 0)
 			return cb('rename-school-notfound');
 
-		ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [commonUtil.parentPath(query.schoolpath || '/')], function(pr) {
+		ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [commonUtil.parentPath(query.schoolpath)], function(pr) {
 			assert.equal(pr.length, 1);
-			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath || '/') != '/' ? 1 : 0))
+			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
 				return cb('rename-school-notfound');
 			
-			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath || '/')], function(er) {
+			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath], function(er) {
 				assert.equal(er.length, 1);
 				if (query.schoolpath && er[0].c == 1)
 					return cb('rename-school-already-exists');
@@ -304,7 +306,7 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 				ctx.query('UPDATE schools SET name = ? WHERE id = ?', [String(query.schoolname), parseInt(query.schoolid)], function() {
 					if (query.schoolpath) {
 						ctx.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?',
-							[r[0].path, String(query.schoolpath), r[0].path + '/%', r[0].path], function() {
+							[r[0].path, query.schoolpath, r[0].path + '/%', r[0].path], function() {
 							cb('rename-school-success');
 						});
 					} else {
@@ -321,7 +323,7 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
  * These schools need to have the same parent school.
  * 
  * @param {int} query.masterschool  The numerical id of the target school.
- * @param {int} query.subschool  The numerical id of the source school.
+ * @param {int} query.subschool     The numerical id of the source school.
  * 
  * @return {object} Returns with <code>join-schools-notfound</code>,
  *                  <code>join-schools-success</code>,

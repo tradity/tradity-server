@@ -395,7 +395,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 	(query.schoolid ? function(cont) {
 		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
 		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
-		likestringUnit.push(String(query.schoolid), String(query.schoolid));
+		likestringUnit.push(String(query.schoolid), String(query.schoolid).toLowerCase());
 		
 		self.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid}, function(ok) {
 			cont(ok);
@@ -1126,7 +1126,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 					cb('reg-unknown-school');
 					return;
 				} else {
-					conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",MD5(?)))', [String(query.school), String(query.school)], schoolAddedCB);
+					conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",LOWER(MD5(?))))', [String(query.school), String(query.school)], schoolAddedCB);
 				}
 			} else {
 				if (query.school !== null) {

@@ -242,7 +242,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 /**
  * Load all relevant public info for a given school
  * 
- * @param {(int|string)} query.lookfor A school id, path or name to look for.
+ * @param {(int|string)} query.lookfor  A school id, path or name to look for.
  * 
  * @return {object} Returns with <code>get-school-info-success</code> and a detailed school info in <code>.result</code>
  *                  in case of success and <code>get-school-info-notfound</code> in case the school could not be found.
@@ -399,7 +399,7 @@ Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', 
  * 
  * @param {?string} query.schoolpath  The path for the new school. If not given,
  *                                    a path will be generated from the school’s name.
- *                                    Note that this indicated potential parent groups.
+ *                                    Note that this indicates potential parent groups.
  * @param {string} query.schoolname   A human-readable identifier of the school.
  *                                    It is recommended but not enforced that this is unrelated
  *                                    to any parent group’s names, therefore not introducing
@@ -417,7 +417,7 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 	if (!query.schoolname)
 		return cb('format-error');
 	
-	query.schoolname = String(query.schoolname);
+	query.schoolname = String(query.schoolname || '').toLowerCase();
 	
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
@@ -480,11 +480,13 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
  * @function c2s~list-schools
  */
 Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx, cb) {
+	query.parentPath = String(query.parentPath).toLowerCase();
+	
 	var where = 'WHERE 1 ';
 	var params = [];
 	if (query.parentPath) {
 		where = 'AND path LIKE ? OR path = ? ';
-		params.push(String(query.parentPath) + '/%', String(query.parentPath));
+		params.push(query.parentPath + '/%', query.parentPath);
 	}
 	
 	if (query.search) {

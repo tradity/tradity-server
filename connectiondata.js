@@ -393,7 +393,12 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 			if (!hadUser && self.ctx.user != null)
 				self.onUserConnected();
 			
+			var callbackHasBeenCalled = false;
 			var cb = _.bind(function(code, obj, extra) {
+				if (callbackHasBeenCalled)
+					return self.emitError('Callback for client request called multiple times!');
+				callbackHasBeenCalled = true;
+				
 				self.unansweredCount--;
 				
 				var now = Date.now();

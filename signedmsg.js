@@ -36,7 +36,7 @@ util.inherits(SignedMessaging, buscomponent.BusComponent);
 SignedMessaging.prototype.onBusConnect = function() {
 	var self = this;
 	
-	self.getServerConfig(function(cfg) {
+	return self.getServerConfig().then(function(cfg) {
 		self.useConfig(cfg);
 	});
 };
@@ -70,9 +70,9 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
 	var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
 	var sign = crypto.createSign('RSA-SHA256');
 	
-	sign.end(string, null, function() {
+	return sign.end(string, null, function() {
 		var signed = string + '~' + sign.sign(self.privateKey, 'base64');
-		cb(signed);
+		return cb(signed);
 	});
 });
 
@@ -107,7 +107,7 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 		var pubkey = self.publicKeys[i];
 		var verify = crypto.createVerify('RSA-SHA256');
 		
-		verify.end(string, null, function() {
+		return verify.end(string, null, function() {
 			if (verify.verify(pubkey, signature, 'base64')) {
 				// move current public key to first position (lru caching)
 				self.publicKeys.splice(0, 0, self.publicKeys.splice(i, 1)[0]);

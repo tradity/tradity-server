@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 var buscomponent = require('./stbuscomponent.js');
@@ -80,9 +81,9 @@ DelayedQueries.prototype.checkAndExecute = function(ctx, query) {
 	if (ctx.getProperty('readonly'))
 		return;
 	
-	query.check(ctx, function(condmatch) {
+	return query.check(ctx).then(function(condmatch) {
 		if (condmatch)
-			self.executeQuery(query);
+			return self.executeQuery(query);
 	});
 };
 
@@ -97,13 +98,13 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
 	
 	var ctx = new qctx.QContext({parentComponent: self});
 	
-	ctx.query('SELECT * FROM dqueries', [], function(r) {
-		_.each(r, function(res) {
+	return ctx.query('SELECT * FROM dqueries', []).then(function(r) {
+		return Q.all(r.map(function(res) {
 			res.query = JSON.parse(res.query);
 			res.userinfo = JSON.parse(res.userinfo);
 			res.accessinfo = Access.fromJSON(res.accessinfo);
-			self.addQuery(ctx, res);
-		});
+			return self.addQuery(ctx, res);
+		}));
 	});
 };
 
@@ -116,7 +117,7 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
  * @function c2s~dquery-list
  */
 DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquery-list', function(query, ctx, cb) {
-	cb('dquery-list-success', {
+	return cb('dquery-list-success', {
 		'results': (_.chain(this.queries).values()
 			.filter(function(q) { return q.userinfo.id == ctx.user.id; })
 			.map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
@@ -137,10 +138,11 @@ DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquer
 DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx, cb) {
 	var queryid = query.queryid;
 	if (this.queries[queryid] && this.queries[queryid].userinfo.id == ctx.user.id) {
-		this.removeQuery(this.queries[queryid], ctx);
-		cb('dquery-remove-success');
+		this.removeQuery(this.queries[queryid], ctx).then(function() {
+			return cb('dquery-remove-success');
+		});
 	} else {
-		cb('dquery-remove-notfound');
+		return cb('dquery-remove-notfound');
 	}
 });
 
@@ -176,13 +178,15 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 	if (this.queryTypes.indexOf(query.query.type) == -1)
 		return cb('unknown-query-type');
 	
-	ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
-		[String(query.condition), qstr, JSON.stringify(ctx.user), ctx.access.toJSON()], function(r) {
+	return ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
+		[String(query.condition), qstr, JSON.stringify(ctx.user), ctx.access.toJSON()]).then(function(r) {
 		query.queryid = r.insertId;
 		query.userinfo = ctx.user;
 		query.accessinfo = ctx.access;
-		cb('dquery-success', {'queryid': query.queryid});
-		self.addQuery(ctx, query);
+		
+		return self.addQuery(ctx, query).then(function() {
+			cb('dquery-success', {'queryid': query.queryid});
+		});
 	});
 });
 
@@ -205,7 +209,7 @@ DelayedQueries.prototype.addQuery = function(ctx, query) {
 	assert.ok(!this.queries[entryid]);
 	this.queries[entryid] = query;
 	_.each(query.neededStocks, _.bind(this.addNeededStock, this, query.queryid));
-	this.checkAndExecute(ctx, query);
+	return this.checkAndExecute(ctx, query);
 };
 
 /**
@@ -241,14 +245,17 @@ DelayedQueries.prototype.addNeededStock = function(queryid, stock) {
  * 
  * @param {string} str  The condition string to be checked
  * 
- * @return {object}  Returns an object where <code>.check(ctx, cb)</code>
+ * @return {object}  Returns an object where <code>.check(ctx)</code>
  *                   is a callback for checking whether the condition is currently met
+ *                   (returning a Q promise)
  *                   and where <code>.neededStocks</code> is a list of stock ids
  *                   required to have accurate database information for checking.
  * 
  * @function module:dqueries~DelayedQueries#parseCondition
  */
 DelayedQueries.prototype.parseCondition = function(str) {
+	var self = this;
+	
 	var clauses = str.split('∧');
 	var cchecks = [];
 	var stocks = [];
@@ -264,9 +271,9 @@ DelayedQueries.prototype.parseCondition = function(str) {
 		var value = parseFloat(rhs);
 		switch (variable[0]) {
 			case 'time':
-				cchecks.push(function(ctx, cb) {
+				cchecks.push(function(ctx) {
 					var t = Date.now()/1000;
-					cb(lt ? t < value : t > value);
+					return lt ? t < value : t > value;
 				});
 				break;
 			case 'stock':
@@ -278,29 +285,30 @@ DelayedQueries.prototype.parseCondition = function(str) {
 					stocks.push(stockid);
 				switch(fieldname) {
 					case 'exchange-open':
-						cchecks.push(_.bind(function(ctx, cb) {
-							ctx.query('SELECT exchange FROM stocks WHERE stockid = ?', [String(stockid)], function(r) {
+						cchecks.push(function(ctx) {
+							return ctx.query('SELECT exchange FROM stocks WHERE stockid = ?', [String(stockid)]).then(function(r) {
 								if (r.length == 0)
-									return cb(false);
+									return false;
 								
-								this.getServerConfig(function(cfg) {
+								return self.getServerConfig().then(function(cfg) {
 									assert.ok(cfg);
 									
-									this.request({name: 'stockExchangeIsOpen', sxname: r[0].exchange, cfg: cfg}, function(isOpen) {
-										return cb(lt ? isOpen < value : isOpen > value);
-									});
+									return self.request({name: 'stockExchangeIsOpen', sxname: r[0].exchange, cfg: cfg});
+								}).then(function(isOpen) {
+									return cb(lt ? isOpen < value : isOpen > value);
 								});
 							});
-						}, this));
+						});
 						break;
 					default:
 						if (!/^\w+$/.test(fieldname))
 							throw new Error('bad fieldname');
-						cchecks.push(_.bind(function(ctx, cb) {
-							ctx.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?', [String(stockid)], function(r) {
-								cb(r.length > 0 && (lt ? r[0][fieldname] < value : r[0][fieldname] > value));
+						cchecks.push(function(ctx) {
+							return ctx.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?',
+								[String(stockid)]).then(function(r) {
+								return r.length > 0 && (lt ? r[0][fieldname] < value : r[0][fieldname] > value);
 							});
-						}, this));
+						});
 						break;
 				}
 				break;
@@ -310,15 +318,13 @@ DelayedQueries.prototype.parseCondition = function(str) {
 	}, this));
 	
 	return {
-		check: function(ctx, cb) {
-			var result = true;
+		check: function(ctx) {
 			var count = 0;
-			_.each(cchecks, function(check) {
-				check(ctx, function(res) {
-					result = result && res;
-					if (++count == cchecks.length)
-						cb(result);
-				});
+			
+			return Q.all(cchecks.map(function(check) {
+				return check(ctx);
+			})).then(function(allCheckResults) {
+				return allCheckResults.reduce(function(a, b) { return a && b; });
 			});
 		},
 		neededStocks: stocks
@@ -347,22 +353,22 @@ DelayedQueries.prototype.executeQuery = function(query) {
 	
 	var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: self});
 	query.query._isDelayed = true;
-	self.request({
+	return self.request({
 		name: 'client-' + query.query.type,
 		query: query.query,
 		ctx: ctx
-	}, function(code) {
+	}).then(function(code) {
 		var json = query.query.dquerydata || {};
 		json.result = code;
 		if (!query.query.retainUntilCode || query.query.retainUntilCode == code) {
-			ctx.feed({
+			return ctx.feed({
 				'type': 'dquery-exec',
 				'targetid': null,
 				'srcuser': query.userinfo.id,
 				'json': json,
 				'noFollowers': true
-			}, function() {
-				self.removeQuery(query, ctx);
+			}).then(function() {
+				return self.removeQuery(query, ctx);
 			});
 		}
 	});
@@ -379,7 +385,7 @@ DelayedQueries.prototype.executeQuery = function(query) {
 DelayedQueries.prototype.removeQuery = function(query, ctx) {
 	var self = this;
 	
-	ctx.query('DELETE FROM dqueries WHERE queryid = ?', [parseInt(query.queryid)], function() {
+	return ctx.query('DELETE FROM dqueries WHERE queryid = ?', [parseInt(query.queryid)]).then(function() {
 		delete self.queries[query.queryid];
 		_.each(query.neededStocks, function(stock) {
 			self.neededStocks['s-'+stock] = _.without(self.neededStocks['s-'+stock], query.queryid);
@@ -408,7 +414,7 @@ DelayedQueries.prototype.resetUser = buscomponent.provide('dqueriesResetUser', [
 	for (var i = 0; i < toBeDeleted.length; ++i)
 		this.removeQuery(toBeDeleted[i], ctx);
 	
-	cb();
+	return cb();
 });
 
 exports.DelayedQueries = DelayedQueries;

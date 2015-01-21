@@ -4,8 +4,9 @@ var _ = require('lodash');
 var util = require('util');
 var http = require('http');
 var https = require('https');
-var serverUtil = require('./server-util.js');
 var assert = require('assert');
+var Q = require('q');
+var serverUtil = require('./server-util.js');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
@@ -41,7 +42,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 	var self = this;
 	
 	var ctx = new qctx.QContext({parentComponent: self});
-	self.getServerConfig(function(cfg) {
+	return self.getServerConfig().then(function(cfg) {
 	
 	var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
 	
@@ -50,7 +51,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 	
 	var filename = fsmatch[fsmatch.length - 1];
 	
-	ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename], function(rows) {
+	return ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename]).then(function(rows) {
 		if (rows.length == 0) {
 			res.writeHead(404, {'Content-Type': 'text/plain'});
 			res.end('Not found');
@@ -117,7 +118,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 		});
 	});
 	
-	cb(true);
+	return cb(true);
 	
 	});
 });
@@ -160,18 +161,18 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 	if (ctx.getProperty('readonly'))
 		return cb('server-readonly');
 	
-	this.getServerConfig(function(cfg) {
-	
-	var content = query.content;
-	var uniqrole = cfg.fsdb.uniqroles[query.role];
-	
-	query.proxy = query.proxy ? true : false;
-	query.mime = query.mime || 'application/octet-stream';
-	
-	if (query.base64)
-		content = new Buffer(query.content, 'base64');
-	
-	ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null], function(res) {
+	return self.getServerConfig().then(function(cfg) {
+		var content = query.content;
+		var uniqrole = cfg.fsdb.uniqroles[query.role];
+		
+		query.proxy = query.proxy ? true : false;
+		query.mime = query.mime || 'application/octet-stream';
+		
+		if (query.base64)
+			content = new Buffer(query.content, 'base64');
+		
+		return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null]);
+	}).then(function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
 		if (!ctx.access.has('filesystem')) {
@@ -221,25 +222,8 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
 		
 		var groupassoc = groupassoc ? parseInt(groupassoc) : null;
-		var continueAfterDelPrevious = function() {
-			ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
-				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
-				String(query.role), content, groupassoc, query.proxy ? 1:0], function(res) {
-				
-				(ctx.user ? function(cont) {
-					ctx.feed({
-						'type': 'file-publish',
-						'targetid': res.insertId,
-						'srcuser': ctx.user.id
-					}, cont);
-				} : function(cont) { cont(); })(function() {
-					return cb('publish-success', null, 'repush');
-				});
-			});
-		};
 		
-		if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
+		return ((uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) ? function() {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';
 			var dataarr = [String(query.role)];
 			
@@ -254,12 +238,27 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				}
 			}
 			
-			ctx.query(sql, dataarr, continueAfterDelPrevious);
-		} else {
-			continueAfterDelPrevious();
-		}
-	});
-	
+			return ctx.query(sql, dataarr, continueAfterDelPrevious);
+		} : {
+			return Q();
+		}).then(function() {
+			return ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
+				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
+				[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
+				String(query.role), content, groupassoc, query.proxy ? 1:0]);
+		}).then(function(res) {
+			if (ctx.user) {
+				return ctx.feed({
+					'type': 'file-publish',
+					'targetid': res.insertId,
+					'srcuser': ctx.user.id
+				});
+			}
+			
+			return Q();
+		}).then(function() {
+			return cb('publish-success', null, 'repush');
+		});
 	});
 });
 

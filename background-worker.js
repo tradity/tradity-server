@@ -42,11 +42,11 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
 		
 	var starttime = Date.now();
 	
-	self.request({name: 'regularCallbackUser', query: query, ctx: ctx}, function() {
+	return self.request({name: 'regularCallbackUser', query: query, ctx: ctx}).then(function() {
 		var userdbtime = Date.now();
-		self.request({name: 'regularCallbackStocks', query: query, ctx: ctx}, function() {
-			cb('prod-ready', {'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime});
-		});
+		return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
+	}).then(function() {
+		return cb('prod-ready', {'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime});
 	});
 });
 

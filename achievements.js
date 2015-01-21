@@ -1,7 +1,7 @@
 (function () { "use strict";
 
 var _ = require('lodash');
-var q = require('q');
+var Q = require('q');
 var util = require('util');
 var assert = require('assert');
 var qctx = require('./qctx.js');
@@ -37,15 +37,15 @@ util.inherits(Achievements, buscomponent.BusComponent);
 Achievements.prototype.onBusConnect = function() {
 	var self = this;
 	
-	self.request({name: 'getAchievementList'}, function(al) {
+	return self.request({name: 'getAchievementList'}).then(function(al) {
 		assert.ok(al);
-		self.registerAchievements(al);
-	});
-	
-	self.request({name: 'getClientAchievementList'}, function(al) {
+		return self.registerAchievements(al);
+	}).then(function() {
+		return self.request({name: 'getClientAchievementList'});
+	}).then(function(al) {
 		assert.ok(al);
 		self.clientAchievements = al;
-		self.markClientAchievements();
+		return self.markClientAchievements();
 	});
 };
 
@@ -62,12 +62,10 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
 	if (ctx.getProperty('readonly'))
 		return cb();
 	
-	ctx.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id], function(userAchievements) {
-		_.each(self.achievementList, function(achievementEntry) {
-			self.checkAchievement(achievementEntry, ctx, userAchievements);
-		});
-		
-		cb();
+	return ctx.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id]).then(function(userAchievements) {
+		return Q.all(self.achievementList.map(function(achievementEntry) {
+			return self.checkAchievement(achievementEntry, ctx, userAchievements);
+		})).then(cb);
 	});
 });
 
@@ -116,17 +114,17 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 	
 	uid = parseInt(uid);
 	
-	self.getServerConfig(function(cfg) {
-	
-	(userAchievements_ ? function(cont) {
-		cont(userAchievements_);
-	} : function(cont) {
+	return self.getServerConfig().then(function(cfg) {
+		if (userAchievements_)
+			return userAchievements_;
+		
 		var lookfor = achievementEntry.requireAchievementInfo;
 		lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
 		
-		ctx.query('SELECT * FROM achievements WHERE userid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
-			[uid].splice(0).concat(lookfor), cont);
-	})(function(userAchievements) {
+		return ctx.query('SELECT * FROM achievements ' +
+			'WHERE userid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
+			[uid].splice(0).concat(lookfor));
+	}).then(function(userAchievements) {
 		userAchievements = _.chain(userAchievements).map(function(a) { return [a.achname, a]; }).object().value();
 		
 		if (userAchievements[achievementEntry.name]) {
@@ -141,33 +139,31 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 		if (_.difference(achievementEntry.prereqAchievements, _.keys(userAchievements)).length > 0)
 			return; // not all prereqs fulfilled
 		
-		(
+		return Q(
 			(_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
-				function(uid, userAchievements, ctx, cb) { cb(true); } : 
-				_.bind(achievementEntry.check, achievementEntry)
-		)(uid, userAchievements, cfg, ctx, function(hasBeenAchieved) {
+				true : 
+				achievementEntry.check(uid, userAchievements, cfg, ctx)
+		).then(function(hasBeenAchieved) {
 			if (!hasBeenAchieved)
 				return;
 			
-			ctx.query('REPLACE LOW_PRIORITY INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
-				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version], function(res) {
-				ctx.feed({
+			return ctx.query('REPLACE LOW_PRIORITY INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
+				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version]).then(function(res) {
+				return ctx.feed({
 					type: 'achievement',
 					srcuser: uid,
 					targetid: res.insertId
-				}, function() {
-					_.each(self.achievementList, function(ae) {
-						// look for achievements of which we have changed the prereq/implicating achievements list
-						if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
-							return -1;
-						
-						self.checkAchievement(ae, ctx);
-					});
 				});
+			}).then(function()  {
+				return Q.all(self.achievementList.map(function(ae) {
+					// look for achievements of which we have changed the prereq/implicating achievements list
+					if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
+						return -1;
+					
+					return self.checkAchievement(ae, ctx);
+				}));
 			});
 		});
-	});
-	
 	});
 };
 
@@ -184,15 +180,15 @@ Achievements.prototype.registerObservers = function(achievementEntry) {
 	
 	var ctx = new qctx.QContext({parentComponent: self});
 
-	_.each(achievementEntry.fireOn, function(checkCallback, eventName) {
+	return _.each(achievementEntry.fireOn, function(checkCallback, eventName) {
 		self.on(eventName, function(data) {
-			_.bind(checkCallback, achievementEntry)(data, ctx, function(userIDs) {
+			return Q(_.bind(checkCallback, achievementEntry)(data, ctx)).then(function(userIDs) {
 				assert.ok(userIDs);
 				assert.notEqual(typeof userIDs.length, 'undefined');
 				
-				_.each(userIDs, function(uid) {
-					self.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: self}));
-				});
+				return Q.all(_.map(userIDs, function(uid) {
+					return self.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: self}));
+				}));
 			});
 		});
 	});
@@ -228,7 +224,7 @@ Achievements.prototype.registerAchievements = function(list) {
 		self.registerObservers(achievementEntry);
 	});
 	
-	self.markClientAchievements();
+	return self.markClientAchievements();
 };
 
 /**
@@ -254,7 +250,7 @@ Achievements.prototype.markClientAchievements = function() {
  * @function c2s~list-all-achievements
  */
 Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx, cb) {
-	cb('list-all-achievements-success', {result: this.achievementList});
+	return cb('list-all-achievements-success', {result: this.achievementList});
 });
 
 /**
@@ -275,8 +271,8 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
 		uid: ctx.user.id,
 		date: today,
 		certType: 'wasOnline'
-	}}, function(cert) {
-		cb('get-daily-login-certificate-success', {cert: cert});
+	}}).then(function(cert) {
+		return cb('get-daily-login-certificate-success', {cert: cert});
 	});
 });
 
@@ -295,6 +291,7 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
 	function(query, ctx, verified, cb)
 {
 	var self = this;
+	cb = function(data) { return data; };
 	
 	if (!query.name)
 		return cb('format-error');
@@ -304,12 +301,12 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
 	if (self.clientAchievements.indexOf(query.name) == -1)
 		return cb('achievement-unknown-name');
 	
-	ctx.query('REPLACE LOW_PRIORITY INTO achievements_client (userid, achname, verified) VALUES(?, ?, ?)',
-		[ctx.user.id, query.name, verified || 0], function()
+	return ctx.query('REPLACE LOW_PRIORITY INTO achievements_client (userid, achname, verified) VALUES(?, ?, ?)',
+		[ctx.user.id, query.name, verified || 0]).then(function()
 	{
 		self.emitImmediate('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
-		cb('achievement-success');
+		return cb('achievement-success');
 	});
 });
 
@@ -330,7 +327,7 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 	if (!query.certs || !query.certs.map)
 		return cb('format-error');
 	
-	q.all(query.certs.map(function(cert) {
+	Q.all(query.certs.map(function(cert) {
 		return self.request({
 			name: 'verifySignedMessage',
 			maxAge: 100 * 24 * 60 * 60,
@@ -357,11 +354,12 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 			longestStreak = Math.max(longestStreak, currentStreak);
 		}
 		
-		for (var i = 2; i <= Math.min(longestStreak, 20); ++i)
-			self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1, function() {});
-		
-		cb('dl-achievement-success');
-	}).done();
+		return Q.all(_.range(2, Math.min(longestStreak, 20) + 1).map(function(i) {
+			return self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
+		}).then(function() {
+			return cb('dl-achievement-success');
+		});
+	});
 });
 
 exports.Achievements = Achievements;

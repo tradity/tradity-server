@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 
@@ -34,7 +35,7 @@ Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', 
 	var r = _.clone(ctx.user);
 	delete r.pwhash;
 	delete r.pwsalt;
-	cb('get-own-options-success', {'result': r});
+	return cb('get-own-options-success', {'result': r});
 });
 
 /**
@@ -51,8 +52,8 @@ Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstora
 		return cb('format-error');
 	}
 	
-	ctx.query('UPDATE users_data SET clientstorage = ? WHERE id = ?', [storage, ctx.user.id], function() {
-		cb('set-clientstorage-success');
+	return ctx.query('UPDATE users_data SET clientstorage = ? WHERE id = ?', [storage, ctx.user.id]).then(function() {
+		return cb('set-clientstorage-success');
 	});
 });
 
@@ -66,7 +67,7 @@ Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstora
  * @function c2s~ping
  */
 Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx, cb) {
-	cb('pong', {'uid': ctx.user ? ctx.user.uid : null});
+	return cb('pong', {'uid': ctx.user ? ctx.user.uid : null});
 });
 
 /**
@@ -82,7 +83,7 @@ Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error
 		return cb('permission-denied');
 	
 	ctx.emitError(new Error('Client-induced non-failure'));
-	cb('artificial-error-success');
+	return cb('artificial-error-success');
 });
 
 /**
@@ -97,26 +98,25 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-dead
 	if (!ctx.access.has('server'))
 		return cb('permission-denied');
 	
-	ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))', [], function() {
-	ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)', [], function(r) {
-	var id = r.insertId;
-	
-	ctx.startTransaction(function /*restart*/() {
+	var conn1, conn2;
+	return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))', []).then(function() {
+		return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)', []);
+	}).then(function(r) {
+		var id = r.insertId;
+		return ctx.startTransaction({}, {restart: function() {
 		cb('artificial-deadlock-success');
-	}, function(conn1, commit1, rollback1) {
-		ctx.startTransaction(function(conn2, commit2, rollback2) {
-			conn1.query('UPDATE deadlocktest SET value = 1 WHERE id = ?', [id], function() {
-			conn2.query('UPDATE deadlocktest SET value = 2 WHERE id = ?', [id+1], function() {
-			conn1.query('UPDATE deadlocktest SET value = 3 WHERE id = ?', [id+1], function() {
-			conn2.query('UPDATE deadlocktest SET value = 4 WHERE id = ?', [id], function() {
-			});
-			});
-			});
-			});
-		});
-	});
-	
-	});
+	}}).then(function(conn1_) {
+		conn1 = conn1_;
+		return ctx.startTransaction();
+	}).then(function(conn2_) {
+		conn2 = conn2_;
+		return conn1.query('UPDATE deadlocktest SET value = 1 WHERE id = ?', [id]);
+	}).then(function() {
+		return conn2.query('UPDATE deadlocktest SET value = 2 WHERE id = ?', [id+1]);
+	}).then(function() {
+		return conn1.query('UPDATE deadlocktest SET value = 3 WHERE id = ?', [id+1]);
+	}).then(function() {
+		return conn2.query('UPDATE deadlocktest SET value = 4 WHERE id = ?', [id]);
 	});
 });
 
@@ -133,9 +133,11 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stal
 	if (!ctx.access.has('server'))
 		return cb('permission-denied');
 	
-	ctx.startTransaction({httpresources: 'w'}, function(conn, commit) {
-		setTimeout(commit, 5 * 60000);
-	});
+	var conn;
+	return ctx.startTransaction({httpresources: 'w'}).then(function(conn_) {
+		conn = conn_;
+		return Q.delay(5 * 60000);
+	}).then(_.bind(conn.commit, conn));
 });
 
 /**
@@ -149,16 +151,17 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stal
 Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatistics', ['reply'], function(cb) {
 	var ctx = new qctx.QContext({parentComponent: this});
 	
-	ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL', [], function(ures) {
-		ctx.query('SELECT COUNT(*) AS c FROM orderhistory', [], function(ores) {
-			ctx.query('SELECT COUNT(*) AS c FROM schools', [], function(sres) {
-				cb({
-					userCount: ures[0].c,
-					tradeCount: ores[0].c,
-					schoolCount: sres[0].c
-				});
-			});
-		});
+	var ret = {};
+	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL', []).then(function(ures) {
+		ret.userCount = ures[0].c;
+		return ctx.query('SELECT COUNT(*) AS c FROM orderhistory', []);
+	}).then(function(ores) {
+		ret.tradeCount = ores[0].c;
+		return ctx.query('SELECT COUNT(*) AS c FROM schools', []);
+	}).then(function(sres) {
+		ret.schoolCount = sres[0].c;
+		
+		return cb(ret);
 	});
 });
 

@@ -47,18 +47,20 @@ util.inherits(Watchlist, buscomponent.BusComponent);
  * @function c2s~watchlist-add
  */
 Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx, cb) {
-	ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
+	return ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
 		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?',
-		[String(query.stockid)], function(res) {
+		[String(query.stockid)]).then(function(res) {
 		if (res.length == 0)
 			return cb('watchlist-add-notfound');
 		var uid = res[0].uid;
 		if (uid == ctx.user.id)
 			return cb('watchlist-add-self');
 		
-		ctx.query('REPLACE INTO watchlists (watcher, watchstarttime, watchstartvalue, watched) VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
-			[ctx.user.id, res[0].bid, String(query.stockid)], function(r) {
-			ctx.feed({
+		return ctx.query('REPLACE INTO watchlists ' +
+			'(watcher, watchstarttime, watchstartvalue, watched) '+
+			'VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
+			[ctx.user.id, res[0].bid, String(query.stockid)]).then(function(r) {
+			return ctx.feed({
 				type: 'watch-add',
 				targetid: r.insertId,
 				srcuser: 
@@ -69,9 +71,9 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
 					watchedname: res[0].name
 				},
 				feedusers: uid ? [uid] : []
-			}, function() {
-				cb('watchlist-add-success');
 			});
+		}).then(function() {
+			cb('watchlist-add-success');
 		}); 
 	});
 });
@@ -96,16 +98,16 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
  * @function c2s~watchlist-remove
  */
 Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx, cb) {
-	ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, String(query.stockid)], function() {
-		ctx.feed({
+	return ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, String(query.stockid)]).then(function() {
+		return ctx.feed({
 			type: 'watch-remove',
 			targetid: null,
 			srcuser: ctx.user.id,
 			json: { watched: String(query.stockid) }
-		}, function() {
-			cb('watchlist-remove-success');
 		});
-	}); 
+	}).then(function() {
+		return cb('watchlist-remove-success');
+	});
 });
 
 
@@ -136,7 +138,7 @@ Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-
  * @function c2s~watchlist-show
  */
 Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show', function(query, ctx, cb) {
-	ctx.query('SELECT s.*, s.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
+	return ctx.query('SELECT s.*, s.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
 		'lastusetime AS lastactive, IF(rw.watched IS NULL, 0, 1) AS friends ' +
 		'FROM watchlists AS w ' +
 		'JOIN stocks AS s ON w.watched = s.id ' +
@@ -144,8 +146,8 @@ Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-sho
 		'LEFT JOIN users ON users.id = s.leader ' +
 		'LEFT JOIN watchlists AS rw ON rw.watched = rs.id AND rw.watcher = s.leader ' +
 		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
-		'WHERE w.watcher = ?', [ctx.user.id], function(res) {
-		cb('watchlist-show-success', {'results': res});
+		'WHERE w.watcher = ?', [ctx.user.id]).then(function(res) {
+		return cb('watchlist-show-success', {'results': res});
 	});
 });
 

@@ -1,5 +1,6 @@
 (function () { "use strict";
 
+var Q = require('q');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
@@ -102,24 +103,26 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 		params.push(numEndpoints);
 	}
 	
-	ctx.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
+	return ctx.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
 		'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
 		'WHERE ' + whereString + ' ' +
 		'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC ' +
-		'LIMIT 1', params, function(chatlist) {
-		((chatlist.length == 0) ? function(cont) {
-			if (query.failOnMissing || !query.endpoints)
-				return cont(null);
+		'LIMIT 1', params).then(function(chatlist) {
+		if (chatlist.length != 0)
+			return Q(chatlist[0]);
+		
+		if (query.failOnMissing || !query.endpoints || ctx.getProperty('readonly'))
+			return Q(null);
+		
+		var chatid;
+		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE id IN (' + query.endpoints.join(',') + ')',
+			[]).then(function(endpointUserCount) {
+			if (endpointUserCount[0].c != query.endpoints.length)
+				return Q(null);
 			
-			if (ctx.getProperty('readonly'))
-				return cb('server-readonly');
-			
-			ctx.query('SELECT COUNT(*) AS c FROM users WHERE id IN (' + query.endpoints.join(',') + ')',
-				[] , function(endpointUserCount) {
-				if (endpointUserCount[0].c != query.endpoints.length)
-					return cont(null);
+			return ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.id]).then(function(res) {
+				chatid = res.chatid;
 				
-			ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.id], function(res) {
 				var members = [];
 				var memberValues = [];
 				for (var i = 0; i < query.endpoints.length; ++i) {
@@ -128,26 +131,26 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 					memberValues.push(String(query.endpoints[i]));
 				}
 				
-				ctx.query('INSERT INTO chatmembers(chatid, userid, jointime) VALUES ' + members.join(','), memberValues, function() {
-					ctx.feed({
-						type: 'chat-start',
-						targetid: res.insertId, 
-						srcuser: ctx.user.id,
-						noFollowers: true,
-						feedusers: query.endpoints,
-						json: {endpoints: query.endpoints},
-						onEventId: function(eventid) {
-							cont({chatid: res.insertId, eventid: eventid});
-						}
-					});
+				return ctx.query('INSERT INTO chatmembers(chatid, userid, jointime) VALUES ' + members.join(','), memberValues);
+			}).then(function() {
+				return ctx.feed({
+					type: 'chat-start',
+					targetid: res.insertId, 
+					srcuser: ctx.user.id,
+					noFollowers: true,
+					feedusers: query.endpoints,
+					json: {endpoints: query.endpoints}
 				});
+			}).then(function(eventid) {
+				return Q({chatid: chatid, eventid: eventid});
 			});
-			});
-		} : function(cont) {
-			cont(chatlist[0]);
-		})(function(chat) {
-			if (chat === null)
-				return cb('chat-get-notfound');
+		}).then(function(chat) {
+			if (chat === null) {
+				if (ctx.getProperty('readonly'))
+					return cb('server-readonly');
+				else
+					return cb('chat-get-notfound');
+			}
 			
 			assert.notStrictEqual(chat.chatid, null);
 			assert.notStrictEqual(chat.eventid, null);
@@ -157,11 +160,11 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 			if (query.noMessages)
 				return cb('chat-get-success', chat);
 			
-			ctx.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
+			return ctx.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
 				'FROM chatmembers AS cm ' +
 				'JOIN users AS u ON u.id = cm.userid ' +
 				'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
-				'WHERE cm.chatid = ?', [chat.chatid], function(endpoints) {
+				'WHERE cm.chatid = ?', [chat.chatid]).then(function(endpoints) {
 				assert.ok(endpoints.length > 0);
 				chat.endpoints = endpoints;
 				
@@ -176,13 +179,13 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 				if (!ownChatsIsEndpoint)
 					return cb('chat-get-notfound');
 				
-				ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+				return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
 					'FROM ecomments AS c ' + 
 					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
 					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
-					'WHERE c.eventid = ?', [chat.chatstartevent], function(comments) {
+					'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
 					chat.messages = comments;
-					cb('chat-get-success', {chat: chat});
+					return cb('chat-get-success', {chat: chat});
 				});	
 			});
 		});
@@ -217,17 +220,17 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
 		return cb('format-error');
 	
-	ctx.query('SELECT name FROM users WHERE id = ?', [query.userid], function(res) {
+	return ctx.query('SELECT name FROM users WHERE id = ?', [query.userid]).then(function(res) {
 		if (res.length == 0)
 			return cb('chat-adduser-user-notfound');
 		
 		assert.equal(res.length, 1);
 		var username = res[0].name;
 		
-		self.getChats({
+		return self.getChats({
 			chatid: query.chatid,
 			failOnMissing: true
-		}, ctx, function(status, chat) {
+		}, ctx).then(function(status, chat) {
 			switch (status) {
 				case 'chat-get-notfound':
 					return cb('chat-adduser-chat-notfound');
@@ -237,20 +240,20 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
 					return cb(status); // assume other error
 			}
 			
-			ctx.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid], function(r) {
+			return ctx.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid]).then(function(r) {
 				var feedusers = _.pluck(chat.endpoints, 'uid');
 				feedusers.push(query.userid);
 				
-				ctx.feed({
+				return ctx.feed({
 					type: 'chat-user-added',
 					targetid: query.chatid, 
 					srcuser: ctx.user.id,
 					noFollowers: true,
 					feedusers: chat.endpoints,
 					json: {addedChats: query.userid, addedChatsName: username, endpoints: chat.endpoints}
-				}, function() {
-					cb('chat-adduser-success');
 				});
+			}).then(function() {
+				return cb('chat-adduser-success');
 			});
 		});
 	});
@@ -266,7 +269,7 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
  * @function c2s~list-all-chats
  */
 Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx, cb) {
-	ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
+	return ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
 		'eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +
 		'JOIN chats AS c ON c.chatid = cmi.chatid ' +
@@ -275,7 +278,7 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
 		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
 		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
 		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" ' +
-		'WHERE cmi.userid = ?', [ctx.user.id], function(res) {
+		'WHERE cmi.userid = ?', [ctx.user.id]).then(function(res) {
 		var ret = {};
 		
 		for (var i = 0; i < res.length; ++i) {
@@ -287,7 +290,7 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
 			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername, profilepic: res[i].profilepic});
 		}
 		
-		cb('list-all-chats-success', {chats: ret});
+		return cb('list-all-chats-success', {chats: ret});
 	});
 });
 

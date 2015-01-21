@@ -2,11 +2,7 @@
 
 var assert = require('assert');
 var _ = require('lodash');
-var q = null;
-
-try {
-	q = require('q');
-} catch (e) { console.error(e); }
+var Q = require('q');
 
 function BusComponent () {
 	this.bus = null;
@@ -72,7 +68,7 @@ BusComponent.prototype[requestType] = function(req, onReply) {
 	for (var i = 0; i < this.callbackFilters.length; ++i)
 		onReply = this.callbackFilters[i](onReply);
 	
-	var deferred = q ? q.defer() : null;
+	var deferred = Q.defer();
 	
 	this.unansweredBusRequests++;
 	this.bus[requestType](this.imprint(req), _.bind(function() {
@@ -80,8 +76,7 @@ BusComponent.prototype[requestType] = function(req, onReply) {
 		if (this.wantsUnplug)
 			this.unplugBus();
 		
-		if (deferred)
-			deferred.resolve(Array.prototype.slice.apply(arguments));
+		deferred.resolve(Array.prototype.slice.apply(arguments));
 		
 		onReply.apply(this, arguments);
 	}, this));

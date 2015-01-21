@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var serverUtil = require('./server-util.js');
 
@@ -47,7 +48,7 @@ util.inherits(Database, buscomponent.BusComponent);
 Database.prototype._init = function(cb) {
 	var self = this;
 	
-	self.getServerConfig(function(cfg) {
+	return self.getServerConfig().then(function(cfg) {
 		self.dbmod = cfg.dbmod || require('mysql');
 		
 		self.wConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
@@ -89,7 +90,7 @@ Database.prototype._init = function(cb) {
 		 * any remaining work in progress.
 		 */
 		
-		cb();
+		return cb();
 	});
 };
 
@@ -117,7 +118,7 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
  * @function busreq~dbUsageStatistics
  */
 Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', ['reply'], function(cb) {
-	cb({
+	return cb({
 		deadlockCount: this.deadlockCount,
 		queryCount: this.queryCount,
 		writableNodes: this.writableNodes.length
@@ -141,14 +142,14 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
 {
 	var self = this, origArgs = arguments;
 	
-	if (readonly !== false && readonly !== true)
+	if (typeof readonly !== 'boolean')
 		readonly = (query.trim().indexOf('SELECT') == 0);
 	
-	self._getConnection(true, function /* restart */() {
+	return self._getConnection(true, function /* restart */() {
 		self._query.apply(self, origArgs);
-	}, readonly, function(connection) {
-		connection.query(query, args || [], function() {
-			cb.apply(self, arguments);
+	}, readonly).then(function(connection) {
+		return connection.query(query, args || []).then(function() {
+			return cb.apply(self, arguments);
 		});
 	});
 }));
@@ -167,17 +168,14 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
  * 
  * @function module:dbbackend~Database#_getConnection
  */
-Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly, cb) {
+Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly) {
 	var self = this;
 	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
 	assert.ok (pool);
 	
 	self.openConnections++;
 	
-	pool.getConnection(function(err, conn) {
-		if (err)
-			return self.emitError(err);
-		
+	return Q.nfcall(pool.getConnection).then(function(conn) {
 		assert.ok(conn);
 		
 		var release = function() {
@@ -197,6 +195,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
 			};
 			
+			var deferred = Q.defer();
 			conn.query(q, args, function(err, res) {
 				if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
 					self.deadlockCount++;
@@ -211,6 +210,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 				
 				if (!err) {
 					try {
+						deferred.resolve(res);
 						cb(res);
 					} catch (e) {
 						exception = e;
@@ -241,11 +241,13 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					release();
 				}
 			});
+			
+			return deferred.promise;
 		};
 		
-		cb({
+		return {
 			query: query, release: release
-		});
+		};
 	});
 });
 
@@ -269,17 +271,17 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
 	
 	assert.ok(readonly === true || readonly === false);
 	
-	self._getConnection(false, restart, readonly, function(cn) {
-		conncb({
+	self._getConnection(false, restart, readonly).then(function(cn) {
+		return conncb({
 			query: function(q, data, cb) {
 				data = data || [];
 				
 				// emitting self has the sole purpose of it showing up in the bus log
 				self.emitImmediate('dbBoundQueryLog', [q, data]);
-				cn.query(q, data, cb);
+				return cn.query(q, data, cb);
 			},
 			release: function() {
-				cn.release();
+				return cn.release();
 			}
 		});
 	});

@@ -23,7 +23,7 @@ function STBusComponent () {
 
 util.inherits(STBusComponent, buscomponent.BusComponent);
 
-STBusComponent.prototype.getServerConfig = function(cb) { this.request({name: 'getServerConfig'}, cb); };
+STBusComponent.prototype.getServerConfig = function(cb) { return this.request({name: 'getServerConfig'}, cb); };
 
 exports.BusComponent = STBusComponent;
 exports.provide   = buscomponent.provide;

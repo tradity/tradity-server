@@ -77,7 +77,7 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
  * @function busreq~readEMailTemplate
  */
 TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
-	this.readTemplate(template, variables, function(t) {
+	return this.readTemplate(template, variables, function(t) {
 		var headerend = t.indexOf('\n\n');
 		
 		var headers = t.substr(0, headerend).split('\n');

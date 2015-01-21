@@ -5,6 +5,7 @@ var util = require('util');
 var lapack = require('lapack');
 var UnionFind = require('unionfind');
 var assert = require('assert');
+var Q = require('q');
 
 var buscomponent = require('./stbuscomponent.js');
 
@@ -64,64 +65,58 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
  * @function busreq~updateProvisions
  */
 StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updateProvisions', ['ctx', 'reply'], function (ctx, cb) {
-	ctx.startTransaction([
+	var conn;
+	
+	return ctx.startTransaction([
 		{ name: 'depot_stocks', alias: 'ds', mode: 'w' },
 		{ name: 'users_finance', alias: 'l', mode: 'w' },
 		{ name: 'users_finance', alias: 'f', mode: 'w' },
 		{ name: 'stocks', alias: 's', mode: 'r' },
 		{ name: 'transactionlog', mode: 'w' }
-	], function(conn, commit) {
-		conn.query('SELECT ' +
+	]).then(function(conn_) {
+		conn = conn_;
+		return conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, s.stockid AS stocktextid, ' +
 			wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
 			lprovFees + ' AS lfees, ' + lprovMin + ' AS lmin, ' +
 			'ds.provision_hwm, ds.provision_lwm, s.bid, ds.amount, ' +
 			'f.id AS fid, l.id AS lid ' +
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid ' +
-			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', [],
-		function(dsr) {
-		if (!dsr.length) {
-			commit();
-			return cb();
-		}
-		
-		var complete = 0;
-		for (var j = 0; j < dsr.length; ++j) { _.partial(function(j) {
-			assert.ok(dsr[j].wfees >= 0);
-			assert.ok(dsr[j].lfees <= 0);
-			dsr[j].wfees = parseInt(dsr[j].wfees);
-			dsr[j].lfees = parseInt(dsr[j].lfees);
+			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', []);
+	}).then(function(dsr) {
+		return Q.all(dsr.map(function(entry) {
+			assert.ok(entry.wfees >= 0);
+			assert.ok(entry.lfees <= 0);
+			entry.wfees = parseInt(entry.wfees);
+			entry.lfees = parseInt(entry.lfees);
 			
-			var dsid = dsr[j].dsid;
-			var totalfees = dsr[j].wfees + dsr[j].lfees;
+			var dsid = entry.dsid;
+			var totalfees = entry.wfees + entry.lfees;
 			
-			(Math.abs(totalfees) < 1 ? function(cont) { cont(); } : function(cont) {
+			return (Math.abs(totalfees) < 1 ? Q(null) : 
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
 				'(NULL, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[dsr[j].stocktextid, dsr[j].fid, dsr[j].lid, totalfees, JSON.stringify({
+				[entry.stocktextid, entry.fid, entry.lid, totalfees, JSON.stringify({
 					reason: 'regular-provisions',
-					provision_hwm: dsr[j].provision_hwm,
-					provision_lwm: dsr[j].provision_lwm,
-					bid: dsr[j].bid,
-					depot_amount: dsr[j].amount
-				})],
-				cont);
-			})(function() {
-			conn.query('UPDATE depot_stocks AS ds SET ' +
+					provision_hwm: entry.provision_hwm,
+					provision_lwm: entry.provision_lwm,
+					bid: entry.bid,
+					depot_amount: entry.amount
+				})])
+			).then(function() {
+			return conn.query('UPDATE depot_stocks AS ds SET ' +
 				'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
 				'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
-				'WHERE depotentryid = ?', [dsr[j].wmax, dsr[j].wfees, dsr[j].lmin, dsr[j].lfees, dsr[j].dsid], function() {
-			conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
-				[totalfees, totalfees, dsr[j].fid], function() {
-			conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
-				[totalfees, totalfees, dsr[j].wfees, dsr[j].lfees, dsr[j].lid], function() {
-				if (++complete == dsr.length) 
-					commit(cb);
+				'WHERE depotentryid = ?', [entry.wmax, entry.wfees, entry.lmin, entry.lfees, entry.dsid]);
+			}).then(function() {
+			return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
+				[totalfees, totalfees, entry.fid]);
+			}).then(function() {
+			return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+				[totalfees, totalfees, entry.wfees, entry.lfees, entry.lid]);
 			});
-			});
-			});
-			});
-		}, j)(); }
+		})).then(function() {
+			return conn.commit().then(cb);
 		});
 	});
 });
@@ -152,29 +147,35 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	var self = this;
 	
 	var lmuStart = Date.now();
+	var conn, users, res_static;
 	
-	self.getServerConfig(function(cfg) {
-	
-	ctx.startTransaction({
-		depot_stocks: { alias: 'ds', mode: 'r' },
-		users_finance: { mode: 'w' },
-		stocks: { alias: 's', mode: 'w' }
-	}, function (conn, commit) {
-	conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
-		'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', [], function(users) {
-	conn.query(
-		'SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
-		'freemoney, users_finance.wprov_sum + users_finance.lprov_sum AS prov_sum ' +
-		'FROM depot_stocks AS ds ' +
-		'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
-		'LEFT JOIN users_finance ON ds.userid = users_finance.id ' +
-		'GROUP BY uid ', [], function(res_static) {
-	conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
-		'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0', [],
-		function(res_static2) {
+	return self.getServerConfig().then(function(cfg) {
+		return ctx.startTransaction({
+			depot_stocks: { alias: 'ds', mode: 'r' },
+			users_finance: { mode: 'w' },
+			stocks: { alias: 's', mode: 'w' }
+		});
+	}).then(function (conn_) {
+		conn = conn_;
+		return conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
+			'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', []);
+	}).then(function(users_) {
+		users = users_;
+		return conn.query('SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
+			'freemoney, users_finance.wprov_sum + users_finance.lprov_sum AS prov_sum ' +
+			'FROM depot_stocks AS ds ' +
+			'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
+			'LEFT JOIN users_finance ON ds.userid = users_finance.id ' +
+			'GROUP BY uid ', []);
+	}).then(function(res_static_) {
+		res_static = res_static_;
+		return conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
+			'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0', []);
+	}).then(function(res_static2) {
 		res_static = res_static.concat(res_static2);
-	conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
-		'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', [], function(res_leader) {
+		return conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
+			'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', []);
+	}).then(function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		
 		var lmuFetchData = Date.now();
@@ -301,38 +302,34 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		}
 		
 		var lmuComputationsComplete = Date.now();
-		conn.query(updateQuery, updateParams, function() {
-			commit(false, function() {
-				conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
-					'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
-					[users[i]], function(res) {
-					conn.release();
-					
-					var lmuEnd = Date.now();
-					console.log('lmu timing: ' +
-						presgesvTotalTime + ' ms pre-sgesv total, ' +
-						sgesvTotalTime + ' ms sgesv total, ' +
-						postsgesvTotalTime + ' ms post-sgesv total, ' +
-						(lmuEnd - lmuStart) + ' ms lmu total, ' +
-						(lmuFetchData - lmuStart) + ' ms fetching, ' +
-						(lmuEnd - lmuComputationsComplete) + ' ms writing');
-					
-					for (var j = 0; j < res.length; ++j) {
-						process.nextTick(_.bind(_.partial(function(r) {
-							self.emitGlobal('stock-update', r);
-						}, res[j]), self));
-					}
-					
-					cb();
-				});
-			});
+		var res;
+		return conn.query(updateQuery, updateParams).then(function() {
+			return conn.commit(false);
+		}).then(function() {
+			return conn.query('SELECT stockid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
+				'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
+					[users[i]]);
+		}).then(function(res_) {
+			res = res_;
+			return conn.release();
+		}).then(function() {
+			var lmuEnd = Date.now();
+			console.log('lmu timing: ' +
+				presgesvTotalTime + ' ms\tpre-sgesv total, ' +
+				sgesvTotalTime + ' ms\tsgesv total, ' +
+				postsgesvTotalTime + ' ms\tpost-sgesv total, ' +
+				(lmuEnd - lmuStart) + ' ms\tlmu total, ' +
+				(lmuFetchData - lmuStart) + ' ms\tfetching, ' +
+				(lmuEnd - lmuComputationsComplete) + ' ms\twriting');
+			
+			for (var j = 0; j < res.length; ++j) {
+				process.nextTick(_.bind(_.partial(function(r) {
+					self.emitGlobal('stock-update', r);
+				}, res[j]), self));
+			}
+			
+			return cb();
 		});
-	});
-	});
-	});
-	});
-	});
-	
 	});
 });
 

@@ -45,7 +45,7 @@ function Database () {
 
 util.inherits(Database, buscomponent.BusComponent);
 
-Database.prototype._init = function(cb) {
+Database.prototype._init = function() {
 	var self = this;
 	
 	return self.getServerConfig().then(function(cfg) {
@@ -89,8 +89,6 @@ Database.prototype._init = function(cb) {
 		 * during the shutdown process temporarily, so other components can complete
 		 * any remaining work in progress.
 		 */
-		
-		return cb();
 	});
 };
 
@@ -117,12 +115,12 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
  * 
  * @function busreq~dbUsageStatistics
  */
-Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', ['reply'], function(cb) {
-	return cb({
+Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [], function() {
+	return {
 		deadlockCount: this.deadlockCount,
 		queryCount: this.queryCount,
 		writableNodes: this.writableNodes.length
-	});
+	};
 });
 
 /**
@@ -137,8 +135,8 @@ Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [
  * 
  * @function busreq~dbQuery
  */
-Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly', 'reply'],
-	buscomponent.needsInit(function(query, args, readonly, cb)
+Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly'],
+	buscomponent.needsInit(function(query, args, readonly)
 {
 	var self = this, origArgs = arguments;
 	
@@ -148,9 +146,7 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
 	return self._getConnection(true, function /* restart */() {
 		self._query.apply(self, origArgs);
 	}, readonly).then(function(connection) {
-		return connection.query(query, args || []).then(function() {
-			return cb.apply(self, arguments);
-		});
+		return connection.query(query, args || []);
 	});
 }));
 
@@ -175,7 +171,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 	
 	self.openConnections++;
 	
-	return Q.nfcall(pool.getConnection).then(function(conn) {
+	return Q.ninvoke(pool, 'getConnection').then(function(conn) {
 		assert.ok(conn);
 		
 		var release = function() {
@@ -187,7 +183,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 			return conn.release();
 		};
 		
-		var query = function(q, args, cb) {
+		var query = function(q, args) {
 			self.queryCount++;
 			
 			var rollback = function() {
@@ -211,7 +207,6 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 				if (!err) {
 					try {
 						deferred.resolve(res);
-						cb(res);
 					} catch (e) {
 						exception = e;
 					}
@@ -221,7 +216,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					rollback();
 					
 					// make sure that the error event is emitted -> release() will be called in next tick
-					process.nextTick(release);
+					Q.then(release);
 					
 					if (err) {
 						// query-related error
@@ -265,25 +260,25 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
  * @function busreq~dbGetConection
  */
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
-	['readonly', 'restart', 'reply'], function(readonly, restart, conncb) 
+	['readonly', 'restart'], function(readonly, restart) 
 {
 	var self = this;
 	
 	assert.ok(readonly === true || readonly === false);
 	
-	self._getConnection(false, restart, readonly).then(function(cn) {
-		return conncb({
-			query: function(q, data, cb) {
+	return self._getConnection(false, restart, readonly).then(function(cn) {
+		return {
+			query: function(q, data) {
 				data = data || [];
 				
 				// emitting self has the sole purpose of it showing up in the bus log
 				self.emitImmediate('dbBoundQueryLog', [q, data]);
-				return cn.query(q, data, cb);
+				return cn.query(q, data);
 			},
 			release: function() {
 				return cn.release();
 			}
-		});
+		};
 	});
 });
 

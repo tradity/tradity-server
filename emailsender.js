@@ -31,13 +31,12 @@ function Mailer () {
 
 util.inherits(Mailer, buscomponent.BusComponent);
 
-Mailer.prototype._init = function(cb) {
+Mailer.prototype._init = function() {
 	var self = this;
 	
 	return this.getServerConfig().then(function(cfg) {
 		self.mailer = nodemailer.createTransport(cfg.mail.transport(cfg.mail.transportData));
 		self.inited = true;
-		return cb();
 	});
 };
 
@@ -54,15 +53,15 @@ Mailer.prototype._init = function(cb) {
  * @function busreq~sendTemplateMail
  */
 Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
-	['variables', 'template', 'ctx', 'mailtype', 'reply'],
-	function(variables, template, ctx, mailtype, cb) {
+	['variables', 'template', 'ctx', 'mailtype'],
+	function(variables, template, ctx, mailtype) {
 	var self = this;
 	
 	return self.request({name: 'readEMailTemplate', 
 		template: template,
 		variables: variables || {},
 	}).then(function(opt) {
-		return self.sendMail(opt, ctx, template, mailtype || opt.headers['X-Mailtype'] || '', cb);
+		return self.sendMail(opt, ctx, template, mailtype || opt.headers['X-Mailtype'] || '');
 	});
 });
 
@@ -96,20 +95,18 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
  * 
  * @function c2s~email-bounced
  */
-Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx', 'reply'],
-	function(query, internal, ctx, cb)
+Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx'],
+	function(query, internal, ctx)
 {
-	cb = cb || function() {};
-	
 	if (!ctx)
 		ctx = new qctx.QContext({parentComponent: this});
 	
 	if (!internal && !ctx.access.has('email-bounces'))
-		return cb('permission-denied');
+		return { code: 'permission-denied' };
 	
 	return ctx.query('SELECT mailid, uid FROM sentemails WHERE messageid = ?', [String(query.messageId)]).then(function(r) {
 		if (r.length == 0)
-			return cb('email-bounced-notfound');
+			return { code: 'email-bounced-notfound' };
 		
 		assert.equal(r.length, 1);
 		var mail = r[0];
@@ -124,7 +121,7 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 			'noFollowers': true
 		});
 	}).then(function() {
-		return cb('email-bounced-success');
+		return { code: 'email-bounced-success' };
 	});
 });
 
@@ -143,8 +140,8 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
  * @function busreq~sendMail
  */
 Mailer.prototype.sendMail = buscomponent.provide('sendMail',
-	['opt', 'ctx', 'template', 'mailtype', 'reply'],
-	buscomponent.needsInit(function(opt, ctx, template, mailtype, cb)
+	['opt', 'ctx', 'template', 'mailtype'],
+	buscomponent.needsInit(function(opt, ctx, template, mailtype)
 {
 	var self = this;
 	
@@ -169,20 +166,15 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		
 		return Q(null);
 	}).then(function() {
-		return Q.nfcall(self.mailer.sendMail, opt);
+		return Q.ninvoke(self.mailer, 'sendMail', opt);
 	}).then(function(status) {
 		if (status && status.rejected.length > 0)
 			self.emailBounced({messageId: shortId}, true, ctx);
-		
-		
-		return cb();
 	}, function(err) {
 		self.emailBounced({messageId: shortId}, true, ctx);
 			
 		if (err)
 			self.emitError(err);
-		
-		return cb();
 	});
 }));
 

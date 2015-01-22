@@ -64,7 +64,7 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
  * 
  * @function busreq~updateProvisions
  */
-StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updateProvisions', ['ctx', 'reply'], function (ctx, cb) {
+StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updateProvisions', ['ctx'], function (ctx) {
 	var conn;
 	
 	return ctx.startTransaction([
@@ -116,7 +116,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 				[totalfees, totalfees, entry.wfees, entry.lfees, entry.lid]);
 			});
 		})).then(function() {
-			return conn.commit().then(cb);
+			return conn.commit();
 		});
 	});
 });
@@ -143,7 +143,7 @@ function identityMatrix(n) {
  * 
  * @function busreq~updateLeaderMatrix
  */
-StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('updateLeaderMatrix', ['ctx', 'reply'], function(ctx, cb) {
+StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('updateLeaderMatrix', ['ctx'], function(ctx) {
 	var self = this;
 	
 	var lmuStart = Date.now();
@@ -198,7 +198,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		}
 		
 		if (users.length == 0)
-			return cb();
+			return;
 		
 		// find connected components
 		var uf = new UnionFind(users.length);
@@ -322,13 +322,9 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 				(lmuFetchData - lmuStart) + ' ms\tfetching, ' +
 				(lmuEnd - lmuComputationsComplete) + ' ms\twriting');
 			
-			for (var j = 0; j < res.length; ++j) {
-				process.nextTick(_.bind(_.partial(function(r) {
-					self.emitGlobal('stock-update', r);
-				}, res[j]), self));
-			}
-			
-			return cb();
+			return _.each(res, function(r) {
+				self.emitGlobal('stock-update', r);
+			});
 		});
 	});
 });

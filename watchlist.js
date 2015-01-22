@@ -46,15 +46,15 @@ util.inherits(Watchlist, buscomponent.BusComponent);
  * @noreadonly
  * @function c2s~watchlist-add
  */
-Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx, cb) {
+Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx) {
 	return ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
 		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?',
 		[String(query.stockid)]).then(function(res) {
 		if (res.length == 0)
-			return cb('watchlist-add-notfound');
+			return { code: 'watchlist-add-notfound' };
 		var uid = res[0].uid;
 		if (uid == ctx.user.id)
-			return cb('watchlist-add-self');
+			return { code: 'watchlist-add-self' };
 		
 		return ctx.query('REPLACE INTO watchlists ' +
 			'(watcher, watchstarttime, watchstartvalue, watched) '+
@@ -73,7 +73,7 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
 				feedusers: uid ? [uid] : []
 			});
 		}).then(function() {
-			cb('watchlist-add-success');
+			return { code: 'watchlist-add-success' };
 		}); 
 	});
 });
@@ -97,7 +97,7 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
  * @noreadonly
  * @function c2s~watchlist-remove
  */
-Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx, cb) {
+Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx) {
 	return ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.id, String(query.stockid)]).then(function() {
 		return ctx.feed({
 			type: 'watch-remove',
@@ -106,7 +106,7 @@ Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-
 			json: { watched: String(query.stockid) }
 		});
 	}).then(function() {
-		return cb('watchlist-remove-success');
+		return { code: 'watchlist-remove-success' };
 	});
 });
 
@@ -137,7 +137,7 @@ Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-
  * 
  * @function c2s~watchlist-show
  */
-Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show', function(query, ctx, cb) {
+Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-show', function(query, ctx) {
 	return ctx.query('SELECT s.*, s.name AS stockname, users.name AS username, users.id AS uid, w.watchstartvalue, w.watchstarttime, ' +
 		'lastusetime AS lastactive, IF(rw.watched IS NULL, 0, 1) AS friends ' +
 		'FROM watchlists AS w ' +
@@ -147,7 +147,7 @@ Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-sho
 		'LEFT JOIN watchlists AS rw ON rw.watched = rs.id AND rw.watcher = s.leader ' +
 		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
 		'WHERE w.watcher = ?', [ctx.user.id]).then(function(res) {
-		return cb('watchlist-show-success', {'results': res});
+		return { code: 'watchlist-show-success', 'results': res };
 	});
 });
 

@@ -56,16 +56,16 @@ Achievements.prototype.onBusConnect = function() {
  * 
  * @function busreq~sellAll
  */
-Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx', 'reply'], function(ctx, cb) {
+Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx'], function(ctx) {
 	var self = this;
 	
 	if (ctx.getProperty('readonly'))
-		return cb();
+		return;
 	
 	return ctx.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id]).then(function(userAchievements) {
 		return Q.all(self.achievementList.map(function(achievementEntry) {
 			return self.checkAchievement(achievementEntry, ctx, userAchievements);
-		})).then(cb);
+		}));
 	});
 });
 
@@ -249,8 +249,8 @@ Achievements.prototype.markClientAchievements = function() {
  * 
  * @function c2s~list-all-achievements
  */
-Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx, cb) {
-	return cb('list-all-achievements-success', {result: this.achievementList});
+Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-all-achievements', function(query, ctx) {
+	return { code: 'list-all-achievements-success', result: this.achievementList };
 });
 
 /**
@@ -263,7 +263,7 @@ Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-al
  * @function c2s~get-daily-login-certificate
  */
 Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('client-get-daily-login-certificate',
-	function(query, ctx, cb)
+	function(query, ctx)
 {
 	var today = new Date().toJSON().substr(0, 10);
 	
@@ -272,7 +272,7 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
 		date: today,
 		certType: 'wasOnline'
 	}}).then(function(cert) {
-		return cb('get-daily-login-certificate-success', {cert: cert});
+		return { code: 'get-daily-login-certificate-success', cert: cert };
 	});
 });
 
@@ -287,26 +287,25 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
  * @function c2s~achievements
  */
 Achievements.prototype.clientAchievement = buscomponent.provideW('client-achievement',
-	['query', 'ctx', 'verified', 'reply'],
-	function(query, ctx, verified, cb)
+	['query', 'ctx', 'verified'],
+	function(query, ctx, verified)
 {
 	var self = this;
-	cb = function(data) { return data; };
 	
 	if (!query.name)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	query.name = String(query.name);
 	
 	if (self.clientAchievements.indexOf(query.name) == -1)
-		return cb('achievement-unknown-name');
+		return { code: 'achievement-unknown-name' };
 	
 	return ctx.query('REPLACE LOW_PRIORITY INTO achievements_client (userid, achname, verified) VALUES(?, ?, ?)',
 		[ctx.user.id, query.name, verified || 0]).then(function()
 	{
 		self.emitImmediate('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
 		
-		return cb('achievement-success');
+		return { code: 'achievement-success' };
 	});
 });
 
@@ -320,12 +319,12 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
  * 
  * @function c2s~dl-achievement
  */
-Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-achievement', function(query, ctx, cb) {
+Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-achievement', function(query, ctx) {
 	var self = this;
 	var uid = ctx.user.id;
 	
 	if (!query.certs || !query.certs.map)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	Q.all(query.certs.map(function(cert) {
 		return self.request({
@@ -357,7 +356,7 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 		return Q.all(_.range(2, Math.min(longestStreak, 20) + 1).map(function(i) {
 			return self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
 		})).then(function() {
-			return cb('dl-achievement-success');
+			return { code: 'dl-achievement-success' };
 		});
 	});
 });

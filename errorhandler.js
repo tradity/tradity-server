@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var fs = require('fs');
 var util = require('util');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -42,50 +43,43 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 	if (!e)
 		return self.err(new Error('Error without Error object caught -- abort'), true);
 	
-	var handler = function(cfg) {
-		try {
-			noemail = noemail || false;
-			
-			var longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
-			if (e.stack)
-				longErrorText += e.stack + '\n';
-			else // assume e is not actually an Error instance
-				longErrorText += util.inspect(e) + '\n';
-			
-			if (self.bus) {
-				longErrorText += 'Bus: ' + self.bus.id + '\n';
-				longErrorText += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
-			
-				if (e.nonexistentType || e.name.match(/^Assertion/i))
-					longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
-			}
-			
-			console.error(longErrorText);
-			
-			if (cfg && cfg.mail) {
-				var opt = _.clone(cfg.mail['errorBase']);
-				opt.text = longErrorText;
-				self.request({name: 'sendMail', mailtype: 'error', opt: opt}, function (error, resp) {
-					if (error)
-						self.err(error, true);
-				});
-			} else {
-				console.warn('Could not send error mail due to missing config!');
-			}
-			
-			if (cfg && cfg.errorLogFile)
-				fs.appendFile(cfg.errorLogFile, longErrorText, function() {});
-		} catch(e2) {
-			console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
-		}
-	};
-	
-	try {
-		self.getServerConfig(handler);
-	} catch (e2) {
+	var cfg, longErrorText;
+	self.getServerConfig().catch(function(e2) {
 		console.error('Could not get server config due to', e2);
-		handler();
-	}
+		return null;
+	}).then(function(cfg_) {
+		cfg = cfg_;
+		noemail = noemail || false;
+		
+		longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
+		if (e.stack)
+			longErrorText += e.stack + '\n';
+		else // assume e is not actually an Error instance
+			longErrorText += util.inspect(e) + '\n';
+		
+		if (self.bus) {
+			longErrorText += 'Bus: ' + self.bus.id + '\n';
+			longErrorText += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
+		
+			if (e.nonexistentType || e.name.match(/^Assertion/i))
+				longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
+		}
+		
+		console.error(longErrorText);
+		
+		if (cfg && cfg.errorLogFile)
+			return Q.nfcall(fs.appendFile, cfg.errorLogFile, longErrorText);
+	}).then(function() {
+		if (cfg && cfg.mail) {
+			var opt = _.clone(cfg.mail['errorBase']);
+			opt.text = longErrorText;
+			return self.request({name: 'sendMail', mailtype: 'error', opt: opt});
+		} else {
+			console.warn('Could not send error mail due to missing config!');
+		}
+	}).catch(function(e2) {
+		console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
+	}).done();
 });
 
 exports.ErrorHandler = ErrorHandler;

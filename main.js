@@ -56,14 +56,14 @@ mainBus.addOutputFilter(function(packet) {
 var afql = new af.ArivaFinanceQuoteLoader();
 afql.on('error', function(e) { manager.emitError(e); });
 
-manager.getServerConfig = buscomponent.provide('getServerConfig', ['reply'], function(reply) { reply(cfg); });
-manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', ['reply'], function(reply) { reply(afql); });
-manager.getAchievementList = buscomponent.provide('getAchievementList', ['reply'], function(reply) { reply(achievementList.AchievementList); });
-manager.getClientAchievementList = buscomponent.provide('getClientAchievementList', ['reply'], function(reply) { reply(achievementList.ClientAchievements); });
+manager.getServerConfig = buscomponent.provide('getServerConfig', [], function() { return cfg; });
+manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', [], function() { return afql; });
+manager.getAchievementList = buscomponent.provide('getAchievementList', [], function() { return achievementList.AchievementList; });
+manager.getClientAchievementList = buscomponent.provide('getClientAchievementList', [], function() { return achievementList.ClientAchievements; });
 
 var readonly = cfg.readonly;
 
-manager.getReadabilityMode = buscomponent.provide('get-readability-mode', ['reply'], function(cb) { cb({readonly: readonly}); });
+manager.getReadabilityMode = buscomponent.provide('get-readability-mode', [], function() { return {readonly: readonly}; });
 manager.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) { readonly = event.readonly; });
 
 manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
@@ -213,9 +213,9 @@ function worker() {
 		] : [
 			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js', './chats.js', './watchlist.js'
 		]);
-
+		
 		var stserver;
-		loadComponents(componentsForLoading).then(function() {
+		return loadComponents(componentsForLoading).then(function() {
 			var server = require('./server.js');
 			stserver = new server.SoTradeServer();
 			
@@ -224,20 +224,20 @@ function worker() {
 			if (process.isBackgroundWorker)
 				console.log('bw started');
 			else
-				stserver.start(msg.port);
-		});
+				return stserver.start(msg.port);
+		}).done();
 	});
 }
 
 function connectToSocketIORemote(remote) {
-	manager.request({
+	return manager.request({
 		name: 'createSignedMessage',
 		msg: {
 			type: 'init-bus-transport',
 			id: 'init-bus-transport',
 			weight: remote.weight
 		}
-	}, function(signed) {
+	}).then(function(signed) {
 		var sslOpts = remote.ssl || null;
 		if (sslOpts === 'default')
 			sslOpts = cfg.ssl;
@@ -282,7 +282,7 @@ function connectToSocketIORemote(remote) {
 				signedContent: signed
 			});
 		});
-	});
+	}).done();
 }
 
 function loadComponents(componentsForLoading) {

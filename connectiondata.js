@@ -287,13 +287,15 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
  * @function module:connectiondata~ConnectionData#response
  */
 ConnectionData.prototype.response = function(data) {
-	var res = this.wrapForReply(data).then(function(r) {
-		if (this.socket)
-			this.socket.emit('response', r) 
+	var self = this;
+	
+	var res = self.wrapForReply(data).then(function(r) {
+		if (self.socket)
+			self.socket.emit('response', r) 
 	});
 	
-	if (this.isShuttingDown)
-		this.shutdown();
+	if (self.isShuttingDown)
+		self.shutdown();
 	
 	return res;
 };
@@ -348,7 +350,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 	if (!query)
 		return;
 	
-	Q().then(function() {
+	return Q().then(function() {
 		if (!query.signedContent)
 			return {query: query, masterAuthorization: false};
 		
@@ -413,43 +415,19 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				self.onUserConnected();
 			
 			var callbackHasBeenCalled = false;
-			var cb = function(code, obj, extra) {
-				if (callbackHasBeenCalled)
-					return self.emitError('Callback for client request called multiple times!');
-				callbackHasBeenCalled = true;
-				
-				self.unansweredCount--;
-				
-				var now = Date.now();
-				obj = obj || {};
-				obj['code'] = code;
-				obj['is-reply-to'] = query.id;
-				obj['_t_sdone'] = now;
-				obj['_t_srecv'] = recvTime;
-				
-				if (extra == 'repush' && self.bus && self.socket) {
-					self.lastInfoPush = 0;
-					
-					self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()}).then(function(newUser) {
-						if (newUser)
-							self.ctx.user = newUser;
-						
-						return self.pushSelfInfo();
-					});
-				}
-				
-				return self.response(obj);
-			};
 			
-			self.unansweredCount++;
-			if (self.isShuttingDown) {
-				cb('server-shutting-down');
-			} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
-				self.ctx.user === null &&
-				!self.ctx.access.has('login_override'))
-			{
-				cb('not-logged-in');
-			} else {
+			return Q().then(function() {
+				self.unansweredCount++;
+				if (self.isShuttingDown)
+					return { code: 'server-shutting-down' };
+				
+				if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
+					self.ctx.user === null &&
+					!self.ctx.access.has('login_override'))
+				{
+					return { code: 'not-logged-in' };
+				}
+			
 				switch (query.type) {
 				/**
 				 * Fetch all events not yet pushed to the client.
@@ -462,7 +440,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				 */
 				case 'fetch-events':
 					self.fetchEvents(query);
-					return cb('fetching-events');
+					return { code: 'fetching-events' };
 				/**
 				 * Sets up this connection as a bus (server-to-server) transport.
 				 * This requires unlimited privileges.
@@ -478,11 +456,11 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				 */
 				case 'init-bus-transport':
 					if (!masterAuthorization)
-						return cb('permission-denied');
+						return { code: 'permission-denied' };
 					
 					self.ctx.setProperty('isBusTransport', true);
 					self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));
-					return cb('init-bus-transport-success');
+					return { code: 'init-bus-transport-success' };
 				/**
 				 * Tell the current {@link module:qctx~QContext} to send back
 				 * debugging information.
@@ -494,31 +472,64 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				 */
 				case 'set-debug-mode':
 					if (!self.ctx.access.has('server'))
-						return cb('permission-denied');
+						return { code: 'permission-denied' };
 					self.ctx.setProperty('debugEnabled', query.debugMode);
-					return cb('set-debug-mode-success');
+					return { code: 'set-debug-mode-success' };
 				// documented in user.js
 				case 'logout':
 					self.onLogout();
 					// fall-through
 				}
 				
-				try {
-					self.request({
-						name: 'client-' + query.type,
-						query: query,
-						ctx: self.ctx.clone(),
-						xdata: self.pickXDataFields()
-					}, cb);
-				} catch (e) {
+				return self.request({
+					name: 'client-' + query.type,
+					query: query,
+					ctx: self.ctx.clone(),
+					xdata: self.pickXDataFields()
+				}).catch(function(e) {
 					if (e.nonexistentType) {
-						cb('unknown-query-type');
+						return { code: 'unknown-query-type' };
 					} else {
-						cb('server-fail');
+						return { code: 'server-fail' };
 						self.emitError(e);
 					}
+				});
+			}).then(function(result) {
+				console.log(result);
+				assert.ok(result);
+				
+				if (callbackHasBeenCalled)
+					return self.emitError('Callback for client request called multiple times!');
+				
+				callbackHasBeenCalled = true;
+				
+				self.unansweredCount--;
+				
+				var now = Date.now();
+				result['is-reply-to'] = query.id;
+				result['_t_sdone'] = now;
+				result['_t_srecv'] = recvTime;
+				
+				var extra = result.extra;
+				delete result.extra;
+				
+				var finalizingPromises = [];
+				if (extra == 'repush' && self.bus && self.socket) {
+					self.lastInfoPush = 0;
+					
+					finalizingPromises.push(self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()})
+						.then(function(newUser) {
+						if (newUser)
+							self.ctx.user = newUser;
+						
+						return self.pushSelfInfo();
+					}));
 				}
-			}
+				
+				finalizingPromises.push(self.response(result));
+				
+				return Q.all(finalizingPromises);
+			});
 		});
 	});
 });

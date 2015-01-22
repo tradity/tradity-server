@@ -58,10 +58,6 @@ function QContext(obj) {
 	self.creationStack = getStack();
 	self.creationTime = Date.now();
 	
-	self.callbackFilters.push(function(callback) {
-		return self.errorWrap(callback);
-	});
-	
 	var parentQCtx = null;
 	
 	if (obj.parentComponent) {
@@ -149,32 +145,10 @@ QContext.prototype.getChildContexts = function() {
 	return rv;
 };
 
-/**
- * Wrap a callback for exception handling by this callback.
- * 
- * @param {?function} callback  A generic function to wrap
- * 
- * @return {function}  A callback of the same signature.
- * @function module:qctx~QContext#errorWrap
- */
-QContext.prototype.errorWrap = function(callback) {
-	var self = this;
-	
-	callback = callback || function() {};
-	
-	return function() {
-		try {
-			return callback.apply(self, arguments);
-		} catch (e) {
-			self.emitError(e);
-		}
-	};
-};
-
 QContext.prototype.onBusConnect = function() {
 	var self = this;
 	
-	return self.request({name: 'get-readability-mode'}, function(reply) {
+	return self.request({name: 'get-readability-mode'}).then(function(reply) {
 		assert.ok(reply.readonly === true || reply.readonly === false);
 		
 		if (!self.hasProperty('readonly')) {
@@ -209,7 +183,7 @@ QContext.prototype.toJSON = function() {
  *                                                            should be connected to.
  * 
  * @return {object}  A freshly created {@link module:qctx~QContext}.
- * @function module:qctx~QContext#errorWrap
+ * @function module:qctx~QContext.fromJSON
  */
 exports.fromJSON =
 QContext.fromJSON = function(j, parentComponent) {
@@ -300,13 +274,13 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * @return  A Q promise corresponding to successful completion
  * @function module:qctx~QContext#feed
  */
-QContext.prototype.feed = function(data, reply) {
+QContext.prototype.feed = function(data) {
 	var conn = data.conn || null;
 	delete data.conn;
 	var onEventId = data.onEventId || function() {};
 	delete data.onEventId;
 	
-	return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn}, reply || function() {});
+	return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn});
 };
 
 /**
@@ -316,9 +290,7 @@ QContext.prototype.feed = function(data, reply) {
  * @return  A Q promise corresponding to successful completion
  * @function module:qctx~QContext#query
  */
-QContext.prototype.query = function(query, args, cb) {
-	cb = cb || function(data) { return data; };
-	
+QContext.prototype.query = function(query, args) {
 	var self = this;
 	self.debug('Executing query [unbound]', query, args);
 	self.incompleteQueryCount++;
@@ -328,7 +300,7 @@ QContext.prototype.query = function(query, args, cb) {
 		self.queryCount++;
 		
 		return data;
-	}).then(cb);
+	});
 };
 
 /**
@@ -338,68 +310,57 @@ QContext.prototype.query = function(query, args, cb) {
  * @param {boolean} readonly  Whether the connection requires no write access.
  * @param {function} restart  Callback that will be invoked when the current transaction
  *                            needs restarting.
- * @param {function} cb  Callback that will be called with the new connection and 
- *                       commit() and rollback() shortcuts (both releasing the connection).
  * 
  * @return  A Q promise corresponding to successful completion
  *          (with an Object with `conn`, `commit` and `rollback` entries)
  * @function module:qctx~QContext#getConnection
  */
-QContext.prototype.getConnection = function(readonly, restart, cb) {
+QContext.prototype.getConnection = function(readonly, restart) {
 	var self = this;
 	
 	var oci = self.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
 	
 	return self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(function(conn) {
-		var postTransaction = function(doRelease, ecb) {
+		assert.ok(conn);
+		
+		var postTransaction = function(doRelease) {
 			delete self.openConnections[oci];
 			if (_.compact(self.openConnections) == [])
 				self.openConnections = [];
 			
-			if (typeof doRelease == 'function') {
-				ecb = doRelease;
-				doRelease = true;
-			}
-			
 			if (typeof doRelease == 'undefined')
 				doRelease = true;
 			
-			ecb = ecb || function() {};
-			
 			if (doRelease)
-				conn.release();
-			return ecb();
+				return conn.release();
 		};
 		
 		var oldrestart = restart;
 		restart = function() {
-			return postTransaction(oldrestart);
+			return Q(postTransaction()).then(oldrestart);
 		};
 		
 		/* return wrapper object for better debugging, no semantic change */
 		var conn_ = {
 			release: _.bind(conn.release, conn),
-			query: function(query, args, cb) {
-				cb = cb || function(data) { return data; };
-				
+			query: function(query, args) {
 				self.debug('Executing query [bound]', query, args);
-				return conn.query(query, args, self.errorWrap(cb));
+				return conn.query(query, args);
 			},
 			
 			/* convenience functions for rollback and commit with implicit release */
-			commit: function(doRelease, ecb) {
+			commit: function(doRelease) {
 				return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', []).then(function() {
-					return postTransaction(doRelease, ecb);
+					return postTransaction(doRelease);
 				});
 			},
-			rollback: function(doRelease, ecb) {
+			rollback: function(doRelease) {
 				return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;', []).then(function() {
-					return postTransaction(doRelease, ecb);
+					return postTransaction(doRelease);
 				});
 			}
 		};
 		
-		cb(conn_);
 		return conn_;
 	}); 
 };
@@ -418,27 +379,17 @@ QContext.prototype.getConnection = function(readonly, restart, cb) {
  *                                           restarting, e.g. in case of database deadlocks. Use
  *                                           <code>true</code> to just rollback and call the
  *                                           startTransaction callback again.
- * @param {function} cb  Callback that will be called with the new connection, including 
- *                       .commit() and .rollback() shortcuts (both releasing the connection).
  * 
- * @return  A Q promise corresponding to successful completion (with the return callback argument)
+ * @return  A Q promise corresponding to successful completion, including
+ *          .commit() and .rollback() shortcuts (both releasing the connection).
  * @function module:qctx~QContext#startTransaction
  */
-QContext.prototype.startTransaction = function(tablelocks, options, cb) {
+QContext.prototype.startTransaction = function(tablelocks, options) {
 	var self = this, args = arguments;
 	
-	// argument shifting -- often, options will not be given
-	if (typeof options !== 'object') {
-		cb = options;
-		options = {};
-	}
+	options = options || {};
+	tablelocks = tablelocks || {};
 	
-	if (typeof tablelocks !== 'object') {
-		cb = tablelocks;
-		tablelocks = {};
-	}
-	
-	cb = cb || function() {};
 	var readonly = !!options.readonly;
 	
 	var tli = null;
@@ -462,12 +413,11 @@ QContext.prototype.startTransaction = function(tablelocks, options, cb) {
 		tli = null;
 	};
 	
-	assert.equal(typeof cb, 'function');
-	
 	var conn;
 	var oldrestart = options.restart || function() {
-		if (conn) conn.rollback();
-		self.startTransaction.apply(self, args);
+		(conn ? conn.rollback() : Q()).then(function() {
+			self.startTransaction.apply(self, args);
+		});
 	};
 	
 	var restart = function() {
@@ -523,7 +473,6 @@ QContext.prototype.startTransaction = function(tablelocks, options, cb) {
 			self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
 		}, 60000);
 		
-		cb(conn);
 		return conn;
 	});
 };

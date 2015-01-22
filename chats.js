@@ -68,26 +68,26 @@ util.inherits(Chats, buscomponent.BusComponent);
  * 
  * @function c2s~get-chat
  */
-Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(query, ctx, cb) {
+Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx) {
 	var whereString = '';
 	var params = [];
 	
 	if (!query.endpoints || !query.endpoints.length) {
 		if (!query.chatid || parseInt(query.chatid) != query.chatid)
-			return cb('format-error');
+			return { code: 'format-error' };
 		
 		whereString += ' chatid = ?';
 		params.push(query.chatid);
 	} else {
 		if (query.chatid)
-			return cb('format-error');
+			return { code: 'format-error' };
 		
 		var containsOwnChats = false;
 		for (var i = 0; i < query.endpoints.length; ++i) {
 			var uid = query.endpoints[i];
 			containsOwnChats = containsOwnChats || (uid == ctx.user.id);
 			if (parseInt(uid) != uid)
-				return cb('format-error');
+				return { code: 'format-error' };
 		}
 		
 		if (!containsOwnChats && ctx.user)
@@ -147,9 +147,9 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 		}).then(function(chat) {
 			if (chat === null) {
 				if (ctx.getProperty('readonly'))
-					return cb('server-readonly');
+					return { code: 'server-readonly' };
 				else
-					return cb('chat-get-notfound');
+					return { code: 'chat-get-notfound' };
 			}
 			
 			assert.notStrictEqual(chat.chatid, null);
@@ -158,7 +158,7 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 			chat.endpoints = query.endpoints;
 			
 			if (query.noMessages)
-				return cb('chat-get-success', chat);
+				return { code: 'chat-get-success', chat: chat };
 			
 			return ctx.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
 				'FROM chatmembers AS cm ' +
@@ -177,7 +177,7 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 				}
 				
 				if (!ownChatsIsEndpoint)
-					return cb('chat-get-notfound');
+					return { code: 'chat-get-notfound' };
 				
 				return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
 					'FROM ecomments AS c ' + 
@@ -185,7 +185,7 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
 					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
 					'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
 					chat.messages = comments;
-					return cb('chat-get-success', {chat: chat});
+					return { code: 'chat-get-success', chat: chat };
 				});	
 			});
 		});
@@ -214,31 +214,34 @@ Chats.prototype.getChats = buscomponent.provideQT('client-chat-get', function(qu
  * 
  * @function c2s~chat-adduser
  */
-Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser', function(query, ctx, cb) {
+Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser', function(query, ctx) {
 	var self = this;
 	
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	return ctx.query('SELECT name FROM users WHERE id = ?', [query.userid]).then(function(res) {
 		if (res.length == 0)
-			return cb('chat-adduser-user-notfound');
+			return { code: 'chat-adduser-user-notfound' };
 		
 		assert.equal(res.length, 1);
 		var username = res[0].name;
 		
-		return self.getChats({
+		return self.getChat({
 			chatid: query.chatid,
 			failOnMissing: true
-		}, ctx).then(function(status, chat) {
+		}, ctx).then(function(getChatsResult) {
+			var status = getChatsResult.code;
 			switch (status) {
 				case 'chat-get-notfound':
-					return cb('chat-adduser-chat-notfound');
+					return { code: 'chat-adduser-chat-notfound' };
 				case 'chat-get-success':
 					break;
 				default:
-					return cb(status); // assume other error
+					return { code: status }; // assume other error
 			}
+			
+			var chat = getChatsResult.chat;
 			
 			return ctx.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid]).then(function(r) {
 				var feedusers = _.pluck(chat.endpoints, 'uid');
@@ -253,7 +256,7 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
 					json: {addedChats: query.userid, addedChatsName: username, endpoints: chat.endpoints}
 				});
 			}).then(function() {
-				return cb('chat-adduser-success');
+				return { code: 'chat-adduser-success' };
 			});
 		});
 	});
@@ -268,7 +271,7 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
  * 
  * @function c2s~list-all-chats
  */
-Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx, cb) {
+Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx) {
 	return ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
 		'eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +
@@ -290,7 +293,7 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
 			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername, profilepic: res[i].profilepic});
 		}
 		
-		return cb('list-all-chats-success', {chats: ret});
+		return { code: 'list-all-chats-success', chats: ret };
 	});
 });
 

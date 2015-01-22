@@ -57,12 +57,11 @@ DelayedQueries.prototype.onBusConnect = function() {
  * 
  * @function busreq~neededStocksDQ
  */
-DelayedQueries.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ', ['reply'], function(cb) {
+DelayedQueries.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ', [], function() {
 	var neededIDs = _.chain(this.neededStocks).keys().map(function(id) {
 		return id.substr(2);
 	}).value();
 	
-	cb(neededIDs);
 	return neededIDs;
 });
 
@@ -116,13 +115,13 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
  * 
  * @function c2s~dquery-list
  */
-DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquery-list', function(query, ctx, cb) {
-	return cb('dquery-list-success', {
-		'results': (_.chain(this.queries).values()
-			.filter(function(q) { return q.userinfo.id == ctx.user.id; })
+DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquery-list', function(query, ctx) {
+	return { code: 'dquery-list-success', 
+		'results': _.chain(this.queries).values()
+			.filter(function(q) { return q.userinfo.id == ctx.user.id;  }
 			.map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
 			.value())
-	});
+	};
 });
 
 /**
@@ -135,14 +134,14 @@ DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquer
  * 
  * @function c2s~dquery-remove
  */
-DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx, cb) {
+DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx) {
 	var queryid = query.queryid;
 	if (this.queries[queryid] && this.queries[queryid].userinfo.id == ctx.user.id) {
 		this.removeQuery(this.queries[queryid], ctx).then(function() {
-			return cb('dquery-remove-success');
+			return { code: 'dquery-remove-success' };
 		});
 	} else {
-		return cb('dquery-remove-notfound');
+		return { code: 'dquery-remove-notfound' };
 	}
 });
 
@@ -161,10 +160,8 @@ DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquer
  * 
  * @function c2s~dquery
  */
-DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquery', function(query, ctx, cb) {
+DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquery', function(query, ctx) {
 	var self = this;
-	
-	cb = cb || function() {};
 	
 	var qstr = null;
 	try {
@@ -172,11 +169,11 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 		qstr = JSON.stringify(query.query);
 	} catch (e) {
 		self.emitError(e);
-		return cb('format-error');
+		return { code: 'format-error' };
 	}
 	
 	if (this.queryTypes.indexOf(query.query.type) == -1)
-		return cb('unknown-query-type');
+		return { code: 'unknown-query-type' };
 	
 	return ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
 		[String(query.condition), qstr, JSON.stringify(ctx.user), ctx.access.toJSON()]).then(function(r) {
@@ -184,9 +181,9 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 		query.userinfo = ctx.user;
 		query.accessinfo = ctx.access;
 		
-		return self.addQuery(ctx, query).then(function() {
-			cb('dquery-success', {'queryid': query.queryid});
-		});
+		return self.addQuery(ctx, query);
+	}).then(function() {
+		return { code: 'dquery-success', 'queryid': query.queryid };
 	});
 });
 
@@ -295,7 +292,7 @@ DelayedQueries.prototype.parseCondition = function(str) {
 									
 									return self.request({name: 'stockExchangeIsOpen', sxname: r[0].exchange, cfg: cfg});
 								}).then(function(isOpen) {
-									return cb(lt ? isOpen < value : isOpen > value);
+									return lt ? isOpen < value : isOpen > value;
 								});
 							});
 						});
@@ -403,7 +400,7 @@ DelayedQueries.prototype.removeQuery = function(query, ctx) {
  * 
  * @function module:dqueries~DelayedQueries#removeQuery
  */
-DelayedQueries.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['ctx', 'reply'], function(ctx, cb) {
+DelayedQueries.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['ctx'], function(ctx) {
 	var toBeDeleted = [];
 	for (var queryid in this.queries) {
 		var q = this.queries[queryid];
@@ -413,8 +410,6 @@ DelayedQueries.prototype.resetUser = buscomponent.provide('dqueriesResetUser', [
 	
 	for (var i = 0; i < toBeDeleted.length; ++i)
 		this.removeQuery(toBeDeleted[i], ctx);
-	
-	return cb();
 });
 
 exports.DelayedQueries = DelayedQueries;

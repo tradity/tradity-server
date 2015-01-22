@@ -5,6 +5,7 @@ var util = require('util');
 var fs = require('fs');
 var crypto = require('crypto');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -65,16 +66,19 @@ SignedMessaging.prototype.useConfig = function(cfg) {
  * 
  * @function busreq~createSignedMessage
  */
-SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg', 'reply'], function(msg, cb) {
+SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg'], function(msg) {
 	var self = this;
 	var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
 	var sign = crypto.createSign('RSA-SHA256');
 	
+	var deferred = Q.defer();
 	assert.ok(self.privateKey);
-	return sign.end(string, null, function() {
+	sign.end(string, null, function() {
 		var signed = string + '~' + sign.sign(self.privateKey, 'base64');
-		return cb(signed);
+		deferred.resolve(signed);
 	});
+	
+	return deferred.promise;
 });
 
 /**
@@ -91,19 +95,20 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
  * @function busreq~verifySignedMessage
  */
 SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage',
-	['msg', 'maxAge', 'reply'], function(msg, maxAge, cb) 
+	['msg', 'maxAge'], function(msg, maxAge) 
 {
 	var self = this;
 	
 	var msg_ = msg.split('~');
 	if (msg_.length != 2)
-		return cb(null);
+		return null;
 	
 	var string = msg_[0], signature = msg_[1];
+	var deferred = Q.defer();
 	
 	function verifySingleKey (i) {
 		if (i == self.publicKeys.length)
-			return cb(null); // no key matched
+			return deferred.resolve(null); // no key matched
 		
 		var pubkey = self.publicKeys[i];
 		var verify = crypto.createVerify('RSA-SHA256');
@@ -117,7 +122,7 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 				var objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
 				
 				if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
-					return cb(JSON.parse(new Buffer(objstring, 'base64').toString()));
+					return deferred.resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
 			} 
 			
 			verifySingleKey(i+1); // try next key
@@ -125,6 +130,8 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 	}
 	
 	verifySingleKey(0);
+	
+	return deferred.promise;
 });
 
 exports.SignedMessaging = SignedMessaging;

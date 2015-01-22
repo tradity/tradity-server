@@ -32,13 +32,13 @@ util.inherits(BackgroundWorker, buscomponent.BusComponent);
  * @loginignore
  * @function c2s~prod
  */
-BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx, cb) {
+BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx) {
 	var self = this;
 	
 	assert.ok(ctx.access);
 	
 	if (ctx.access.has('server') == -1)
-		return cb('prod-not-allowed');
+		return { code: 'prod-not-allowed' };
 		
 	var starttime = Date.now();
 	
@@ -46,7 +46,7 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
 		var userdbtime = Date.now();
 		return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
 	}).then(function() {
-		return cb('prod-ready', {'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime});
+		return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
 	});
 });
 

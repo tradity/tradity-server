@@ -56,12 +56,12 @@ User.prototype.generatePWKey = function(pw) {
  * @param {string} data.email  The e-mail adress of the receiver.
  * @param {string} data.url  The URL of the invite link.
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
- * @param {function} cb  A callback which will be called with
- *                       <code>create-invite-link-success</code>.
+ * 
+ * @return  Returns with <code>create-invite-link-success</code>.
  * 
  * @function module:user~User#sendInviteEmail
  */
-User.prototype.sendInviteEmail = function(data, ctx, cb) {
+User.prototype.sendInviteEmail = function(data, ctx) {
 	var self = this;
 	
 	return self.request({name: 'sendTemplateMail',
@@ -69,7 +69,7 @@ User.prototype.sendInviteEmail = function(data, ctx, cb) {
 		ctx: ctx,
 		variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
 	}).then(function() {
-		return cb('create-invite-link-success');
+		return { code: 'create-invite-link-success' };
 	});
 };
 
@@ -80,43 +80,46 @@ User.prototype.sendInviteEmail = function(data, ctx, cb) {
  * @param {string} data.name  The username of the receiver.
  * @param {string} data.email  The e-mail adress of the receiver.
  * @param {string} data.url  The URL of the e-mail address confirmation link.
- * @param {function} cb  A callback which will be called with
- *                       <code>reg-success</code>.
+ *
+ * @return  Returns with <code>reg-success</code>.
  * 
  * @function module:user~User#sendRegisterEmail
  */
-User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
+User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 	var self = this;
 	
 	ctx.access.drop('email_verif');
 	
+	var loginResp;
 	return self.login({
 		name: data.email,
 		stayloggedin: true,
-	}, ctx, xdata, true, function(code, loginResp) {
-		assert.equal(code, 'login-success');
+	}, ctx, xdata, true).then(function(loginResp_) {
+		loginResp = loginResp_;
+		assert.equal(loginResp.code, 'login-success');
 		
-		return Q.nfcall(crypto.randomBytes, 16).then(ctx.errorWrap(function(buf) {
-			var key = buf.toString('hex');
-			
-			return ctx.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
-				[ctx.user.id, key]);
-		})).then(function(res) {
-			return self.getServerConfig();
-		}).then(function(cfg) {
-			var url = (cfg.regurl
-				.replace(/\{\$key\}/g, key)
-				.replace(/\{\$uid\}/g, ctx.user.id)
-				.replace(/\{\$hostname\}/g, cfg.hostname));
-			
-			return self.request({name: 'sendTemplateMail', 
-				template: 'register-email.eml',
-				ctx: ctx,
-				variables: {'url': url, 'username': data.name, 'email': data.email}
-			});
-		}).then(function() {
-			return cb('reg-success', loginResp, 'repush');
+		return Q.nfcall(crypto.randomBytes, 16);
+	}).then(function(buf) {
+		var key = buf.toString('hex');
+		
+		return ctx.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
+			[ctx.user.id, key]);
+	}).then(function(res) {
+		return self.getServerConfig();
+	}).then(function(cfg) {
+		var url = (cfg.regurl
+			.replace(/\{\$key\}/g, key)
+			.replace(/\{\$uid\}/g, ctx.user.id)
+			.replace(/\{\$hostname\}/g, cfg.hostname));
+		
+		return self.request({name: 'sendTemplateMail', 
+			template: 'register-email.eml',
+			ctx: ctx,
+			variables: {'url': url, 'username': data.name, 'email': data.email}
 		});
+	}).then(function() {
+		loginResp.code = 'reg-success';
+		return loginResp;
 	});
 };
 
@@ -145,14 +148,14 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
  * 
  * @function c2s~list-popular-stocks
  */
-User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx, cb) {
+User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx) {
 	return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 		'SUM(ABS(money)) AS moneysum, ' +
 		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 		'FROM orderhistory AS oh ' +
 		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
 		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', []).then(function(popular) {
-		cb('list-popular-stocks-success', {'results': popular});
+		return { code: 'list-popular-stocks-success', 'results': popular };
 	});
 });
 
@@ -179,36 +182,35 @@ User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-s
  * @function c2s~login
  */
 User.prototype.login = buscomponent.provide('client-login', 
-	['query', 'ctx', 'xdata', 'ignorePassword', 'reply'], function(query, ctx, xdata, ignorePassword, cb) {
+	['query', 'ctx', 'xdata', 'ignorePassword'], function(query, ctx, xdata, ignorePassword) {
 	var self = this;
 	
 	var name = String(query.name);
 	var pw = String(query.pw);
+	var conn;
 	
 	/* use an own connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
-	return ctx.startTransaction().then(function(conn) {
+	return ctx.startTransaction().then(function(conn_) {
+		conn = conn_;
+		
 		return conn.query('SELECT id, pwsalt, pwhash '+
 			'FROM users ' +
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
 			'ORDER BY id DESC', [name, name]);
 	}).then(function(res) {
-		if (res.length == 0) {
-			cb('login-badname');
-			return;
-		}
+		if (res.length == 0)
+			return { code: 'login-badname' };
 		
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;
-		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
-			cb('login-wrongpw');
-			return;
-		}
+		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword)
+			return { code: 'login-wrongpw' };
 		
-		Q.nfcall(crypto.randomBytes, 16).then(ctx.errorWrap(function(ex, buf) {
+		Q.nfcall(crypto.randomBytes, 16).then(function(ex, buf) {
 			return self.getServerConfig();
-		})).then(function(cfg) {
+		}).then(function(cfg) {
 			var key = buf.toString('hex');
 			
 			if (ctx.getProperty('readonly')) {
@@ -223,20 +225,20 @@ User.prototype.login = buscomponent.provide('client-login',
 						date: today
 					}
 				}).then(function(sid) {
-					return cb('login-success', {
+					return { code: 'login-success',
 						key: ':' + sid,
-						uid: uid
-					}, 'repush');
+						uid: uid,
+						extra: 'repush' };
 				});
 			} else {
-				self.regularCallback({}, ctx);
-				
-				return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
-					'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-					[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime]).then(function() {
+				return self.regularCallback({}, ctx).then(function() {
+					return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
+						'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
+						[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime]);
+				}).then(function() {
 					return conn.commit();
 				}).then(function() {
-					cb('login-success', {key: key, uid: uid}, 'repush')
+					return { code: 'login-success', key: key, uid: uid, extra: 'repush' };
 				});
 			}
 		});
@@ -250,9 +252,9 @@ User.prototype.login = buscomponent.provide('client-login',
  * 
  * @function c2s~logout
  */
-User.prototype.logout = buscomponent.provideWQT('client-logout', function(query, ctx, cb) {
+User.prototype.logout = buscomponent.provideWQT('client-logout', function(query, ctx) {
 	return ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)]).then(function() {
-		return cb('logout-success');
+		return { code: 'logout-success' };
 	});
 });
 
@@ -367,7 +369,7 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  * 
  * @function c2s~get-ranking
  */
-User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx, cb) {
+User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx) {
 	var self = this;
 	
 	query.since = parseInt(query.since) || 0;
@@ -375,7 +377,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 	// upto is rounded so that the SQL query cache will be used more effectively
 	
 	if (parseInt(query.since) != query.since)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	var likestringWhere = '';
 	var likestringUnit = [];
@@ -424,7 +426,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			likestringWhere,
 			[query.since, query.upto].concat(likestringUnit))
 	}).then(function(ranking) {
-		return cb('get-ranking-success', {'result': ranking});
+		return { code: 'get-ranking-success', 'result': ranking };
 	});
 });
 
@@ -485,7 +487,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
  * 
  * @function c2s~get-user-info
  */
-User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx, cb) {
+User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx) {
 	var self = this;
 	
 	return self.getServerConfig().then(function(cfg) {
@@ -529,7 +531,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, String(query.lookfor)]);
 	}).then(function(users) {
 		if (users.length == 0)
-			return cb('get-user-info-notfound');
+			return { code: 'get-user-info-notfound' };
 		
 		var xuser = users[0];
 		xuser.isSelf = (ctx.user && xuser.uid == ctx.user.uid);
@@ -560,7 +562,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			
 			xuser.schools = schools;
 			if (query.nohistory) 
-				return cb('get-user-info-success', {result: xuser});
+				return { code: 'get-user-info-success', result: xuser };
 		
 			ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
 				'LEFT JOIN users AS l ON oh.leader = l.id ' + 
@@ -580,12 +582,12 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
 					'WHERE c.eventid = ?', [xuser.registerevent]);
 			}).then(function(comments) {
-				return cb('get-user-info-success', {
+				return { code: 'get-user-info-success', 
 					result: xuser,
 					orders: orders,
 					achievements: achievements,
 					values: values,
-					pinboard: comments});
+					pinboard: comments };
 			});
 		});
 	});
@@ -604,11 +606,9 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
  * 
  * @function busreq~regularCallbackUser
  */
-User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx', 'reply'], function(query, ctx, cb) {
-	cb = cb || function() {};
-	
+User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx'], function(query, ctx) {
 	if (ctx.getProperty('readonly'))
-		return cb();
+		return Q();
 	
 	return Q.all([
 		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []),
@@ -623,7 +623,7 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 					(school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));
 			}).map(function(school) {
 				return ctx.query('DELETE FROM schools WHERE id = ?', [school.id]);
-			})).then(cb);
+			}));
 		})
 	]);
 });
@@ -641,21 +641,21 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
  * @noreadonly
  * @function c2s~emailverif
  */
-User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', function(query, ctx, xdata, cb) {
+User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', function(query, ctx, xdata) {
 	var self = this;
 	
 	var uid = parseInt(query.uid);
 	var key = String(query.key);
 	
 	if (uid != query.uid)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	return ctx.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
 	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?',
 		[uid, uid, key], function(res) {
 		if (res.length != 2) {
 			console.warn('strange email-verif stuff', res);
-			return cb('email-verify-failure');
+			return { code: 'email-verify-failure' };
 		}
 		
 		var email = null;
@@ -664,16 +664,16 @@ User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', funct
 				email = res[i].email;
 					
 				if (res[i].y == 42 && res[i].v != 0) 
-					return cb('email-verify-already-verified');
+					return { code: 'email-verify-already-verified' };
 			}
 			
 			if (res[i].y == 41 && res[i].v < 1 && !ctx.access.has('userdb'))
-				return cb('email-verify-failure');
+				return { code: 'email-verify-failure' };
 		}
 		
 		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND id != ?', [email, uid], function(res) {
 			if (res[0].c > 0)
-				return cb('email-verify-other-already-verified');
+				return { code: 'email-verify-other-already-verified' };
 		
 			return ctx.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid]).then(function() {
 				return ctx.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid])
@@ -683,7 +683,7 @@ User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', funct
 				return self.login({
 					name: email,
 					stayloggedin: true,
-				}, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, true, cb);
+				}, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, true);
 			});
 		});
 	});
@@ -700,17 +700,14 @@ User.prototype.emailVerify = buscomponent.provideWQTX('client-emailverif', funct
  * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
  * @param {boolean} force  If true, writes the data even if waiting would have been 
  *                         the normal response.
- * @param {function} cb  Callback that will be called when the cleanup is done.
  * 
  * @function busreq~updateUserStatistics
  */
 User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
-	['user', 'ctx', 'force', 'reply'], function(user, ctx, force, reply)
+	['user', 'ctx', 'force'], function(user, ctx, force)
 {
-	reply = reply || function() {};
-	
 	if (!user)
-		return reply();
+		return Q();
 	
 	var now = Date.now();
 	var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
@@ -718,14 +715,18 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 	if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly') || !user) {
 		// don't update things yet
 		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
+		
+		return Q();
 	} else {
-		ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]);
-		ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ctx.getProperty('pendingTicks'), user.id]);
+		var ticks = ctx.getProperty('pendingTicks');
 		ctx.setProperty('pendingTicks', 0);
 		ctx.setProperty('lastSessionUpdate', now);
+		
+		return Q.all([
+			ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]),
+			ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ticks, user.id])
+		]);
 	}
-	
-	return reply();
 });
 
 /**
@@ -735,31 +736,35 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
  * 
  * @param {string} key  The current session id.
  * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
- * @param {function} cb  Callback that will be called with a {module:user~UserEntry} object
- *                       (or null in case of no match or an expired session).
+ * 
+ * @return A {module:user~UserEntry} object (or null in case of no match or an expired session).
  * 
  * @function busreq~loadSessionUser
  */
-User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx', 'reply'], function(key, ctx, cb) {
+User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx'], function(key, ctx) {
 	var self = this;
 	
 	var signedLogin = (key[0] == ':');
 	
-	return (signedLogin ? function(cont) {
+	return Q().then(function() {
+		if (!signedLogin)
+			return {uid: null, key: key};
+		
 		// was signed login, e. g. during read-only period
 		return self.request({
 			name: 'verifySignedMessage',
 			msg: key.substr(1),
-		}, function(msg) {
+		}).then(function(msg) {
 			var today = parseInt(Date.now() / 86400);
 			if (!msg || msg.date <= today - 1) // message at least 24 hours old
-				return cb(null);
+				return null;
 			
-			return cont(msg.uid, msg.sid);
+			return {uid: msg.uid, key: msg.sid};
 		});
-	} : function(cont) {
-		return cont(null, key);
-	})(function(uid, key) {
+	}).then(function(loginInfo) {
+		if (!loginInfo)
+			return null;
+		
 		return ctx.query('SELECT users.*, users_finance.*, users_data.*, users.id AS uid, ' +
 			(signedLogin ? '' : 'sessions.id AS sid, ') +
 			'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
@@ -771,29 +776,33 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 			'LEFT JOIN schools ON schools.id = sm.schoolid ' +
 			'WHERE ' + (signedLogin ? 'uid = ? ' : '`key` = ? ' +
 			(ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
-			'LIMIT 1', [signedLogin ? uid : key]).then(function(res) {
+			'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
+		.then(function(res) {
 			if (res.length == 0) {
-				return cb(null);
-			} else {
-				assert.equal(res.length, 1);
-				var user = res[0];
-				user.id = user.uid;
-				user.realnamepublish = !!user.realnamepublish;
-				user.delayorderhist = !!user.delayorderhist;
-				
-				try {
-					user.clientopt = JSON.parse(user.clientopt);
-				} catch (e) {
-					user.clientopt = {};
-				}
-				
-				if (signedLogin)
-					user.sid = key;
-				
-				self.updateUserStatistics(user, ctx);
-				
-				return cb(user);
+				return null;
 			}
+			
+			assert.equal(res.length, 1);
+			var user = res[0];
+			user.id = user.uid;
+			
+			assert.ok(user.id == loginInfo.uid || loginInfo.uid === null);
+			
+			user.realnamepublish = !!user.realnamepublish;
+			user.delayorderhist = !!user.delayorderhist;
+			
+			try {
+				user.clientopt = JSON.parse(user.clientopt);
+			} catch (e) {
+				user.clientopt = {};
+			}
+			
+			if (signedLogin)
+				user.sid = loginInfo.key;
+			
+			return self.updateUserStatistics(user, ctx).then(function() {
+				return user;
+			});
 		});
 	});
 });
@@ -807,10 +816,10 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
  * @loginignore
  * @function c2s~register
  */
-User.prototype.register = buscomponent.provideWQTX('client-register', function(query, ctx, xdata, cb) {
+User.prototype.register = buscomponent.provideWQT('client-register', function(query, ctx, xdata) {
 	if (ctx.user !== null)
-		return cb('already-logged-in');
-	return this.updateUser(query, 'register', ctx, xdata, cb);
+		return { code: 'already-logged-in' };
+	return this.updateUser(query, 'register', ctx, xdata);
 });
 
 /**
@@ -821,8 +830,8 @@ User.prototype.register = buscomponent.provideWQTX('client-register', function(q
  * @noreadonly
  * @function c2s~change-options
  */
-User.prototype.changeOptions = buscomponent.provideWQTX('client-change-options', function(query, ctx, xdata, cb) {
-	return this.updateUser(query, 'change', ctx, xdata, cb);
+User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', function(query, ctx, xdata) {
+	return this.updateUser(query, 'change', ctx, xdata);
 });
 
 /**
@@ -884,21 +893,21 @@ User.prototype.changeOptions = buscomponent.provideWQTX('client-change-options',
  * @noreadonly
  * @function module:user~User#updateUser
  */
-User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
+User.prototype.updateUser = function(query, type, ctx, xdata) {
 	var self = this;
 	
 	return self.getServerConfig().then(function(cfg) {
 		var uid = ctx.user !== null ? ctx.user.id : null;
 		if (!query.name || !query.email)
-			return cb('format-error');
+			return { code: 'format-error' };
 		
 		if ((query.password || type != 'change') && (!query.password || query.password.length < 5))
-			return cb('reg-too-short-pw');
+			return { code: 'reg-too-short-pw' };
 		
 		query.email = String(query.email);
 		query.name = String(query.name);
 		if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) || parseInt(query.name) == query.name)
-			return cb('reg-name-invalid-char');
+			return { code: 'reg-name-invalid-char' };
 		
 		query.giv_name = String(query.giv_name || '');
 		query.fam_name = String(query.fam_name || '');
@@ -912,13 +921,14 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 		
 		if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
 			query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
-			return cb('invalid-provision');
+			return { code: 'invalid-provision' };
 		
 		if (!query.school) // e. g., empty string
 			query.school = null;
 		
 		var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 		
+		var conn, res;
 		return ctx.startTransaction([
 			{ name: 'users', mode: 'w', },
 			{ name: 'users_finance', mode: 'w', },
@@ -935,42 +945,44 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 			{ name: 'events_users', mode: 'w' }, // feed
 			{ name: 'depot_stocks', mode: 'r' }, // feed
 			{ name: 'watchlists', mode: 'r' } // feed
-		]).then(function(conn) {
+		]).then(function(conn_) {
+			conn = conn_;
 			return conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
 				[query.email, query.name, uid]);
-		}).then(function(res) {
+		}).then(function(res_) {
+			res = res_;
 			return conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
 				[betakey[0]]);
 		}).then(function(βkey) {
 			if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
 				type == 'register' && !ctx.access.has('userdb')) {
 				return conn.rollback().then(function() {
-					return cb('reg-beta-necessary');
+					return { code: 'reg-beta-necessary' };
 				});
 			}
 			
 			if (res.length > 0 && res[0].id !== uid) {
 				return conn.rollback().then(function() {
 					if (res[0].email.toLowerCase() == query.email.toLowerCase())
-						return cb('reg-email-already-present');
+						return { code: 'reg-email-already-present' };
 					else
-						return cb('reg-name-already-present');
+						return { code: 'reg-name-already-present' };
 				});
 			}
 			
-			(query.school !== null ?
+			return (query.school !== null ?
 				conn.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [String(query.school)])
 				: Q([])).then(function(res) {
 				return ((res.length == 0 && query.school !== null) ? function(cont) {
 					if (parseInt(query.school) == query.school || !query.school) {
 						return conn.rollback().then(function() {
-							return cb('reg-unknown-school');
+							return { code: 'reg-unknown-school' };
 						});
 					}
 					
 					return conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",LOWER(MD5(?))))',
 						[String(query.school), String(query.school)], cont);
-				} : function() {
+				} : function(cont) {
 					if (query.school !== null) {
 						assert.ok(parseInt(query.school) != query.school || query.school == res[0].id);
 						query.school = res[0].id;
@@ -988,7 +1000,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 						gainUIDCBs.push(function() {
 							assert.ok(uid != null);
 							
-							return ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': uid});
+							return ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': uid, 'conn': conn});
 						});
 					}
 					
@@ -1002,19 +1014,18 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							return conn.commit();
 						}).then(function() {
 							if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
-								return cb('reg-success', {uid: uid}, 'repush');
+								return { code: 'reg-success', uid: uid, extra: 'repush' };
 							else
 								return self.sendRegisterEmail(query,
 									new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access,
 										parentComponent: self}),
-									xdata,
-									cb);
+									xdata);
 						});
 					};
 					
 					(query.password ? self.generatePWKey(query.password) :
 						Q({salt: ctx.user.pwsalt, hash: ctx.user.pwhash}))
-						.then(ctx.errorWrap(function(pwdata) {
+						.then(function(pwdata) {
 						if (type == 'change') {
 							return conn.query('UPDATE users SET name = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?, ' +
 								'delayorderhist = ?, skipwalkthrough = ? WHERE id = ?',
@@ -1031,8 +1042,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							}).then(function() {
 							return conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
 								[query.wprovision, query.lprovision, uid]);
-							}).then(updateCB)
-							.then(function() {
+							}).then(function() {
 							if (query.school != ctx.user.school) {
 								if (query.school == null)
 									return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
@@ -1065,7 +1075,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							}).then(function() {
 							if (query.desc != ctx.user.desc)
 								return ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
-							});
+							}).then(updateCB);
 						} else {
 							var inv = {};
 							(query.betakey ?
@@ -1087,7 +1097,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 								}
 								
 								gainUIDCBs.push(function() {
-									return ctx.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
+									return conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
 								});
 							});
 							}).then(function() {
@@ -1111,7 +1121,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							}).then(function() {
 								return conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 									['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity']);
-							}).then(_.bind(updateCB, self, res)).then(function() {
+							}).then(function() {
 								if (query.school) {
 									return conn.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
 										'VALUES(?, ?, ' + 
@@ -1119,9 +1129,9 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 										', UNIX_TIMESTAMP())',
 										[uid, String(query.school), String(query.school)]);
 								}
-							});
+							}).then(_.bind(updateCB, self, res));
 						}
-					}));
+					});
 				});
 			});
 		});
@@ -1139,12 +1149,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
  * @noreadonly
  * @function c2s~reset-user
  */
-User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx, cb) {
+User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx) {
 	var self = this;
 	
-	self.getServerConfig().then(function(cfg) {
+	return self.getServerConfig().then(function(cfg) {
 		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
-			return cb('permission-denied');
+			return { code: 'permission-denied' };
 		
 		assert.ok(ctx.user);
 		assert.ok(ctx.access);
@@ -1169,7 +1179,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 		}).then(function() {
 			return self.request({name: 'dqueriesResetUser', ctx: ctx});
 		}).then(function() {
-			return cb('reset-user-success');
+			return { code: 'reset-user-success' };
 		});
 	});
 });
@@ -1187,26 +1197,26 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  * @noreadonly
  * @function c2s~password-reset
  */
-User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx, cb) {
+User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx) {
 	var self = this;
 	
 	if (ctx.user)
-		return cb('already-logged-in');
+		return { code: 'already-logged-in' };
 	
 	var name = String(query.name);
 	
 	return ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
 		[name, name]).then(function(res) {
 		if (res.length == 0)
-			return cb('password-reset-notfound');
+			return { code: 'password-reset-notfound' };
 		
 		var u = res[0];
 		assert.ok(u);
 		
-		return Q.nfcall(crypto.randomBytes, 6).then(ctx.errorWrap(function(buf) {
+		return Q.nfcall(crypto.randomBytes, 6).then(function(buf) {
 			var pw = buf.toString('hex');
 			return self.generatePWKey(pw);
-		})).then(function(pwdata) {
+		}).then(function(pwdata) {
 			return ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [pwdata.salt, pwdata.hash, u.id]);
 		}).then(function() {
 			return self.request({name: 'sendTemplateMail', 
@@ -1215,7 +1225,7 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 				variables: {'password': pw, 'username': query.name, 'email': u.email},
 			});
 		}).then(function() {
-			return cb('password-reset-success');
+			return { code: 'password-reset-success' };
 		});
 	});
 });
@@ -1230,12 +1240,12 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
  * 
  * @function c2s~get-invitekey-info
  */
-User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-info', function(query, ctx, cb) {
+User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-info', function(query, ctx) {
 	var self = this;
 	
 	return ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]).then(function(res) {
 		if (res.length == 0) {
-			return cb('get-invitekey-info-notfound');
+			return { code: 'get-invitekey-info-notfound' };
 		}
 	
 		return self.getServerConfig().then(function(cfg) {
@@ -1243,7 +1253,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
 			
 			res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
 			
-			return cb('get-invitekey-info-success', {result: res[0]});
+			return { code: 'get-invitekey-info-success', result: res[0] };
 		});
 	});
 });
@@ -1254,7 +1264,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
  * @noreadonly
  * @function busreq~createInviteLink
  */
-User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx, cb) {
+User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx) {
 	var self = this;
 	ctx = ctx.clone(); // so we can’t lose the user object during execution
 	
@@ -1263,21 +1273,21 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 		
 		if (!ctx.access.has('userdb')) {
 			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
-				return cb('create-invite-link-invalid-email');
+				return { code: 'create-invite-link-invalid-email' };
 			
 			if (!ctx.access.has('email_verif'))
-				return cb('create-invite-link-not-verif');
+				return { code: 'create-invite-link-not-verif' };
 		}
 		
 		var sendKeyToCaller = ctx.access.has('userdb');
 		
-		return Q.nfcall(crypto.randomBytes, 16).then(ctx.errorWrap(function(buf) {
+		return Q.nfcall(crypto.randomBytes, 16).then(function(buf) {
 			var key = buf.toString('hex');
 			return ctx.query('INSERT INTO invitelink ' +
 				'(uid, `key`, email, ctime, schoolid) VALUES ' +
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
-		})).then(function() {
+		}).then(function() {
 			var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
 		
 			if (query.email) {
@@ -1288,10 +1298,15 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				}, ctx);
 			} else {
 				sendKeyToCaller = true;
-				return Q('create-invite-link-success');
+				return { code: 'create-invite-link-success' };
 			}
-		}).then(function(status) {
-			return cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
+		}).then(function(ret) {
+			var ret = { code: codeContainer.status };
+			
+			if (sendKeyToCaller) {
+				ret.url = url;
+				ret.key = key; 
+			}
 		});
 	});
 });

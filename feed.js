@@ -51,7 +51,7 @@ util.inherits(FeedController, buscomponent.BusComponent);
  * @function busreq~feed
  */
 FeedController.prototype.feed = buscomponent.provide('feed',
-	['data', 'ctx', 'conn', 'onEventId', 'reply'], function(data, ctx, conn, onEventId, done) {
+	['data', 'ctx', 'conn', 'onEventId'], function(data, ctx, conn, onEventId, done) {
 	var self = this;
 	
 	done = done || function(data) { return data; };
@@ -122,8 +122,6 @@ FeedController.prototype.feed = buscomponent.provide('feed',
 		
 		return conn.query(query, params);
 	}).then(function() {
-		return Q.nextTick();
-	}).then(function() {
 		self.emitGlobal('feed-' + data.type, data);
 		self.emitGlobal('push-events');
 		return done(eventid);
@@ -138,7 +136,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
  * 
  * @function busreq~feedFetchEvents
  */
-FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx, cb) {
+FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx) {
 	return ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
@@ -160,7 +158,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
 		[ctx.user.uid, query ? parseInt(query.since) : 0,
 		 query && query.count !== null ? parseInt(query.count) : 1000000]).then(function(r) {
-		return cb(_.chain(r).map(function(ev) {
+		return _.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
 				if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid != ev.srcuser)
@@ -170,7 +168,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 			
 			delete ev.json;
 			return ev;
-		}).reject(function(ev) { return !ev; }).value());
+		}).reject(function(ev) { return !ev; }).value();
 	});
 });
 
@@ -183,13 +181,13 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
  * 
  * @function c2s~mark-as-seen
  */
-FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx, cb) {
+FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx) {
 	if (parseInt(query.eventid) != query.eventid)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	return ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', 
 		[parseInt(query.eventid), ctx.user.id]).then(function() {
-		return cb('mark-as-seen-success');
+		return { code: 'mark-as-seen-success' };
 	});
 });
 
@@ -205,15 +203,15 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * 
  * @function c2s~comment
  */
-FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx, cb) {
+FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx) {
 	if (!query.comment)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	return ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events ' +
 		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?',
 		[parseInt(query.eventid)]).then(function(res) {
 		if (res.length == 0)
-			return cb('comment-notfound');
+			return { code: 'comment-notfound' };
 		
 		var feedschool = null;
 		var feedchat = null;
@@ -254,7 +252,7 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 				noFollowers: noFollowers
 			});
 		}).then(function() {
-			return cb('comment-success');
+			return { code: 'comment-success' };
 		});
 	});
 });

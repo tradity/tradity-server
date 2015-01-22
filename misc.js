@@ -29,13 +29,13 @@ util.inherits(Misc, buscomponent.BusComponent);
  * 
  * @function c2s~get-own-options
  */
-Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', function(query, ctx, cb) {
+Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', function(query, ctx) {
 	assert.ok(ctx.user);
 	
 	var r = _.clone(ctx.user);
 	delete r.pwhash;
 	delete r.pwsalt;
-	return cb('get-own-options-success', {'result': r});
+	return { code: 'get-own-options-success', 'result': r };
 });
 
 /**
@@ -45,15 +45,15 @@ Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', 
  * 
  * @function c2s~set-clientstorage
  */
-Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstorage', function(query, ctx, cb) {
+Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstorage', function(query, ctx) {
 	try {
 		var storage = new Buffer(query.storage);
 	} catch (e) {
-		return cb('format-error');
+		return { code: 'format-error' };
 	}
 	
 	return ctx.query('UPDATE users_data SET clientstorage = ? WHERE id = ?', [storage, ctx.user.id]).then(function() {
-		return cb('set-clientstorage-success');
+		return { code: 'set-clientstorage-success' };
 	});
 });
 
@@ -66,8 +66,8 @@ Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstora
  * @loginignore
  * @function c2s~ping
  */
-Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx, cb) {
-	return cb('pong', {'uid': ctx.user ? ctx.user.uid : null});
+Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx) {
+	return { code: 'pong', 'uid': ctx.user ? ctx.user.uid : null };
 });
 
 /**
@@ -78,12 +78,12 @@ Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx,
  * 
  * @function c2s~artificial-error
  */
-Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error', function(query, ctx, cb) {
+Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return cb('permission-denied');
+		return { code: 'permission-denied' };
 	
 	ctx.emitError(new Error('Client-induced non-failure'));
-	return cb('artificial-error-success');
+	return { code: 'artificial-error-success' };
 });
 
 /**
@@ -94,17 +94,19 @@ Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error
  * 
  * @function c2s~artificial-deadlock
  */
-Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-deadlock', function(query, ctx, cb) {
+Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-deadlock', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return cb('permission-denied');
+		return { code: 'permission-denied' };
 	
 	var conn1, conn2;
+	var deferred = Q.defer();
+	
 	return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))', []).then(function() {
 		return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)', []);
 	}).then(function(r) {
 		var id = r.insertId;
 		return ctx.startTransaction({}, {restart: function() {
-			cb('artificial-deadlock-success');
+			deferred.resolve({ code: 'artificial-deadlock-success' });
 		}});
 	}).then(function(conn1_) {
 		conn1 = conn1_;
@@ -118,6 +120,8 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-dead
 		return conn1.query('UPDATE deadlocktest SET value = 3 WHERE id = ?', [id+1]);
 	}).then(function() {
 		return conn2.query('UPDATE deadlocktest SET value = 4 WHERE id = ?', [id]);
+	}).then(function() {
+		return deferred.promise;
 	});
 });
 
@@ -130,9 +134,9 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-dead
  * 
  * @function c2s~artificial-stalelock
  */
-Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stalelock', function(query, ctx, cb) {
+Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stalelock', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return cb('permission-denied');
+		return { code: 'permission-denied' };
 	
 	var conn;
 	return ctx.startTransaction({httpresources: 'w'}).then(function(conn_) {
@@ -144,12 +148,12 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stal
 /**
  * Presents statistics that can safely be displayed to the general public.
  * 
- * @return {object}  Calls the reply callback with an associative array of variables
+ * @return {object}  Returns an associative array of variables
  *                   (currently <code>userCount, tradeCount, schoolCount</code>).
  * 
  * @function busreq~gatherPublicStatistics
  */
-Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatistics', ['reply'], function(cb) {
+Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatistics', [], function() {
 	var ctx = new qctx.QContext({parentComponent: this});
 	
 	var ret = {};
@@ -162,7 +166,7 @@ Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatis
 	}).then(function(sres) {
 		ret.schoolCount = sres[0].c;
 		
-		return cb(ret);
+		return ret;
 	});
 });
 

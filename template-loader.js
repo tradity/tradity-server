@@ -34,14 +34,13 @@ util.inherits(TemplateLoader, buscomponent.BusComponent);
  * @param {string} template  The file name of the remplate to read in.
  * @param {?object} variables  An dictionary of variables to replace.
  * 
- * @return {string} Calls the reply callback with the template, variables
- *                  having been substituted.
+ * @return {string} Returns the template, variables having been substituted.
  * 
  * @function busreq~readTemplate
  */
 TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
-	['template', 'variables', 'reply'],
-	function(template, variables, cb) 
+	['template', 'variables'],
+	function(template, variables) 
 {
 	variables = variables || {};
 	var t = templates[template];
@@ -62,7 +61,7 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
 		return null;
 	}
 	
-	return cb(t);
+	return t;
 });
 
 /**
@@ -76,7 +75,7 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
  * 
  * @function busreq~readEMailTemplate
  */
-TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables', 'reply'], function(template, variables, cb) {
+TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables'], function(template, variables) {
 	return this.readTemplate(template, variables, function(t) {
 		var headerend = t.indexOf('\n\n');
 		
@@ -101,7 +100,7 @@ TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemp
 		
 		opt.html = body;
 		opt.generateTextFromHTML = true;
-		return cb(opt);
+		return opt;
 	});
 });
 

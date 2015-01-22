@@ -38,7 +38,7 @@ util.inherits(FileStorage, buscomponent.BusComponent);
  * 
  * @function busreq~handleFSDBRequest
  */
-FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL', 'reply'], function(req, res, reqURL, cb) {
+FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL'], function(req, res, reqURL) {
 	var self = this;
 	
 	var ctx = new qctx.QContext({parentComponent: self});
@@ -47,7 +47,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 	var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
 	
 	if (!fsmatch)
-		return cb(false);
+		return false;
 	
 	var filename = fsmatch[fsmatch.length - 1];
 	
@@ -118,7 +118,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 		});
 	});
 	
-	return cb(true);
+	return true;
 	
 	});
 });
@@ -155,11 +155,11 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
  * @function c2s~publish
  */
 FileStorage.prototype.publish = buscomponent.provideW('client-publish',
-	['query', 'ctx', 'groupassoc', 'reply'], function(query, ctx, groupassoc, cb) {
+	['query', 'ctx', 'groupassoc'], function(query, ctx, groupassoc) {
 	var self = this;
 	
 	if (ctx.getProperty('readonly'))
-		return cb('server-readonly');
+		return { code: 'server-readonly' };
 	
 	return self.getServerConfig().then(function(cfg) {
 		var content = query.content;
@@ -177,9 +177,9 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		
 		if (!ctx.access.has('filesystem')) {
 			if (content.length + total > cfg.fsdb.userquota)
-				return cb('publish-quota-exceed');
+				return { code: 'publish-quota-exceed' };
 			if (cfg.fsdb.allowroles.indexOf(query.role) == -1)
-				return cb('publish-inacceptable-role');
+				return { code: 'publish-inacceptable-role' };
 				
 			if (query.proxy) {
 				var hasRequiredAccess = false;
@@ -206,12 +206,12 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				}
 				
 				if (!hasRequiredAccess)
-					return cb('publish-proxy-not-allowed');
+					return { code: 'publish-proxy-not-allowed' };
 			} else {
 				// local mime type is ignored for proxy requests
 				
 				if (cfg.fsdb.allowmime.indexOf(query.mime) == -1)
-					return cb('publish-inacceptable-mime');
+					return { code: 'publish-inacceptable-mime' };
 			}
 		}
 		
@@ -257,7 +257,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			
 			return Q();
 		}).then(function() {
-			return cb('publish-success', null, 'repush');
+			return { code: 'publish-success', extra: 'repush' };
 		});
 	});
 });

@@ -167,7 +167,7 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
 Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly) {
 	var self = this;
 	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
-	assert.ok (pool);
+	assert.ok(pool);
 	
 	self.openConnections++;
 	

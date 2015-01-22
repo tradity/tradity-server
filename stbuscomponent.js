@@ -29,7 +29,6 @@ exports.BusComponent = STBusComponent;
 exports.provide   = buscomponent.provide;
 exports.listener  = buscomponent.listener;
 exports.needsInit = buscomponent.needsInit;
-exports.errorWrap = buscomponent.errorWrap;
 
 var provide = buscomponent.provide;
 

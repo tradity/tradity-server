@@ -4,6 +4,7 @@ var _ = require('lodash');
 var os = require('os');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var http = require('http');
 var https = require('https');
 var url = require('url');
@@ -88,10 +89,10 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 	};
 	
 	return Q.all([
-		self.request({name: 'get-readability-mode'}, function(reply) {
+		self.request({name: 'get-readability-mode'}).then(function(reply) {
 			ret.readonly = reply.readonly;
 		}),
-		self.request({name: 'dbUsageStatistics'}, function(dbstats) {
+		self.request({name: 'dbUsageStatistics'}).then(function(dbstats) {
 			ret.dbstats = dbstats;
 		})
 	]).then(function() {

@@ -325,7 +325,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx) {
 	var self = this;
 	
-	this.getServerConfig().then(function(cfg) {
+	return this.getServerConfig().then(function(cfg) {
 		var str = String(query.name);
 		if (!str || str.length < 3)
 			return { code: 'stock-search-too-short' };
@@ -358,10 +358,12 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 			// 12 ~ ISIN, 6 ~ WAN
 			if ([12,6].indexOf(str.length) != -1)
 				externalStocksIDs.push(str.toUpperCase());
-		
-			return (externalStocksIDs.length == 0 ? function(cont) {
+			
+			var deferred = Q.defer();
+			
+			(externalStocksIDs.length == 0 ? function(cont) {
 				return cont([]);
-			} : function() {
+			} : function(cont) {
 				return self.quoteLoader.loadQuotesList(externalStocksIDs, _.bind(self.stocksFilter, self, cfg), cont);
 			})(function(externalResults) {
 				var results = _.union(localResults, _.map(externalResults, function(r) {
@@ -389,8 +391,10 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 						'WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
 				}
 				
-				return { code: 'stock-search-success', results: results };
+				return deferred.resolve({ code: 'stock-search-success', results: results });
 			});
+			
+			return deferred.promise;
 		});
 	});
 });

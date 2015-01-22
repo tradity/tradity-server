@@ -390,7 +390,7 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
  * @function c2s~get-server-statistics
  */
 Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx) {
-	return this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}, function(replies) {
+	return this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}).then(function(replies) {
 		return { code: 'get-server-statistics-success', servers: replies };
 	});
 }));

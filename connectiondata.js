@@ -246,12 +246,12 @@ ConnectionData.prototype.pushSelfInfo = function() {
 				},
 				ctx: self.ctx.clone(),
 				xdata: self.pickXDataFields()
-			}, function(code, info) {
-				assert.ok(code == 'get-user-info-success');
-				assert.ok(info);
+			}).then(function(result) {
+				assert.ok(result.code == 'get-user-info-success');
+				assert.ok(result.result);
 				
-				info.type = 'self-info';
-				return self.push(info);
+				result.result.type = 'self-info';
+				return self.push(result.result);
 			});
 		}
 	});
@@ -344,7 +344,7 @@ ConnectionData.prototype.onLogout = function() {
  * 
  * @function module:connectiondata~ConnectionData#queryHandler
  */
-ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
+ConnectionData.prototype.queryHandler = function(query) {
 	var self = this;
 	
 	if (!query)
@@ -459,7 +459,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 						return { code: 'permission-denied' };
 					
 					self.ctx.setProperty('isBusTransport', true);
-					self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));
+					self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false));
 					return { code: 'init-bus-transport-success' };
 				/**
 				 * Tell the current {@link module:qctx~QContext} to send back
@@ -495,7 +495,6 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 					}
 				});
 			}).then(function(result) {
-				console.log(result);
 				assert.ok(result);
 				
 				if (callbackHasBeenCalled)
@@ -531,15 +530,17 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				return Q.all(finalizingPromises);
 			});
 		});
+	}).catch(function(e) {
+		return self.emitError(e);
 	});
-});
+};
 
 /**
  * Callback which will be invoked when the socket.io instance disconnected.
  * 
  * @function module:connectiondata~ConnectionData#disconnectedHandler
  */
-ConnectionData.prototype.disconnectedHandler = buscomponent.errorWrap(function() {
+ConnectionData.prototype.disconnectedHandler = function() {
 	this.onLogout();
 	
 	if (this.socket) {
@@ -556,7 +557,7 @@ ConnectionData.prototype.disconnectedHandler = buscomponent.errorWrap(function()
 		// make sure we don't have a bus because we don't *want* one
 		assert.ok(this.wantsUnplug);
 	}
-});
+};
 
 /**
  * Close the current connection.

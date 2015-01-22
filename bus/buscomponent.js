@@ -196,7 +196,7 @@ BusComponent.prototype.unregisterProviders = function() {
 	}
 };
 
-BusComponent.prototype._init = function() { this.initPromise = Q(); };
+BusComponent.prototype._init = function() { this.initPromise = null; };
 BusComponent.prototype.onBusConnect = function() {};
 
 function needsInit (fn) {
@@ -213,20 +213,9 @@ function needsInit (fn) {
 	};
 };
 
-function errorWrap (fn) {
-	return function() {
-		try {
-			return fn.apply(this, arguments);
-		} catch (e) {
-			this.emitError(e);
-		}
-	};
-};
-
 exports.BusComponent = BusComponent;
 exports.listener     = listener;
 exports.provide      = provide;
 exports.needsInit    = needsInit;
-exports.errorWrap    = errorWrap;
 
 })();

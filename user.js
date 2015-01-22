@@ -208,11 +208,11 @@ User.prototype.login = buscomponent.provide('client-login',
 		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword)
 			return { code: 'login-wrongpw' };
 		
-		Q.nfcall(crypto.randomBytes, 16).then(function(ex, buf) {
+		var key;
+		return Q.nfcall(crypto.randomBytes, 16).then(function(buf) {
+			key = buf.toString('hex');
 			return self.getServerConfig();
 		}).then(function(cfg) {
-			var key = buf.toString('hex');
-			
 			if (ctx.getProperty('readonly')) {
 				key = key.substr(0, 6);
 				var today = parseInt(Date.now() / 86400);
@@ -981,7 +981,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 					}
 					
 					return conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",LOWER(MD5(?))))',
-						[String(query.school), String(query.school)], cont);
+						[String(query.school), String(query.school)]).then(cont);
 				} : function(cont) {
 					if (query.school !== null) {
 						assert.ok(parseInt(query.school) != query.school || query.school == res[0].id);
@@ -1023,7 +1023,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 						});
 					};
 					
-					(query.password ? self.generatePWKey(query.password) :
+					return (query.password ? self.generatePWKey(query.password) :
 						Q({salt: ctx.user.pwsalt, hash: ctx.user.pwhash}))
 						.then(function(pwdata) {
 						if (type == 'change') {
@@ -1064,7 +1064,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 									'json': {'oldname': ctx.user.name, 'newname': query.name},
 									'conn': conn
 								}).then(function() {
-									conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
+									return conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
 								});
 							}
 							}).then(function() {
@@ -1078,7 +1078,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 							}).then(updateCB);
 						} else {
 							var inv = {};
-							(query.betakey ?
+							return (query.betakey ?
 								conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]) :
 								Q(null)).then(function() {
 							if (!query.invitekey)

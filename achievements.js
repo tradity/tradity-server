@@ -114,7 +114,10 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 	
 	uid = parseInt(uid);
 	
-	return self.getServerConfig().then(function(cfg) {
+	var cfg;
+	return self.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
+		
 		if (userAchievements_)
 			return userAchievements_;
 		

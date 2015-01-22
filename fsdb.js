@@ -161,9 +161,12 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 	if (ctx.getProperty('readonly'))
 		return { code: 'server-readonly' };
 	
-	return self.getServerConfig().then(function(cfg) {
-		var content = query.content;
-		var uniqrole = cfg.fsdb.uniqroles[query.role];
+	var content = query.content;
+	var uniqrole, cfg;
+	
+	return self.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
+		uniqrole = cfg.fsdb.uniqroles[query.role];
 		
 		query.proxy = query.proxy ? true : false;
 		query.mime = query.mime || 'application/octet-stream';
@@ -238,10 +241,10 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				}
 			}
 			
-			return ctx.query(sql, dataarr, continueAfterDelPrevious);
+			return ctx.query(sql, dataarr);
 		} : function() {
 			return Q();
-		}).then(function() {
+		})().then(function() {
 			return ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
 				[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,

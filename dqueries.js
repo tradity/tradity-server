@@ -49,7 +49,7 @@ DelayedQueries.prototype.onBusConnect = function() {
 		}
 	});
 	
-	this.loadDelayedQueries();
+	return this.loadDelayedQueries();
 };
 
 /**

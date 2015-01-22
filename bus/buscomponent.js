@@ -24,8 +24,8 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 	this.wantsUnplug = false;
 	
 	this.registerProviders();
-	_.bind(this.onBusConnect, this)();
-	return this;
+	
+	return Q(this.onBusConnect());
 };
 
 BusComponent.prototype.setBusFromParent = function(component) {

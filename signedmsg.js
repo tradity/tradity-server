@@ -70,6 +70,7 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
 	var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
 	var sign = crypto.createSign('RSA-SHA256');
 	
+	assert.ok(self.privateKey);
 	return sign.end(string, null, function() {
 		var signed = string + '~' + sign.sign(self.privateKey, 'base64');
 		return cb(signed);

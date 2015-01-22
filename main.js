@@ -213,15 +213,18 @@ function worker() {
 			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js', './chats.js', './watchlist.js'
 		]);
 
-		loadComponents(componentsForLoading);
-
-		var server = require('./server.js');
-		var stserver = new server.SoTradeServer().setBus(mainBus, 'serverMaster');
-		
-		if (process.isBackgroundWorker)
-			console.log('bw started');
-		else
-			stserver.start(msg.port);
+		var stserver;
+		loadComponents(componentsForLoading).then(function() {
+			var server = require('./server.js');
+			stserver = new server.SoTradeServer();
+			
+			return stserver.setBus(mainBus, 'serverMaster');
+		}).then(function() {
+			if (process.isBackgroundWorker)
+				console.log('bw started');
+			else
+				stserver.start(msg.port);
+		});
 	});
 }
 
@@ -282,12 +285,16 @@ function connectToSocketIORemote(remote) {
 }
 
 function loadComponents(componentsForLoading) {
-	for (var i = 0; i < componentsForLoading.length; ++i) {
-		var c = require(componentsForLoading[i]);
-		for (var j in c) 
-			if (c[j] && c[j].prototype.setBus)
-				new c[j]().setBus(mainBus, componentsForLoading[i].replace(/\.[^.]+$/, '').replace(/[^\w]/g, ''));
-	}
+	return Q.all(componentsForLoading.map(function(component) {
+		var c = require(component);
+		
+		return Q.all(component.map(function(componentClass) {
+			if (!componentClass || !componentClass.prototype.setBus)
+				return Q();
+				
+			return new componentClass().setBus(mainBus, component.replace(/\.[^.]+$/, '').replace(/[^\w]/g, ''));
+		}));
+	}));
 }
 
 })();

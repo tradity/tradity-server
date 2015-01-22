@@ -174,7 +174,7 @@ QContext.prototype.errorWrap = function(callback) {
 QContext.prototype.onBusConnect = function() {
 	var self = this;
 	
-	self.request({name: 'get-readability-mode'}, function(reply) {
+	return self.request({name: 'get-readability-mode'}, function(reply) {
 		assert.ok(reply.readonly === true || reply.readonly === false);
 		
 		if (!self.hasProperty('readonly')) {

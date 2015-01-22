@@ -93,9 +93,9 @@ util.inherits(ConnectionData, buscomponent.BusComponent);
 
 ConnectionData.prototype.onBusConnect = function() {
 	var self = this;
-	self.ctx.setBusFromParent(self);
-	
-	self.getServerConfig().then(function(cfg) {
+	return self.ctx.setBusFromParent(self).then(function() {
+		return self.getServerConfig();
+	}).then(function(cfg) {
 		return self.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig), 'versionInfo': self.versionInfo});
 	});
 };

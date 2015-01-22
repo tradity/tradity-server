@@ -212,12 +212,12 @@ ConnectionData.prototype.dbgHandler = function(args) {
 ConnectionData.prototype.push = function(data) {
 	var self = this;
 	
-	self.wrapForReply(data).then(function(r) {
+	return self.wrapForReply(data).then(function(r) {
 		if (self.socket)
 			self.socket.emit('push', r);
+	}).then(function() {
+		return self.pushSelfInfo();
 	});
-	
-	return self.pushSelfInfo();
 };
 
 /**
@@ -617,7 +617,7 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 	} : function(cont) {
 		return cont(s, 'raw');
 	})(function(result, encoding) {
-		return cb({
+		return Q({
 			s: result,
 			e: encoding,
 			t: Date.now()

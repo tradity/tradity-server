@@ -7,6 +7,7 @@ var crypto = require('crypto');
 var os = require('os');
 var https = require('https');
 var cluster = require('cluster');
+var Q = require('q');
 
 var qctx = require('./qctx.js');
 var cfg = require('./config.js').config;
@@ -32,6 +33,7 @@ var achievementList = require('./achievement-list.js');
 var bwpid = null;
 
 Error.stackTraceLimit = cfg.stackTraceLimit || 20;
+Q.longStackSupport = cfg.longStackTraces || false;
 
 var mainBus = new bus.Bus();
 var manager = new buscomponent.BusComponent();
@@ -51,6 +53,9 @@ mainBus.addOutputFilter(function(packet) {
 	return packet;
 });
 
+var afql = new af.ArivaFinanceQuoteLoader();
+afql.on('error', function(e) { manager.emitError(e); });
+
 manager.getServerConfig = buscomponent.provide('getServerConfig', ['reply'], function(reply) { reply(cfg); });
 manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', ['reply'], function(reply) { reply(afql); });
 manager.getAchievementList = buscomponent.provide('getAchievementList', ['reply'], function(reply) { reply(achievementList.AchievementList); });
@@ -61,126 +66,122 @@ var readonly = cfg.readonly;
 manager.getReadabilityMode = buscomponent.provide('get-readability-mode', ['reply'], function(cb) { cb({readonly: readonly}); });
 manager.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) { readonly = event.readonly; });
 
-manager.setBus(mainBus, 'manager-' + process.pid);
+manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
+	// load super-essential components
+	return loadComponents(['./errorhandler.js', './emailsender.js', './signedmsg.js']);
+}).then(function() {
+	process.on('uncaughtException', function(err) {
+		manager.emitError(err);
+		manager.emitImmediate('localShutdown');
+	});
 
-// load super-essential components
-loadComponents(['./errorhandler.js', './emailsender.js', './signedmsg.js']);
+	var shutdownSignals = ['SIGTERM', 'SIGINT'];
+	for (var i = 0; i < shutdownSignals.length; ++i) {
+		process.on(shutdownSignals[i], function() { mainBus.emitLocal('globalShutdown'); });
+	}
 
-var afql = new af.ArivaFinanceQuoteLoader();
+	assert.ok(cfg.busDumpFile);
+	process.on('SIGUSR2', function() {
+		fs.writeFileSync(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid), 'Log:\n\n' + JSON.stringify(mainBus.packetLog) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
+	});
 
-afql.on('error', function(e) { manager.emitError(e); });
-
-process.on('uncaughtException', function(err) {
-	manager.emitError(err);
-	manager.emitImmediate('localShutdown');
-});
-
-var shutdownSignals = ['SIGTERM', 'SIGINT'];
-for (var i = 0; i < shutdownSignals.length; ++i) {
-	process.on(shutdownSignals[i], function() { mainBus.emitLocal('globalShutdown'); });
-}
-
-assert.ok(cfg.busDumpFile);
-process.on('SIGUSR2', function() {
-	fs.writeFileSync(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid), 'Log:\n\n' + JSON.stringify(mainBus.packetLog) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
-});
-
-if (cluster.isWorker) {
-	mainBus.addTransport(new pt.ProcessTransport(process), worker);
-} else {
-	assert.ok(cluster.isMaster);
-	
-	var workers = [];
-	var assignedPorts = [];
-	
-	var getFreePort = function(pid) {
-		// free all ports assigned to dead workers first
-		var pids = _.chain(workers).pluck('process').pluck('pid').value();
-		assignedPorts = _.filter(assignedPorts, function(p) { return pids.indexOf(p.pid) != -1; });
+	if (cluster.isWorker) {
+		mainBus.addTransport(new pt.ProcessTransport(process), worker);
+	} else {
+		assert.ok(cluster.isMaster);
 		
-		var freePorts = _.difference(cfg.wsports, _.pluck(assignedPorts, 'port'));
-		assert.ok(freePorts.length > 0);
-		assignedPorts.push({pid: pid, port: freePorts[0]});
-		return freePorts[0];
-	};
-	
-	var registerWorker = function(w, done) {
-		mainBus.addTransport(new pt.ProcessTransport(w), done);
-	};
-	
-	var forkBackgroundWorker = function() {
-		var bw = cluster.fork();
-		var sentSBW = false;
+		var workers = [];
+		var assignedPorts = [];
 		
-		workers.push(bw);
+		var getFreePort = function(pid) {
+			// free all ports assigned to dead workers first
+			var pids = _.chain(workers).pluck('process').pluck('pid').value();
+			assignedPorts = _.filter(assignedPorts, function(p) { return pids.indexOf(p.pid) != -1; });
+			
+			var freePorts = _.difference(cfg.wsports, _.pluck(assignedPorts, 'port'));
+			assert.ok(freePorts.length > 0);
+			assignedPorts.push({pid: pid, port: freePorts[0]});
+			return freePorts[0];
+		};
 		
-		registerWorker(bw, function() {
-			bw.on('message', function(msg) {
-				if (msg.cmd == 'startRequest' && !sentSBW) {
-					sentSBW = true;
-					bw.send({cmd: 'startBackgroundWorker'});
-				}
-			});
-		});
+		var registerWorker = function(w, done) {
+			mainBus.addTransport(new pt.ProcessTransport(w), done);
+		};
 		
-		bwpid = bw.process.pid;
-		assert.ok(bwpid);
-	};
-	
-	var forkStandardWorker = function() {
-		var w = cluster.fork();
-		var sentSSW = false;
-		
-		workers.push(w);
-		
-		w.on('online', function() {
-			registerWorker(w, function() {
-				w.on('message', function(msg) {
-					if (msg.cmd == 'startRequest' && !sentSSW) {
-						sentSSW = true;
-						
-						w.send({
-							cmd: 'startStandardWorker',
-							port: getFreePort(w.process.pid)
-						});
+		var forkBackgroundWorker = function() {
+			var bw = cluster.fork();
+			var sentSBW = false;
+			
+			workers.push(bw);
+			
+			registerWorker(bw, function() {
+				bw.on('message', function(msg) {
+					if (msg.cmd == 'startRequest' && !sentSBW) {
+						sentSBW = true;
+						bw.send({cmd: 'startBackgroundWorker'});
 					}
 				});
 			});
-		});
-	};
-	
-	if (cfg.startBackgroundWorker)
-		forkBackgroundWorker();
-	
-	for (var i = 0; i < cfg.wsports.length; ++i) 
-		forkStandardWorker();
-	
-	var shuttingDown = false;
-	mainBus.on('globalShutdown', function() { mainBus.emitLocal('localShutdown'); });
-	mainBus.on('localShutdown', function() { shuttingDown = true; });
-	
-	cluster.on('exit', function(worker, code, signal) {
-		workers = _.filter(workers, function(w) { w.process.pid != worker.process.pid; });
-		
-		console.warn('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
-		
-		if (!shuttingDown) {
-			console.log('respawning');
 			
-			if (worker.process.pid == bwpid)
-				forkBackgroundWorker();
-			else 
-				forkStandardWorker();
-		} else {
-			setTimeout(function() {
-				process.exit(0);
-			}, 2000);
-		}
-	});
-	
-	for (var i = 0; i < cfg.socketIORemotes.length; ++i)
-		connectToSocketIORemote(cfg.socketIORemotes[i]);
-}
+			bwpid = bw.process.pid;
+			assert.ok(bwpid);
+		};
+		
+		var forkStandardWorker = function() {
+			var w = cluster.fork();
+			var sentSSW = false;
+			
+			workers.push(w);
+			
+			w.on('online', function() {
+				registerWorker(w, function() {
+					w.on('message', function(msg) {
+						if (msg.cmd == 'startRequest' && !sentSSW) {
+							sentSSW = true;
+							
+							w.send({
+								cmd: 'startStandardWorker',
+								port: getFreePort(w.process.pid)
+							});
+						}
+					});
+				});
+			});
+		};
+		
+		if (cfg.startBackgroundWorker)
+			forkBackgroundWorker();
+		
+		for (var i = 0; i < cfg.wsports.length; ++i) 
+			forkStandardWorker();
+		
+		var shuttingDown = false;
+		mainBus.on('globalShutdown', function() { mainBus.emitLocal('localShutdown'); });
+		mainBus.on('localShutdown', function() { shuttingDown = true; });
+		
+		cluster.on('exit', function(worker, code, signal) {
+			workers = _.filter(workers, function(w) { w.process.pid != worker.process.pid; });
+			
+			console.warn('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
+			
+			if (!shuttingDown) {
+				console.log('respawning');
+				
+				if (worker.process.pid == bwpid)
+					forkBackgroundWorker();
+				else 
+					forkStandardWorker();
+			} else {
+				setTimeout(function() {
+					process.exit(0);
+				}, 2000);
+			}
+		});
+		
+		for (var i = 0; i < cfg.socketIORemotes.length; ++i)
+			connectToSocketIORemote(cfg.socketIORemotes[i]);
+	}
+});
 
 function worker() {
 	var hasReceivedStartCommand = false;
@@ -285,14 +286,15 @@ function connectToSocketIORemote(remote) {
 }
 
 function loadComponents(componentsForLoading) {
-	return Q.all(componentsForLoading.map(function(component) {
-		var c = require(component);
+	return Q.all(componentsForLoading.map(function(componentName) {
+		var component = require(componentName);
 		
-		return Q.all(component.map(function(componentClass) {
+		return Q.all(_.map(component, function(componentClass) {
 			if (!componentClass || !componentClass.prototype.setBus)
 				return Q();
-				
-			return new componentClass().setBus(mainBus, component.replace(/\.[^.]+$/, '').replace(/[^\w]/g, ''));
+			
+			var componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
+			return new componentClass().setBus(mainBus, componentID);
 		}));
 	}));
 }

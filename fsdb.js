@@ -239,7 +239,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			}
 			
 			return ctx.query(sql, dataarr, continueAfterDelPrevious);
-		} : {
+		} : function() {
 			return Q();
 		}).then(function() {
 			return ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+

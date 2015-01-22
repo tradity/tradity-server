@@ -31,7 +31,7 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 BusComponent.prototype.setBusFromParent = function(component) {
 	assert.ok(component.bus);
 	
-	this.setBus(component.bus, component.componentName + '-' + (BusComponent.objCount++));
+	return this.setBus(component.bus, component.componentName + '-' + (BusComponent.objCount++));
 };
 
 BusComponent.prototype.unplugBus = function() {
@@ -76,7 +76,11 @@ BusComponent.prototype[requestType] = function(req, onReply) {
 		if (this.wantsUnplug)
 			this.unplugBus();
 		
-		deferred.resolve(Array.prototype.slice.apply(arguments));
+		var returnValue = Array.prototype.slice.apply(arguments); 
+		if (requestType == 'request' || requestType == 'requestNearest')
+			returnValue = returnValue[0];
+		
+		deferred.resolve(returnValue);
 		
 		onReply.apply(this, arguments);
 	}, this));

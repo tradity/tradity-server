@@ -104,8 +104,9 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-dead
 	}).then(function(r) {
 		var id = r.insertId;
 		return ctx.startTransaction({}, {restart: function() {
-		cb('artificial-deadlock-success');
-	}}).then(function(conn1_) {
+			cb('artificial-deadlock-success');
+		}});
+	}).then(function(conn1_) {
 		conn1 = conn1_;
 		return ctx.startTransaction();
 	}).then(function(conn2_) {

@@ -114,7 +114,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 				ctx: ctx,
 				variables: {'url': url, 'username': data.name, 'email': data.email}
 			});
-		.then(function() {
+		}).then(function() {
 			return cb('reg-success', loginResp, 'repush');
 		});
 	});
@@ -1124,7 +1124,6 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 					}));
 				});
 			});
-		
 		});
 	});
 };
@@ -1207,9 +1206,9 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 		return Q.nfcall(crypto.randomBytes, 6).then(ctx.errorWrap(function(buf) {
 			var pw = buf.toString('hex');
 			return self.generatePWKey(pw);
-		}).then(ctx.errorWrap(function(pwdata) {
+		})).then(function(pwdata) {
 			return ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [pwdata.salt, pwdata.hash, u.id]);
-		})).then(function() {
+		}).then(function() {
 			return self.request({name: 'sendTemplateMail', 
 				template: 'password-reset-email.eml',
 				ctx: ctx,
@@ -1270,27 +1269,29 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				return cb('create-invite-link-not-verif');
 		}
 		
+		var sendKeyToCaller = ctx.access.has('userdb');
+		
 		return Q.nfcall(crypto.randomBytes, 16).then(ctx.errorWrap(function(buf) {
 			var key = buf.toString('hex');
-			var sendKeyToCaller = ctx.access.has('userdb');
 			return ctx.query('INSERT INTO invitelink ' +
 				'(uid, `key`, email, ctime, schoolid) VALUES ' +
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null])).then(function() {
+				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
+		})).then(function() {
 			var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
 		
-			return (query.email ? function() {
+			if (query.email) {
 				return self.sendInviteEmail({
 					sender: ctx.user,
 					email: query.email,
 					url: url
 				}, ctx);
-			} : function() {
+			} else {
 				sendKeyToCaller = true;
 				return Q('create-invite-link-success');
-			}).then(function(status) {
-				return cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
-			});
+			}
+		}).then(function(status) {
+			return cb(status, sendKeyToCaller ? {'url': url, 'key': key} : null);
 		});
 	});
 });

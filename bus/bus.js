@@ -331,8 +331,8 @@ Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
 	if (remoteBusGraph.gHash() == this.busGraph.gHash())
 		return;
 	
-	if (remoteBusGraph.getElementById(busnode.id).data().handledEvents.indexOf('client-prod') != -1)
-		console.log(this.id, 'knows that', busnode.id, 'handles prod');
+	/*if (remoteBusGraph.getElementById(busnode.id).data().handledEvents.indexOf('client-prod') != -1)
+		console.log(this.id, 'knows that', busnode.id, 'handles prod');*/
 	
 	// remove all own edges from the remote bus graph, then take the union and
 	// add our own edges later on
@@ -443,16 +443,19 @@ Bus.prototype.handleBusPacket = function(packet) {
 			
 			// path.length >= 3: at least source node, edge, target node
 			if (!path || path.length < 3) {
-				/* no route -> probably not fully connected yet;
-				 * keep packet for a while */
-				var packet_ = _.clone(packet);
-				
-				packet_.recipients = [recpId];
-				packet_.seenBy = packet_.seenBy.slice(0, packet_.seenBy.length - 1);
-				
-				setTimeout(function() {
-					self.handleBusPacket(packet_);
-				}, 10);
+				(function() { // use closure so packet_ gets captured per closure
+					/* no route -> probably not fully connected yet;
+					 * keep packet for a while */
+					var packet_ = _.clone(packet);
+					
+					packet_.recipients = [recpId];
+					packet_.seenBy = packet_.seenBy.slice(0, packet_.seenBy.length - 1);
+					
+					assert.equal(packet_.seenBy.indexOf(self.id), -1);
+					setTimeout(function() {
+						self.handleBusPacket(packet_);
+					}, 10);
+				})();
 				
 				continue;
 			}

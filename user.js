@@ -102,7 +102,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 				[ctx.user.id, key], function(res) {
 
 				self.getServerConfig(function(cfg) {
-					var url = cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, ctx.user.id).replace(/\{\$hostname\}/g, cfg.hostname);
+					var url = cfg.varReplace(cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, ctx.user.id));
 					
 					self.request({name: 'sendTemplateMail', 
 						template: 'register-email.eml',
@@ -1242,7 +1242,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
 			self.getServerConfig(function(cfg) {
 				assert.equal(res.length, 1);
 				
-				res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
+				res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey));
 				
 				cb('get-invitekey-info-success', {result: res[0]});
 			});
@@ -1278,7 +1278,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				'(uid, `key`, email, ctime, schoolid) VALUES ' +
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
-				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
+				var url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
 		
 				(query.email ? function(cont) {
 					self.sendInviteEmail({

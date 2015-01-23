@@ -487,11 +487,13 @@ Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', fu
 	if (query.search) {
 		var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
 		
-		where += 'AND (name LIKE ? OR path LIKE ?) ';
+		where += 'AND (schools.name LIKE ? OR path LIKE ?) ';
 		params.push(likestring, likestring);
 	}
-	
-	ctx.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
+
+	ctx.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path, url AS banner ' +
+		'FROM schools ' +
+		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +	
 		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
 		where +
 		'GROUP BY schools.id', params, function(results) {

@@ -147,9 +147,10 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	var self = this;
 	
 	var lmuStart = Date.now();
-	var conn, users, res_static;
+	var conn, users, res_static, cfg;
 	
-	return self.getServerConfig().then(function(cfg) {
+	return self.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
 		return ctx.startTransaction({
 			depot_stocks: { alias: 'ds', mode: 'r' },
 			users_finance: { mode: 'w' },

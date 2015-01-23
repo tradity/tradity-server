@@ -150,8 +150,14 @@ function provide(name, args, fn, prefilter) {
 		for (var i = 0; i < args.length; ++i)
 			passArgs.push(data[args[i]]);
 		
-		return Q(fn.apply(this, passArgs)).then(function(result) {
+		var this_ = this;
+		
+		return Q().then(function() {
+			return fn.apply(this_, passArgs);
+		}).then(function(result) {
 			return data.reply(result);
+		}).catch(function(e) {
+			this_.emitError(e);
 		}).done();
 	};
 	

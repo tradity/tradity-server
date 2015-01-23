@@ -232,7 +232,9 @@ Stocks.prototype.updateStockValues = function(ctx) {
 	var self = this;
 	
 	var stocklist = [];
-	return self.getServerConfig().then(function(cfg) {
+	var cfg;
+	return self.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
 		return ctx.query('SELECT * FROM stocks ' +
 			'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
 		[cfg.lrutimeLimit, cfg.refetchLimit]);

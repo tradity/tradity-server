@@ -216,7 +216,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					rollback();
 					
 					// make sure that the error event is emitted -> release() will be called in next tick
-					Q.then(release);
+					Q().then(release);
 					
 					if (err) {
 						// query-related error

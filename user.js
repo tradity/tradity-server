@@ -107,10 +107,9 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 	}).then(function(res) {
 		return self.getServerConfig();
 	}).then(function(cfg) {
-		var url = (cfg.regurl
+		var url = cfg.varReplace(cfg.regurl
 			.replace(/\{\$key\}/g, key)
-			.replace(/\{\$uid\}/g, ctx.user.id)
-			.replace(/\{\$hostname\}/g, cfg.hostname));
+			.replace(/\{\$uid\}/g, ctx.user.id));
 		
 		return self.request({name: 'sendTemplateMail', 
 			template: 'register-email.eml',
@@ -1251,7 +1250,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
 		return self.getServerConfig().then(function(cfg) {
 			assert.equal(res.length, 1);
 			
-			res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
+			res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey));
 			
 			return { code: 'get-invitekey-info-success', result: res[0] };
 		});
@@ -1288,7 +1287,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
 		}).then(function() {
-			var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
+			var url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
 		
 			if (query.email) {
 				return self.sendInviteEmail({

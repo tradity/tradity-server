@@ -27,6 +27,8 @@ socket.once('server-config').then(function() {
 }).then(function(data) {
 	assert.equal(data.code, 'list-schools-success');
 	for (var i = 0; i < data.result.length; ++i) {
+		assert.ok(data.result[i].banner === null || typeof data.result[i].banner == 'string');
+		
 		if (data.result[i].name == schoolid) {
 			schoolid = data.result[i].id;
 			break;

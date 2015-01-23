@@ -222,7 +222,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		query.name = query.name ? String(query.name) : filehash;
 		
 		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
-		var url = cfg.fsdb.puburl.replace(/\{\$hostname\}/g, cfg.hostname).replace(/\{\$name\}/g, filename);
+		var url = cfg.varReplace(cfg.fsdb.puburl.replace(/\{\$name\}/g, filename));
 		
 		var groupassoc = groupassoc ? parseInt(groupassoc) : null;
 		

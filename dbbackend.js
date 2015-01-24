@@ -144,7 +144,7 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
 		readonly = (query.trim().indexOf('SELECT') == 0);
 	
 	return self._getConnection(true, function /* restart */() {
-		self._query.apply(self, origArgs);
+		return self._query.apply(self, origArgs);
 	}, readonly).then(function(connection) {
 		return connection.query(query, args || []);
 	});
@@ -199,7 +199,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					
 					release();
 					
-					return restart();
+					return Q(restart()).then(deferred.resolve.bind(deferred));
 				}
 				
 				var exception = null;

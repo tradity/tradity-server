@@ -218,6 +218,8 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					// make sure that the error event is emitted -> release() will be called in next tick
 					Q().then(release);
 					
+					deferred.reject(err || exception);
+					
 					if (err) {
 						// query-related error
 						var datajson = JSON.stringify(args);
@@ -232,9 +234,8 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					}
 				}
 				
-				if (err || exception || autorelease) {
+				if (autorelease)
 					release();
-				}
 			});
 			
 			return deferred.promise;

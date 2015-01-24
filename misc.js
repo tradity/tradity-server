@@ -94,7 +94,7 @@ Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error
  * 
  * @function c2s~artificial-deadlock
  */
-Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-deadlock', function(query, ctx) {
+Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-deadlock', function(query, ctx) {
 	if (!ctx.access.has('server'))
 		return { code: 'permission-denied' };
 	
@@ -143,6 +143,22 @@ Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stal
 		conn = conn_;
 		return Q.delay(5 * 60000);
 	}).then(_.bind(conn.commit, conn));
+});
+
+/**
+ * Internally produces a DB error.
+ * 
+ * @return {object}  Returns with <code>artificial-dberror-success</code>.
+ * 
+ * @function c2s~artificial-dberror
+ */
+Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-dberror', function(query, ctx) {
+	if (!ctx.access.has('server'))
+		return { code: 'permission-denied' };
+	
+	return ctx.query('INVALID SQL').catch(function(err) {
+		return { code: 'artificial-dberror-success', err: err };
+	});
 });
 
 /**

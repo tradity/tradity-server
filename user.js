@@ -198,14 +198,20 @@ User.prototype.login = buscomponent.provide('client-login',
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
 			'ORDER BY id DESC', [name, name]);
 	}).then(function(res) {
-		if (res.length == 0)
-			return { code: 'login-badname' };
+		if (res.length == 0) {
+			return conn.rollback().then(function() {
+				return { code: 'login-badname' };
+			});
+		}
 		
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;
-		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword)
-			return { code: 'login-wrongpw' };
+		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
+			return conn.rollback().then(function() {
+				return { code: 'login-wrongpw' };
+			});
+		}
 		
 		var key;
 		return Q.nfcall(crypto.randomBytes, 16).then(function(buf) {
@@ -216,6 +222,7 @@ User.prototype.login = buscomponent.provide('client-login',
 				key = key.substr(0, 6);
 				var today = parseInt(Date.now() / 86400);
 				
+				var ret;
 				return self.request({
 					name: 'createSignedMessage',
 					msg: {
@@ -224,10 +231,14 @@ User.prototype.login = buscomponent.provide('client-login',
 						date: today
 					}
 				}).then(function(sid) {
-					return { code: 'login-success',
+					ret = { code: 'login-success',
 						key: ':' + sid,
 						uid: uid,
 						extra: 'repush' };
+					
+					return conn.commit();
+				}).then(function() {
+					return ret;
 				});
 			} else {
 				return self.regularCallback({}, ctx).then(function() {

@@ -187,16 +187,16 @@ User.prototype.login = buscomponent.provide('client-login',
 	ctx.startTransaction(function(conn, commit) {
 		conn.query('SELECT id, pwsalt, pwhash FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 			if (res.length == 0) {
-				cb('login-badname');
-				return;
+				rollback();
+				return cb('login-badname');
 			}
 			
 			var uid = res[0].id;
 			var pwsalt = res[0].pwsalt;
 			var pwhash = res[0].pwhash;
 			if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
-				cb('login-wrongpw');
-				return;
+				rollback();
+				return cb('login-wrongpw');
 			}
 			
 			crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
@@ -207,6 +207,7 @@ User.prototype.login = buscomponent.provide('client-login',
 						key = key.substr(0, 6);
 						var today = parseInt(Date.now() / 86400);
 						
+						commit();
 						self.request({
 							name: 'createSignedMessage',
 							msg: {

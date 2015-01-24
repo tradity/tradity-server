@@ -169,9 +169,9 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
 	assert.ok(pool);
 	
-	self.openConnections++;
-	
 	return Q.ninvoke(pool, 'getConnection').then(function(conn) {
+		self.openConnections++;
+	
 		assert.ok(conn);
 		
 		var release = function() {

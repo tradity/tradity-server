@@ -39,7 +39,7 @@ Stocks.prototype.onBusConnect = function() {
 		
 		var ctx = new qctx.QContext({parentComponent: self});
 		self.quoteLoader.on('record', function(rec) {
-			self.updateRecord(ctx, rec);
+			self.updateRecord(ctx, rec).done();
 		});
 	});
 };
@@ -248,8 +248,15 @@ Stocks.prototype.updateStockValues = function(ctx) {
 			return !/^__LEADER_(\d+)__$/.test(s);
 		});
 		
-		if (stocklist.length > 0)
-			self.quoteLoader.loadQuotes(stocklist, _.bind(self.stocksFilter, self, cfg));
+		var deferred = Q.defer();
+		
+		if (stocklist.length > 0) {
+			self.quoteLoader.loadQuotesList(stocklist, _.bind(self.stocksFilter, self, cfg), function() {
+				deferred.resolve();
+			});
+			
+			return deferred.promise;
+		}
 	});
 };
 
@@ -360,6 +367,8 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 			// 12 ~ ISIN, 6 ~ WAN
 			if ([12,6].indexOf(str.length) != -1)
 				externalStocksIDs.push(str.toUpperCase());
+			
+			externalStocksIDs = _.uniq(externalStocksIDs);
 			
 			var deferred = Q.defer();
 			

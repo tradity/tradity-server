@@ -184,7 +184,7 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	/* use an own connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
-	ctx.startTransaction(function(conn, commit) {
+	ctx.startTransaction(function(conn, commit, rollback) {
 		conn.query('SELECT id, pwsalt, pwhash FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 			if (res.length == 0) {
 				rollback();

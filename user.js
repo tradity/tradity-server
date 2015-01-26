@@ -574,18 +574,22 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			if (query.nohistory) 
 				return { code: 'get-user-info-success', result: xuser };
 		
-			ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
+			var orders, achievements, values;
+			return ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
 				'LEFT JOIN users AS l ON oh.leader = l.id ' + 
 				'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 				'ORDER BY buytime DESC',
 				[xuser.uid, (!ctx.user || (xuser.delayorderhist && xuser.uid != ctx.user.uid && !ctx.access.has('stocks')))
-					? cfg.delayOrderHistTime : 0]).then(function(orders) {
+					? cfg.delayOrderHistTime : 0]).then(function(orders_) {
+				orders = orders_;
 				return ctx.query('SELECT * FROM achievements ' +
 					'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
 					'WHERE userid = ?', [xuser.uid]);
-			}).then(function(achievements) {
+			}).then(function(achievements_) {
+				achievements = achievements_;
 				return ctx.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid]);
-			}).then(function(values) {
+			}).then(function(values_) {
+				values = values_;
 				return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
 					'FROM ecomments AS c ' + 
 					'LEFT JOIN users AS u ON c.commenter = u.id ' + 

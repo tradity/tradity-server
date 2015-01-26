@@ -222,6 +222,9 @@ QContext.prototype.addProperty = function(propInfo) {
  * @function module:qctx~QContext#getProperty
  */
 QContext.prototype.getProperty = function(name) {
+	if (!this.hasProperty(name))
+		return undefined;
+	
 	return this.properties[name].value;
 };
 

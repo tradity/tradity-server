@@ -561,8 +561,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	if (ctx.getProperty('readonly'))
 		return { code: 'server-readonly' };
 	
-	var conn;
-	this.getServerConfig().then(function(cfg) {
+	var conn, cfg;
+	return this.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
 		assert.ok(ctx.user);
 		assert.ok(ctx.access);
 		

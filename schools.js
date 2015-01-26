@@ -189,6 +189,14 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 			}).then(function(comments) {
 				s.comments = comments;
 				
+				return ctx.query('SELECT * FROM blogposts ' +
+					'JOIN feedblogs ON feedblogs.blogid = blogposts.blogid ' +
+					'JOIN events ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
+					'WHERE feedblogs.schoolid = ?',
+					[s.id]);
+			}).then(function(blogposts) {
+				s.blogposts = blogposts;
+				
 				return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
 					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
@@ -234,6 +242,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
  * @property {string} banner  The public school banner.
  * @property {int} usercount  The number of school members.
  * @property {Comment[]} comments  The school “pinboard” (i.e. comments on the school creation event).
+ * @property {Blogpost[]} blogposts  The school “blogposts” (Associated Wordpress blog posts).
  * @property {module:schools~schoolinfo[]} subschools  A list of subschools of this school
  *                                                     (in short notation, i.e. no event/comment information etc.).
  * @property {string} parentPath  The parent path of this school, or '/' if this school is top-level.

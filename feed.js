@@ -65,8 +65,9 @@ FeedController.prototype.feed = buscomponent.provide('feed',
 	conn = conn || ctx; // both db connections and QContexts expose .query()
 	
 	var eventid;
-	return conn.query('INSERT INTO events(`type`, targetid, time, srcuser, json) VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?)',
-		[String(data.type), data.targetid ? parseInt(data.targetid) : null, parseInt(data.srcuser), json]).then(function(r) {
+	return conn.query('INSERT INTO events(`type`, targetid, time, srcuser, json) VALUES (?, ?, ?, ?, ?)',
+		[String(data.type), data.targetid ? parseInt(data.targetid) : null,
+		data.time ? data.time : parseInt(Date.now() / 1000), parseInt(data.srcuser), json]).then(function(r) {
 		eventid = r.insertId;
 		onEventId(eventid);
 		
@@ -137,12 +138,22 @@ FeedController.prototype.feed = buscomponent.provide('feed',
  * @function busreq~feedFetchEvents
  */
 FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx) {
+	var since = 0, count = 10000;
+	if (query) {
+		if (parseInt(query.since) == query.since)
+			since = parseInt(query.since);
+		
+		if (query.count !== null && parseInt(query.count) == query.count)
+			count = parseInt(query.count);
+	}
+	
 	return ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky, url AS profilepic, ' +
 		'achievements.achname, achievements.xp, sentemails.messageid, sentemails.sendingtime, sentemails.bouncetime, ' +
-		'sentemails.mailtype, sentemails.recipient AS mailrecipient, sentemails.diagnostic_code ' +
+		'sentemails.mailtype, sentemails.recipient AS mailrecipient, sentemails.diagnostic_code, ' +
+		'blogposts.* ' +
 		'FROM events_users ' +
 		'JOIN events ON events_users.eventid = events.eventid ' +
 		'LEFT JOIN ecomments AS c ON c.commentid = events.targetid AND events.type="comment" ' +
@@ -150,14 +161,15 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'LEFT JOIN orderhistory AS oh ON oh.orderid = IF(events.type="trade", events.targetid, IF(e2.type="trade", e2.targetid, NULL)) ' +
 		'LEFT JOIN users AS su ON su.id = events.srcuser ' +
 		'LEFT JOIN users AS trader ON trader.id = IF(e2.type="trade", oh.userid, IF(e2.type="user-register", e2.targetid, NULL)) ' +
-		'LEFT JOIN schools ON schools.id = e2.targetid AND e2.type="school-create" ' +
 		'LEFT JOIN achievements ON achievements.achid = events.targetid AND events.type="achievement" ' +
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification" ' +
 		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
 		'LEFT JOIN sentemails ON sentemails.mailid = events.targetid AND events.type="email-bounced" ' +
+		'LEFT JOIN blogposts ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
+		'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +
+		'LEFT JOIN schools ON schools.id = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
-		[ctx.user.uid, query ? parseInt(query.since) : 0,
-		 query && query.count !== null ? parseInt(query.count) : 1000000]).then(function(r) {
+		[ctx.user.uid, since, count]).then(function(r) {
 		return _.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);

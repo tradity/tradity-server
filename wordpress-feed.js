@@ -41,32 +41,39 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 	if (ctx.access.has('server') == -1)
 		return cb('process-wordpress-feed-not-allowed');
 	
-	ctx.query('SELECT endpoint, category, schoolid, bloguser, MAX(posttime) AS lastposttime ' +
+	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, MAX(posttime) AS lastposttime ' +
 		'FROM feedblogs ' + 
-		'JOIN feedposts ON feedblogs.blogid = feedposts.postid', [], function(res) {
+		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
+		'GROUP BY blogid', []).then(function(res) {
 		return Q.all(res.map(function(bloginfo) {
 			var wp = new WP({endpoint: bloginfo.endpoint});
+			var catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
 			
-			return Q.nfcall(wp.posts().filter({category_name: bloginfo.category}).get).then(function(posts) {
+			return Q(wp.posts().filter(catFilter)).then(function(posts) {
 				return Q.all(posts.filter(function(post) {
 					post.date_unix = new Date(post.date_gmt).getTime() / 1000;
+					
+					if (bloginfo.lastposttime === null)
+						return true;
 					return post.date_unix > bloginfo.lastposttime;
 				}).map(function(post) {
-					return ctx.query('INSERT INTO blogposts (posttime, link, title, excerpt) VALUES (?, ?, ?, ?)',
-						[post.date_unix, post.link, post.title, post.excerpt], function(r) {
+					return ctx.query('INSERT INTO blogposts (blogid, posttime, link, title, excerpt) ' +
+						'VALUES (?, ?, ?, ?, ?)',
+						[bloginfo.blogid, post.date_unix, post.link, post.title, post.excerpt]).then(function(r) {
 						return ctx.feed({
 							type: 'blogpost',
 							targetid: r.insertId,
 							srcuser: bloginfo.bloguser,
 							everyone: bloginfo.schoolid == null,
-							feedschool: bloginfo.schoolid
+							feedschool: bloginfo.schoolid,
+							time: post.date_unix
 						});
 					});
 				}));
 			});
-		})).done(function() {
-			cb('process-wordpress-feed-success');
-		});
+		}));
+	}).then(function() {
+		return { code: 'process-wordpress-feed-success' };
 	});
 });
 

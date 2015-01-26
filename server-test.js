@@ -213,6 +213,9 @@ socket.once('server-config').then(function() {
 }).then(function(data) {
 	assert.equal(data.code, 'get-server-statistics-success');
 	assert.ok(data.servers && _.isArray(data.servers));
+	return socket.emit('process-wordpress-feed', { uid: ownUid });
+}).then(function(data) {
+	assert.equal(data.code, 'process-wordpress-feed-success');
 	
 	return socket.emit('reset-user', { uid: ownUid });
 }).then(function(data) {

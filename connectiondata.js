@@ -169,9 +169,10 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	// fetch regular events
 	return self.request({name: 'feedFetchEvents', query: query, ctx: self.ctx.clone()}).then(function(evlist) {
 		_.each(evlist, function(ev) {
-			self.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
+			self.mostRecentEventTime = Math.max(self.mostRecentEventTime, ev.eventtime);
 		});
 
+		console.log('Writing ', evlist.length, 'events');
 		return self.wrapForReply({pushes: evlist}).then(function(r) {
 			if (self.socket)
 				self.socket.emit('push-container', r)
@@ -441,7 +442,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				 * @function c2s~fetch-events
 				 */
 				case 'fetch-events':
-					self.fetchEvents(query);
+					self.fetchEvents(query).done();
 					return { code: 'fetching-events' };
 				/**
 				 * Sets up this connection as a bus (server-to-server) transport.

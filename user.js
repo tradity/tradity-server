@@ -1003,7 +1003,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 							query.birthday, String(query.desc), String(query.street),
 							String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-							query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass), uid], function() {
+							query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''), uid], function() {
 						conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
 							[query.wprovision, query.lprovision, uid], updateCB);
 						});
@@ -1074,7 +1074,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 									'VALUES (?, ?, ?, ?, ?)',
 									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
-									String(query.schoolclass),
+									String(query.schoolclass || ''),
 									uid, cfg.defaultWProvision, cfg.defaultLProvision,
 									cfg.defaultStartingMoney, cfg.defaultStartingMoney], function() {
 								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid});

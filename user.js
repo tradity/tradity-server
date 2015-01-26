@@ -102,7 +102,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata, cb) {
 				[ctx.user.id, key], function(res) {
 
 				self.getServerConfig(function(cfg) {
-					var url = cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, ctx.user.id).replace(/\{\$hostname\}/g, cfg.hostname);
+					var url = cfg.varReplace(cfg.regurl.replace(/\{\$key\}/g, key).replace(/\{\$uid\}/g, ctx.user.id));
 					
 					self.request({name: 'sendTemplateMail', 
 						template: 'register-email.eml',
@@ -184,19 +184,19 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	/* use an own connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
-	ctx.startTransaction(function(conn, commit) {
+	ctx.startTransaction(function(conn, commit, rollback) {
 		conn.query('SELECT id, pwsalt, pwhash FROM users WHERE (email = ? OR name = ?) AND deletiontime IS NULL ORDER BY id DESC', [name, name], function(res) {
 			if (res.length == 0) {
-				cb('login-badname');
-				return;
+				rollback();
+				return cb('login-badname');
 			}
 			
 			var uid = res[0].id;
 			var pwsalt = res[0].pwsalt;
 			var pwhash = res[0].pwhash;
 			if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
-				cb('login-wrongpw');
-				return;
+				rollback();
+				return cb('login-wrongpw');
 			}
 			
 			crypto.randomBytes(16, ctx.errorWrap(function(ex, buf) {
@@ -207,6 +207,7 @@ User.prototype.login = buscomponent.provide('client-login',
 						key = key.substr(0, 6);
 						var today = parseInt(Date.now() / 86400);
 						
+						commit();
 						self.request({
 							name: 'createSignedMessage',
 							msg: {
@@ -1012,11 +1013,11 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid], function() {
 						conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
 							'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-							'clientopt = ?, dla_optin = ? WHERE id = ?',
+							'clientopt = ?, dla_optin = ?, schoolclass = ? WHERE id = ?',
 							[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 							query.birthday, String(query.desc), String(query.street),
 							String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-							query.traditye?1:0, query.dla_optin?1:0, uid], function() {
+							query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''), uid], function() {
 						conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
 							[query.wprovision, query.lprovision, uid], updateCB);
 						});
@@ -1088,11 +1089,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata, cb) {
 							function(res) {
 								uid = res.insertId;
 								conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
-									'street, zipcode, town) VALUES (?, ?, ?, ?, ?, ?, ?, ?); ' +
+									'street, zipcode, town, schoolclass) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
 									'INSERT INTO users_finance(id, wprovision, lprovision, freemoney, totalvalue) '+
 									'VALUES (?, ?, ?, ?, ?)',
 									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
+									String(query.schoolclass || ''),
 									uid, cfg.defaultWProvision, cfg.defaultLProvision,
 									cfg.defaultStartingMoney, cfg.defaultStartingMoney], function() {
 								ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid, 'conn': conn});
@@ -1262,7 +1264,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
 			self.getServerConfig(function(cfg) {
 				assert.equal(res.length, 1);
 				
-				res[0].url = cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey).replace(/\{\$hostname\}/g, cfg.hostname);
+				res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, query.invitekey));
 				
 				cb('get-invitekey-info-success', {result: res[0]});
 			});
@@ -1298,7 +1300,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				'(uid, `key`, email, ctime, schoolid) VALUES ' +
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null], function() {
-				var url = cfg.inviteurl.replace(/\{\$key\}/g, key).replace(/\{\$hostname\}/g, cfg.hostname);
+				var url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
 		
 				(query.email ? function(cont) {
 					self.sendInviteEmail({

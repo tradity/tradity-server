@@ -192,7 +192,7 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
 });
 
 /**
- * Comment on a gieven event.
+ * Comment on a given event.
  * 
  * @param {string} query.comment  The comment’s text.
  * @param {boolean} query.ishtml  Whether the comment’s content should be considered HTML.

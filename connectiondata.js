@@ -146,7 +146,9 @@ ConnectionData.prototype.toString = function() {
  * 
  * @property module:connectiondata~ConnectionData.loginIgnore
  */
-ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod', 'ping', 'school-exists'];
+ConnectionData.loginIgnore = [
+	'list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod',
+	'ping', 'school-exists', 'process-wordpress-feed'];
 
 /**
  * Load all events that have not yet been sent to the client and send them.

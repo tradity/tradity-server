@@ -29,6 +29,7 @@ util.inherits(BackgroundWorker, buscomponent.BusComponent);
  * Calls {@link busreq~regularCallbackUser} and {@link regularCallbackStocks}.
  * The query object is passed on to both of these.
  * 
+ * @noreadonly
  * @loginignore
  * @function c2s~prod
  */

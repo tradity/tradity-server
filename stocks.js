@@ -39,7 +39,7 @@ Stocks.prototype.onBusConnect = function() {
 		
 		var ctx = new qctx.QContext({parentComponent: self});
 		self.quoteLoader.on('record', function(rec) {
-			self.updateRecord(ctx, rec).done();
+			Q(self.updateRecord(ctx, rec)).done();
 		});
 	});
 };

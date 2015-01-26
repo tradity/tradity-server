@@ -40,10 +40,10 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
 	if (ctx.access.has('server') == -1)
 		return { code: 'prod-not-allowed' };
 		
-	var starttime = Date.now();
+	var starttime = Date.now(), userdbtime;
 	
 	return self.request({name: 'regularCallbackUser', query: query, ctx: ctx}).then(function() {
-		var userdbtime = Date.now();
+		userdbtime = Date.now();
 		return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
 	}).then(function() {
 		return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };

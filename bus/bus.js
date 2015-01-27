@@ -46,7 +46,6 @@ function Bus () {
 	
 	self.pingIntervalMs = 85000; // 85 seconds between transport pings
 	
-	self.components = [];
 	self.transports = [];
 	self.removedTransports = [];
 	
@@ -102,7 +101,7 @@ function Bus () {
 util.inherits(Bus, events.EventEmitter);
 
 Bus.prototype.toJSON = function() {
-	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'lostPackets', 'components', 'hostname', 'pid');
+	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'lostPackets', 'hostname', 'pid');
 };
 
 Bus.prototype.determineBusID = function() {
@@ -735,7 +734,6 @@ Bus.prototype.stats = function() {
 		msgCount: this.msgCount,
 		lostPackets: this.lostPackets,
 		id: this.id,
-		components: this.components,
 		busGraph: this.busGraph.json(),
 		packetLogCount: this.packetLog.length,
 		packetLogLength: this.packetLogLength
@@ -769,14 +767,6 @@ Bus.prototype.addInputFilter = function(filter) {
 
 Bus.prototype.addOutputFilter = function(filter) {
 	this.outputFilters.push(filter);
-};
-
-Bus.prototype.addComponent = function(componentName) {
-	this.components.push(componentName);
-};
-
-Bus.prototype.removeComponent = function(componentName) {
-	this.components = _.without(this.components, componentName);
 };
 
 exports.Bus = Bus;

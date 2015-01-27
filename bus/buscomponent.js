@@ -19,7 +19,6 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 	
 	this.bus = bus;
 	this.componentName = componentName;
-	this.bus.addComponent(componentName);
 	this.unansweredBusRequests = 0;
 	this.wantsUnplug = false;
 	this.initPromise = null;
@@ -42,7 +41,6 @@ BusComponent.prototype.unplugBus = function() {
 	
 	if (this.unansweredBusRequests == 0) {
 		this.unregisterProviders();
-		this.bus.removeComponent(this.componentName);
 		this.bus = null;
 		this.componentName = null;
 		this.initPromise = null;

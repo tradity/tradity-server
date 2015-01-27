@@ -164,7 +164,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 				[(ctx.user && ctx.user.id) || null, String(shortId), String(template) || null,
 				String(mailtype), String(origTo)]);
 		
-		return Q(null);
+		return Q();
 	}).then(function() {
 		return Q.ninvoke(self.mailer, 'sendMail', opt);
 	}).then(function(status) {

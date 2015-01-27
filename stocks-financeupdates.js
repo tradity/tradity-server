@@ -93,7 +93,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 			var dsid = entry.dsid;
 			var totalfees = entry.wfees + entry.lfees;
 			
-			return (Math.abs(totalfees) < 1 ? Q(null) : 
+			return (Math.abs(totalfees) < 1 ? Q() : 
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
 				'(NULL, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 				[entry.stocktextid, entry.fid, entry.lid, totalfees, JSON.stringify({

@@ -103,6 +103,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		params.push(numEndpoints);
 	}
 	
+	var chatid;
 	return ctx.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
 		'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
 		'WHERE ' + whereString + ' ' +
@@ -114,7 +115,6 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		if (query.failOnMissing || !query.endpoints || ctx.getProperty('readonly'))
 			return Q(null);
 		
-		var chatid;
 		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE id IN (' + query.endpoints.join(',') + ')',
 			[]).then(function(endpointUserCount) {
 			if (endpointUserCount[0].c != query.endpoints.length)
@@ -144,50 +144,50 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 			}).then(function(eventid) {
 				return Q({chatid: chatid, eventid: eventid});
 			});
-		}).then(function(chat) {
-			if (chat === null) {
-				if (ctx.getProperty('readonly'))
-					return { code: 'server-readonly' };
-				else
-					return { code: 'chat-get-notfound' };
+		});
+	}).then(function(chat) {
+		if (chat === null) {
+			if (ctx.getProperty('readonly'))
+				return { code: 'server-readonly' };
+			else
+				return { code: 'chat-get-notfound' };
+		}
+		
+		assert.notStrictEqual(chat.chatid, null);
+		assert.notStrictEqual(chat.eventid, null);
+		
+		chat.endpoints = query.endpoints;
+		
+		if (query.noMessages)
+			return { code: 'chat-get-success', chat: chat };
+		
+		return ctx.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
+			'FROM chatmembers AS cm ' +
+			'JOIN users AS u ON u.id = cm.userid ' +
+			'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
+			'WHERE cm.chatid = ?', [chat.chatid]).then(function(endpoints) {
+			assert.ok(endpoints.length > 0);
+			chat.endpoints = endpoints;
+			
+			var ownChatsIsEndpoint = false;
+			for (var i = 0; i < chat.endpoints.length; ++i) {
+				if (chat.endpoints[i].uid == ctx.user.id) {
+					ownChatsIsEndpoint = true;
+					break;
+				}
 			}
 			
-			assert.notStrictEqual(chat.chatid, null);
-			assert.notStrictEqual(chat.eventid, null);
+			if (!ownChatsIsEndpoint)
+				return { code: 'chat-get-notfound' };
 			
-			chat.endpoints = query.endpoints;
-			
-			if (query.noMessages)
+			return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+				'FROM ecomments AS c ' + 
+				'LEFT JOIN users AS u ON c.commenter = u.id ' + 
+				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+				'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
+				chat.messages = comments;
 				return { code: 'chat-get-success', chat: chat };
-			
-			return ctx.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
-				'FROM chatmembers AS cm ' +
-				'JOIN users AS u ON u.id = cm.userid ' +
-				'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
-				'WHERE cm.chatid = ?', [chat.chatid]).then(function(endpoints) {
-				assert.ok(endpoints.length > 0);
-				chat.endpoints = endpoints;
-				
-				var ownChatsIsEndpoint = false;
-				for (var i = 0; i < chat.endpoints.length; ++i) {
-					if (chat.endpoints[i].uid == ctx.user.id) {
-						ownChatsIsEndpoint = true;
-						break;
-					}
-				}
-				
-				if (!ownChatsIsEndpoint)
-					return { code: 'chat-get-notfound' };
-				
-				return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
-					'FROM ecomments AS c ' + 
-					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
-					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
-					'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
-					chat.messages = comments;
-					return { code: 'chat-get-success', chat: chat };
-				});	
-			});
+			});	
 		});
 	});
 });

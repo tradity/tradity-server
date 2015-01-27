@@ -298,7 +298,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 	
 	assert.notStrictEqual(rec.pieces, null);
 	
-	return (ctx.getProperty('readonly') ? Q(null) :
+	return (ctx.getProperty('readonly') ? Q() :
 		ctx.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange, pieces) '+
 			'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
 			'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), ' +
@@ -714,7 +714,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 								[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid]);
 							});
 					} else {
-						return Q(null);
+						return Q();
 					}
 				}).then(function() {
 					return ctx.feed({

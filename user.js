@@ -1094,7 +1094,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 							var inv = {};
 							return (query.betakey ?
 								conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]) :
-								Q(null)).then(function() {
+								Q()).then(function() {
 							if (!query.invitekey)
 								return;
 							

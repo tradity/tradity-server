@@ -14,7 +14,7 @@
 		"datejs": "1.0.0-rc1",
 		"iconv": "~2.1.4",
 		"lapack": "~0.0.7",
-		"lodash": "~2.4.1",
+		"lodash": "~3.0.0",
 		"lzma-native": ">=0.2.4",
 		"mailparser": "~0.4.6",
 		"mysql": "~2.5.3",

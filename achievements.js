@@ -348,7 +348,6 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 		});
 	})).then(function(verifiedCerts) {
 		var dates = verifiedCerts
-			.map(function(c) { return c && c[0]; })
 			.filter(function(c) { return c && c.uid == uid && c.certType == 'wasOnline'; })
 			.map(function(c) { return new Date(c.date); })
 			.sort(function(a, b) { return a.getTime() - b.getTime(); }); // ascending sort
@@ -365,10 +364,12 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 			longestStreak = Math.max(longestStreak, currentStreak);
 		}
 		
-		return Q.all(_.range(2, Math.min(longestStreak, 20) + 1).map(function(i) {
-			return self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
-		})).then(function() {
-			return { code: 'dl-achievement-success' };
+		return _.range(2, Math.min(longestStreak, 20) + 1).map(function(i) {
+			return function() {
+				return self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
+			};
+		}).reduce(Q.when, Q()).then(function() {
+			return { code: 'dl-achievement-success', streak: longestStreak };
 		});
 	});
 });

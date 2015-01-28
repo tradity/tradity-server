@@ -57,7 +57,7 @@ mailparser.on('end', function(mail_) {
 
 process.stdin.pipe(mailparser);
 
-socket.once('server-config', function() {
+socket.once('server-config').then(function() {
 	serverConfigReceived = true;
 	if (mail)
 		handleMail(mail);

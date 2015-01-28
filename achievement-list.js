@@ -208,7 +208,8 @@ for (var i = 0; i < ClientAchievements.length; ++i) { (function() {
 		version: 0,
 		prereqAchievements: achievement.prereqAchievements || [],
 		implicatingAchievements: achievement.implicatingAchievements || [],
-		category: achievement.category
+		category: achievement.category,
+		requireVerified: achievement.requireVerified
 	});
 })(); }
 

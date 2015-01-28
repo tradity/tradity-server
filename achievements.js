@@ -270,7 +270,7 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
 {
 	var today = new Date().toJSON().substr(0, 10);
 	
-	this.request({name: 'createSignedMessage', msg: {
+	return this.request({name: 'createSignedMessage', msg: {
 		uid: ctx.user.id,
 		date: today,
 		certType: 'wasOnline'
@@ -329,7 +329,7 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 	if (!query.certs || !query.certs.map)
 		return { code: 'format-error' };
 	
-	Q.all(query.certs.map(function(cert) {
+	return Q.all(query.certs.map(function(cert) {
 		return self.request({
 			name: 'verifySignedMessage',
 			maxAge: 100 * 24 * 60 * 60,

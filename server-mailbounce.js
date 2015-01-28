@@ -20,8 +20,16 @@ function notifyServer() {
 var mailparser = new MailParser();
 
 function handleMail(mail) {
-	for (var i = 0; i < mail.attachments.length; ++i) (function() {
-		var attachment = mail.attachments[i];
+	var attachments = mail.attachments;
+	
+	if (process.argv.indexOf('--raw') != -1) {
+		messageId = mail.headers['message-id'].replace(/^<|@.+$/g, '');
+		diagnostic_code = 'Raw return to mail bounce handler script';
+		return notifyServer();
+	}
+	
+	for (var i = 0; i < attachments.length; ++i) (function() {
+		var attachment = attachments[i];
 		
 		var attachmentParser = new MailParser();
 		

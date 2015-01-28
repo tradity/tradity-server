@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var templates = require('./templates-compiled.js');
 
@@ -76,7 +77,7 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
  * @function busreq~readEMailTemplate
  */
 TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables'], function(template, variables) {
-	return this.readTemplate(template, variables, function(t) {
+	return Q(this.readTemplate(template, variables)).then(function(t) {
 		var headerend = t.indexOf('\n\n');
 		
 		var headers = t.substr(0, headerend).split('\n');

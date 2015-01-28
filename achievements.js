@@ -54,7 +54,7 @@ Achievements.prototype.onBusConnect = function() {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access and user information.
  * 
- * @function busreq~sellAll
+ * @function busreq~checkAchievements
  */
 Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx'], function(ctx) {
 	var self = this;

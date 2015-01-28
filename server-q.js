@@ -55,6 +55,12 @@ if (query.timeout) {
 socket.once('server-config').then(function() {
 	return socket.emit(query.type, query);
 }).then(function(data) {
+	if (query.resultPath) {
+		var path = String(query.resultPath).split('.');
+		
+		console.log(_.reduce(path, _.result, data));
+	}
+	
 	if (!query.lurk)
 		process.exit(0);
 }).done();

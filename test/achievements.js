@@ -90,7 +90,7 @@ describe('achievements', function() {
 			
 			return _.range(2, 10).map(function(N) {
 				return function() {
-					var now = new Date().getTime();
+					var now = Date.now();
 					
 					// compute dates of the previous 10 days
 					var dates = _.map(_.range(0, N), function(x) {

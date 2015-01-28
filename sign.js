@@ -9,6 +9,6 @@ if (process.argv.length < 2) {
 	process.exit(0);
 }
 
-smdb.createSignedMessage(JSON.parse(process.argv[2]), function(msg) {
+smdb.createSignedMessage(JSON.parse(process.argv[2])).then(function(msg) {
 	console.log(msg);
-});
+}).done();

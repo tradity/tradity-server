@@ -340,7 +340,6 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 		});
 	})).then(function(verifiedCerts) {
 		var dates = verifiedCerts
-			.map(function(c) { return c[0]; })
 			.filter(function(c) { return c && c.uid == uid && c.certType == 'wasOnline'; })
 			.map(function(c) { return new Date(c.date); })
 			.sort(function(a, b) { return a.getTime() - b.getTime(); }); // ascending sort

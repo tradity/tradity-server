@@ -35,7 +35,8 @@ Mailer.prototype._init = function() {
 	var self = this;
 	
 	return this.getServerConfig().then(function(cfg) {
-		self.mailer = nodemailer.createTransport(cfg.mail.transport(cfg.mail.transportData));
+		var transportModule = require(cfg.mail.transport);
+		self.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
 		self.inited = true;
 	});
 };
@@ -61,7 +62,7 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 		template: template,
 		variables: variables || {},
 	}).then(function(opt) {
-		return self.sendMail(opt, ctx, template, mailtype || opt.headers['X-Mailtype'] || '');
+		return self.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '');
 	});
 });
 
@@ -104,12 +105,15 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 	if (!internal && !ctx.access.has('email-bounces'))
 		return { code: 'permission-denied' };
 	
+	var mail;
 	return ctx.query('SELECT mailid, uid FROM sentemails WHERE messageid = ?', [String(query.messageId)]).then(function(r) {
 		if (r.length == 0)
 			return { code: 'email-bounced-notfound' };
 		
 		assert.equal(r.length, 1);
-		var mail = r[0];
+		mail = r[0];
+		
+		assert.ok(mail);
 		
 		return ctx.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
 			[String(query.diagnostic_code || ''), mail.mailid]);
@@ -144,6 +148,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 	buscomponent.needsInit(function(opt, ctx, template, mailtype)
 {
 	var self = this;
+	var shortId;
 	
 	assert.ok(self.mailer);
 	
@@ -155,7 +160,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		if (cfg.mail.forceFrom)
 			opt.from = cfg.mail.forceFrom;
 		
-		var shortId = serverUtil.sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
+		shortId = serverUtil.sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
 		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
 		
 		if (ctx && !ctx.getProperty('readonly'))
@@ -168,7 +173,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 	}).then(function() {
 		return Q.ninvoke(self.mailer, 'sendMail', opt);
 	}).then(function(status) {
-		if (status && status.rejected.length > 0)
+		if (status && status.rejected && status.rejected.length > 0)
 			self.emailBounced({messageId: shortId}, true, ctx);
 	}, function(err) {
 		self.emailBounced({messageId: shortId}, true, ctx);

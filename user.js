@@ -1295,15 +1295,16 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 		}
 		
 		var sendKeyToCaller = ctx.access.has('userdb');
+		var key, url;
 		
 		return Q.nfcall(crypto.randomBytes, 16).then(function(buf) {
-			var key = buf.toString('hex');
+			key = buf.toString('hex');
 			return ctx.query('INSERT INTO invitelink ' +
 				'(uid, `key`, email, ctime, schoolid) VALUES ' +
 				'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 				[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
 		}).then(function() {
-			var url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
+			url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
 		
 			if (query.email) {
 				return self.sendInviteEmail({
@@ -1316,12 +1317,12 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				return { code: 'create-invite-link-success' };
 			}
 		}).then(function(ret) {
-			var ret = { code: codeContainer.status };
-			
 			if (sendKeyToCaller) {
 				ret.url = url;
 				ret.key = key; 
 			}
+			
+			return ret;
 		});
 	});
 });

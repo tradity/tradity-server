@@ -147,6 +147,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 				true : 
 				achievementEntry.check(uid, userAchievements, cfg, ctx)
 		).then(function(hasBeenAchieved) {
+			assert.equal(typeof hasBeenAchieved, 'boolean');
 			if (!hasBeenAchieved)
 				return;
 			

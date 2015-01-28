@@ -2,12 +2,11 @@ var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var socket, user;
+var socket;
 
 before(function() {
 	return testHelpers.standardSetup().then(function(data) {
 		socket = data.socket;
-		user = data.user;
 	});
 });
 

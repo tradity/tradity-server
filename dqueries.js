@@ -32,7 +32,7 @@ function DelayedQueries () {
 	this.queries = {};
 	
 	this.neededStocks = {};
-	this.queryTypes = ['stock-buy', 'dquery-remove'];
+	this.queryTypes = ['stock-buy', 'dquery-remove', 'ping'];
 };
 
 util.inherits(DelayedQueries, buscomponent.BusComponent);
@@ -117,10 +117,10 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
  */
 DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquery-list', function(query, ctx) {
 	return { code: 'dquery-list-success', 
-		'results': _.chain(this.queries).values()
-			.filter(function(q) { return q.userinfo.id == ctx.user.id;  }
+		results: _.chain(this.queries).values()
+			.filter(function(q) { return q.userinfo.id == ctx.user.id; })
 			.map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
-			.value())
+			.value()
 	};
 });
 
@@ -137,7 +137,7 @@ DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquer
 DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx) {
 	var queryid = query.queryid;
 	if (this.queries[queryid] && this.queries[queryid].userinfo.id == ctx.user.id) {
-		this.removeQuery(this.queries[queryid], ctx).then(function() {
+		return this.removeQuery(this.queries[queryid], ctx).then(function() {
 			return { code: 'dquery-remove-success' };
 		});
 	} else {
@@ -188,6 +188,26 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 });
 
 /**
+ * Check all delayed queries for being executable.
+ * 
+ * @return  Returns with <code>dquery-checkall-success</code> or
+ *          <code>permission-denied</code>.
+ * @function c2s~dquery-checkall
+ */
+DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dquery-checkall', function(query, ctx) {
+	if (!ctx.access.has('dqueries'))
+		return { code: 'permission-denied' };
+	
+	var self = this;
+	
+	return Q.all(_.chain(self.queries).values().map(function(q) {
+		return self.checkAndExecute(ctx, q);
+	}).value()).then(function() {
+		return { code: 'dquery-checkall-success' };
+	});
+});
+
+/**
  * Load a delayed query into the local delayed queries list.
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
@@ -202,7 +222,7 @@ DelayedQueries.prototype.addQuery = function(ctx, query) {
 	query.check = cond.check;
 	query.neededStocks = cond.neededStocks;
 	
-	var entryid = query.queryid + '';
+	var entryid = String(query.queryid);
 	assert.ok(!this.queries[entryid]);
 	this.queries[entryid] = query;
 	_.each(query.neededStocks, _.bind(this.addNeededStock, this, query.queryid));

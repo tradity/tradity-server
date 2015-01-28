@@ -208,11 +208,12 @@ function worker() {
 		clearInterval(startRequestInterval);
 		
 		var componentsForLoading = [
-			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js', './user.js'
+			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js',
+			'./user.js', './misc.js'
 		].concat(process.isBackgroundWorker ? [
 			'./background-worker.js', './dqueries.js'
 		] : [
-			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './misc.js', './chats.js',
+			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './chats.js',
 			'./watchlist.js', './wordpress-feed.js'
 		]);
 		

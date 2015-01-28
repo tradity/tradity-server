@@ -1,12 +1,16 @@
 {
 	"scripts": {
-		"start": "service-sotrade-restart || true"
+		"start": "service-sotrade-restart || true",
+		"test": "./test.sh"
 	},
 	"name": "tradity-de-server",
 	"version": "0.0.1",
 	"homepage": "https://tradity.de",
 	"bugs": {
 		"email": "developers@tradity.de"
+	},
+	"devDependencies": {
+		"mocha": "*"
 	},
 	"dependencies": {
 		"csv": "~0.4.1",

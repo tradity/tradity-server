@@ -4,6 +4,7 @@ var commonUtil = require('./common/util.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -106,11 +107,17 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
  * 
  * @function c2s~shutdown
  */
-Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv('server', function(query, ctx) {
-	this.emit('globalShutdown');
+Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(query, ctx) {
+	if (!ctx.access.has('server'))
+		return { code: 'permission-denied' };
+	
+	var self = this;
+	Q.delay(2000).then(function() {
+		self.emit('globalShutdown');
+	}).done();
 	
 	return { code: 'shutdown-success' };
-}));
+});
 
 /**
  * Change the session user id.

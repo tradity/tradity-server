@@ -35,4 +35,4 @@ echo "Testing connectivity..." >&2
 node server-q ping --q-quiet=yes --q-timeout=200
 
 echo "Running tests..." >&2
-mocha
+mocha -s 2000 -t 20000

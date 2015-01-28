@@ -1,21 +1,17 @@
-var assert = require('assert');
+ assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var user, socket;
+var socket;
 
 before(function() {
-	return testHelpers.getSocket().then(function(socket_) {
-		socket = socket_;
-		return testHelpers.getTestUser();
-	}).then(function(user_) {
-		user = user_;
+	return testHelpers.standardSetup().then(function(data) {
+		socket = data.socket;
 	});
 });
 
-after(function() {
-	socket.raw().disconnect();
-});
+beforeEach(testHelpers.standardReset);
+after(testHelpers.standardTeardown);
 
 describe('achievements', function() {
 	describe('list-all-achievements', function() {

@@ -216,7 +216,7 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * @function c2s~comment
  */
 FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx) {
-	if (!query.comment)
+	if (!query.comment || parseInt(query.eventid) != query.eventid)
 		return { code: 'format-error' };
 	
 	return ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events ' +

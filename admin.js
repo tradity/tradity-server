@@ -199,6 +199,9 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
  * @function c2s~change-user-email
  */
 Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx) {
+	if (parseInt(query.uid) != query.uid)
+		return { code: 'format-error' };
+	
 	return ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
 		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)]).then(function() {
 		return { code: 'change-user-email-success' };
@@ -261,7 +264,8 @@ Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstic
  * @function c2s~notify-all
  */
 Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpriv('moderate', function(query, ctx) {
-	return ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [String(query.content), query.sticky ? 1 : 0]).then(function(res) {
+	return ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)',
+		[String(query.content), query.sticky ? 1 : 0]).then(function(res) {
 		return ctx.feed({
 			'type': 'mod-notification',
 			'targetid': res.insertId,
@@ -374,6 +378,9 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
  * @function c2s~get-followers
  */
 Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _reqpriv('userdb', function(query, ctx) {
+	if (parseInt(query.uid) != query.uid)
+		return { code: 'format-error' };
+	
 	return ctx.query('SELECT u.name, u.id, ds.* ' +
 		'FROM stocks AS s ' +
 		'JOIN depot_stocks AS ds ON ds.stockid = s.id ' +

@@ -15,9 +15,9 @@ var getSocket = _.memoize(function() {
 });
 
 var getTestUser = _.memoize(function() {
-	var username = 'mm' + Date.now() * (process.id | 0x100);
-	var password = serverUtil.sha256(username).substr(0, 12);
-	var email = username + '@invalid.invalid';
+	var name = 'mm' + Date.now() * (process.id | 0x100);
+	var password = serverUtil.sha256(name).substr(0, 12);
+	var email = name + '@invalid.invalid';
 	var uid = null;
 	
 	var schoolid = 'Musterschule';
@@ -37,10 +37,10 @@ var getTestUser = _.memoize(function() {
 			
 			return socket.emit('register', {
 				__sign__: true,
-				name: username,
+				name: name,
 				giv_name: 'John',
 				fam_name: 'Doe ' + Date.now() % 19,
-				realnamepublish: true,
+				realnamepublish: false,
 				delayorderhist: false,
 				password: password,
 				email: email,
@@ -71,7 +71,7 @@ var getTestUser = _.memoize(function() {
 			assert.ok(data.result.uid);
 			
 			return {
-				username: username,
+				name: name,
 				password: password,
 				email: email,
 				uid: data.result.uid,
@@ -82,7 +82,43 @@ var getTestUser = _.memoize(function() {
 	});
 });
 
+var standardSetup = function() {
+	var socket;
+	
+	return getSocket().then(function(socket_) {
+		socket = socket_;
+		return getTestUser();
+	}).then(function(user) {
+		return { socket: socket, user: user };
+	});
+};
+
+var standardTeardown = function() {
+	return getSocket().then(function(socket) {
+		socket.raw().disconnect();
+	});
+};
+
+var standardReset = function() {
+	return getSocket().then(function(socket) {
+		return getTestUser().then(function(user) {
+			return socket.emit('logout').then(function() {
+				return socket.emit('login', { // login to reset privileges
+					name: user.name,
+					pw: user.password,
+					stayloggedin: false
+				});
+			}).then(function(loginresult) {
+				assert.equal(loginresult.code, 'login-success');
+			});
+		});
+	});
+};
+
 exports.getSocket = getSocket;
 exports.getTestUser = getTestUser;
+exports.standardSetup = standardSetup;
+exports.standardTeardown = standardTeardown;
+exports.standardReset = standardReset;
 
 })();

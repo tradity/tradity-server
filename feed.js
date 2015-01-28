@@ -51,10 +51,9 @@ util.inherits(FeedController, buscomponent.BusComponent);
  * @function busreq~feed
  */
 FeedController.prototype.feed = buscomponent.provide('feed',
-	['data', 'ctx', 'conn', 'onEventId'], function(data, ctx, conn, onEventId, done) {
+	['data', 'ctx', 'conn', 'onEventId'], function(data, ctx, conn, onEventId) {
 	var self = this;
 	
-	done = done || function(data) { return data; };
 	assert.ok(data.type);
 	assert.ok(data.type.length);
 	assert.ok(data.srcuser);
@@ -125,7 +124,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
 	}).then(function() {
 		self.emitGlobal('feed-' + data.type, data);
 		self.emitGlobal('push-events');
-		return done(eventid);
+		return eventid;
 	});
 });
 

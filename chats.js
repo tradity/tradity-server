@@ -38,6 +38,8 @@ util.inherits(Chats, buscomponent.BusComponent);
  *                                 commenting on this event).
  * @property {int[]} endpoints  The numerical ids of all chat participants.
  * @property {Comment[]} messages  A list of chat messages.
+ * @property {?module:user~UserEntryBase[]} query.members  Array of full user objects for the 
+ *                                                         participants.
  */
 
 /**
@@ -54,10 +56,8 @@ util.inherits(Chats, buscomponent.BusComponent);
  * 
  * @param {?object[]} query.endpoints  Array of small user objects of the
  *                                     other participants in the chat.
- * @param {?module:user~UserEntryBase[]} query.members  Array of full user objects for the 
- *                                                      participants.
  * @param {?int} query.chatid  The numerical chat id. Either this or query.endpoints
- *                             need to be set.
+ *                             needs to be set.
  * @param {?boolean} query.failOnMissing  If there is no such chat, do not create it.
  * @param {?boolean} query.noMessages  If set, do not load the chat messages.
  * 
@@ -66,7 +66,7 @@ util.inherits(Chats, buscomponent.BusComponent);
  *                  and populates <code>.chat</code> with a
  *                  {@link module:chats~Chat}
  * 
- * @function c2s~get-chat
+ * @function c2s~chat-get
  */
 Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx) {
 	var whereString = '';
@@ -98,9 +98,10 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		
 		whereString += 
 			' (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.id = cm.userid WHERE cm.chatid = c.chatid ' +
-			'AND cm.userid IN (' +  endpointsList + ')) = ? ';
+			'  AND cm.userid IN (' +  endpointsList + ')) = ? ' +
+			'AND (SELECT COUNT(*) FROM chatmembers AS cm WHERE cm.chatid = c.chatid) = ? ';
 		
-		params.push(numEndpoints);
+		params.push(numEndpoints, numEndpoints);
 	}
 	
 	var chatid;
@@ -115,13 +116,14 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		if (query.failOnMissing || !query.endpoints || ctx.getProperty('readonly'))
 			return Q(null);
 		
+		// query.endpoints has undergone validation and can be assumed to be all integers
 		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE id IN (' + query.endpoints.join(',') + ')',
 			[]).then(function(endpointUserCount) {
 			if (endpointUserCount[0].c != query.endpoints.length)
 				return Q(null);
 			
 			return ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.id]).then(function(res) {
-				chatid = res.chatid;
+				chatid = res.insertId;
 				
 				var members = [];
 				var memberValues = [];
@@ -135,7 +137,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 			}).then(function() {
 				return ctx.feed({
 					type: 'chat-start',
-					targetid: res.insertId, 
+					targetid: chatid, 
 					srcuser: ctx.user.id,
 					noFollowers: true,
 					feedusers: query.endpoints,
@@ -214,7 +216,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
  * 
  * @function c2s~chat-adduser
  */
-Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser', function(query, ctx) {
+Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', function(query, ctx) {
 	var self = this;
 	
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
@@ -252,7 +254,7 @@ Chats.prototype.addChatsToChats = buscomponent.provideWQT('client-chat-adduser',
 					targetid: query.chatid, 
 					srcuser: ctx.user.id,
 					noFollowers: true,
-					feedusers: chat.endpoints,
+					feedusers: _.pluck(chat.endpoints, 'uid'),
 					json: {addedChats: query.userid, addedChatsName: username, endpoints: chat.endpoints}
 				});
 			}).then(function() {

@@ -123,7 +123,7 @@ for (var i = 0; i < rcaKeys.length; ++i) {
 					'AS invitecount ' +
 					'FROM invitelink AS il ' +
 					'JOIN inviteaccept AS ia ON il.id = ia.iid ' +
-					'WHERE il.uid = ?', [uid], function(res) {
+					'WHERE il.uid = ?', [uid]).then(function(res) {
 					assert.equal(res.length, 1);
 					
 					return res[0].invitecount >= count;

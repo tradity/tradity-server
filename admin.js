@@ -284,7 +284,7 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 	query.schoolpath = String(query.schoolpath || '/').toLowerCase();
 	
 	var oldpath;
-	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)], function(r) {
+	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)]).then(function(r) {
 		if (r.length == 0)
 			return { code: 'rename-school-notfound' };
 		

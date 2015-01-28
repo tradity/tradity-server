@@ -260,6 +260,9 @@ Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-al
  * Return a string to the user that can be used for verifying that
  * they have been active on a given day.
  * 
+ * @param {string} [query.today]  If executed with appropiate privileges,
+ *                                sets the date for the certificate.
+ * 
  * @return {object}  Returns with <code>get-daily-login-certificate-success</code>
  *                   and sets <code>.cert</code> appropiately.
  * 
@@ -269,6 +272,13 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
 	function(query, ctx)
 {
 	var today = new Date().toJSON().substr(0, 10);
+	
+	if (query.today) {
+		if (!ctx.access.has('achievements'))
+			return { code: 'permission-denied' };
+		
+		today = String(query.today);
+	}
 	
 	return this.request({name: 'createSignedMessage', msg: {
 		uid: ctx.user.id,
@@ -334,12 +344,10 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 			name: 'verifySignedMessage',
 			maxAge: 100 * 24 * 60 * 60,
 			msg: cert
-		}).then(function(verifCert) {
-			return verifCert;
 		});
 	})).then(function(verifiedCerts) {
 		var dates = verifiedCerts
-			.map(function(c) { return c[0]; })
+			.map(function(c) { return c && c[0]; })
 			.filter(function(c) { return c && c.uid == uid && c.certType == 'wasOnline'; })
 			.map(function(c) { return new Date(c.date); })
 			.sort(function(a, b) { return a.getTime() - b.getTime(); }); // ascending sort

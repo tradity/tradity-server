@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -31,24 +32,26 @@ util.inherits(FeedController, buscomponent.BusComponent);
  * invokes this – if available, consider using it in order to map all
  * actions to the current context.
  * 
- * @property {string} data.type  A short identifier for the kind of event
- * @property {int} data.srcuser  The numerical identifier of the user who
- *                               caused this event
- * @property {object} data.json  Additional information specific to the event type
- * @property {boolean} data.everyone  Write this event to all user feeds
- * @property {boolean} data.noFollowers  Do not write this event automatically to
- *                                       follower feeds
- * @property {int[]}  data.feedusers  A list of users to whose feeds this event should
- *                                    be written
- * @property {int}  data.feedchat   The ID of a chat of which all members should be
- *                                   notified of this event
- * @property {int}  data.feedschool  The ID of a group of which all members should be
- *                                   notified of this event
- * @property {module:qctx~QContext} ctx  A QContext to provide database access
+ * @param {string} data.type  A short identifier for the kind of event
+ * @param {int} data.srcuser  The numerical identifier of the user who
+ *                            caused this event
+ * @param {object} data.json  Additional information specific to the event type
+ * @param {boolean} data.everyone  Write this event to all user feeds
+ * @param {boolean} data.noFollowers  Do not write this event automatically to
+ *                                    follower feeds
+ * @param {int[]}  data.feedusers  A list of users to whose feeds this event should
+ *                                 be written
+ * @param {int}  data.feedchat   The ID of a chat of which all members should be
+ *                               notified of this event
+ * @param {int}  data.feedschool  The ID of a group of which all members should be
+ *                                notified of this event
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access
+ * @param {object} conn  An optional database connection to be used
  * 
  * @function busreq~feed
  */
-FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 'reply'], function(data, ctx, onEventId) {
+FeedController.prototype.feed = buscomponent.provide('feed',
+	['data', 'ctx', 'conn', 'onEventId'], function(data, ctx, conn, onEventId) {
 	var self = this;
 	
 	assert.ok(data.type);
@@ -58,13 +61,13 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
 	var json = JSON.stringify(data.json ? data.json : {});
 	data = _.extend(data, data.json);
 	
-	process.nextTick(function() {
-		self.emitGlobal('feed-' + data.type, data);
-	});
+	conn = conn || ctx; // both db connections and QContexts expose .query()
 	
-	ctx.query('INSERT INTO events(`type`,targetid,time,srcuser,json) VALUES (?,?,UNIX_TIMESTAMP(),?,?)',
-		[String(data.type), data.targetid ? parseInt(data.targetid) : null, parseInt(data.srcuser), json], function(r) {
-		var eventid = r.insertId;
+	var eventid;
+	return conn.query('INSERT INTO events(`type`, targetid, time, srcuser, json) VALUES (?, ?, ?, ?, ?)',
+		[String(data.type), data.targetid ? parseInt(data.targetid) : null,
+		data.time ? data.time : parseInt(Date.now() / 1000), parseInt(data.srcuser), json]).then(function(r) {
+		eventid = r.insertId;
 		onEventId(eventid);
 		
 		var query, params, subselects;
@@ -80,9 +83,13 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
 			
 			if (!data.noFollowers) {
 				// all followers
-				subselects.push('SELECT ?, userid FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id AND s.leader = ?');
+				subselects.push('SELECT ?, userid ' +
+					'FROM depot_stocks ' +
+					'JOIN stocks ON depot_stocks.stockid = stocks.id AND stocks.leader = ?');
 				// all users in watchlist
-				subselects.push('SELECT ?, w.watcher FROM stocks AS s JOIN watchlists AS w ON s.id = w.watched WHERE s.leader = ?');
+				subselects.push('SELECT ?, watcher ' +
+					'FROM stocks AS stocks1 ' +
+					'JOIN watchlists ON stocks1.id = watched WHERE stocks1.leader = ?');
 				params.push(eventid, data.srcuser, eventid, data.srcuser);
 			}
 			
@@ -113,9 +120,11 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
 			params = [eventid];
 		}
 		
-		ctx.query(query, params, function() {
-			self.emitGlobal('push-events');
-		});
+		return conn.query(query, params);
+	}).then(function() {
+		self.emitGlobal('feed-' + data.type, data);
+		self.emitGlobal('push-events');
+		return eventid;
 	});
 });
 
@@ -127,13 +136,23 @@ FeedController.prototype.feed = buscomponent.provide('feed', ['data', 'ctx', 're
  * 
  * @function busreq~feedFetchEvents
  */
-FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx, cb) {
-	ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
+FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx) {
+	var since = 0, count = 10000;
+	if (query) {
+		if (parseInt(query.since) == query.since)
+			since = parseInt(query.since);
+		
+		if (query.count !== null && parseInt(query.count) == query.count)
+			count = parseInt(query.count);
+	}
+	
+	return ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
 		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
 		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky, url AS profilepic, ' +
 		'achievements.achname, achievements.xp, sentemails.messageid, sentemails.sendingtime, sentemails.bouncetime, ' +
-		'sentemails.mailtype, sentemails.recipient AS mailrecipient, sentemails.diagnostic_code ' +
+		'sentemails.mailtype, sentemails.recipient AS mailrecipient, sentemails.diagnostic_code, ' +
+		'blogposts.* ' +
 		'FROM events_users ' +
 		'JOIN events ON events_users.eventid = events.eventid ' +
 		'LEFT JOIN ecomments AS c ON c.commentid = events.targetid AND events.type="comment" ' +
@@ -141,14 +160,16 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'LEFT JOIN orderhistory AS oh ON oh.orderid = IF(events.type="trade", events.targetid, IF(e2.type="trade", e2.targetid, NULL)) ' +
 		'LEFT JOIN users AS su ON su.id = events.srcuser ' +
 		'LEFT JOIN users AS trader ON trader.id = IF(e2.type="trade", oh.userid, IF(e2.type="user-register", e2.targetid, NULL)) ' +
-		'LEFT JOIN schools ON schools.id = e2.targetid AND e2.type="school-create" ' +
 		'LEFT JOIN achievements ON achievements.achid = events.targetid AND events.type="achievement" ' +
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification" ' +
 		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
 		'LEFT JOIN sentemails ON sentemails.mailid = events.targetid AND events.type="email-bounced" ' +
+		'LEFT JOIN blogposts ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
+		'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +
+		'LEFT JOIN schools ON schools.id = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
 		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
-		[ctx.user.uid, query ? parseInt(query.since) : 0, query && query.count !== null ? parseInt(query.count) : 1000000], function(r) {
-		cb(_.chain(r).map(function(ev) {
+		[ctx.user.uid, since, count]).then(function(r) {
+		return _.chain(r).map(function(ev) {
 			if (ev.json) {
 				var json = JSON.parse(ev.json);
 				if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid != ev.srcuser)
@@ -158,7 +179,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 			
 			delete ev.json;
 			return ev;
-		}).reject(function(ev) { return !ev; }).value());
+		}).reject(function(ev) { return !ev; }).value();
 	});
 });
 
@@ -171,17 +192,18 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
  * 
  * @function c2s~mark-as-seen
  */
-FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx, cb) {
+FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx) {
 	if (parseInt(query.eventid) != query.eventid)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
-	ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', [parseInt(query.eventid), ctx.user.id], function() {
-		cb('mark-as-seen-success');
+	return ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', 
+		[parseInt(query.eventid), ctx.user.id]).then(function() {
+		return { code: 'mark-as-seen-success' };
 	});
 });
 
 /**
- * Comment on a gieven event.
+ * Comment on a given event.
  * 
  * @param {string} query.comment  The comment’s text.
  * @param {boolean} query.ishtml  Whether the comment’s content should be considered HTML.
@@ -192,14 +214,15 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * 
  * @function c2s~comment
  */
-FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx, cb) {
-	if (!query.comment)
-		return cb('format-error');
+FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx) {
+	if (!query.comment || parseInt(query.eventid) != query.eventid)
+		return { code: 'format-error' };
 	
-	ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events '+
-		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?', [parseInt(query.eventid)], function(res) {
+	return ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events ' +
+		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?',
+		[parseInt(query.eventid)]).then(function(res) {
 		if (res.length == 0)
-			return cb('comment-notfound');
+			return { code: 'comment-notfound' };
 		
 		var feedschool = null;
 		var feedchat = null;
@@ -227,9 +250,10 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 				break;
 		}
 		
-		ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
-			[parseInt(query.eventid), ctx.user.id, String(query.comment), query.ishtml && ctx.access.has('comments') ? 1 : 0], function(res) {
-			ctx.feed({
+		return ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
+			[parseInt(query.eventid), ctx.user.id, String(query.comment),
+			 query.ishtml && ctx.access.has('comments') ? 1 : 0]).then(function(res) {
+			return ctx.feed({
 				type: 'comment',
 				targetid: res.insertId,
 				srcuser: ctx.user.id,
@@ -238,7 +262,8 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 				feedchat: feedchat,
 				noFollowers: noFollowers
 			});
-			cb('comment-success');
+		}).then(function() {
+			return { code: 'comment-success' };
 		});
 	});
 });

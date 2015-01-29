@@ -7,92 +7,106 @@ var events = require('events');
 var os = require('os');
 var crypto = require('crypto');
 var cytoscape = require('cytoscape');
+var lzma = require('lzma-native');
+var objectHash = require('object-hash');
 
 function Bus () {
-	this.hostname = os.hostname();
-	this.pid = process.pid;
-	this.id = this.determineBusID();
-	this.handledEvents = [];
+	var self = this;
 	
-	this.curId = 0;
-	this.busGraph = cytoscape({
+	self.hostname = os.hostname();
+	self.pid = process.pid;
+	self.id = self.determineBusID();
+	self.handledEvents = [];
+	
+	self.curId = 0;
+	self.busGraph = cytoscape({
 		headless: true,
 		elements: [
 			{
 				group: 'nodes',
-				data: this
+				data: self
 			}
 		]
 	});
 	
-	this.ownNode = null;
-	this.dijkstra = null;
-	this.localNodes = null;
-	this.busGraphUpdated();
+	self.ownNode = null;
+	self.dijkstra = null;
+	self.localNodes = null;
+	self.busGraphUpdated();
 	
-	this.setMaxListeners(0);
-	this.responseWaiters = {};
+	self.setMaxListeners(0);
+	self.responseWaiters = {};
 	
-	this.msgCount = 0;
-	this.lostPackets = 0;
-	this.busNodeInfoQueued = false;
+	self.msgCount = 0;
+	self.lostPackets = 0;
+	self.busNodeInfoQueued = false;
 	
-	this.packetLog = [];
-	this.packetLogLength = 1536;
+	self.packetLog = [];
+	self.packetLogLength = 1536;
 	
-	this.pingIntervalMs = 85000; // 85 seconds between transport pings
+	self.pingIntervalMs = 85000; // 85 seconds between transport pings
+	self.startupTimedBusInfos = [ 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ];
 	
-	this.components = [];
-	this.transports = [];
-	this.removedTransports = [];
+	self.transports = [];
+	self.removedTransports = [];
 	
-	this.remotesWithOurBusNodeInfo = [];
+	self.remotesWithOurBusNodeInfo = [];
 	
-	this.inputFilters = [];
-	this.outputFilters = [];
-	this.nonLoggedPacketNames = ['bus::nodeInfo'];
+	self.inputFilters = [];
+	self.outputFilters = [];
+	self.nonLoggedPacketNames = ['bus::nodeInfo'];
 	
-	this.on('newListener', function(event) {
-		if (this.handledEvents.indexOf(event) == -1) {
-			this.handledEvents.push(event);
+	self.on('newListener', function(event) {
+		if (self.handledEvents.indexOf(event) == -1) {
+			self.handledEvents.push(event);
 			
-			this.emitBusNodeInfoSoon();
+			self.emitBusNodeInfoSoon();
 		}
 	});
 	
-	this.on('removeListener', function(event) {
-		if (this.listeners(event).length == 0) {
-			this.handledEvents = _.without(this.handledEvents, event);
+	self.on('removeListener', function(event) {
+		if (self.listeners(event).length == 0) {
+			self.handledEvents = _.without(self.handledEvents, event);
 			
-			assert.ok(this.handledEvents.indexOf(event) == -1);
+			assert.ok(self.handledEvents.indexOf(event) == -1);
 			
-			this.emitBusNodeInfoSoon();
+			self.emitBusNodeInfoSoon();
 		}
 	});
 	
-	this.on('bus::nodeInfo', function(data) {
-		assert.ok(data.id && _.isString(data.id));
-		assert.ok(data.graph);
-		assert.ok(data.handledEvents && _.isArray(data.handledEvents));
+	self.on('bus::nodeInfo', function(data) {
+		if (!Buffer.isBuffer(data))
+			data = new Buffer(data);
 		
-		if (data.id == this.id)
-			return;
-		
-		this.handleTransportNodeInfo(data);
-		
-		if (this.remotesWithOurBusNodeInfo.indexOf(data.id) == -1) {
-			this.remotesWithOurBusNodeInfo.push(data.id);
-			this.emitBusNodeInfoSoon();
-		}
+		lzma.decompress(data, function(data) {
+			data = JSON.parse(data);
+			assert.ok(data.id && _.isString(data.id));
+			assert.ok(data.graph);
+			assert.ok(data.handledEvents && _.isArray(data.handledEvents));
+			
+			if (data.id == self.id)
+				return;
+			
+			self.handleTransportNodeInfo(data);
+			
+			if (self.remotesWithOurBusNodeInfo.indexOf(data.id) == -1) {
+				self.remotesWithOurBusNodeInfo.push(data.id);
+				self.emitBusNodeInfoSoon();
+			}
+		});
 	});
 	
-	assert.notEqual(this.handledEvents.indexOf('bus::nodeInfo'), -1);
+	assert.notEqual(self.handledEvents.indexOf('bus::nodeInfo'), -1);
+	
+	self.startupTimedBusInfos.map(function(delay) { // delay in seconds
+		setTimeout(self.emitBusNodeInfoSoon.bind(self), delay * 1000);
+	});
 }
 
 util.inherits(Bus, events.EventEmitter);
 
 Bus.prototype.toJSON = function() {
-	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'lostPackets', 'components', 'hostname', 'pid');
+	return _.pick(this, 'id', 'handledEvents', 'curId', 'msgCount', 'lostPackets', 'hostname', 'pid');
 };
 
 Bus.prototype.determineBusID = function() {
@@ -116,22 +130,26 @@ Bus.prototype.emitBusNodeInfoSoon = function() {
 };
 
 Bus.prototype.emitBusNodeInfo = function(transports, initial) {
-	var info = {
-		id: this.id,
-		handledEvents: this.handledEvents,
-		graph: this.busGraph.json()
-	};
+	var self = this;
 	
-	// note that initial infos are transport events, whereas
-	// non-initial infos are bus events (and therefore bus packets)
-	if (initial) {
-		transports = transports || this.transports;
-		
-		for (var i = 0; i < transports.length; ++i)
-			transports[i].emit('bus::nodeInfoInitial', info);
-	} else {
-		this.emitGlobal('bus::nodeInfo', info);
-	}
+	var info = {
+		id: self.id,
+		handledEvents: self.handledEvents,
+		graph: self.busGraph.json()
+	};
+
+	lzma.compress(JSON.stringify(info), {preset: 3}, function(encodedInfo) {
+		// note that initial infos are transport events, whereas
+		// non-initial infos are bus events (and therefore bus packets)
+		if (initial) {
+			transports = transports || self.transports;
+			
+			for (var i = 0; i < transports.length; ++i)
+				transports[i].emit('bus::nodeInfoInitial', encodedInfo);
+		} else {
+			self.emitGlobal('bus::nodeInfo', encodedInfo);
+		}
+	});
 }
 
 /*
@@ -193,59 +211,65 @@ Bus.prototype.addTransport = function(transport, done) {
 	
 	var pingInterval = null, disconnected = false, waitingForPing = false;
 	transport.on('bus::nodeInfoInitial', function(data) { // ~ ACK after SYN-ACK
-		if (data.id == self.id)
-			return;
+		if (!Buffer.isBuffer(data))
+			data = new Buffer(data);
 		
-		self.handleTransportNodeInfo(data, true); // modifies busGraph property!
-		
-		var nodeIDs = [data.id, self.id].sort(); // sort for normalization across nodes
-		var transportGraphID = nodeIDs.join('-') + '-' + edgeId;
-		
-		assert.ok(self.busGraph.getElementById(nodeIDs[0]).isNode());
-		assert.ok(self.busGraph.getElementById(nodeIDs[1]).isNode());
-		
-		// remove the edge, if present, since it may have been updated
-		// during reading the remote node info (in which case emit() & co are missing!)
-		self.busGraph.remove(self.busGraph.getElementById(transportGraphID));
-		
-		transport.source = nodeIDs[0];
-		transport.target = nodeIDs[1];
-		transport.id = transportGraphID;
-		transport.msgCount = 0;
-		
-		self.busGraph.add({
-			group: 'edges',
-			data: transport
-		});
-		
-		self.busGraphUpdated();
-		
-		self.transports.push(transport);
-		
-		self.emitBusNodeInfoSoon();
-		
-		if (!transport.noPingWeight && pingInterval === null) {
-			// pings are sent, again, in a TCP-handshake-like manner, i.e.
-			// A->B, B->A, A->B (indicated by the “stage” counter)
-			var emitInitialPing = function() {
-				if (disconnected)
-					return;
-				
-				if (waitingForPing) // ping larger than interval
-					transport.weight = self.pingIntervalMs;
-				
-				waitingForPing = true;
-				transport.emit('bus::ping', {outTime: Date.now(), stage: 0});
-			};
+		lzma.decompress(data, function(data) {
+			data = JSON.parse(data);
+			if (data.id == self.id)
+				return;
 			
-			pingInterval = setInterval(emitInitialPing, self.pingIntervalMs);
-			process.nextTick(emitInitialPing);
-		}
-		
-		if (!doneCalled) {
-			doneCalled = true;
-			done();
-		}
+			self.handleTransportNodeInfo(data, true); // modifies busGraph property!
+			
+			var nodeIDs = [data.id, self.id].sort(); // sort for normalization across nodes
+			var transportGraphID = nodeIDs.join('-') + '-' + edgeId;
+			
+			assert.ok(self.busGraph.getElementById(nodeIDs[0]).isNode());
+			assert.ok(self.busGraph.getElementById(nodeIDs[1]).isNode());
+			
+			// remove the edge, if present, since it may have been updated
+			// during reading the remote node info (in which case emit() & co are missing!)
+			self.busGraph.remove(self.busGraph.getElementById(transportGraphID));
+			
+			transport.source = nodeIDs[0];
+			transport.target = nodeIDs[1];
+			transport.id = transportGraphID;
+			transport.msgCount = 0;
+			
+			self.busGraph.add({
+				group: 'edges',
+				data: transport
+			});
+			
+			self.busGraphUpdated();
+			
+			self.transports.push(transport);
+			
+			self.emitBusNodeInfoSoon();
+			
+			if (!transport.noPingWeight && pingInterval === null) {
+				// pings are sent, again, in a TCP-handshake-like manner, i.e.
+				// A->B, B->A, A->B (indicated by the “stage” counter)
+				var emitInitialPing = function() {
+					if (disconnected)
+						return;
+					
+					if (waitingForPing) // ping larger than interval
+						transport.weight = self.pingIntervalMs;
+					
+					waitingForPing = true;
+					transport.emit('bus::ping', {outTime: Date.now(), stage: 0});
+				};
+				
+				pingInterval = setInterval(emitInitialPing, self.pingIntervalMs);
+				process.nextTick(emitInitialPing);
+			}
+			
+			if (!doneCalled) {
+				doneCalled = true;
+				done();
+			}
+		});
 	});
 	
 	transport.on('bus::ping', function(data) {
@@ -270,8 +294,6 @@ Bus.prototype.addTransport = function(transport, done) {
 	transport.on('bus::packet', function(p) {
 		if (p.seenBy.indexOf(self.id) != -1)
 			return;
-		
-		assert.notStrictEqual(p.sender, self.id);
 		
 		transport.msgCount++;
 		
@@ -309,9 +331,12 @@ Bus.prototype.localizeBusGraph = function() {
 };
 
 Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
-	var pluckID = function(e) { return e.id(); };
-	
 	var remoteBusGraph = cytoscape(busnode.graph);
+	if (remoteBusGraph.gHash() == this.busGraph.gHash())
+		return;
+	
+	/*if (remoteBusGraph.getElementById(busnode.id).data().handledEvents.indexOf('client-prod') != -1)
+		console.log(this.id, 'knows that', busnode.id, 'handles prod');*/
 	
 	// remove all own edges from the remote bus graph, then take the union and
 	// add our own edges later on
@@ -392,6 +417,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 	self.msgCount++;
 	self.logPacket(packet);
 	
+	assert.ok(self.id);
 	assert.equal(packet.seenBy.indexOf(self.id), -1);
 	packet.seenBy.push(self.id);
 	
@@ -404,6 +430,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 		var recpId = packet.recipients[i];
 		assert.ok(recpId);
 		assert.ok(_.isString(recpId));
+		assert.ok(packet.seenBy.length > 0);
 		
 		if (recpId == self.id) {
 			// defer handling, since we might have received a message which invalidates the bus graph
@@ -417,8 +444,25 @@ Bus.prototype.handleBusPacket = function(packet) {
 			}
 			
 			var path = self.dijkstra.pathTo(targetNode);
-			assert.ok(path);
-			assert.ok(path.length >= 3); // at least source node, edge, target node
+			
+			// path.length >= 3: at least source node, edge, target node
+			if (!path || path.length < 3) {
+				(function() { // use closure so packet_ gets captured per closure
+					/* no route -> probably not fully connected yet;
+					 * keep packet for a while */
+					var packet_ = _.clone(packet);
+					
+					packet_.recipients = [recpId];
+					packet_.seenBy = packet_.seenBy.slice(0, packet_.seenBy.length - 1);
+					
+					assert.equal(packet_.seenBy.indexOf(self.id), -1);
+					setTimeout(function() {
+						self.handleBusPacket(packet_);
+					}, 10);
+				})();
+				
+				continue;
+			}
 			
 			// add recipient id to recipient list for this transport
 			var nextTransport = path[1].data();
@@ -695,7 +739,6 @@ Bus.prototype.stats = function() {
 		msgCount: this.msgCount,
 		lostPackets: this.lostPackets,
 		id: this.id,
-		components: this.components,
 		busGraph: this.busGraph.json(),
 		packetLogCount: this.packetLog.length,
 		packetLogLength: this.packetLogLength
@@ -731,19 +774,26 @@ Bus.prototype.addOutputFilter = function(filter) {
 	this.outputFilters.push(filter);
 };
 
-Bus.prototype.addComponent = function(componentName) {
-	this.components.push(componentName);
-};
-
-Bus.prototype.removeComponent = function(componentName) {
-	this.components = _.without(this.components, componentName);
-};
-
 exports.Bus = Bus;
 
 /* cytoscape connected component extension */
 cytoscape('collection', 'connectedComponent', function(root) {
 	return this.breadthFirstSearch(root).path.closedNeighborhood();
+});
+
+/* cytoscape graph hashing extension */
+cytoscape('core', 'gHash', function() {
+	var nodes = this.nodes();
+	
+	var nodeData = {};
+	nodes.forEach(function(v) {
+		nodeData[v.id()] = [
+			v.data().handledEvents,
+			v.edgesWith(nodes).map(function(e) { return e.id(); }).sort()
+		];
+	});
+	
+	return objectHash(nodeData);
 });
 
 /* cytoscape graph union extension */
@@ -781,6 +831,10 @@ function sha256(s) {
 	var h = crypto.createHash('sha256');
 	h.end(s);
 	return h.read().toString('hex');
+}
+
+function pluckID(e) {
+	return e.id();
 }
 
 })();

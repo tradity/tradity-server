@@ -3,7 +3,7 @@
 
 Error.stackTraceLimit = Infinity;
 
-var q = require('q');
+var Q = require('q');
 var fs = require('fs');
 var assert = require('assert');
 var util = require('util');
@@ -91,8 +91,8 @@ socket.once('server-config').then(function() {
 	return socket.emit('set-debug-mode', { debugMode: false });
 }).then(function(data) {
 	assert.equal(data.code, 'set-debug-mode-success');
-			
-	return q.nfcall(fs.readFile, 'res/bob.jpg');
+	
+	return Q.nfcall(fs.readFile, 'res/bob.jpg');
 }).then(function(data) {
 	return socket.emit('publish', {
 		base64: true,
@@ -193,7 +193,7 @@ socket.once('server-config').then(function() {
 }).then(function(data) {
 	assert.equal(data.code, 'dquery-success');
 	
-	return q.delay(2000);
+	return Q.delay(2000);
 }).then(function() {
 	return socket.emit('prod', { uid: ownUid });
 }).then(function(data) {
@@ -213,6 +213,9 @@ socket.once('server-config').then(function() {
 }).then(function(data) {
 	assert.equal(data.code, 'get-server-statistics-success');
 	assert.ok(data.servers && _.isArray(data.servers));
+	return socket.emit('process-wordpress-feed', { uid: ownUid });
+}).then(function(data) {
+	assert.equal(data.code, 'process-wordpress-feed-success');
 	
 	return socket.emit('reset-user', { uid: ownUid });
 }).then(function(data) {

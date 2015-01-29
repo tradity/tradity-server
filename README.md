@@ -60,7 +60,7 @@ this.request({name: 'sendTemplateMail',
 	template: 'invite-email.eml',
 	variables: {'email': data.email}
 	ctx: ctx,
-}, function() {
+}).then(function() {
 	...
 });
 ```
@@ -77,11 +77,9 @@ as in the following example:
 
 ```js
 Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
-	['variables', 'template', 'ctx', 'mailtype', 'reply'],
-	function(variables, template, ctx, mailtype, cb) {
+	['variables', 'template', 'ctx', 'mailtype'],
+	function(variables, template, ctx, mailtype) {
 	...
-	
-	cb();
 });
 ```
 

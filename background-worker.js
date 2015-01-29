@@ -29,24 +29,25 @@ util.inherits(BackgroundWorker, buscomponent.BusComponent);
  * Calls {@link busreq~regularCallbackUser} and {@link regularCallbackStocks}.
  * The query object is passed on to both of these.
  * 
+ * @noreadonly
  * @loginignore
  * @function c2s~prod
  */
-BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx, cb) {
+BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx) {
 	var self = this;
 	
 	assert.ok(ctx.access);
 	
 	if (ctx.access.has('server') == -1)
-		return cb('prod-not-allowed');
+		return { code: 'prod-not-allowed' };
 		
-	var starttime = Date.now();
+	var starttime = Date.now(), userdbtime;
 	
-	self.request({name: 'regularCallbackUser', query: query, ctx: ctx}, function() {
-		var userdbtime = Date.now();
-		self.request({name: 'regularCallbackStocks', query: query, ctx: ctx}, function() {
-			cb('prod-ready', {'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime});
-		});
+	return self.request({name: 'regularCallbackUser', query: query, ctx: ctx}).then(function() {
+		userdbtime = Date.now();
+		return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
+	}).then(function() {
+		return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
 	});
 });
 

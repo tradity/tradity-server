@@ -58,7 +58,7 @@ function _reqschooladm (f, soft, scdb, status) {
 		
 		assert.ok(lsa);
 		
-		return lsa.request({name: 'isSchoolAdmin', ctx: ctx, status: status, schoolid: query.schoolid}, function(schoolAdminResult) {
+		return lsa.request({name: 'isSchoolAdmin', ctx: ctx, status: status, schoolid: query.schoolid}).then(function(schoolAdminResult) {
 			if (!schoolAdminResult.ok)
 				return { code: 'permission-denied' };
 			
@@ -91,7 +91,7 @@ Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 
 {
 	var self = this;
 	
-	(parseInt(schoolid) == schoolid ? Q([{id: schoolid}]) :
+	return (parseInt(schoolid) == schoolid ? Q([{id: schoolid}]) :
 		ctx.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [schoolid]))
 	.then(function(res) {
 		if (res.length == 0)
@@ -102,7 +102,7 @@ Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 
 		schoolid = res[0].id;
 		
 		if (ctx.access.has('schooldb'))
-			return {ok: true, schoolid: null};
+			return {ok: true, schoolid: schoolid};
 			
 		status = status || ['admin', 'xadmin'];
 		
@@ -323,8 +323,11 @@ Schools.prototype.changeDescription = buscomponent.provideWQT('client-school-cha
  * @function c2s~school-change-member-status
  */
 Schools.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx) {
+	if (parseInt(query.uid) != query.uid)
+		return { code: 'format-error' };
+	
 	return ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
-		[parseInt(query.schoolid), parseInt(query.uid)]).then(function() {
+		[parseInt(query.uid), parseInt(query.schoolid)]).then(function() {
 		if (query.status == 'member')
 			return ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?',
 				[parseInt(query.uid), parseInt(query.schoolid)]);
@@ -362,8 +365,10 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
-		return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-			[self.readTemplate('comment-deleted-by-group-admin.html'), parseInt(query.commentid)]).then(function() {
+		return self.request({ name: 'readTemplate', template: 'comment-deleted-by-group-admin.html' }).then(function(commentContent) {
+			return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
+				[commentContent, parseInt(query.commentid)]);
+		}).then(function() {
 			return { code: 'school-delete-comment-success' };
 		});
 	});
@@ -381,6 +386,9 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
  * @function c2s~school-kick-user
  */
 Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx) {
+	if (parseInt(query.uid) != query.uid || parseInt(query.schoolid) != query.schoolid)
+		return { code: 'format-error' };
+	
 	return ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
 		[parseInt(query.uid), parseInt(query.schoolid)]).then(function() {
 		return ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
@@ -444,7 +452,7 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 			});
 		}
 		
-		(query.schoolpath.replace(/[^\/]/g, '').length == 1 ? Q([{c: 1}])
+		return (query.schoolpath.replace(/[^\/]/g, '').length == 1 ? Q([{c: 1}])
 			: conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
 			[commonUtil.parentPath(String(query.schoolpath))])).then(function(r) {
 			assert.equal(r.length, 1);
@@ -466,7 +474,7 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 			}).then(function() {
 				return conn.commit();
 			}).then(function() {
-				return { code: 'create-school-success' };
+				return { code: 'create-school-success', path: String(query.schoolpath) };
 			});
 		});
 	});

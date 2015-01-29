@@ -499,46 +499,48 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
  */
 User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx) {
 	var self = this;
+	var cfg;
 	
-	return self.getServerConfig().then(function(cfg) {
+	return self.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
 	
-	if (query.lookfor == '$self' && ctx.user)
-		query.lookfor = ctx.user.id;
-	
-	var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.id ? [
-		'u.*', 'ud.*', 'uf.*',
-	] : [
-		'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
-		'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
-	]).concat([
-		'u.id AS uid', 'u.name AS name', 'birthday',
-		'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
-		'`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
-		'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
-		'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
-		'((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
-		'((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
-		'((uf.fperf_cur + uf.fperf_sold - week_va.fperf_sold) / (uf.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
-		'((uf.operf_cur + uf.operf_sold - week_va.operf_sold) / (uf.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
-		'(uf.fperf_cur + uf.fperf_sold) / uf.fperf_bought AS totalfperf',
-		'(uf.operf_cur + uf.operf_sold) / uf.operf_bought AS totaloperf',
-		'freemoney', 'uf.wprov_sum + uf.lprov_sum AS prov_sum',
-		'week_va.totalvalue AS weekstarttotalvalue',
-		'day_va.totalvalue  AS daystarttotalvalue'
-	]).join(', ');
+		if (query.lookfor == '$self' && ctx.user)
+			query.lookfor = ctx.user.id;
 		
-	return ctx.query('SELECT ' + columns + ' FROM users AS u ' +
-		'JOIN users_finance AS uf ON u.id = uf.id ' +
-		'JOIN users_data AS ud ON u.id = ud.id ' +
-		'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
-		'LEFT JOIN valuehistory AS day_va  ON day_va.userid  = u.id AND day_va.time  = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
-		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid '+
-		'LEFT JOIN stocks ON u.id = stocks.leader '+
-		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" '+
-		'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" '+
-		'WHERE u.id = ? OR u.name = ?', 
-		[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
-			parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, String(query.lookfor)]);
+		var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.id ? [
+			'u.*', 'ud.*', 'uf.*',
+		] : [
+			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
+			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
+		]).concat([
+			'u.id AS uid', 'u.name AS name', 'birthday',
+			'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
+			'`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
+			'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
+			'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
+			'((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
+			'((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
+			'((uf.fperf_cur + uf.fperf_sold - week_va.fperf_sold) / (uf.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
+			'((uf.operf_cur + uf.operf_sold - week_va.operf_sold) / (uf.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
+			'(uf.fperf_cur + uf.fperf_sold) / uf.fperf_bought AS totalfperf',
+			'(uf.operf_cur + uf.operf_sold) / uf.operf_bought AS totaloperf',
+			'freemoney', 'uf.wprov_sum + uf.lprov_sum AS prov_sum',
+			'week_va.totalvalue AS weekstarttotalvalue',
+			'day_va.totalvalue  AS daystarttotalvalue'
+		]).join(', ');
+			
+		return ctx.query('SELECT ' + columns + ' FROM users AS u ' +
+			'JOIN users_finance AS uf ON u.id = uf.id ' +
+			'JOIN users_data AS ud ON u.id = ud.id ' +
+			'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
+			'LEFT JOIN valuehistory AS day_va  ON day_va.userid  = u.id AND day_va.time  = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
+			'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid '+
+			'LEFT JOIN stocks ON u.id = stocks.leader '+
+			'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" '+
+			'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" '+
+			'WHERE u.id = ? OR u.name = ?', 
+			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
+				parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, String(query.lookfor)]);
 	}).then(function(users) {
 		if (users.length == 0)
 			return { code: 'get-user-info-notfound' };
@@ -1009,12 +1011,18 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 					if (res && res.insertId) {
 						// in case school was created
 						
-						query.school = res.insertId;
+						var schoolid = res.insertId;
+						query.school = schoolid;
 						
 						gainUIDCBs.push(function() {
 							assert.ok(uid != null);
 							
-							return ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': uid, 'conn': conn});
+							return ctx.feed({
+								'type': 'school-create',
+								'targetid': schoolid,
+								'srcuser': uid,
+								'conn': conn
+							});
 						});
 					}
 					
@@ -1023,8 +1031,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 							uid = res.insertId;
 						
 						assert.ok(uid != null);
-			
-						return Q.all(gainUIDCBs).then(function() {
+						
+						return gainUIDCBs.reduce(Q.when, Q()).then(function() {
 							return conn.commit();
 						}).then(function() {
 							if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
@@ -1253,15 +1261,15 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
  *                   latter case, sets <code>.result.email</code> and 
  *                   <code>.result.schoolid</code> appropiately.
  * 
+ * @loginignore
  * @function c2s~get-invitekey-info
  */
 User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-info', function(query, ctx) {
 	var self = this;
 	
 	return ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]).then(function(res) {
-		if (res.length == 0) {
+		if (res.length == 0)
 			return { code: 'get-invitekey-info-notfound' };
-		}
 	
 		return self.getServerConfig().then(function(cfg) {
 			assert.equal(res.length, 1);

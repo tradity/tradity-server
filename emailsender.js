@@ -118,6 +118,9 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 		return ctx.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
 			[String(query.diagnostic_code || ''), mail.mailid]);
 	}).then(function() {
+		if (!mail)
+			return;
+		
 		return ctx.feed({
 			'type': 'email-bounced',
 			'targetid': mail.mailid,

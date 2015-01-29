@@ -224,7 +224,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		var url = cfg.varReplace(cfg.fsdb.puburl.replace(/\{\$name\}/g, filename));
 		
-		var groupassoc = groupassoc ? parseInt(groupassoc) : null;
+		groupassoc = parseInt(groupassoc) == groupassoc ? parseInt(groupassoc) : null;
 		
 		return ((uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) ? function() {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';

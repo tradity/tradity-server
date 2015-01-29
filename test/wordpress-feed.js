@@ -1,3 +1,5 @@
+'use strict';
+
 var assert = require('assert');
 var testHelpers = require('./test-helpers.js');
 var socket;

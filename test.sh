@@ -4,6 +4,7 @@ set -e
 
 [ -e res/ ] && [ -e main.js ] && node -e ''
 
+export DEBUG=''
 export SOTRADE_TEST=1 # indicates using config.test.js
 export SOTRADE_ERROR_LOG_FILE=/tmp/errors-$(date +%s).log
 export SOTRADE_DO_NOT_OUTPUT_ERRORS=1
@@ -20,6 +21,7 @@ MYSQL_CONFIG
 )
 
 echo "Starting server (error output at $SOTRADE_ERROR_LOG_FILE)..." >&2
+touch "$SOTRADE_ERROR_LOG_FILE"
 
 node main & SOTRADE_SERVER_PID=$!
 
@@ -41,7 +43,7 @@ echo "Running tests..." >&2
 
 time (for file in test/*.js; do
 	echo "Running $file..." >&2
-	mocha -s 5000 -t 25000 $file
+	mocha -s 15000 -t 50000 $file
 done)
 
 echo "Thank you for watching, please subscribe to my channel to view other tests" >&2

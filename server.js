@@ -111,8 +111,8 @@ SoTradeServer.prototype.start = function(port) {
 	var self = this;
 	
 	return self.getServerConfig().then(function(cfg) {
-		if (cfg.http.secure)
-			self.httpServer = https.createServer(cfg.http);
+		if (cfg.protocol == 'https')
+			self.httpServer = https.createServer();
 		else
 			self.httpServer = http.createServer();
 		

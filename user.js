@@ -123,42 +123,6 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 };
 
 /**
- * Lists the most popular stocks.
- * 
- * These are ordered according to a weighted average of the money amounts
- * involved in the relevant trades, specifically:
- * 
- * <ul>
- *     <li>No trades older than 3 weeks are taken into consideration</li>
- *     <li>Each trade’s value is added to its stock according to:
- *         <math mode="display" xmlns="http://www.w3.org/1998/Math/MathML">
- *             <mfrac>
- *                 <mrow>| money involved in trade |</mrow>
- *                 <mrow>| time difference now - trade time in seconds + 300 |</mrow>
- *             </mfrac>
- *         </math>
- *     </li>
- * </ul>
- * 
- * @return {object} Returns with <code>list-popular-stocks-success</code>,
- *                  with <code>.results</code> being set to a list of stocks,
- *                  which carry the properties <code>stockid, stockname, moneysum, wsum</code>,
- *                  the latter being the sum of the above formula over all trades for that stock.
- * 
- * @function c2s~list-popular-stocks
- */
-User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx) {
-	return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
-		'SUM(ABS(money)) AS moneysum, ' +
-		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
-		'FROM orderhistory AS oh ' +
-		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
-		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', []).then(function(popular) {
-		return { code: 'list-popular-stocks-success', 'results': popular };
-	});
-});
-
-/**
  * Logs a user into their account.
  * 
  * This is usually achieved by creating a session and writing it

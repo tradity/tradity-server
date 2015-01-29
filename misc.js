@@ -146,6 +146,23 @@ Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-
 });
 
 /**
+ * Sets the readonly mode of the network. Requires appropiate privileges.
+ * Only try this at home.
+ * 
+ * @return {object}  Returns with <code>force-readonly-success</code>.
+ * 
+ * @function c2s~force-readonly
+ */
+Misc.prototype.forceReadonly = buscomponent.provideQT('client-force-readonly', function(query, ctx) {
+	if (!ctx.access.has('server'))
+		return { code: 'permission-denied' };
+	
+	this.emitImmediate('change-readability-mode', { readonly: query.readonly ? true : false });
+	
+	return { code: 'force-readonly-success' };
+});
+
+/**
  * Internally produces a DB error.
  * 
  * @return {object}  Returns with <code>artificial-dberror-success</code>.

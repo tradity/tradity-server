@@ -499,6 +499,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				});
 			}).then(function(result) {
 				assert.ok(result);
+				assert.ok(result.code);
 				
 				if (callbackHasBeenCalled)
 					return self.emitError('Callback for client request called multiple times!');

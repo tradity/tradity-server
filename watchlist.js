@@ -38,7 +38,7 @@ util.inherits(Watchlist, buscomponent.BusComponent);
 /**
  * Adds a stock to the current user’s watchlist.
  * 
- * @param {string} query.stockid  The numerical stock id of the stock to be added.
+ * @param {string} query.stockid  The numerical stock id or symbol of the stock to be added.
  * 
  * @return {object} Returns with <code>watchlist-add-notfound</code>,
  *                  <code>watchlist-add-self</code> or <code>watchlist-add-success</code>.
@@ -48,8 +48,8 @@ util.inherits(Watchlist, buscomponent.BusComponent);
  */
 Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx) {
 	return ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
-		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ?',
-		[String(query.stockid)]).then(function(res) {
+		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ? OR stocks.stockid = ?',
+		[String(query.stockid), String(query.stockid)]).then(function(res) {
 		if (res.length == 0)
 			return { code: 'watchlist-add-notfound' };
 		var uid = res[0].uid;

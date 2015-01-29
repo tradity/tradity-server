@@ -91,7 +91,7 @@ socket.once('server-config').then(function() {
 	return socket.emit('set-debug-mode', { debugMode: false });
 }).then(function(data) {
 	assert.equal(data.code, 'set-debug-mode-success');
-			
+	
 	return Q.nfcall(fs.readFile, 'res/bob.jpg');
 }).then(function(data) {
 	return socket.emit('publish', {

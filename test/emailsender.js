@@ -1,6 +1,4 @@
 var assert = require('assert');
-var _ = require('lodash');
-var Q = require('q');
 var testHelpers = require('./test-helpers.js');
 var socket, user;
 
@@ -19,7 +17,9 @@ describe('emailsender', function() {
 		return socket.emit('create-invite-link', {
 			__sign__: true,
 			email: user.email
-		}).then(function() {
+		}).then(function(res) {
+			assert.equal(res.code, 'create-invite-link');
+			
 			return socket.once('email-bounced');
 		});
 	});

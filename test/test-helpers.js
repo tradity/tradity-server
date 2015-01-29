@@ -23,7 +23,7 @@ var getTestUser = _.memoize(function() {
 	var email = name + '@invalid.invalid';
 	var uid = null;
 	
-	var schoolid = 'Musterschule';
+	var schoolid = 'MegaMusterschule' + parseInt(Date.now() / 100000);
 	var schoolname = schoolid;
 	
 	return getSocket().then(function(socket) {
@@ -47,7 +47,7 @@ var getTestUser = _.memoize(function() {
 				delayorderhist: false,
 				password: password,
 				email: email,
-				school: null,
+				school: schoolid,
 				nomail: true,
 				betakey: '1-a.skidulaqrniucznl',
 				street: '',

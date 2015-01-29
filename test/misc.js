@@ -1,5 +1,4 @@
 var assert = require('assert');
-var fs = require('fs');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');

@@ -65,7 +65,8 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 				longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
 		}
 		
-		console.error(longErrorText);
+		if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
+			console.error(longErrorText);
 		
 		if (cfg && cfg.errorLogFile)
 			return Q.nfcall(fs.appendFile, cfg.errorLogFile, longErrorText);

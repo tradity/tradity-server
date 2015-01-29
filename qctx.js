@@ -72,8 +72,8 @@ function QContext(obj) {
 	
 	function ondestroy(_ctx) {
 		if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
-			console.log('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
-			console.log(JSON.stringify(_ctx));
+			console.warn('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
+			console.warn(JSON.stringify(_ctx));
 			
 			try {
 				_ctx.emitError(new Error('Query context cannot be destroyed with held resources'));

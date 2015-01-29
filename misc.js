@@ -98,13 +98,13 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
 	if (!ctx.access.has('server'))
 		return { code: 'permission-denied' };
 	
-	var conn1, conn2;
+	var conn1, conn2, id;
 	var deferred = Q.defer();
 	
 	return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))', []).then(function() {
 		return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)', []);
 	}).then(function(r) {
-		var id = r.insertId;
+		id = r.insertId;
 		return ctx.startTransaction({}, {restart: function() {
 			deferred.resolve({ code: 'artificial-deadlock-success' });
 		}});

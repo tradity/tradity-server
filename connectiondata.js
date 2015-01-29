@@ -172,7 +172,6 @@ ConnectionData.prototype.fetchEvents = function(query) {
 			self.mostRecentEventTime = Math.max(self.mostRecentEventTime, ev.eventtime);
 		});
 
-		console.log('Writing ', evlist.length, 'events');
 		return self.wrapForReply({pushes: evlist}).then(function(r) {
 			if (self.socket)
 				self.socket.emit('push-container', r)
@@ -405,7 +404,6 @@ ConnectionData.prototype.queryHandler = function(query) {
 			self.ctx.access.update(access);
 			
 			if (masterAuthorization) {
-				console.log(self.bus.id, 'received query with master authorization of type', query.type);
 				self.ctx.access.grantAny();
 				if (user == null && query.uid != null)
 					user = {uid: query.uid, id: query.uid};

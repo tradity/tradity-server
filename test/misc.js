@@ -31,7 +31,7 @@ describe('misc', function() {
 	
 	describe('set-client-storage', function() {
 		it('Should save information in arbitrary Buffers', function() {
-			buf = new Buffer(_.range(0, 256));
+			var buf = new Buffer(_.range(0, 256));
 			
 			return socket.emit('set-clientstorage', {
 				storage: buf
@@ -52,36 +52,6 @@ describe('misc', function() {
 		it('Should really not do much', function() {
 			return socket.emit('ping').then(function(res) {
 				assert.equal(res.code, 'pong');
-			});
-		});
-	});
-	
-	describe('artificial-error', function() {
-		it('Should produce an error', function() {
-			return socket.emit('artificial-error', {
-				__sign__: true
-			}).then(function(res) {
-				assert.equal(res.code, 'artificial-error-success');
-			});
-		});
-	});
-	
-	describe('artificial-deadlock', function() {
-		it('Should produce a deadlock', function() {
-			return socket.emit('artificial-deadlock', {
-				__sign__: true
-			}).then(function(res) {
-				assert.equal(res.code, 'artificial-deadlock-success');
-			});
-		});
-	});
-	
-	describe('artificial-dberror', function() {
-		it('Should produce a database error', function() {
-			return socket.emit('artificial-dberror', {
-				__sign__: true
-			}).then(function(res) {
-				assert.equal(res.code, 'artificial-dberror-success');
 			});
 		});
 	});

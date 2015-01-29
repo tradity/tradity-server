@@ -140,6 +140,9 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
  *     </li>
  * </ul>
  * 
+ * @param {?int} query.days  Optionally set the number of days to look into the past.
+ *                           This requires appropiate privileges.
+ * 
  * @return {object} Returns with <code>list-popular-stocks-success</code>,
  *                  with <code>.results</code> being set to a list of stocks,
  *                  which carry the properties <code>stockid, stockname, moneysum, wsum</code>,
@@ -148,12 +151,14 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
  * @function c2s~list-popular-stocks
  */
 User.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx) {
+	var days = ctx.access.has('server') && query.days ? parseInt(query.days) : 21;
+	
 	return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 		'SUM(ABS(money)) AS moneysum, ' +
 		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 		'FROM orderhistory AS oh ' +
-		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
-		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', []).then(function(popular) {
+		'WHERE buytime > UNIX_TIMESTAMP() - 86400*? ' +
+		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days]).then(function(popular) {
 		return { code: 'list-popular-stocks-success', 'results': popular };
 	});
 });

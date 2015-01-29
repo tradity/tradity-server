@@ -334,7 +334,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx) {
 	var self = this;
 	
-	return this.getServerConfig().then(function(cfg) {
+	return self.getServerConfig().then(function(cfg) {
 		var str = String(query.name);
 		if (!str || str.length < 3)
 			return { code: 'stock-search-too-short' };

@@ -9,7 +9,10 @@ var Q = require('q');
 var assert = require('assert');
 
 var getSocket = _.memoize(function() {
-	var socket = new sotradeClient.SoTradeConnection({noSignByDefault: true});
+	var socket = new sotradeClient.SoTradeConnection({
+		noSignByDefault: true,
+		logDevCheck: false
+	});
 	
 	return socket.once('server-config').then(_.constant(socket));
 });
@@ -115,10 +118,22 @@ var standardReset = function() {
 	});
 };
 
+var bufferEqual = function(a, b) {
+	if (a.length != b.length)
+		return false;
+	
+	for (var i = 0; i < a.length; ++i)
+		if (a[i] != b[i])
+			return false;
+	
+	return true;
+}
+
 exports.getSocket = getSocket;
 exports.getTestUser = getTestUser;
 exports.standardSetup = standardSetup;
 exports.standardTeardown = standardTeardown;
 exports.standardReset = standardReset;
+exports.bufferEqual = bufferEqual;
 
 })();

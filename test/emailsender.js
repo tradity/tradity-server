@@ -18,7 +18,7 @@ describe('emailsender', function() {
 			__sign__: true,
 			email: user.email
 		}).then(function(res) {
-			assert.equal(res.code, 'create-invite-link');
+			assert.equal(res.code, 'create-invite-link-success');
 			
 			return socket.once('email-bounced');
 		});

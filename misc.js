@@ -134,7 +134,7 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
  * 
  * @function c2s~artificial-stalelock
  */
-Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stalelock', function(query, ctx) {
+Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-stalelock', function(query, ctx) {
 	if (!ctx.access.has('server'))
 		return { code: 'permission-denied' };
 	

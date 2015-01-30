@@ -44,7 +44,7 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, MAX(posttime) AS lastposttime ' +
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
-		'GROUP BY blogid', []).then(function(res) {
+		'GROUP BY blogid').then(function(res) {
 		return Q.all(res.map(function(bloginfo) {
 			var wp = new WP({endpoint: bloginfo.endpoint});
 			var catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;

@@ -591,13 +591,13 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 		return Q();
 	
 	return Q.all([
-		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()', []),
+		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
 		ctx.query('SELECT p.id, p.path, users.access FROM schools AS p ' +
 			'JOIN events ON events.type="school-create" AND events.targetid = p.id ' +
 			'JOIN users ON users.id = events.srcuser ' +
 			'WHERE ' +
 			'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
-			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0', []).then(function(schools) {
+			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0').then(function(schools) {
 			return Q.all(schools.filter(function(school) {
 				return !Access.fromJSON(school.access).has('schooldb') &&
 					(school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));

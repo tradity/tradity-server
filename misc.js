@@ -101,8 +101,8 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
 	var conn1, conn2, id;
 	var deferred = Q.defer();
 	
-	return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))', []).then(function() {
-		return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)', []);
+	return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))').then(function() {
+		return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)');
 	}).then(function(r) {
 		id = r.insertId;
 		return ctx.startTransaction({}, {restart: function() {
@@ -190,12 +190,12 @@ Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatis
 	var ctx = new qctx.QContext({parentComponent: this});
 	
 	var ret = {};
-	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL', []).then(function(ures) {
+	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL').then(function(ures) {
 		ret.userCount = ures[0].c;
-		return ctx.query('SELECT COUNT(*) AS c FROM orderhistory', []);
+		return ctx.query('SELECT COUNT(*) AS c FROM orderhistory');
 	}).then(function(ores) {
 		ret.tradeCount = ores[0].c;
-		return ctx.query('SELECT COUNT(*) AS c FROM schools', []);
+		return ctx.query('SELECT COUNT(*) AS c FROM schools');
 	}).then(function(sres) {
 		ret.schoolCount = sres[0].c;
 		

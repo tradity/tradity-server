@@ -82,7 +82,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 			'ds.provision_hwm, ds.provision_lwm, s.bid, ds.amount, ' +
 			'f.id AS fid, l.id AS lid ' +
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.id = ds.stockid ' +
-			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id', []);
+			'JOIN users_finance AS f ON ds.userid = f.id JOIN users_finance AS l ON s.leader = l.id AND f.id != l.id');
 	}).then(function(dsr) {
 		return Q.all(dsr.map(function(entry) {
 			assert.ok(entry.wfees >= 0);
@@ -159,7 +159,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	}).then(function (conn_) {
 		conn = conn_;
 		return conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
-			'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL', []);
+			'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL');
 	}).then(function(users_) {
 		users = users_;
 		return conn.query('SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
@@ -167,15 +167,15 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 			'FROM depot_stocks AS ds ' +
 			'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
 			'LEFT JOIN users_finance ON ds.userid = users_finance.id ' +
-			'GROUP BY uid ', []);
+			'GROUP BY uid ');
 	}).then(function(res_static_) {
 		res_static = res_static_;
 		return conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
-			'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0', []);
+			'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0');
 	}).then(function(res_static2) {
 		res_static = res_static.concat(res_static2);
 		return conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
-			'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid', []);
+			'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid');
 	}).then(function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		

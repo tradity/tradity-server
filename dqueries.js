@@ -97,7 +97,7 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
 	
 	var ctx = new qctx.QContext({parentComponent: self});
 	
-	return ctx.query('SELECT * FROM dqueries', []).then(function(r) {
+	return ctx.query('SELECT * FROM dqueries').then(function(r) {
 		return Q.all(r.map(function(res) {
 			res.query = JSON.parse(res.query);
 			res.userinfo = JSON.parse(res.userinfo);

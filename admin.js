@@ -236,7 +236,7 @@ Admin.prototype.changeCommentText = buscomponent.provideWQT('client-change-comme
  * @function c2s~notify-unstick-all
  */
 Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstick-all', _reqpriv('moderate', function(query, ctx) {
-	return ctx.query('UPDATE mod_notif SET sticky = 0', []).then(function() {
+	return ctx.query('UPDATE mod_notif SET sticky = 0').then(function() {
 		return { code: 'notify-unstick-all-success' };
 	});
 }));

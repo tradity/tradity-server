@@ -149,7 +149,7 @@ Stocks.prototype.updateRankingInformation = function(ctx) {
 		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
 			'WHERE userid=users_finance.id AND leader IS NOT NULL), ' +
 		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
-			'WHERE userid=users_finance.id AND leader IS NULL)', []);
+			'WHERE userid=users_finance.id AND leader IS NULL)');
 };
 
 /**
@@ -168,7 +168,7 @@ Stocks.prototype.updateValueHistory = function(ctx) {
 		return ctx.query('CREATE TEMPORARY TABLE users_dindex SELECT id, deletiontime FROM users; ' +
 			'INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT users_finance.id, ' + copyFields + ', UNIX_TIMESTAMP() ' +
 			'FROM users_finance JOIN users_dindex ON users_dindex.id = users_finance.id WHERE users_dindex.deletiontime IS NULL; ' +
-			'DROP TABLE users_dindex', []);
+			'DROP TABLE users_dindex');
 	});
 };
 
@@ -182,7 +182,7 @@ Stocks.prototype.updateValueHistory = function(ctx) {
  * @function module:stocks~Stocks#dailyCallback
  */
 Stocks.prototype.dailyCallback = function(ctx) {
-	return ctx.query('UPDATE stocks SET daystartvalue = bid', []);
+	return ctx.query('UPDATE stocks SET daystartvalue = bid');
 };
 
 /**
@@ -195,7 +195,7 @@ Stocks.prototype.dailyCallback = function(ctx) {
  * @function module:stocks~Stocks#weeklyCallback
  */
 Stocks.prototype.weeklyCallback = function(ctx) {
-	return ctx.query('UPDATE stocks SET weekstartvalue = bid', []);
+	return ctx.query('UPDATE stocks SET weekstartvalue = bid');
 };
 
 /**
@@ -210,12 +210,12 @@ Stocks.prototype.weeklyCallback = function(ctx) {
  */
 Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
 	return this.getServerConfig().then(function(cfg) {
-		return ctx.query('DELETE FROM depot_stocks WHERE amount = 0', []);
+		return ctx.query('DELETE FROM depot_stocks WHERE amount = 0');
 	}).then(function() {
 		return ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
 			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 ' +
 			'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 ' +
-			'OR leader IS NOT NULL', []);
+			'OR leader IS NOT NULL');
 	});
 };
 
@@ -923,7 +923,7 @@ Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
 		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 		'FROM orderhistory AS oh ' +
 		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
-		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', []).then(function(popular) {
+		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20').then(function(popular) {
 		return { code: 'list-popular-stocks-success', 'results': popular };
 	});
 });

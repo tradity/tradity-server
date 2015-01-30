@@ -353,12 +353,12 @@ QContext.prototype.getConnection = function(readonly, restart) {
 			
 			/* convenience functions for rollback and commit with implicit release */
 			commit: function(doRelease) {
-				return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;', []).then(function() {
+				return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;').then(function() {
 					return postTransaction(doRelease);
 				});
 			},
 			rollback: function(doRelease) {
-				return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;', []).then(function() {
+				return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;').then(function() {
 					return postTransaction(doRelease);
 				});
 			}

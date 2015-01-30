@@ -17,7 +17,7 @@ var pt = require('./bus/processtransport.js');
 var dt = require('./bus/directtransport.js');
 var sio = require('socket.io-client');
 
-var af = require('./arivafinance.js');
+var af = require(cfg.stockloader);
 var achievementList = require('./achievement-list.js');
 
 /**

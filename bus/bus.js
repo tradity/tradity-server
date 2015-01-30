@@ -283,7 +283,10 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (data.stage > 0) {
 			transport.weight = now - data.outTime;
 			
-			if (transport.weight != oldWeight)
+			var relativeWeightChange = Math.max(oldWeight, transport.weight) / Math.min(oldWeight, transport.weight);
+			
+			// more than 33.3 % change
+			if (relativeWeightChange != relativeWeightChange || relativeWeightChange > 1.333)
 				self.emitBusNodeInfoSoon();
 		}
 		

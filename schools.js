@@ -286,7 +286,8 @@ Schools.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info
  * @function c2s~school-exists
  */
 Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx) {
-	return ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [String(query.lookfor)]).then(function(res) {
+	return ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name) OR LOWER(?) IN (id, path, name)',
+		[String(query.lookfor), String(query.lookfor)]).then(function(res) {
 		return { code: 'school-exists-success', exists: res.length > 0, path: res.length > 0 ? res[0].path : null };
 	});
 });

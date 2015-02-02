@@ -8,10 +8,11 @@ var MailParser = new require('mailparser').MailParser;
 var sotradeClient = require('./sotrade-client.js');
 var socket = new sotradeClient.SoTradeConnection({ logDevCheck: false });
 
-var mail = null, serverConfigReceived = false;
+var mail = null, serverConfigReceived = false, notifying = false;
 var diagnostic_code = '', messageId = '';
 
 function notifyServer() {
+	notifying = true;
 	socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(function() {
 		process.exit(0);
 	}).done();
@@ -25,8 +26,15 @@ function handleMail(mail) {
 	if (process.argv.indexOf('--raw') != -1) {
 		messageId = mail.headers['message-id'].replace(/^<|@.+$/g, '');
 		diagnostic_code = 'Raw return to mail bounce handler script';
+		
+		if (!messageId)
+			return process.exit(0);
+		
 		return notifyServer();
 	}
+	
+	if (!attachments || !attachments.length)
+		return process.exit(0);
 	
 	for (var i = 0; i < attachments.length; ++i) (function() {
 		var attachment = attachments[i];
@@ -38,7 +46,7 @@ function handleMail(mail) {
 				var dsParser = new MailParser();
 				
 				dsParser.on('end', function(dsContent) {
-					diagnostic_code = dsContent.headers['diagnostic-code'];
+					diagnostic_code = dsContent.headers['diagnostic-code'] || '[Unknown failure]';
 					
 					if (messageId)
 						notifyServer();
@@ -55,6 +63,11 @@ function handleMail(mail) {
 		
 		attachmentParser.end(attachment.content);
 	})();
+	
+	setTimeout(function() {
+		if (!notifying)
+			process.exit(0);
+	}, 5000);
 }
 
 mailparser.on('end', function(mail_) {

@@ -205,6 +205,21 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id]);
 			}).then(function(popular) {
 				s.popular = popular;
+				
+				if (!ctx.access.has('wordpress'))
+					return [];
+				
+				// compare wordpress-feed.js
+				return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
+					'bloguser, COUNT(*) AS postcount, users.name ' +
+					'FROM feedblogs ' + 
+					'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
+					'LEFT JOIN users ON feedblogs.bloguser = users.id ' +
+					'LEFT JOIN schools ON feedblogs.schoolid = schools.id ' +
+					'WHERE schoolid = ? ' +
+					'GROUP BY blogid', [s.id]);
+			}).then(function(feedblogs) {
+				s.feedblogs = feedblogs;
 			
 				if (s.path.replace(/[^\/]/g, '').length != 1) // need higher-level 
 					s.parentPath = commonUtil.parentPath(s.path);
@@ -247,6 +262,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
  *                                                     (in short notation, i.e. no event/comment information etc.).
  * @property {string} parentPath  The parent path of this school, or '/' if this school is top-level.
  * @property {object[]} popular  See {@link c2s~list-popular-stocks}.
+ * @property {object[]} feedblogs  See {@link c2s~list-wordpress-feeds}.
  */
 
 /**

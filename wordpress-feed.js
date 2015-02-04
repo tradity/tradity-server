@@ -37,9 +37,9 @@ util.inherits(WordpressFeed, buscomponent.BusComponent);
  * @loginignore
  * @function c2s~process-wordpress-feed
  */
-WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-wordpress-feed', function(query, ctx, cb) {
-	if (ctx.access.has('server') == -1)
-		return cb('process-wordpress-feed-not-allowed');
+WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-wordpress-feed', function(query, ctx) {
+	if (ctx.access.has('wordpress') == -1)
+		return { code: 'permission-denied' };
 	
 	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, MAX(posttime) AS lastposttime ' +
 		'FROM feedblogs ' + 
@@ -74,6 +74,101 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 		}));
 	}).then(function() {
 		return { code: 'process-wordpress-feed-success' };
+	});
+});
+
+/**
+ * Return a list of all blogs whose posts are inserted into feeds.
+ * 
+ * @return {object} Returns with <code>list-wordpress-feeds-success</code>
+ *                  or a common error code.
+ * 
+ * @function c2s~list-wordpress-feeds
+ */
+WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list-wordpress-feeds', function(query, ctx) {
+	if (ctx.access.has('wordpress') == -1)
+		return { code: 'permission-denied' };
+	
+	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, COUNT(*) AS postcount ' +
+		'FROM feedblogs ' + 
+		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
+		'GROUP BY blogid').then(function(res) {
+		return { code: 'list-wordpress-feeds-success', results: res };
+	});
+});
+
+/**
+ * Add an associated blog for a given feed.
+ * 
+ * @param {?string} query.endpoint  The Wordpress API endpoint
+ * @param {?string} query.category  The relevant Wordpress category slug
+ * @param {?int} query.schoolid  The numerical school ID whose feed blogposts
+ *                               will be posted to
+ * @param {?int} query.bloguser The numerical ID of the user to whom the events
+ *                              will be attributed to (as srcuser)
+ * 
+ * @return {object} Returns with <code>add-wordpress-feed-success</code>,
+ *                  <code>add-wordpress-feed-missingdata</code> in case no general
+ *                  blog previous blog entry was found in order to choose endpoint and
+ *                  bloguser, or a common error code.
+ * 
+ * @noreadonly
+ * @function c2s~add-wordpress-feed
+ */
+WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-wordpress-feed', function(query, ctx) {
+	if (ctx.access.has('wordpress') == -1)
+		return { code: 'permission-denied' };
+	
+	query.schoolid = query.schoolid ? parseInt(query.schoolid) : null;
+	query.category = query.category ? String(query.category) : null;
+	
+	if (query.schoolid != query.schoolid)
+		return { code: 'format-error' };
+	
+	return ctx.query('SELECT endpoint, bloguser FROM feedblogs WHERE schoolid IS NULL LIMIT 1').then(function(res) {
+		if (res.length > 0) {
+			assert.ok(res[0].endpoint);
+			assert.ok(parseInt(res[0].bloguser) == res[0].bloguser);
+		}
+		
+		if ((!query.endpoint || query.bloguser == null) && res.length == 0) {
+			return { code: 'add-wordpress-feed-missingdata' };
+		}
+		
+		query.endpoint = query.endpoint ? String(query.endpoint) : res[0].endpoint;
+		query.bloguser = query.bloguser != null ? parseInt(query.bloguser) : res[0].bloguser;
+		if (query.bloguser != query.bloguser)
+			return { code: 'format-error' };
+		
+		return ctx.query('INSERT INTO feedblogs (endpoint, category, schoolid, bloguser) VALUES(?, ?, ?, ?)',
+			[query.endpoint, query.category, query.schoolid, query.bloguser]).then(function() {
+			return { code: 'add-wordpress-feed-success' };
+		});
+	});
+});
+
+/**
+ * Remove an associated blog from a given feed.
+ * 
+ * @param {int} query.blogid  The blog’s numerical ID
+ * 
+ * @return {object} Returns with <code>remove-wordpress-feed-success</code>
+ *                  or a common error code.
+ * 
+ * @noreadonly
+ * @function c2s~remove-wordpress-feed
+ */
+WordpressFeed.prototype.removeWordpressFeed = buscomponent.provideWQT('client-remove-wordpress-feed', function(query, ctx) {
+	if (ctx.access.has('wordpress') == -1)
+		return { code: 'permission-denied' };
+	
+	query.blogid = parseInt(query.blogid);
+	
+	if (query.blogid != query.blogid)
+		return { code: 'format-error' };
+
+	return ctx.query('DELETE FROM feedblogs WHERE blogid = ?', [query.blogid]).then(function() {
+		return { code: 'remove-wordpress-feed-success' };
 	});
 });
 

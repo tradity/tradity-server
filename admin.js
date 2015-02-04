@@ -357,6 +357,9 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
 		
 		return ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
 			[parseInt(query.masterschool), parseInt(query.subschool)]).then(function() {
+			return ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
+				[parseInt(query.masterschool), parseInt(query.subschool)]);
+		}).then(function() {
 			return ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)]);
 		}).then(function() {
 			return ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)]);

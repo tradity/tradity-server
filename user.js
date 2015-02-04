@@ -374,13 +374,21 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 		likestringUnit.push(likestring, likestring, likestring);
 	}
 	
-	return (query.schoolid ? function(cont) {
+	return Q().then(function() {
+		if (!query.schoolid)
+			return ctx.access.has('userdb');
+		
 		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
 		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
 		likestringUnit.push(String(query.schoolid), String(query.schoolid).toLowerCase());
 		
-		return self.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid}, cont);
-	} : function(cont) { return cont(ctx.access.has('userdb')); })(function(schoolAdminResult) {
+		return self.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid})
+			.then(function(ISAResult) {
+			assert.equal(typeof ISAResult.ok, 'boolean');
+			
+			return ISAResult.ok;
+		});
+	}).then(function(schoolAdminResult) {
 		var fullData = schoolAdminResult.ok;
 		
 		return ctx.query('SELECT u.id AS uid, u.name AS name, ' +

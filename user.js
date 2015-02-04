@@ -597,7 +597,8 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 			'JOIN users ON users.id = events.srcuser ' +
 			'WHERE ' +
 			'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
-			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0').then(function(schools) {
+			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0 AND ' +
+			'(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.id) = 0').then(function(schools) {
 			return Q.all(schools.filter(function(school) {
 				return !Access.fromJSON(school.access).has('schooldb') &&
 					(school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));

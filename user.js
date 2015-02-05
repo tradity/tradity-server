@@ -660,7 +660,7 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 				return { code: 'email-verify-failure' };
 		}
 		
-		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND id != ?', [email, uid], function(res) {
+		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND id != ?', [email, uid]).then(function(res) {
 			if (res[0].c > 0)
 				return { code: 'email-verify-other-already-verified' };
 		

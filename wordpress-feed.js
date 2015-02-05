@@ -44,6 +44,7 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, MAX(posttime) AS lastposttime ' +
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
+		'WHERE feedblogs.active ' +
 		'GROUP BY blogid').then(function(res) {
 		return Q.all(res.map(function(bloginfo) {
 			var wp = new WP({endpoint: bloginfo.endpoint});
@@ -57,9 +58,9 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 						return true;
 					return post.date_unix > bloginfo.lastposttime;
 				}).map(function(post) {
-					return ctx.query('INSERT INTO blogposts (blogid, posttime, link, title, excerpt) ' +
-						'VALUES (?, ?, ?, ?, ?)',
-						[bloginfo.blogid, post.date_unix, post.link, post.title, post.excerpt]).then(function(r) {
+					return ctx.query('INSERT INTO blogposts (blogid, posttime, postjson) ' +
+						'VALUES (?, ?, ?)',
+						[bloginfo.blogid, post.date_unix, JSON.stringify(post)]).then(function(r) {
 						assert.ok(r.insertId);
 						
 						return ctx.feed({
@@ -98,6 +99,7 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
 		'LEFT JOIN users ON feedblogs.bloguser = users.id ' +
 		'LEFT JOIN schools ON feedblogs.schoolid = schools.id ' +
+		'WHERE feedblogs.active ' +
 		'GROUP BY blogid').then(function(res) {
 		return { code: 'list-wordpress-feeds-success', results: res };
 	});
@@ -146,7 +148,7 @@ WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-w
 		if (query.bloguser != query.bloguser)
 			return { code: 'format-error' };
 		
-		return ctx.query('INSERT INTO feedblogs (endpoint, category, schoolid, bloguser) VALUES(?, ?, ?, ?)',
+		return ctx.query('INSERT INTO feedblogs (endpoint, category, schoolid, bloguser, active) VALUES(?, ?, ?, ?, 1)',
 			[query.endpoint, query.category, query.schoolid, query.bloguser]).then(function() {
 			return { code: 'add-wordpress-feed-success' };
 		});
@@ -173,7 +175,7 @@ WordpressFeed.prototype.removeWordpressFeed = buscomponent.provideWQT('client-re
 	if (query.blogid != query.blogid)
 		return { code: 'format-error' };
 
-	return ctx.query('DELETE FROM feedblogs WHERE blogid = ?', [query.blogid]).then(function() {
+	return ctx.query('UPDATE feedblogs SET active = 0 WHERE blogid = ?', [query.blogid]).then(function() {
 		return { code: 'remove-wordpress-feed-success' };
 	});
 });

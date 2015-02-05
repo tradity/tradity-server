@@ -251,7 +251,7 @@ Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', f
 				
 				return ctx.feed({
 					type: 'chat-user-added',
-					targetid: query.chatid, 
+					targetid: query.chatid,
 					srcuser: ctx.user.id,
 					noFollowers: true,
 					feedusers: _.pluck(chat.endpoints, 'uid'),

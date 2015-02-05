@@ -177,6 +177,9 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 				ev = _.extend(ev, json);
 			}
 			
+			if (ev.postjson)
+				ev = _.extend(ev, JSON.parse(postjson));
+			
 			delete ev.json;
 			return ev;
 		}).reject(function(ev) { return !ev; }).value();

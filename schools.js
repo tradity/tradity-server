@@ -195,7 +195,9 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 					'WHERE feedblogs.schoolid = ?',
 					[s.id]);
 			}).then(function(blogposts) {
-				s.blogposts = blogposts;
+				s.blogposts = blogposts.map(function(post) {
+					return _.extend(post, JSON.parse(post.postjson));
+				});
 				
 				return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +

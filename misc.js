@@ -179,24 +179,6 @@ Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-db
 });
 
 /**
- * Internally produces a DB transaction which is released after 5 minutes.
- * This requires appropiate privileges. Go somewhere else if
- * you even consider trying this out in a production environment.
- * 
- * @return {object}  Returns with <code>artificial-stalelock-success</code>.
- * 
- * @function c2s~artificial-stalelock
- */
-Misc.prototype.artificialError = buscomponent.provideWQT('client-artificial-stalelock', function(query, ctx, cb) {
-	if (!ctx.access.has('server'))
-		return cb('permission-denied');
-	
-	ctx.startTransaction({httpresources: 'w'}, function(conn, commit) {
-		setTimeout(commit, 5 * 60000);
-	});
-});
-
-/**
  * Presents statistics that can safely be displayed to the general public.
  * 
  * @return {object}  Returns an associative array of variables

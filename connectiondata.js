@@ -96,7 +96,11 @@ ConnectionData.prototype.onBusConnect = function() {
 	return self.ctx.setBusFromParent(self).then(function() {
 		return self.getServerConfig();
 	}).then(function(cfg) {
-		return self.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig), 'versionInfo': self.versionInfo});
+		var clientconfig = _.pick(cfg, cfg.clientconfig);
+		clientconfig.busid = self.bus.id;
+		clientconfig.pid = process.pid;
+		
+		return self.push({type: 'server-config', 'config': clientconfig, 'versionInfo': self.versionInfo});
 	});
 };
 

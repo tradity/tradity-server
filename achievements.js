@@ -339,14 +339,16 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 	
 	if (!query.certs || !query.certs.map)
 		return { code: 'format-error' };
-	
-	return Q.all(query.certs.map(function(cert) {
-		return self.request({
-			name: 'verifySignedMessage',
-			maxAge: 100 * 24 * 60 * 60,
-			msg: cert
-		});
-	})).then(function(verifiedCerts) {
+		
+	return self.getServerConfig().then(function(cfg) {
+		return Q.all(query.certs.map(function(cert) {
+			return self.request({
+				name: 'verifySignedMessage',
+				maxAge: cfg.DLAValidityDays * 24 * 60 * 60,
+				msg: cert
+			});
+		}));
+	}).then(function(verifiedCerts) {
 		var dates = verifiedCerts
 			.filter(function(c) { return c && c.uid == uid && c.certType == 'wasOnline'; })
 			.map(function(c) { return new Date(c.date); })

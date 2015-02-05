@@ -196,7 +196,9 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 					[s.id]);
 			}).then(function(blogposts) {
 				s.blogposts = blogposts.map(function(post) {
-					return _.extend(post, JSON.parse(post.postjson));
+					var expost = _.extend(post, JSON.parse(post.postjson))
+					delete expost.postjson;
+					return expost;
 				});
 				
 				return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +

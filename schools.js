@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var commonUtil = require('./common/util.js');
+var commonUtil = require('tradity-connection');
 var serverUtil = require('./server-util.js');
 var _ = require('lodash');
 var util = require('util');

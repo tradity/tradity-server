@@ -89,9 +89,13 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
 	if (ctx.access.has('wordpress') == -1)
 		return { code: 'permission-denied' };
 	
-	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, COUNT(*) AS postcount ' +
+	// compare schools.js
+	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
+		'bloguser, COUNT(*) AS postcount, users.name ' +
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
+		'LEFT JOIN users ON feedblogs.bloguser = users.id ' +
+		'LEFT JOIN schools ON feedblogs.schoolid = schools.id ' +
 		'GROUP BY blogid').then(function(res) {
 		return { code: 'list-wordpress-feeds-success', results: res };
 	});

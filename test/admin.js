@@ -4,7 +4,7 @@ var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var serverUtil = require('../server-util.js');
-var commonUtil = require('../common/util.js');
+var commonUtil = require('tradity-connection');
 var testHelpers = require('./test-helpers.js');
 var user, socket;
 

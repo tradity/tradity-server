@@ -1,6 +1,6 @@
 (function () { "use strict";
 
-var commonAPI = require('./common/sotrade-api.js');
+var commonAPI = require('tradity-connection');
 var sio = require('socket.io-client');
 var _ = require('lodash');
 

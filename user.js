@@ -1209,8 +1209,9 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 		var u = res[0];
 		assert.ok(u);
 		
+		var pw;
 		return Q.nfcall(crypto.randomBytes, 6).then(function(buf) {
-			var pw = buf.toString('hex');
+			pw = buf.toString('hex');
 			return self.generatePWKey(pw);
 		}).then(function(pwdata) {
 			return ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [pwdata.salt, pwdata.hash, u.id]);

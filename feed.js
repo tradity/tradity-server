@@ -178,7 +178,13 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 			}
 			
 			if (ev.postjson) {
-				ev = _.extend(ev, JSON.parse(ev.postjson));
+				var postjson = JSON.parse(ev.postjson);
+				
+				// move type to wptype so it does not override the event type
+				postjson.wptype = postjson.type;
+				delete postjson.type;
+				
+				ev = _.extend(ev, postjson);
 				delete ev.postjson;
 			}
 			

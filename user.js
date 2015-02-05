@@ -90,7 +90,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 	
 	ctx.access.drop('email_verif');
 	
-	var loginResp;
+	var loginResp, key;
 	return self.login({
 		name: data.email,
 		stayloggedin: true,
@@ -100,7 +100,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 		
 		return Q.nfcall(crypto.randomBytes, 16);
 	}).then(function(buf) {
-		var key = buf.toString('hex');
+		key = buf.toString('hex');
 		
 		return ctx.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
 			[ctx.user.id, key]);

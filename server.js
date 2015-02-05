@@ -142,7 +142,7 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
 	}
 	
 	if (loc.pathname.match(/^(\/dynamic)?\/?statistics/)) {
-		this.request({name: 'gatherPublicStatistics'}, function(result) {
+		return this.request({name: 'gatherPublicStatistics'}).then(function(result) {
 			res.writeHead(200, {
 				'Content-Type': 'application/json',
 				'Access-Control-Allow-Origin': '*', 'Cache-Control': 
@@ -150,8 +150,6 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
 			});
 			res.end(JSON.stringify(result));
 		});
-
-		return;
 	}
 	
 	this.request({name: 'handleFSDBRequest', 

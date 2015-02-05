@@ -41,12 +41,12 @@ var deepupdate = function (orig, u /*, ... */) {
 	if (!orig || !u)
 		return orig;
 	
-	_.chain(u).keys().each(function(k) {
+	_.chain(u).keys().forEach(function(k) {
 		if (_.isObject(u[k]) && _.isObject(orig[k]) && !_.isArray(u[k]))
 			orig[k] = deepupdate(orig[k], u[k]);
 		else
 			orig[k] = u[k];
-	});
+	}).value();
 	
 	var args = Array.prototype.slice.call(arguments);
 	args.splice(1, 1); // remove u

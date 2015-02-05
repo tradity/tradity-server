@@ -9,6 +9,6 @@ if (process.argv.length < 2) {
 	process.exit(0);
 }
 
-smdb.verifySignedMessage(process.argv[2], null, function(msg) {
+smdb.verifySignedMessage(process.argv[2], null).then(function(msg) {
 	console.log(JSON.stringify(msg));
-});
+}).done();

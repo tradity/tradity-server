@@ -4,6 +4,7 @@ var commonUtil = require('./common/util.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -31,31 +32,17 @@ util.inherits(Admin, buscomponent.BusComponent);
  * @param {string} required  The required privilege level
  * @param {QTXCallback} f  A standard QTX client request handler
  * 
- * @function module:admin~_reqpriv_x
- */
-function _reqpriv_x (required, f) {
-	var requiredPermission = required;
-	
-	return function(query, ctx, xdata, cb) {
-		if (ctx.user === null || !ctx.access.has(requiredPermission))
-			(cb ? cb : xdata)('permission-denied');
-		else
-			return _.bind(f, this)(query, ctx, xdata, cb);
-	};
-}
-
-/**
- * Helper function to indicate that a client request requires admin privileges.
- * 
- * @param {string} required  The required privilege level
- * @param {QTCallback} f  A standard QT client request handler
- * 
  * @function module:admin~_reqpriv
  */
 function _reqpriv (required, f) {
-	return _reqpriv_x(required, function(query, ctx, xdata, cb) {
-		return _.bind(f, this)(query, ctx, cb = xdata);
-	});
+	var requiredPermission = required;
+	
+	return function(query, ctx, xdata) {
+		if (ctx.user === null || !ctx.access.has(requiredPermission))
+			return { code: 'permission-denied' };
+		else
+			return _.bind(f, this)(query, ctx, xdata);
+	};
 }
 
 /**
@@ -85,7 +72,7 @@ function _reqpriv (required, f) {
  *  wprov_sum: 0,
  *  lprov_sum: 0,
  *  registertime: 0,
- *  schoolpath: '/KIT',
+ *  schoolpath: '/kit',
  *  schoolid: 27,
  *  pending: 0,
  *  jointime: 0,
@@ -99,8 +86,8 @@ function _reqpriv (required, f) {
  * 
  * @function c2s~list-all-users
  */
-Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _reqpriv('userdb', function(query, ctx, cb) {
-	ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, ' + 
+Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _reqpriv('userdb', function(query, ctx) {
+	return ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, ' + 
 		'users.id AS uid, tradecount, email, email_verif AS emailverif, ' +
 		'wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, registertime, lang, ' +
 		'schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
@@ -110,8 +97,8 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
 		'JOIN users_finance ON users.id = users_finance.id ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
 		'LEFT JOIN schools ON schools.id = sm.schoolid ',
-		[], function(userlist) {
-		cb('list-all-users-success', {results: userlist});
+		[]).then(function(userlist) {
+		return { code: 'list-all-users-success', results: userlist };
 	});
 }));
 
@@ -122,11 +109,17 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
  * 
  * @function c2s~shutdown
  */
-Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv('server', function(query, ctx, cb) {
-	this.emit('globalShutdown');
+Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(query, ctx) {
+	if (!ctx.access.has('server'))
+		return { code: 'permission-denied' };
 	
-	cb('shutdown-success');
-}));
+	var self = this;
+	Q.delay(2000).then(function() {
+		self.emit('globalShutdown');
+	}).done();
+	
+	return { code: 'shutdown-success' };
+});
 
 /**
  * Change the session user id.
@@ -138,17 +131,17 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', _reqpriv('s
  * 
  * @function c2s~impersonate-user
  */
-Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-user', _reqpriv('server', function(query, ctx, cb) {
+Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
-		return cb('permission-denied');
+		return { code: 'permission-denied' };
 	
-	ctx.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [parseInt(query.uid)], function(r) {
+	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [parseInt(query.uid)]).then(function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
-			return cb('impersonate-user-notfound', null, 'repush');
+			return { code: 'impersonate-user-notfound' };
 	
-		ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid], function() {
-			cb('impersonate-user-success', null, 'repush');
+		return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid]).then(function() {
+			return { code: 'impersonate-user-success', extra: 'repush' };
 		});
 	});
 }));
@@ -163,32 +156,34 @@ Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-us
  * 
  * @function c2s~delete-user
  */
-Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqpriv('userdb', function(query, ctx, cb) {
+Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
 	var uid = parseInt(query.uid);
 	if (uid != uid) // NaN
-		return cb('format-error');
+		return { code: 'format-error' };
 	
 	if (ctx.user.id == uid)
-		return cb('delete-user-self-notallowed');
+		return { code: 'delete-user-self-notallowed' };
 	
-	ctx.startTransaction(function(conn, commit) {
-		conn.query('DELETE FROM sessions WHERE uid = ?', [uid], function() {
-		conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid], function() {
-		conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid], function() {
-		conn.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
-			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE id = ?', [uid], function() {
-		conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE id = ?', [uid], function() {
-		conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
-		'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid], function() {
-			commit(function() {
-				cb('delete-user-success');
-			});
-		});
-		});
-		});
-		});
-		});
-		});
+	var conn;
+	return ctx.startTransaction().then(function(conn_) {
+		conn = conn_;
+		return conn.query('DELETE FROM sessions WHERE uid = ?', [uid]);
+	}).then(function() {
+		return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
+	}).then(function() {
+		return conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]);
+	}).then(function() {
+		return conn.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
+			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE id = ?', [uid]);
+	}).then(function() {
+		return conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE id = ?', [uid]);
+	}).then(function() {
+		return conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
+		'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid]);
+	}).then(function() {
+		return conn.commit();
+	}).then(function() {
+		return { code: 'delete-user-success' };
 	});
 }));
 
@@ -205,10 +200,13 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
  * 
  * @function c2s~change-user-email
  */
-Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx, cb) {
-	ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
-		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)], function() {
-		cb('change-user-email-success');
+Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx) {
+	if (parseInt(query.uid) != query.uid)
+		return { code: 'format-error' };
+	
+	return ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
+		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)]).then(function() {
+		return { code: 'change-user-email-success' };
 	});
 }));
 
@@ -224,10 +222,10 @@ Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-em
  * 
  * @function c2s~change-comment-text
  */
-Admin.prototype.changeCommentText = buscomponent.provideWQT('client-change-comment-text', _reqpriv('moderate', function(query, ctx, cb) {
-	ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?',
-		[String(query.comment), ctx.access.has('server') && query.trustedhtml ? 1:0, parseInt(query.commentid)], function() {
-		cb('change-comment-text-success');
+Admin.prototype.changeCommentText = buscomponent.provideWQT('client-change-comment-text', _reqpriv('moderate', function(query, ctx) {
+	return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?',
+		[String(query.comment), ctx.access.has('server') && query.trustedhtml ? 1:0, parseInt(query.commentid)]).then(function() {
+		return { code: 'change-comment-text-success' };
 	});
 }));
 
@@ -239,9 +237,9 @@ Admin.prototype.changeCommentText = buscomponent.provideWQT('client-change-comme
  * 
  * @function c2s~notify-unstick-all
  */
-Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstick-all', _reqpriv('moderate', function(query, ctx, cb) {
-	ctx.query('UPDATE mod_notif SET sticky = 0', [], function() {
-		cb('notify-unstick-all-success');
+Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstick-all', _reqpriv('moderate', function(query, ctx) {
+	return ctx.query('UPDATE mod_notif SET sticky = 0').then(function() {
+		return { code: 'notify-unstick-all-success' };
 	});
 }));
 
@@ -267,10 +265,17 @@ Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstic
  * 
  * @function c2s~notify-all
  */
-Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpriv('moderate', function(query, ctx, cb) {
-	ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)', [String(query.content), query.sticky ? 1 : 0], function(res) {
-		ctx.feed({'type': 'mod-notification', 'targetid': res.insertId, 'srcuser': ctx.user.id, 'everyone': true});
-		cb('notify-all-success');
+Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpriv('moderate', function(query, ctx) {
+	return ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)',
+		[String(query.content), query.sticky ? 1 : 0]).then(function(res) {
+		return ctx.feed({
+			'type': 'mod-notification',
+			'targetid': res.insertId,
+			'srcuser': ctx.user.id,
+			'everyone': true
+		});
+	}).then(function() {
+		return { code: 'notify-all-success' };
 	});
 }));
 
@@ -279,7 +284,7 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * This is the proper way to change a group’s supergroup.
  * 
  * @param {int} query.schoolid  The numerical id of the target school.
- * @param {string} query.schoolpath  The school’s new path.
+ * @param {string} query.schoolpath  The school’s new path. (Will be converted to lower case)
  * @param {string} query.schoolname  The school’s new human-readable name.
  * 
  * @return {object} Returns with <code>rename-school-notfound</code>,
@@ -288,30 +293,36 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * 
  * @function c2s~rename-school
  */
-Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _reqpriv('schooldb', function(query, ctx, cb) {
-	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)], function(r) {
+Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
+	query.schoolpath = String(query.schoolpath || '/').toLowerCase();
+	
+	var oldpath;
+	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)]).then(function(r) {
 		if (r.length == 0)
-			return cb('rename-school-notfound');
+			return { code: 'rename-school-notfound' };
+		
+		oldpath = r.path;
 
-		ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [commonUtil.parentPath(query.schoolpath || '/')], function(pr) {
-			assert.equal(pr.length, 1);
-			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath || '/') != '/' ? 1 : 0))
-				return cb('rename-school-notfound');
+		return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
+			[commonUtil.parentPath(query.schoolpath)]).then(function(pr) {
 			
-			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath || '/')], function(er) {
+			assert.equal(pr.length, 1);
+			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
+				return { code: 'rename-school-notfound' };
+			
+			return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath]).then(function(er) {
 				assert.equal(er.length, 1);
 				if (query.schoolpath && er[0].c == 1)
-					return cb('rename-school-already-exists');
+					return { code: 'rename-school-already-exists' };
 				
-				ctx.query('UPDATE schools SET name = ? WHERE id = ?', [String(query.schoolname), parseInt(query.schoolid)], function() {
+				return ctx.query('UPDATE schools SET name = ? WHERE id = ?',
+					[String(query.schoolname), parseInt(query.schoolid)]).then(function() {
 					if (query.schoolpath) {
-						ctx.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?',
-							[r[0].path, String(query.schoolpath), r[0].path + '/%', r[0].path], function() {
-							cb('rename-school-success');
-						});
-					} else {
-						cb('rename-school-success');
+						return ctx.query('UPDATE schools SET path = REPLACE(path, ?, ?) WHERE path LIKE ? OR path = ?',
+							[oldpath, query.schoolpath, oldpath + '/%', oldpath]);
 					}
+				}).then(function() {
+					return { code: 'rename-school-success' };
 				});
 			});
 		});
@@ -323,7 +334,7 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
  * These schools need to have the same parent school.
  * 
  * @param {int} query.masterschool  The numerical id of the target school.
- * @param {int} query.subschool  The numerical id of the source school.
+ * @param {int} query.subschool     The numerical id of the source school.
  * 
  * @return {object} Returns with <code>join-schools-notfound</code>,
  *                  <code>join-schools-success</code>,
@@ -332,25 +343,31 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
  * 
  * @function c2s~join-schools
  */
-Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _reqpriv('schooldb', function(query, ctx, cb) {
-	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)], function(mr) {
-	ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.subschool)], function(sr) {
+Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
+	var mr;
+	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)]).then(function(mr_) {
+		mr = mr_;
+		return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.subschool)]);
+	}).then(function(sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);
 		
 		if (sr.length == 0 || ((mr.length == 0 || mr[0].path == sr[0].path) && query.masterschool != null))
-			return cb('join-schools-notfound');
+			return { code: 'join-schools-notfound' };
 		if (mr.length > 0 && commonUtil.parentPath(mr[0].path) != commonUtil.parentPath(sr[0].path))
-			return cb('join-schools-diff-parent');
+			return { code: 'join-schools-diff-parent' };
 		
-		ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?', [parseInt(query.masterschool), parseInt(query.subschool)], function() {
-		ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)], function() {
-			ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)], function() {
-				cb('join-schools-success');
-			});
+		return ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
+			[parseInt(query.masterschool), parseInt(query.subschool)]).then(function() {
+			return ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
+				[parseInt(query.masterschool), parseInt(query.subschool)]);
+		}).then(function() {
+			return ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)]);
+		}).then(function() {
+			return ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)]);
+		}).then(function() {
+			return { code: 'join-schools-success' };
 		});
-		});
-	});
 	});
 }));
 
@@ -365,14 +382,17 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
  * 
  * @function c2s~get-followers
  */
-Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _reqpriv('userdb', function(query, ctx, cb) {
-	ctx.query('SELECT u.name, u.id, ds.* ' +
+Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _reqpriv('userdb', function(query, ctx) {
+	if (parseInt(query.uid) != query.uid)
+		return { code: 'format-error' };
+	
+	return ctx.query('SELECT u.name, u.id, ds.* ' +
 		'FROM stocks AS s ' +
 		'JOIN depot_stocks AS ds ON ds.stockid = s.id ' +
 		'JOIN users AS u ON ds.userid = u.id ' +
-		'WHERE s.leader = ?', [parseInt(query.uid)], function(res) {
+		'WHERE s.leader = ?', [parseInt(query.uid)]).then(function(res) {
 		
-		cb('get-followers-success', {results: res});
+		return { code: 'get-followers-success', results: res };
 	});
 }));
 
@@ -388,9 +408,9 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
  * 
  * @function c2s~get-server-statistics
  */
-Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx, cb) {
-	this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}, function(replies) {
-		cb('get-server-statistics-success', {servers: replies});
+Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx) {
+	return this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}).then(function(replies) {
+		return { code: 'get-server-statistics-success', servers: replies };
 	});
 }));
 
@@ -404,10 +424,10 @@ Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-
  * 
  * @function c2s~show-packet-log
  */
-Admin.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log', _reqpriv('userdb', function(query, ctx, cb) {
+Admin.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log', _reqpriv('userdb', function(query, ctx) {
 	/* The package log is mostly informal and not expected to be used for anything but debugging.
 	 * This means that circular structures in it may exist and JSON is simply not the way to go here. */ 
-	cb('show-packet-log-success', {result: util.inspect(this.bus.packetLog, null)});
+	return { code: 'show-packet-log-success', result: util.inspect(this.bus.packetLog, null) };
 }));
 
 /**
@@ -421,18 +441,18 @@ Admin.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log',
  * 
  * @function c2s~get-ticks-statistics
  */
-Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx, cb) {
+Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx) {
 	var now = Math.floor(Date.now() / 1000);
 	var todayStart = now - now % 86400;
 	var ndays = parseInt(query.ndays) || 365;
 	var timespanStart = todayStart - ndays * 86400;
 	var dt = 300;
 	
-	ctx.query('SELECT FLOOR(time/?)*? AS timeindex, SUM(ticks) AS ticksum, COUNT(ticks) AS tickcount ' +
+	return ctx.query('SELECT FLOOR(time/?)*? AS timeindex, SUM(ticks) AS ticksum, COUNT(ticks) AS tickcount ' +
 		'FROM tickshistory ' +
 		'GROUP BY timeindex',
-		[dt, dt, dt, timespanStart, todayStart], function(res) {
-		cb('get-ticks-statistics-success', {results: res});
+		[dt, dt, dt, timespanStart, todayStart]).then(function(res) {
+		return { code: 'get-ticks-statistics-success', results: res };
 	});
 }));
 

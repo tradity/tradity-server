@@ -4,6 +4,7 @@ var _ = require('lodash');
 var lzma = require('lzma-native');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var commonUtil = require('./common/util.js');
 var buscomponent = require('./stbuscomponent.js');
 var dt = require('./bus/directtransport.js');
@@ -91,10 +92,15 @@ function ConnectionData(socket) {
 util.inherits(ConnectionData, buscomponent.BusComponent);
 
 ConnectionData.prototype.onBusConnect = function() {
-	this.ctx.setBusFromParent(this);
-	
-	this.getServerConfig(function(cfg) {
-		this.push({type: 'server-config', 'config': _.pick(cfg, cfg.clientconfig), 'versionInfo': this.versionInfo});
+	var self = this;
+	return self.ctx.setBusFromParent(self).then(function() {
+		return self.getServerConfig();
+	}).then(function(cfg) {
+		var clientconfig = _.pick(cfg, cfg.clientconfig);
+		clientconfig.busid = self.bus.id;
+		clientconfig.pid = process.pid;
+		
+		return self.push({type: 'server-config', 'config': clientconfig, 'versionInfo': self.versionInfo});
 	});
 };
 
@@ -144,7 +150,9 @@ ConnectionData.prototype.toString = function() {
  * 
  * @property module:connectiondata~ConnectionData.loginIgnore
  */
-ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod', 'ping', 'school-exists'];
+ConnectionData.loginIgnore = [
+	'list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod',
+	'ping', 'school-exists', 'process-wordpress-feed', 'get-invitekey-info'];
 
 /**
  * Load all events that have not yet been sent to the client and send them.
@@ -154,23 +162,25 @@ ConnectionData.loginIgnore = ['list-schools', 'password-reset', 'register', 'ema
  * @function module:connectiondata~ConnectionData#fetchEvents
  */
 ConnectionData.prototype.fetchEvents = function(query) {
-	if (!this.ctx.user)
-		return; // no user – no events.
+	var self = this;
+	
+	if (!self.ctx.user)
+		return; // no user – no user events.
 	
 	// possibly push info 
-	this.pushSelfInfo();
+	self.pushSelfInfo();
 	
 	// fetch regular events
-	this.request({name: 'feedFetchEvents', query: query, ctx: this.ctx.clone()}, _.bind(function(evlist) {
-		_.each(evlist, _.bind(function(ev) {
-			this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
-		}, this));
-
-		this.wrapForReply({pushes: evlist}, function(r) {
-			if (this.socket)
-				this.socket.emit('push-container', r)
+	return self.request({name: 'feedFetchEvents', query: query, ctx: self.ctx.clone()}).then(function(evlist) {
+		_.each(evlist, function(ev) {
+			self.mostRecentEventTime = Math.max(self.mostRecentEventTime, ev.eventtime);
 		});
-	}, this));
+
+		return self.wrapForReply({pushes: evlist}).then(function(r) {
+			if (self.socket)
+				self.socket.emit('push-container', r)
+		});
+	});
 };
 
 /**
@@ -179,7 +189,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
  * @function module:connectiondata~ConnectionData#ISEHandler
  */
 ConnectionData.prototype.ISEHandler = function() {
-	this.push({type: 'internal-server-error'});
+	return this.push({type: 'internal-server-error'});
 };
 
 /**
@@ -192,7 +202,7 @@ ConnectionData.prototype.ISEHandler = function() {
  * @function module:connectiondata~ConnectionData#dbgHandler
  */
 ConnectionData.prototype.dbgHandler = function(args) {
-	this.push({type: 'debug-info', args: args});
+	return this.push({type: 'debug-info', args: args});
 };
 
 /**
@@ -206,12 +216,14 @@ ConnectionData.prototype.dbgHandler = function(args) {
  * @function module:connectiondata~ConnectionData#push
  */
 ConnectionData.prototype.push = function(data) {
-	this.wrapForReply(data, function(r) {
-		if (this.socket)
-			this.socket.emit('push', r);
-	});
+	var self = this;
 	
-	this.pushSelfInfo();
+	return self.wrapForReply(data).then(function(r) {
+		if (self.socket)
+			self.socket.emit('push', r);
+	}).then(function() {
+		return self.pushSelfInfo();
+	});
 };
 
 /**
@@ -221,30 +233,32 @@ ConnectionData.prototype.push = function(data) {
  * @function module:connectiondata~ConnectionData#pushSelfInfo
  */
 ConnectionData.prototype.pushSelfInfo = function() {
-	if (!this.ctx.user || !this.socket)
+	var self = this;
+	
+	if (!self.ctx.user || !self.socket)
 		return;
 	
-	assert.ok(this.bus);
+	assert.ok(self.bus);
 	
-	this.getServerConfig(function(cfg) {
+	return self.getServerConfig().then(function(cfg) {
 		var curUnixTime = Date.now();
-		if (curUnixTime > this.lastInfoPush + cfg.infopushMinDelta) {
-			this.lastInfoPush = curUnixTime;
-			this.request({
+		if (curUnixTime > self.lastInfoPush + cfg.infopushMinDelta) {
+			self.lastInfoPush = curUnixTime;
+			return self.request({
 				name: 'client-get-user-info',
 				query: {
 					lookfor: '$self',
 					nohistory: true
 				},
-				ctx: this.ctx.clone(),
-				xdata: this.pickXDataFields()
-			}, _.bind(function(code, info) {
-				assert.ok(code == 'get-user-info-success');
-				assert.ok(info);
+				ctx: self.ctx.clone(),
+				xdata: self.pickXDataFields()
+			}).then(function(result) {
+				assert.ok(result.code == 'get-user-info-success');
+				assert.ok(result.result);
 				
-				info.type = 'self-info';
-				this.push(info);
-			}, this));
+				result.result.type = 'self-info';
+				return self.push(result.result);
+			});
 		}
 	});
 };
@@ -255,17 +269,22 @@ ConnectionData.prototype.pushSelfInfo = function() {
  * @function module:connectiondata~ConnectionData#pushEvents
  */
 ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', function() {
-	if (this.pushEventsTimer || !this.ctx.user || !this.ctx.user.uid)
+	var self = this;
+	
+	if (self.pushEventsTimer || !self.ctx.user || !self.ctx.user.uid)
 		return;
 	
-	this.pushEventsTimer = setTimeout(_.bind(function() {
-		this.pushEventsTimer = null;
+	var deferred = Q.defer();
+	self.pushEventsTimer = setTimeout(function() {
+		self.pushEventsTimer = null;
 		
-		if (this.socket === null)
+		if (self.socket === null)
 			return;
 		
-		this.fetchEvents({since: this.mostRecentEventTime, count: null});
-	}, this), 1000);
+		deferred.resolve(self.fetchEvents({since: self.mostRecentEventTime, count: null}));
+	}, 1000);
+	
+	return deferred.promise;
 });
 
 /**
@@ -274,13 +293,17 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
  * @function module:connectiondata~ConnectionData#response
  */
 ConnectionData.prototype.response = function(data) {
-	this.wrapForReply(data, function(r) {
-		if (this.socket)
-			this.socket.emit('response', r) 
+	var self = this;
+	
+	var res = self.wrapForReply(data).then(function(r) {
+		if (self.socket)
+			self.socket.emit('response', r) 
 	});
 	
-	if (this.isShuttingDown)
-		this.shutdown();
+	if (self.isShuttingDown)
+		self.shutdown();
+	
+	return res;
 };
 
 /**
@@ -289,7 +312,7 @@ ConnectionData.prototype.response = function(data) {
  * @function module:connectiondata~ConnectionData#onUserConnected
  */
 ConnectionData.prototype.onUserConnected = function() {
-	this.request({name: 'checkAchievements', ctx: this.ctx.clone()});
+	return this.request({name: 'checkAchievements', ctx: this.ctx.clone()});
 };
 
 /**
@@ -300,7 +323,7 @@ ConnectionData.prototype.onUserConnected = function() {
 ConnectionData.prototype.onLogout = function() {
 	var self = this;
 	
-	self.request({name: 'updateUserStatistics', ctx: self.ctx.clone(), user: self.ctx.user, force: true}, function() {
+	return self.request({name: 'updateUserStatistics', ctx: self.ctx.clone(), user: self.ctx.user, force: true}).then(function() {
 		self.ctx.user = null;
 		self.ctx.access = new Access();
 		self.ctx.setProperty('lastSessionUpdate', null);
@@ -327,27 +350,31 @@ ConnectionData.prototype.onLogout = function() {
  * 
  * @function module:connectiondata~ConnectionData#queryHandler
  */
-ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
+ConnectionData.prototype.queryHandler = function(query) {
 	var self = this;
 	
 	if (!query)
 		return;
 	
-	(query.signedContent ? function(cont) {
-		self.request({
+	return Q().then(function() {
+		if (!query.signedContent)
+			return {query: query, masterAuthorization: false};
+		
+		return self.request({
 			name: 'verifySignedMessage',
 			ctx: self.ctx.clone(),
 			msg: query.signedContent,
 			maxAge: 900
-		}, function(verified) {
+		}).then(function(verified) {
 			if (verified)
-				cont(verified, true);
+				return {query: verified, masterAuthorization: true};
 			else
-				this.close();
+				return {query: null, masterAuthorization: false};
 		});
-	} : function(cont) {
-		cont(query, false);
-	})(function(query, masterAuthorization) {
+	}).then(function(queryInfo) {
+		var masterAuthorization = queryInfo.masterAuthorization;
+		var query = queryInfo.query;
+		
 		if (!query)
 			return;
 		
@@ -368,7 +395,7 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 		assert.ok(self.bus);
 		assert.ok(self.socket);
 		
-		self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()}, function(user) {
+		return self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx}).then(function(user) {
 			if (!self.bus) {
 				assert.ok(!self.socket);
 				return;
@@ -381,7 +408,6 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 			self.ctx.access.update(access);
 			
 			if (masterAuthorization) {
-				console.log('Received query with master authorization of type', query.type);
 				self.ctx.access.grantAny();
 				if (user == null && query.uid != null)
 					user = {uid: query.uid, id: query.uid};
@@ -393,39 +419,20 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 			if (!hadUser && self.ctx.user != null)
 				self.onUserConnected();
 			
-			var cb = _.bind(function(code, obj, extra) {
-				self.unansweredCount--;
-				
-				var now = Date.now();
-				obj = obj || {};
-				obj['code'] = code;
-				obj['is-reply-to'] = query.id;
-				obj['_t_sdone'] = now;
-				obj['_t_srecv'] = recvTime;
-				
-				if (extra == 'repush' && self.bus && self.socket) {
-					self.lastInfoPush = 0;
-					
-					self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()}, function(newUser) {
-						if (newUser)
-							self.ctx.user = newUser;
-						
-						self.pushSelfInfo();
-					});
-				}
-				
-				self.response(obj);
-			}, self);
+			var callbackHasBeenCalled = false;
 			
-			self.unansweredCount++;
-			if (self.isShuttingDown) {
-				cb('server-shutting-down');
-			} else if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
-				self.ctx.user === null &&
-				!self.ctx.access.has('login_override'))
-			{
-				cb('not-logged-in');
-			} else {
+			return Q().then(function() {
+				self.unansweredCount++;
+				if (self.isShuttingDown)
+					return { code: 'server-shutting-down' };
+				
+				if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
+					self.ctx.user === null &&
+					!self.ctx.access.has('login_override'))
+				{
+					return { code: 'not-logged-in' };
+				}
+			
 				switch (query.type) {
 				/**
 				 * Fetch all events not yet pushed to the client.
@@ -437,8 +444,8 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				 * @function c2s~fetch-events
 				 */
 				case 'fetch-events':
-					self.fetchEvents(query);
-					return cb('fetching-events');
+					self.fetchEvents(query).done();
+					return { code: 'fetching-events' };
 				/**
 				 * Sets up this connection as a bus (server-to-server) transport.
 				 * This requires unlimited privileges.
@@ -454,11 +461,11 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				 */
 				case 'init-bus-transport':
 					if (!masterAuthorization)
-						return cb('permission-denied');
+						return { code: 'permission-denied' };
 					
 					self.ctx.setProperty('isBusTransport', true);
-					self.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false));
-					return cb('init-bus-transport-success');
+					self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false));
+					return { code: 'init-bus-transport-success' };
 				/**
 				 * Tell the current {@link module:qctx~QContext} to send back
 				 * debugging information.
@@ -470,41 +477,76 @@ ConnectionData.prototype.queryHandler = buscomponent.errorWrap(function(query) {
 				 */
 				case 'set-debug-mode':
 					if (!self.ctx.access.has('server'))
-						return cb('permission-denied');
+						return { code: 'permission-denied' };
 					self.ctx.setProperty('debugEnabled', query.debugMode);
-					return cb('set-debug-mode-success');
+					return { code: 'set-debug-mode-success' };
 				// documented in user.js
 				case 'logout':
 					self.onLogout();
 					// fall-through
 				}
 				
-				try {
-					self.request({
-						name: 'client-' + query.type,
-						query: query,
-						ctx: self.ctx.clone(),
-						xdata: self.pickXDataFields()
-					}, cb);
-				} catch (e) {
+				return self.request({
+					name: 'client-' + query.type,
+					query: query,
+					ctx: self.ctx.clone(),
+					xdata: self.pickXDataFields()
+				}).catch(function(e) {
 					if (e.nonexistentType) {
-						cb('unknown-query-type');
+						return { code: 'unknown-query-type' };
 					} else {
-						cb('server-fail');
+						return { code: 'server-fail' };
 						self.emitError(e);
 					}
+				});
+			}).then(function(result) {
+				assert.ok(result);
+				assert.ok(result.code);
+				
+				if (callbackHasBeenCalled)
+					return self.emitError('Callback for client request called multiple times!');
+				
+				callbackHasBeenCalled = true;
+				
+				self.unansweredCount--;
+				
+				var now = Date.now();
+				result['is-reply-to'] = query.id;
+				result['_t_sdone'] = now;
+				result['_t_srecv'] = recvTime;
+				
+				var extra = result.extra;
+				delete result.extra;
+				
+				var finalizingPromises = [];
+				if (extra == 'repush' && self.bus && self.socket) {
+					self.lastInfoPush = 0;
+					
+					finalizingPromises.push(self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx.clone()})
+						.then(function(newUser) {
+						if (newUser)
+							self.ctx.user = newUser;
+						
+						return self.pushSelfInfo();
+					}));
 				}
-			}
+				
+				finalizingPromises.push(self.response(result));
+				
+				return Q.all(finalizingPromises);
+			});
 		});
+	}).catch(function(e) {
+		return self.emitError(e);
 	});
-});
+};
 
 /**
  * Callback which will be invoked when the socket.io instance disconnected.
  * 
  * @function module:connectiondata~ConnectionData#disconnectedHandler
  */
-ConnectionData.prototype.disconnectedHandler = buscomponent.errorWrap(function() {
+ConnectionData.prototype.disconnectedHandler = function() {
 	this.onLogout();
 	
 	if (this.socket) {
@@ -513,7 +555,7 @@ ConnectionData.prototype.disconnectedHandler = buscomponent.errorWrap(function()
 	}
 	
 	if (this.bus) {
-		this.request({name: 'deleteConnectionData', id: this.cdid}, function() {
+		return this.request({name: 'deleteConnectionData', id: this.cdid}).then(function() {
 			this.unplugBus();
 			this.socket = null;
 		});
@@ -521,7 +563,7 @@ ConnectionData.prototype.disconnectedHandler = buscomponent.errorWrap(function()
 		// make sure we don't have a bus because we don't *want* one
 		assert.ok(this.wantsUnplug);
 	}
-});
+};
 
 /**
  * Close the current connection.
@@ -552,42 +594,48 @@ ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'glo
  * Wraps an object, possibly compressing it, for sending it to the client.
  * 
  * @param {object} obj  Any kind of object to be sent.
- * @param {function} cb  Will be called with the encoded object as the 1st parameter.
+ * 
+ * @return  A Q promise for the encoded object.
  * 
  * @function module:connectiondata~ConnectionData#wrapForReply
  */
-ConnectionData.prototype.wrapForReply = function(obj, cb) {
-	cb = _.bind(cb, this);
+ConnectionData.prototype.wrapForReply = function(obj) {
+	var self = this;
 	
 	var s;
 	try {
 		s = JSON.stringify(obj);
 	} catch (e) {
-		// Most likely, this was a circular data structure, so include that in the debug information
+		// Most likely, self was a circular data structure, so include that in the debug information
 		if (e.type == 'circular_structure')
-			return this.emitError(new Error('Circular JSON while wrapping for reply, cycle: ' + commonUtil.detectCycle(obj)));
+			return self.emitError(new Error('Circular JSON while wrapping for reply, cycle: ' + commonUtil.detectCycle(obj)));
 		else
-			return this.emitError(e);
+			return self.emitError(e);
 	}
 	
-	if (!this.socket) {
-		this.ctx.setProperty('lzmaSupport', false);
-		this.ctx.setProperty('remoteProtocolVersion', null);
+	if (!self.socket) {
+		self.ctx.setProperty('lzmaSupport', false);
+		self.ctx.setProperty('remoteProtocolVersion', null);
 	}
 	
-	_.bind(s.length > 20480 && this.ctx.getProperty('lzmaSupport') ? function(cont) {
-		this.queryLZMAUsedCount++;
+	return (s.length > 20480 && self.ctx.getProperty('lzmaSupport') ? function(cont) {
+		self.queryLZMAUsedCount++;
 		
 		var buflist = [];
 		
+		var deferred = Q.defer();
 		var encoder = lzma.createStream('aloneEncoder', {preset: 3});
 		encoder.on('data', function(data) { buflist.push(data); });
-		encoder.on('end', function() { cont(Buffer.concat(buflist), 'lzma'); });
+		encoder.on('end', function() {
+			return deferred.resolve(cont(Buffer.concat(buflist), 'lzma'));
+		});
+		
 		encoder.end(s);
+		return deferred.promise;
 	} : function(cont) {
-		cont(s, 'raw');
-	}, this)(function(result, encoding) {
-		cb({
+		return cont(s, 'raw');
+	})(function(result, encoding) {
+		return Q({
 			s: result,
 			e: encoding,
 			t: Date.now()

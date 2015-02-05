@@ -34,7 +34,7 @@ for (var i = 1; i < options.length; ++i) {
 	query[p[1]] = value;
 }
 
-var protocol = cfg.http.secure ? 'https' : 'http';
+var protocol = cfg.protocol;
 var socket = new sotradeClient.SoTradeConnection({
 	url: query.wsurl || (protocol + '://' +
 		(query.wshost || cfg.wshoste || cfg.wshost) + ':' +
@@ -53,8 +53,14 @@ if (query.timeout) {
 }
 
 socket.once('server-config').then(function() {
-	return socket.emit(query.type, query)
+	return socket.emit(query.type, query);
 }).then(function(data) {
+	if (query.resultPath) {
+		var path = String(query.resultPath).split('.');
+		
+		console.log(_.reduce(path, _.result, data));
+	}
+	
 	if (!query.lurk)
 		process.exit(0);
 }).done();

@@ -2,11 +2,7 @@
 
 var assert = require('assert');
 var _ = require('lodash');
-var q = null;
-
-try {
-	q = require('q');
-} catch (e) { console.error(e); }
+var Q = require('q');
 
 function BusComponent () {
 	this.bus = null;
@@ -23,19 +19,19 @@ BusComponent.prototype.setBus = function(bus, componentName) {
 	
 	this.bus = bus;
 	this.componentName = componentName;
-	this.bus.addComponent(componentName);
 	this.unansweredBusRequests = 0;
 	this.wantsUnplug = false;
+	this.initPromise = null;
 	
 	this.registerProviders();
-	_.bind(this.onBusConnect, this)();
-	return this;
+	
+	return Q(this.onBusConnect());
 };
 
 BusComponent.prototype.setBusFromParent = function(component) {
 	assert.ok(component.bus);
 	
-	this.setBus(component.bus, component.componentName + '-' + (BusComponent.objCount++));
+	return this.setBus(component.bus, component.componentName + '-' + (BusComponent.objCount++));
 };
 
 BusComponent.prototype.unplugBus = function() {
@@ -45,10 +41,9 @@ BusComponent.prototype.unplugBus = function() {
 	
 	if (this.unansweredBusRequests == 0) {
 		this.unregisterProviders();
-		this.bus.removeComponent(this.componentName);
 		this.bus = null;
 		this.componentName = null;
-		this.inited = false;
+		this.initPromise = null;
 	}
 };
 
@@ -65,14 +60,18 @@ for (var requestType_ in {request:0, requestImmediate:0, requestNearest:0, reque
 (function() { var requestType = requestType_;
 
 BusComponent.prototype[requestType] = function(req, onReply) {
-	onReply = _.bind(onReply || function () {}, this);
+	assert.ok(!onReply); // temporary
 	assert.ok(this.bus);
 	assert.ok(req);
 	
+	var deferred = Q.defer();
+	
+	onReply = function(result) {
+		return deferred.resolve(result);
+	};
+	
 	for (var i = 0; i < this.callbackFilters.length; ++i)
 		onReply = this.callbackFilters[i](onReply);
-	
-	var deferred = q ? q.defer() : null;
 	
 	this.unansweredBusRequests++;
 	this.bus[requestType](this.imprint(req), _.bind(function() {
@@ -80,10 +79,11 @@ BusComponent.prototype[requestType] = function(req, onReply) {
 		if (this.wantsUnplug)
 			this.unplugBus();
 		
-		if (deferred)
-			deferred.resolve(Array.prototype.slice.apply(arguments));
+		var returnValue = Array.prototype.slice.apply(arguments); 
+		if (requestType == 'request' || requestType == 'requestNearest')
+			returnValue = returnValue[0];
 		
-		onReply.apply(this, arguments);
+		return onReply(returnValue);
 	}, this));
 	
 	return deferred.promise;
@@ -147,7 +147,16 @@ function provide(name, args, fn, prefilter) {
 		var passArgs = [];
 		for (var i = 0; i < args.length; ++i)
 			passArgs.push(data[args[i]]);
-		fn.apply(this, passArgs);
+		
+		var this_ = this;
+		
+		return Q().then(function() {
+			return fn.apply(this_, passArgs);
+		}).then(function(result) {
+			return data.reply(result);
+		}).catch(function(e) {
+			this_.emitError(e);
+		}).done();
 	};
 	
 	return fn;
@@ -191,7 +200,7 @@ BusComponent.prototype.unregisterProviders = function() {
 	}
 };
 
-BusComponent.prototype._init = function() { this.inited = true; };
+BusComponent.prototype._init = function() { this.initPromise = null; };
 BusComponent.prototype.onBusConnect = function() {};
 
 function needsInit (fn) {
@@ -199,20 +208,12 @@ function needsInit (fn) {
 		var this_ = this;
 		var arguments_ = arguments;
 		
-		_.bind(this.inited ? function(cont) { cont(); } : function(cont) { this._init(cont); }, this)(_.bind(function() {
-			assert.ok(this.inited);
-			fn.apply(this_, arguments_);
-		}, this));
-	};
-};
-
-function errorWrap (fn) {
-	return function() {
-		try {
-			return fn.apply(this, arguments);
-		} catch (e) {
-			this.emitError(e);
-		}
+		if (this.initPromise === null)
+			this.initPromise = Q(this._init());
+		
+		return this.initPromise.then(function() {
+			return fn.apply(this_, arguments_);
+		});
 	};
 };
 
@@ -220,6 +221,5 @@ exports.BusComponent = BusComponent;
 exports.listener     = listener;
 exports.provide      = provide;
 exports.needsInit    = needsInit;
-exports.errorWrap    = errorWrap;
 
 })();

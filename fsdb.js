@@ -55,7 +55,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 		if (rows.length == 0) {
 			res.writeHead(404, {'Content-Type': 'text/plain'});
 			res.end('Not found');
-			return;
+			return true;
 		}
 		
 		assert.equal(rows.length, 1);
@@ -73,7 +73,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			'X-Sotrade-Proxied': r.proxy
 		};
 		
-		(r.proxy ? function(cont) {
+		return (r.proxy ? function(cont) {
 			var proxyURL = r.content.toString('utf8');
 			
 			var httpx = proxyURL.match(/^https/) ? https : http;
@@ -94,18 +94,20 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			
 			preq.setHeader('User-Agent', cfg.userAgent);
 			preq.end();
+			
+			return true;
 		} : function(cont) {
 			headers['Content-Type'] = r.mime;
 			headers['Cache-Control'] = r.cache ? 'max-age=100000000' : 'no-cache';
 			headers['Last-Modified'] = new Date(r.uploadtime * 1000).toString();
 			
 			if (req.headers['if-modified-since']) {
-				cont(304);
+				return cont(304);
 			} else {
 				if (r.gzipped) 
 					headers['Content-Encoding'] = 'gzip';
 				
-				cont(200, function(res) { res.end(r.content) });
+				return cont(200, function(res) { res.end(r.content) });
 			}
 		})(function (status, finalize) {
 			finalize = finalize || function(res) { res.end(); };

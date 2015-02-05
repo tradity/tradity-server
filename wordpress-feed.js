@@ -60,6 +60,8 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 					return ctx.query('INSERT INTO blogposts (blogid, posttime, link, title, excerpt) ' +
 						'VALUES (?, ?, ?, ?, ?)',
 						[bloginfo.blogid, post.date_unix, post.link, post.title, post.excerpt]).then(function(r) {
+						assert.ok(r.insertId);
+						
 						return ctx.feed({
 							type: 'blogpost',
 							targetid: r.insertId,

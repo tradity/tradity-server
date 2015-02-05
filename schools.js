@@ -5,6 +5,7 @@ var serverUtil = require('./server-util.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -38,15 +39,15 @@ util.inherits(Schools, buscomponent.BusComponent);
  * @param {Array} [status] Passed to {@link busreq~isSchoolAdmin}
  * 
  * @return {QTCallback}  A modified callback that fails with <code>permission-denied</code> when encountering
- *                       requests from users that do not have schools admin capabilities.
+ *                       requests from users that do not have school admin capabilities.
  * 
  * @function module:schools~_reqschooladm
  */
 function _reqschooladm (f, soft, scdb, status) {
 	soft = soft || false;
 	
-	return function(query, ctx, cb) {
-		var forward = _.bind(function() { return _.bind(f, this)(query, ctx, cb); }, this);
+	return function(query, ctx) {
+		var forward = _.bind(function() { return _.bind(f, this)(query, ctx); }, this);
 		
 		if (soft && !query.schoolid)
 			return forward();
@@ -57,13 +58,13 @@ function _reqschooladm (f, soft, scdb, status) {
 		
 		assert.ok(lsa);
 		
-		lsa.request({name: 'isSchoolAdmin', ctx: ctx, status: status, schoolid: query.schoolid}, function(ok, schoolid) {
-			if (!ok)
-				return cb('permission-denied');
+		return lsa.request({name: 'isSchoolAdmin', ctx: ctx, status: status, schoolid: query.schoolid}).then(function(schoolAdminResult) {
+			if (!schoolAdminResult.ok)
+				return { code: 'permission-denied' };
 			
-			// in case tha schoolid was not numerical before
-			query.schoolid = schoolid;
-			forward();
+			// in the case that schoolid was not numerical before
+			query.schoolid = schoolAdminResult.schoolid;
+			return forward();
 		});
 	};
 }
@@ -79,34 +80,37 @@ function _reqschooladm (f, soft, scdb, status) {
  * @param {module:qctx~QContext} ctx  The query context whose user and access patterns are to be checked.
  * @param {?Array} status   A list of acceptable user status to be considered “admin”-Like.
  * @param {int} schoolid    The id of the schools whose admin tables are to be checked.
- * @param {function} reply  Will be called with <code>reply(true, schoolid)</code> when successful,
- *                          otherwise with <code>reply(false, null)</code>.
+ *
+ * @return  Returns a Q promise returning <code>{ ok: true, schoolid: … }</code> when successful,
+ *                          otherwise with <code>{ ok: false, schoolid: null }</code>.
  * 
  * @function module:schools~Schools#isSchoolAdmin
  */
-Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 'status', 'schoolid', 'reply'],
-	function(ctx, status, schoolid, cb)
+Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 'status', 'schoolid'],
+	function(ctx, status, schoolid)
 {
 	var self = this;
 	
-	(parseInt(schoolid) == schoolid ? function(cont) { cont(); } : function(cont) {
-		ctx.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [schoolid], function(res) {
-			if (res.length == 0)
-				return cb(false, null);
-			
-			assert.equal(res.length, 1);
-			
-			schoolid = res[0].id;
-			cont();
-		});
-	})(function() {
+	return (parseInt(schoolid) == schoolid ? Q([{id: schoolid}]) :
+		ctx.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [schoolid]))
+	.then(function(res) {
+		if (res.length == 0)
+			return {ok: false, schoolid: null};
+		
+		assert.equal(res.length, 1);
+		
+		schoolid = res[0].id;
+		
 		if (ctx.access.has('schooldb'))
-			return cb(true, schoolid);
+			return {ok: true, schoolid: schoolid};
 			
 		status = status || ['admin', 'xadmin'];
 		
-		self.loadSchoolAdmins(schoolid, ctx, function(admins) {
-			cb(_.chain(admins).filter(function(a) { return status.indexOf(a.status) != -1 && a.adminid == ctx.user.id; }).value().length != 0, schoolid);
+		return self.loadSchoolAdmins(schoolid, ctx).then(function(admins) {
+			var isAdmin = (admins.filter(function(a) {
+				return status.indexOf(a.status) != -1 && a.adminid == ctx.user.id;
+			}).length > 0);
+			return {ok: isAdmin, schoolid: isAdmin ? schoolid : null};
 		});
 	});
 });
@@ -116,18 +120,17 @@ Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 
  * 
  * @param {int} schoolid  The numerical id for the school.
  * @param {module:qctx~QContext} ctx  A QContext to provide database access
- * @param {function} cb  A function to be called with a complete list of school admins
- *                       and associated metadata.
+ * @return  A Q promise for a complete list of school admins and associated metadata.
  * 
  * @function module:schools~Schools#loadSchoolAdmins
  */
-Schools.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
-	ctx.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +
+Schools.prototype.loadSchoolAdmins = function(schoolid, ctx) {
+	return ctx.query('SELECT sa.schoolid AS schoolid, sa.uid AS adminid, sa.status AS status, users.name AS adminname ' +
 		'FROM schools AS c ' +
 		'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
 		'JOIN schooladmins AS sa ON sa.schoolid = p.id ' +
 		'JOIN users ON users.id = sa.uid ' +
-		'WHERE c.id = ?', [parseInt(schoolid)], cb);
+		'WHERE c.id = ?', [parseInt(schoolid)]);
 };
 
 /**
@@ -136,23 +139,22 @@ Schools.prototype.loadSchoolAdmins = function(schoolid, ctx, cb) {
  * @param {(int|string)} lookfor  A school id or path to use for searching the group.
  * @param {module:qctx~QContext} ctx  A context to provide database access.
  * @param {object} cfg  The server base config.
- * @param {function} cb  When ready, will be called with a success or failure parameter
- *                       (see {@link c2s~get-school-info}) as the first parameter and,
- *                       in case of success, a group info as the second parameter.
+ * 
+ * @return A Q promise for a { code: …, schoolinfo: … / null } object
  * 
  * @function module:schools~Schools#loadSchoolInfo
  */
-Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
+Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 	var self = this;
 	
-	ctx.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
+	return ctx.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
 		'FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
 		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
 		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 
-		'LIMIT 1', [String(lookfor)], function(res) {
+		'LIMIT 1', [String(lookfor)]).then(function(res) {
 		if (res.length == 0)
-			return cb('get-school-info-notfound');
+			return { code: 'get-school-info-notfound' };
 		
 		var s = res[0];	
 		s.parentPath = null;
@@ -166,51 +168,76 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
 			
 		assert.ok(s.config);
 		
-		self.loadSchoolAdmins(s.id, ctx, function(admins) {
+		return self.loadSchoolAdmins(s.id, ctx).then(function(admins) {
 			s.admins = admins;
 			
-			ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%'], function(subschools) {
-			ctx.query('SELECT COUNT(uid) AS usercount ' +
-				'FROM schoolmembers AS sm '+
-				'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
-				'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
-				'WHERE p.id = ?', [s.id], function(usercount) {
-			ctx.query('SELECT c.*, u.name AS username, u.id AS uid, url AS profilepic, trustedhtml ' +
-				'FROM ecomments AS c '+
-				'LEFT JOIN users AS u ON c.commenter = u.id ' +
-				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
-				'WHERE c.eventid = ?',
-				[s.eventid],
-				function(comments) {
-				s.comments = comments;
+			return ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%']).then(function(subschools) {
 				s.subschools = subschools;
+				return ctx.query('SELECT COUNT(uid) AS usercount ' +
+					'FROM schoolmembers AS sm '+
+					'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
+					'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
+					'WHERE p.id = ?', [s.id]);
+			}).then(function(usercount) {
 				s.usercount = usercount[0].usercount;
+				return ctx.query('SELECT c.*, u.name AS username, u.id AS uid, url AS profilepic, trustedhtml ' +
+					'FROM ecomments AS c '+
+					'LEFT JOIN users AS u ON c.commenter = u.id ' +
+					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
+					'WHERE c.eventid = ?',
+					[s.eventid]);
+			}).then(function(comments) {
+				s.comments = comments;
 				
-				ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
+				return ctx.query('SELECT * FROM blogposts ' +
+					'JOIN feedblogs ON feedblogs.blogid = blogposts.blogid ' +
+					'JOIN events ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
+					'WHERE feedblogs.schoolid = ?',
+					[s.id]);
+			}).then(function(blogposts) {
+				s.blogposts = blogposts.map(function(post) {
+					var expost = _.extend(post, JSON.parse(post.postjson))
+					delete expost.postjson;
+					return expost;
+				});
+				
+				return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
 					'SUM(ABS(money)) AS moneysum, ' +
 					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 					'FROM orderhistory AS oh ' +
 					'JOIN schoolmembers AS sm ON sm.uid = oh.userid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
-					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id], function(popular) {
-					if (s.path.replace(/[^\/]/g, '').length != 1) { // need higher-level 
-						s.parentPath = commonUtil.parentPath(s.path);
-						self.loadSchoolInfo(s.parentPath, ctx, cfg, function(code, result) {
-							assert.equal(code, 'get-school-info-success');
-							
-							s.parentSchool = result;
-							
-							s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults, s.parentSchool.config, s.config);
-							
-							cb('get-school-info-success', s);
-						});
-					} else {
-						s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults, s.config);
-						
-						cb('get-school-info-success', s);
-					}
-				});
-			});
-			});
+					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id]);
+			}).then(function(popular) {
+				s.popularStocks = popular;
+				
+				if (!ctx.access.has('wordpress'))
+					return [];
+				
+				// compare wordpress-feed.js
+				return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
+					'bloguser, COUNT(*) AS postcount, users.name ' +
+					'FROM feedblogs ' + 
+					'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
+					'LEFT JOIN users ON feedblogs.bloguser = users.id ' +
+					'LEFT JOIN schools ON feedblogs.schoolid = schools.id ' +
+					'WHERE schoolid = ? ' +
+					'GROUP BY blogid', [s.id]);
+			}).then(function(feedblogs) {
+				s.feedblogs = feedblogs;
+			
+				if (s.path.replace(/[^\/]/g, '').length != 1) // need higher-level 
+					s.parentPath = commonUtil.parentPath(s.path);
+				
+				return s.parentPath ? self.loadSchoolInfo(s.parentPath, ctx, cfg) :
+					Q({schoolinfo: null});
+			}).then(function(result) {
+				assert.ok(typeof result.code == 'undefined' || result.code == 'get-school-info-success');
+				
+				s.parentSchool = result;
+				s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults,
+					s.parentSchool ? s.parentSchool.config : {}, s.config);
+				
+				return {code: 'get-school-info-success', schoolinfo: s};
 			});
 		});
 	});
@@ -234,15 +261,22 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
  * @property {string} banner  The public school banner.
  * @property {int} usercount  The number of school members.
  * @property {Comment[]} comments  The school “pinboard” (i.e. comments on the school creation event).
+ * @property {Blogpost[]} blogposts  The school “blogposts” (Associated Wordpress blog posts).
  * @property {module:schools~schoolinfo[]} subschools  A list of subschools of this school
  *                                                     (in short notation, i.e. no event/comment information etc.).
  * @property {string} parentPath  The parent path of this school, or '/' if this school is top-level.
+<<<<<<< HEAD
+ * @property {object[]} popular  See {@link c2s~list-popular-stocks}.
+ * @property {object[]} feedblogs  See {@link c2s~list-wordpress-feeds}.
+=======
+ * @property {object[]} popularStocks  See {@link c2s~list-popular-stocks}.
+>>>>>>> master
  */
 
 /**
  * Load all relevant public info for a given school
  * 
- * @param {(int|string)} query.lookfor A school id, path or name to look for.
+ * @param {(int|string)} query.lookfor  A school id, path or name to look for.
  * 
  * @return {object} Returns with <code>get-school-info-success</code> and a detailed school info in <code>.result</code>
  *                  in case of success and <code>get-school-info-notfound</code> in case the school could not be found.
@@ -250,13 +284,13 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg, cb) {
  * 
  * @function c2s~get-school-info
  */
-Schools.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info', function(query, ctx, cb) {
+Schools.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info', function(query, ctx) {
 	var self = this;
 	
-	self.getServerConfig(function(cfg) {
-		self.loadSchoolInfo(query.lookfor, ctx, cfg, function(code, result) {
-			cb(code, {'result': result});
-		});
+	return self.getServerConfig().then(function(cfg) {
+		return self.loadSchoolInfo(query.lookfor, ctx, cfg);
+	}).then(function(result) {
+		return { code: result.code, 'result': result.schoolinfo };
 	});
 });
 
@@ -275,9 +309,10 @@ Schools.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info
  * @loginignore
  * @function c2s~school-exists
  */
-Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx, cb) {
-	ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name)', [String(query.lookfor)], function(res) {
-		cb('school-exists-success', {exists: res.length > 0, path: res.length > 0 ? res[0].path : null});
+Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx) {
+	return ctx.query('SELECT path FROM schools WHERE ? IN (id, path, name) OR LOWER(?) IN (id, path, name)',
+		[String(query.lookfor), String(query.lookfor)]).then(function(res) {
+		return { code: 'school-exists-success', exists: res.length > 0, path: res.length > 0 ? res[0].path : null };
 	});
 });
 
@@ -292,9 +327,10 @@ Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', 
  * @noreadonly
  * @function c2s~school-change-description
  */
-Schools.prototype.changeDescription = buscomponent.provideWQT('client-school-change-description', _reqschooladm(function(query, ctx, cb) {
-	ctx.query('UPDATE schools SET descpage = ? WHERE id = ?', [String(query.descpage), parseInt(query.schoolid)], function() {
-		cb('school-change-description-success');
+Schools.prototype.changeDescription = buscomponent.provideWQT('client-school-change-description', _reqschooladm(function(query, ctx) {
+	return ctx.query('UPDATE schools SET descpage = ? WHERE id = ?',
+		[String(query.descpage), parseInt(query.schoolid)]).then(function() {
+		return { code: 'school-change-description-success' };
 	});
 }));
 
@@ -311,20 +347,20 @@ Schools.prototype.changeDescription = buscomponent.provideWQT('client-school-cha
  * @noreadonly
  * @function c2s~school-change-member-status
  */
-Schools.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx, cb) {
-	ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
-		[parseInt(query.schoolid), parseInt(query.uid)], function() {
-		if (query.status == 'member') {
-			ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?',
-				[parseInt(query.uid), parseInt(query.schoolid)], function() {
-				cb('school-change-member-status-success');
-			});
-		} else {
-			ctx.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)',
-				[parseInt(query.schoolid), parseInt(query.uid), String(query.status)], function() {
-				cb('school-change-member-status-success');
-			});
-		}
+Schools.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx) {
+	if (parseInt(query.uid) != query.uid)
+		return { code: 'format-error' };
+	
+	return ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
+		[parseInt(query.uid), parseInt(query.schoolid)]).then(function() {
+		if (query.status == 'member')
+			return ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?',
+				[parseInt(query.uid), parseInt(query.schoolid)]);
+		else
+			return ctx.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)',
+				[parseInt(query.schoolid), parseInt(query.uid), String(query.status)]);
+	}).then(function() {
+		return { code: 'school-change-member-status-success' };
 	});
 }));
 
@@ -342,21 +378,23 @@ Schools.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-ch
  * @noreadonly
  * @function c2s~school-delete-comment
  */
-Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-comment', _reqschooladm(function(query, ctx, cb) {
+Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-comment', _reqschooladm(function(query, ctx) {
 	var self = this;
 	
-	ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
+	return ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
 		'JOIN events AS e ON e.eventid = c.eventid ' +
 		'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
-		[parseInt(query.commentid), parseInt(query.schoolid)], function(res) {
+		[parseInt(query.commentid), parseInt(query.schoolid)]).then(function(res) {
 		if (res.length == 0)
-			return cb('permission-denied');
+			return { code: 'permission-denied' };
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
-		ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-			[self.readTemplate('comment-deleted-by-group-admin.html'), parseInt(query.commentid)], function() {
-			cb('school-delete-comment-success');
+		return self.request({ name: 'readTemplate', template: 'comment-deleted-by-group-admin.html' }).then(function(commentContent) {
+			return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
+				[commentContent, parseInt(query.commentid)]);
+		}).then(function() {
+			return { code: 'school-delete-comment-success' };
 		});
 	});
 }));
@@ -372,13 +410,16 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
  * @noreadonly
  * @function c2s~school-kick-user
  */
-Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx, cb) {
-	ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
-		[parseInt(query.uid), parseInt(query.schoolid)], function() {
-		ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
-			[parseInt(query.uid), parseInt(query.schoolid)], function() {
-			cb('school-kick-user-success');
-		});
+Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx) {
+	if (parseInt(query.uid) != query.uid || parseInt(query.schoolid) != query.schoolid)
+		return { code: 'format-error' };
+	
+	return ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
+		[parseInt(query.uid), parseInt(query.schoolid)]).then(function() {
+		return ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
+			[parseInt(query.uid), parseInt(query.schoolid)]);
+	}).then(function() {
+		return { code: 'school-kick-user-success' };
 	});
 }));
 
@@ -399,7 +440,7 @@ Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', 
  * 
  * @param {?string} query.schoolpath  The path for the new school. If not given,
  *                                    a path will be generated from the school’s name.
- *                                    Note that this indicated potential parent groups.
+ *                                    Note that this indicates potential parent groups.
  * @param {string} query.schoolname   A human-readable identifier of the school.
  *                                    It is recommended but not enforced that this is unrelated
  *                                    to any parent group’s names, therefore not introducing
@@ -413,49 +454,52 @@ Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', 
  * @noreadonly
  * @function c2s~create-school
  */
-Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school', function(query, ctx, cb) {
+Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school', function(query, ctx) {
 	if (!query.schoolname)
-		return cb('format-error');
+		return { code: 'format-error' };
 	
-	query.schoolname = String(query.schoolname);
+	query.schoolname = String(query.schoolname || '').toLowerCase();
 	
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
 	
-	ctx.startTransaction(function(conn, commit, rollback) {
-		conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)], function(r) {
+	var conn;
+	return ctx.startTransaction().then(function(conn_) {
+		conn = conn_;
+		
+		return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)]);
+	}).then(function(r) {
+		assert.equal(r.length, 1);
+		if (r[0].c == 1 || !query.schoolname.trim() || 
+			!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
+			return conn.rollback().then(function() {
+				return { code: 'create-school-already-exists' };
+			});
+		}
+		
+		return (query.schoolpath.replace(/[^\/]/g, '').length == 1 ? Q([{c: 1}])
+			: conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
+			[commonUtil.parentPath(String(query.schoolpath))])).then(function(r) {
 			assert.equal(r.length, 1);
-			if (r[0].c == 1 || !query.schoolname.trim() || 
-				!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
-				rollback();
-				
-				return cb('create-school-already-exists');
+			
+			if (r[0].c != 1) {
+				return conn.rollback().then(function() {
+					return { code: 'create-school-missing-parent' };
+				});
 			}
 			
-			var createCB = function() {
-				conn.query('INSERT INTO schools (name,path) VALUES(?,?)',
-					[String(query.schoolname), String(query.schoolpath)], function(res) {
-					ctx.feed({'type': 'school-create', 'targetid': res.insertId, 'srcuser': ctx.user.id});
-					
-					commit();
-					
-					cb('create-school-success');
+			return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
+				[String(query.schoolname), String(query.schoolpath)]).then(function(res) {
+				return ctx.feed({
+					'type': 'school-create',
+					'targetid': res.insertId,
+					'srcuser': ctx.user.id,
+					'conn': conn
 				});
-			};
-			
-			if (query.schoolpath.replace(/[^\/]/g, '').length == 1)
-				createCB();
-			else conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
-				[commonUtil.parentPath(String(query.schoolpath))],
-				function(r) {
-				assert.equal(r.length, 1);
-				if (r[0].c != 1) {
-					rollback();
-					
-					return cb('create-school-missing-parent');
-				}
-				
-				createCB();
+			}).then(function() {
+				return conn.commit();
+			}).then(function() {
+				return { code: 'create-school-success', path: String(query.schoolpath) };
 			});
 		});
 	});
@@ -474,28 +518,31 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
  * @loginignore
  * @function c2s~list-schools
  */
-Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx, cb) {
+Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx) {
+	query.parentPath = String(query.parentPath).toLowerCase();
+	
 	var where = 'WHERE 1 ';
 	var params = [];
 	if (query.parentPath) {
 		where = 'AND path LIKE ? OR path = ? ';
-		params.push(String(query.parentPath) + '/%', String(query.parentPath));
+		params.push(query.parentPath + '/%', query.parentPath);
 	}
 	
 	if (query.search) {
 		var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
 		
-		where += 'AND (name LIKE ? OR path LIKE ?) ';
+		where += 'AND (schools.name LIKE ? OR path LIKE ?) ';
 		params.push(likestring, likestring);
 	}
 	
-	ctx.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path FROM schools ' +
+	return ctx.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path, url AS banner ' +
+		'FROM schools ' +
+		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
 		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
 		where +
-		'GROUP BY schools.id', params, function(results) {
-			cb('list-schools-success', {'result': results});
-		}
-	);
+		'GROUP BY schools.id', params).then(function(results) {
+		return { code: 'list-schools-success', 'result': results };
+	});
 });
 
 /**
@@ -510,12 +557,12 @@ Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', fu
  * @noreadonly
  * @function c2s~school-publish-banner
  */
-Schools.prototype.publishBanner = buscomponent.provideQT('client-school-publish-banner', function(query, ctx, cb) {
+Schools.prototype.publishBanner = buscomponent.provideQT('client-school-publish-banner', function(query, ctx) {
 	query.role = 'schools.banner';
 	
-	_reqschooladm(_.bind(function(query, ctx, cb) {
-		this.request({name: 'client-publish', query: query, ctx: ctx, groupassoc: query.schoolid}, cb);
-	}, this), false, this)(query, ctx, cb);
+	return _reqschooladm(_.bind(function(query, ctx) {
+		return this.request({name: 'client-publish', query: query, ctx: ctx, groupassoc: query.schoolid});
+	}, this), false, this)(query, ctx);
 });
 
 /**
@@ -535,10 +582,10 @@ Schools.prototype.publishBanner = buscomponent.provideQT('client-school-publish-
  * @noreadonly
  * @function c2s~create-invite-link
  */
-Schools.prototype.createInviteLink = buscomponent.provideQT('client-create-invite-link', function(query, ctx, cb) {
-	_reqschooladm(_.bind(function(query, ctx, cb) {
-		this.request({name: 'createInviteLink', query: query, ctx: ctx}, cb);
-	}, this), true, this)(query, ctx, cb);
+Schools.prototype.createInviteLink = buscomponent.provideQT('client-create-invite-link', function(query, ctx) {
+	return _reqschooladm(_.bind(function(query, ctx) {
+		return this.request({name: 'createInviteLink', query: query, ctx: ctx});
+	}, this), true, this)(query, ctx);
 });
 
 exports.Schools = Schools;

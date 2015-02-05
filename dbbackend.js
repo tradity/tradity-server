@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var serverUtil = require('./server-util.js');
 
@@ -36,15 +37,18 @@ function Database () {
 	this.wConnectionPool = null;
 	this.rConnectionPool = null;
 	this.openConnections = 0;
+	this.deadlockCount = 0;
+	this.queryCount= 0;
 	this.isShuttingDown = false;
+	this.writableNodes = [];
 }
 
 util.inherits(Database, buscomponent.BusComponent);
 
-Database.prototype._init = function(cb) {
+Database.prototype._init = function() {
 	var self = this;
 	
-	self.getServerConfig(function(cfg) {
+	return self.getServerConfig().then(function(cfg) {
 		self.dbmod = cfg.dbmod || require('mysql');
 		
 		self.wConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
@@ -85,8 +89,6 @@ Database.prototype._init = function(cb) {
 		 * during the shutdown process temporarily, so other components can complete
 		 * any remaining work in progress.
 		 */
-		
-		cb();
 	});
 };
 
@@ -109,6 +111,19 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
 });
 
 /**
+ * Provides some database usage statistics, like deadlock and query counts.
+ * 
+ * @function busreq~dbUsageStatistics
+ */
+Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [], function() {
+	return {
+		deadlockCount: this.deadlockCount,
+		queryCount: this.queryCount,
+		writableNodes: this.writableNodes.length
+	};
+});
+
+/**
  * Executes an SQL query on the database.
  * Your local {@link module:qctx~QContext}’s <code>query</code> method
  * invokes this – if available, consider using it in order to map all
@@ -120,20 +135,18 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
  * 
  * @function busreq~dbQuery
  */
-Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly', 'reply'],
-	buscomponent.needsInit(function(query, args, readonly, cb)
+Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly'],
+	buscomponent.needsInit(function(query, args, readonly)
 {
 	var self = this, origArgs = arguments;
 	
-	if (readonly !== false && readonly !== true)
+	if (typeof readonly !== 'boolean')
 		readonly = (query.trim().indexOf('SELECT') == 0);
 	
-	self._getConnection(true, function /* restart */() {
-		self._query.apply(self, origArgs);
-	}, readonly, function(connection) {
-		connection.query(query, args || [], function() {
-			cb.apply(self, arguments);
-		});
+	return self._getConnection(true, function /* restart */() {
+		return self._query.apply(self, origArgs);
+	}, readonly).then(function(connection) {
+		return connection.query(query, args || []);
 	});
 }));
 
@@ -151,17 +164,14 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
  * 
  * @function module:dbbackend~Database#_getConnection
  */
-Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly, cb) {
+Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly) {
 	var self = this;
 	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
-	assert.ok (pool);
+	assert.ok(pool);
 	
-	self.openConnections++;
+	return Q.ninvoke(pool, 'getConnection').then(function(conn) {
+		self.openConnections++;
 	
-	pool.getConnection(function(err, conn) {
-		if (err)
-			return self.emitError(err);
-		
 		assert.ok(conn);
 		
 		var release = function() {
@@ -173,30 +183,42 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 			return conn.release();
 		};
 		
-		var query = function(q, args, cb) {
+		var query = function(q, args) {
+			self.queryCount++;
+			
+			var rollback = function() {
+				if (!readonly)
+					conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+			};
+			
+			var deferred = Q.defer();
 			conn.query(q, args, function(err, res) {
 				if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
+					self.deadlockCount++;
+					rollback();
+					
 					release();
 					
-					return restart();
+					return Q(restart()).then(deferred.resolve.bind(deferred));
 				}
 				
 				var exception = null;
 				
 				if (!err) {
 					try {
-						cb(res);
+						deferred.resolve(res);
 					} catch (e) {
 						exception = e;
 					}
 				}
 				
 				if (err || exception) {
-					if (!readonly)
-						conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+					rollback();
 					
 					// make sure that the error event is emitted -> release() will be called in next tick
-					process.nextTick(release);
+					Q().then(release);
+					
+					deferred.reject(err || exception);
 					
 					if (err) {
 						// query-related error
@@ -212,15 +234,16 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					}
 				}
 				
-				if (err || exception || autorelease) {
+				if (autorelease)
 					release();
-				}
 			});
+			
+			return deferred.promise;
 		};
 		
-		cb({
+		return {
 			query: query, release: release
-		});
+		};
 	});
 });
 
@@ -238,25 +261,25 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
  * @function busreq~dbGetConection
  */
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
-	['readonly', 'restart', 'reply'], function(readonly, restart, conncb) 
+	['readonly', 'restart'], function(readonly, restart) 
 {
 	var self = this;
 	
 	assert.ok(readonly === true || readonly === false);
 	
-	self._getConnection(false, restart, readonly, function(cn) {
-		conncb({
-			query: function(q, data, cb) {
+	return self._getConnection(false, restart, readonly).then(function(cn) {
+		return {
+			query: function(q, data) {
 				data = data || [];
 				
 				// emitting self has the sole purpose of it showing up in the bus log
 				self.emitImmediate('dbBoundQueryLog', [q, data]);
-				cn.query(q, data, cb);
+				return cn.query(q, data);
 			},
 			release: function() {
-				cn.release();
+				return cn.release();
 			}
-		});
+		};
 	});
 });
 

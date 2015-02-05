@@ -4,12 +4,14 @@ var _ = require('lodash');
 var os = require('os');
 var util = require('util');
 var assert = require('assert');
+var Q = require('q');
 var http = require('http');
 var https = require('https');
 var url = require('url');
 var sio = require('socket.io');
 var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
 var buscomponent = require('./stbuscomponent.js');
+var qctx = require('./qctx.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 
 /**
@@ -57,31 +59,44 @@ util.inherits(SoTradeServer, buscomponent.BusComponent);
 /**
  * Return general and statistical information on this server instance
  * 
+ * @param {boolean} qctxDebug  Whether to include debugging information on the local QContexts
+ * 
  * @return {object} Returns with most information on a {module:server~SoTradeServer} object
  * @function busreq~internalServerStatistics
  */
 SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('internalServerStatistics',
-	['reply'], function(cb)
+	['qctxDebug'], function(qctxDebug)
 {
-	var self = this;
+	if (typeof gc == 'function')
+		gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
 	
-	self.request({name: 'get-readability-mode'}, function(reply) {
-		cb({
-			readonly: reply.readonly,
-			pid: process.pid,
-			hostname: os.hostname(),
-			isBackgroundWorker: process.isBackgroundWorker,
-			creationTime: self.creationTime,
-			clients: _.map(self.clients, function(x) { return x.stats(); }),
-			bus: self.bus.stats(),
-			msgCount: self.msgCount,
-			msgLZMACount: self.msgLZMACount,
-			connectionCount: self.connectionCount,
-			deadQueryCount: self.deadQueryCount,
-			deadQueryLZMACount: self.deadQueryLZMACount,
-			deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
-			now: Date.now()
-		});
+	var self = this;
+	var ret = {
+		pid: process.pid,
+		hostname: os.hostname(),
+		isBackgroundWorker: process.isBackgroundWorker,
+		creationTime: self.creationTime,
+		clients: _.map(self.clients, function(x) { return x.stats(); }),
+		bus: self.bus.stats(),
+		msgCount: self.msgCount,
+		msgLZMACount: self.msgLZMACount,
+		connectionCount: self.connectionCount,
+		deadQueryCount: self.deadQueryCount,
+		deadQueryLZMACount: self.deadQueryLZMACount,
+		deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
+		now: Date.now(),
+		qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
+	};
+	
+	return Q.all([
+		self.request({name: 'get-readability-mode'}).then(function(reply) {
+			ret.readonly = reply.readonly;
+		}),
+		self.request({name: 'dbUsageStatistics'}).then(function(dbstats) {
+			ret.dbstats = dbstats;
+		})
+	]).then(function() {
+		return ret;
 	});
 });
 
@@ -93,20 +108,22 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
  * @function module:server~SoTradeServer#start
  */
 SoTradeServer.prototype.start = function(port) {
-	this.getServerConfig(function(cfg) {
-		if (cfg.http.secure)
-			this.httpServer = https.createServer(cfg.http);
+	var self = this;
+	
+	return self.getServerConfig().then(function(cfg) {
+		if (cfg.protocol == 'https')
+			self.httpServer = https.createServer(cfg.http);
 		else
-			this.httpServer = http.createServer();
+			self.httpServer = http.createServer();
 		
-		this.httpServer.on('request', _.bind(this.handleHTTPRequest, this));
-		this.httpServer.listen(port, cfg.wshost);
+		self.httpServer.on('request', _.bind(self.handleHTTPRequest, self));
+		self.httpServer.listen(port, cfg.wshost);
 		
-		this.io = sio.listen(this.httpServer, _.bind(cfg.configureSocketIO, this)(sio, cfg));
+		self.io = sio.listen(self.httpServer, _.bind(cfg.configureSocketIO, self)(sio, cfg));
 		
-		this.io.adapter(busAdapter(this.bus));
+		self.io.adapter(busAdapter(self.bus));
 		
-		this.io.sockets.on('connection', _.bind(this.handleConnection, this));
+		self.io.sockets.on('connection', _.bind(self.handleConnection, self));
 	});
 };
 
@@ -125,7 +142,7 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
 	}
 	
 	if (loc.pathname.match(/^(\/dynamic)?\/?statistics/)) {
-		this.request({name: 'gatherPublicStatistics'}, function(result) {
+		return this.request({name: 'gatherPublicStatistics'}).then(function(result) {
 			res.writeHead(200, {
 				'Content-Type': 'application/json',
 				'Access-Control-Allow-Origin': '*', 'Cache-Control': 
@@ -133,15 +150,13 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
 			});
 			res.end(JSON.stringify(result));
 		});
-
-		return;
 	}
 	
 	this.request({name: 'handleFSDBRequest', 
 		request: req,
 		result: res,
 		requestURL: loc
-	}, function(isBeingHandled) {
+	}).then(function(isBeingHandled) {
 		if (!isBeingHandled) {
 			res.writeHead(404, {'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*'});
 			res.end('Hi (not really found)!');
@@ -173,7 +188,7 @@ SoTradeServer.prototype.handleConnection = function(socket) {
  * 
  * @function busreq~deleteConnectionData
  */
-SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id', 'reply'], function(id, cb) {
+SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id'], function(id) {
 	var removeClient = _.find(this.clients, function(client) { return client.cdid == id; });
 	
 	if (removeClient) {
@@ -182,8 +197,6 @@ SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectio
 		this.deadQueryLZMACount     += removeClient.queryLZMACount;
 		this.deadQueryLZMAUsedCount += removeClient.queryLZMAUsedCount;
 	}
-	
-	cb();
 	
 	if (this.isShuttingDown)
 		this.shutdown();

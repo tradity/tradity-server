@@ -204,7 +204,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 					'JOIN schoolmembers AS sm ON sm.uid = oh.userid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
 					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id]);
 			}).then(function(popular) {
-				s.popular = popular;
+				s.popularStocks = popular;
 				
 				if (!ctx.access.has('wordpress'))
 					return [];
@@ -261,8 +261,12 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
  * @property {module:schools~schoolinfo[]} subschools  A list of subschools of this school
  *                                                     (in short notation, i.e. no event/comment information etc.).
  * @property {string} parentPath  The parent path of this school, or '/' if this school is top-level.
+<<<<<<< HEAD
  * @property {object[]} popular  See {@link c2s~list-popular-stocks}.
  * @property {object[]} feedblogs  See {@link c2s~list-wordpress-feeds}.
+=======
+ * @property {object[]} popularStocks  See {@link c2s~list-popular-stocks}.
+>>>>>>> master
  */
 
 /**

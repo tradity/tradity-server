@@ -293,12 +293,12 @@ QContext.prototype.feed = function(data) {
  * @return  A Q promise corresponding to successful completion
  * @function module:qctx~QContext#query
  */
-QContext.prototype.query = function(query, args) {
+QContext.prototype.query = function(query, args, readonly) {
 	var self = this;
 	self.debug('Executing query [unbound]', query, args);
 	self.incompleteQueryCount++;
 	
-	return self.request({name: 'dbQuery', query: query, args: args}).then(function(data) {
+	return self.request({name: 'dbQuery', query: query, args: args, readonly: readonly}).then(function(data) {
 		self.incompleteQueryCount--;
 		self.queryCount++;
 		

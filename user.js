@@ -150,32 +150,21 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	var name = String(query.name);
 	var pw = String(query.pw);
-	var conn;
 	
-	/* use an own connection to the server with write access
+	/* use a write connection to the server with write access
 	 * (otherwise we might end up with slightly outdated data) */
-	return ctx.startTransaction().then(function(conn_) {
-		conn = conn_;
-		
-		return conn.query('SELECT id, pwsalt, pwhash '+
-			'FROM users ' +
-			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
-			'ORDER BY id DESC', [name, name]);
-	}).then(function(res) {
-		if (res.length == 0) {
-			return conn.rollback().then(function() {
-				return { code: 'login-badname' };
-			});
-		}
+	return ctx.query('SELECT id, pwsalt, pwhash '+
+		'FROM users ' +
+		'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
+		'ORDER BY id DESC', [name, name], ctx.getProperty('readonly')).then(function(res) {
+		if (res.length == 0)
+			return { code: 'login-badname' };
 		
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;
-		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
-			return conn.rollback().then(function() {
-				return { code: 'login-wrongpw' };
-			});
-		}
+		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword)
+			return { code: 'login-wrongpw' };
 		
 		var key;
 		return Q.nfcall(crypto.randomBytes, 16).then(function(buf) {
@@ -200,17 +189,13 @@ User.prototype.login = buscomponent.provide('client-login',
 						uid: uid,
 						extra: 'repush' };
 					
-					return conn.commit();
-				}).then(function() {
 					return ret;
 				});
 			} else {
 				return self.regularCallback({}, ctx).then(function() {
-					return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
+					return ctx.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 						'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
 						[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime]);
-				}).then(function() {
-					return conn.commit();
 				}).then(function() {
 					return { code: 'login-success', key: key, uid: uid, extra: 'repush' };
 				});

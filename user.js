@@ -192,10 +192,19 @@ User.prototype.login = buscomponent.provide('client-login',
 					return ret;
 				});
 			} else {
+				var conn;
 				return self.regularCallback({}, ctx).then(function() {
-					return ctx.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
+					// use transaction with lock to make sure all server nodes have the same data
+					
+					return ctx.startTransaction({ sessions: 'w' });
+				}).then(function(conn_) {
+					conn = conn_;
+					
+					return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 						'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
 						[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime]);
+				}).then(function() {
+					return conn.commit();
 				}).then(function() {
 					return { code: 'login-success', key: key, uid: uid, extra: 'repush' };
 				});

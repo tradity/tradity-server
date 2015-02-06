@@ -20,6 +20,10 @@ database=$(node config db database)
 MYSQL_CONFIG
 )
 
+echo "Generating keys..." >&2
+openssl genrsa 2048 > res/test-id_rsa
+openssl rsa -in res/test-id_rsa -pubout > res/test-id_rsa.pub
+
 echo "Starting server (error output at $SOTRADE_ERROR_LOG_FILE)..." >&2
 touch "$SOTRADE_ERROR_LOG_FILE"
 

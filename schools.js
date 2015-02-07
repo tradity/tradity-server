@@ -174,9 +174,9 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 			return ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%']).then(function(subschools) {
 				s.subschools = subschools;
 				return ctx.query('SELECT COUNT(uid) AS usercount ' +
-					'FROM schoolmembers AS sm '+
-					'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
-					'LEFT JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
+					'FROM schools AS p '+
+					'LEFT JOIN schools AS c ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
+					'LEFT JOIN schoolmembers AS sm ON sm.schoolid = c.id AND NOT pending ' +
 					'WHERE p.id = ?', [s.id]);
 			}).then(function(usercount) {
 				s.usercount = usercount[0].usercount;
@@ -519,28 +519,29 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
  * @function c2s~list-schools
  */
 Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx) {
-	query.parentPath = String(query.parentPath).toLowerCase();
+	query.parentPath = String(query.parentPath || '').toLowerCase();
 	
 	var where = 'WHERE 1 ';
 	var params = [];
 	if (query.parentPath) {
-		where = 'AND path LIKE ? OR path = ? ';
+		where = 'AND p.path LIKE ? OR p.path = ? ';
 		params.push(query.parentPath + '/%', query.parentPath);
 	}
 	
 	if (query.search) {
 		var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
 		
-		where += 'AND (schools.name LIKE ? OR path LIKE ?) ';
+		where += 'AND (p.name LIKE ? OR p.path LIKE ?) ';
 		params.push(likestring, likestring);
 	}
 	
-	return ctx.query('SELECT schools.id, schools.name, COUNT(sm.uid) AS usercount, schools.path, url AS banner ' +
-		'FROM schools ' +
-		'LEFT JOIN httpresources ON httpresources.groupassoc = schools.id AND httpresources.role = "schools.banner" ' +
-		'LEFT JOIN schoolmembers AS sm ON sm.schoolid=schools.id AND NOT pending ' +
+	return ctx.query('SELECT p.id, p.name, COUNT(sm.uid) AS usercount, p.path, url AS banner ' +
+		'FROM schools AS p '+
+		'LEFT JOIN schools AS c ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
+		'LEFT JOIN schoolmembers AS sm ON sm.schoolid = c.id AND NOT pending ' +
+		'LEFT JOIN httpresources ON httpresources.groupassoc = p.id AND httpresources.role = "schools.banner" ' +
 		where +
-		'GROUP BY schools.id', params).then(function(results) {
+		'GROUP BY p.id', params).then(function(results) {
 		return { code: 'list-schools-success', 'result': results };
 	});
 });

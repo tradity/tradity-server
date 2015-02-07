@@ -905,8 +905,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
 			query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
 			return { code: 'invalid-provision' };
-			
-		query.lang = String(query.lang);
+		
+		query.lang = String(query.lang || cfg.languages[0].id);
 		if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() != -1)
 			return cb('reg-invalid-language');
 		

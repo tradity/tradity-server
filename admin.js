@@ -87,7 +87,7 @@ function _reqpriv (required, f) {
  * @function c2s~list-all-users
  */
 Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _reqpriv('userdb', function(query, ctx) {
-	return ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, ' + 
+	return ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, ' +
 		'users.id AS uid, tradecount, email, email_verif AS emailverif, ' +
 		'wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, registertime, lang, ' +
 		'schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +

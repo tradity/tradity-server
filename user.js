@@ -35,7 +35,7 @@ util.inherits(User, buscomponent.BusComponent);
  * 
  * @param {string} pw  The password string to generate a salt+hash for.
  * 
- * @return  A Q promise for an object of the form { salt: …, hash: … }
+ * @return {object}  A Q promise for an object of the form { salt: …, hash: … }
  * @function module:user~User#generatePWKey
  */
 User.prototype.generatePWKey = function(pw) {
@@ -446,7 +446,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
  */
 
 /**
- * Return all available information on a single user.
+ * Return aAll available information on a single user.
  * 
  * @param {string|int} query.lookfor  The user id or name for which data should be returned.
  *                                    As a special value, '$self' can be used to inspect own data.
@@ -906,6 +906,10 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
 			return { code: 'invalid-provision' };
 		
+		query.lang = String(query.lang || cfg.languages[0].id);
+		if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() == -1)
+			return { code: 'reg-invalid-language' };
+		
 		if (!query.school) // e. g., empty string
 			query.school = null;
 		
@@ -1023,11 +1027,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 								query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]).then(function() {
 							return conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
 								'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-								'clientopt = ?, dla_optin = ?, schoolclass = ? WHERE id = ?',
+								'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE id = ?',
 								[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 								query.birthday, String(query.desc), String(query.street),
 								String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-								query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''), uid]);
+								query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
+								String(query.lang), uid]);
 							}).then(function() {
 							return conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
 								[query.wprovision, query.lprovision, uid]);
@@ -1097,13 +1102,14 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 									String(query.email), (inv.email && inv.email == query.email) ? 1 : 0]);
 							}).then(function(res) {
 								uid = res.insertId;
+								
 								return conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
-									'street, zipcode, town, schoolclass) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
+									'street, zipcode, town, schoolclass, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
 									'INSERT INTO users_finance(id, wprovision, lprovision, freemoney, totalvalue) '+
 									'VALUES (?, ?, ?, ?, ?)',
 									[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 									query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
-									String(query.schoolclass || ''),
+									String(query.schoolclass || ''), String(query.lang),
 									uid, cfg.defaultWProvision, cfg.defaultLProvision,
 									cfg.defaultStartingMoney, cfg.defaultStartingMoney]);
 							}).then(function() {

@@ -81,7 +81,7 @@ function _reqschooladm (f, soft, scdb, status) {
  * @param {?Array} status   A list of acceptable user status to be considered “admin”-Like.
  * @param {int} schoolid    The id of the schools whose admin tables are to be checked.
  *
- * @return  Returns a Q promise returning <code>{ ok: true, schoolid: … }</code> when successful,
+ * @return {object}  Returns a Q promise returning <code>{ ok: true, schoolid: … }</code> when successful,
  *                          otherwise with <code>{ ok: false, schoolid: null }</code>.
  * 
  * @function module:schools~Schools#isSchoolAdmin
@@ -120,7 +120,7 @@ Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 
  * 
  * @param {int} schoolid  The numerical id for the school.
  * @param {module:qctx~QContext} ctx  A QContext to provide database access
- * @return  A Q promise for a complete list of school admins and associated metadata.
+ * @return {object}  A Q promise for a complete list of school admins and associated metadata.
  * 
  * @function module:schools~Schools#loadSchoolAdmins
  */
@@ -140,7 +140,7 @@ Schools.prototype.loadSchoolAdmins = function(schoolid, ctx) {
  * @param {module:qctx~QContext} ctx  A context to provide database access.
  * @param {object} cfg  The server base config.
  * 
- * @return A Q promise for a { code: …, schoolinfo: … / null } object
+ * @return {object} A Q promise for a { code: …, schoolinfo: … / null } object
  * 
  * @function module:schools~Schools#loadSchoolInfo
  */

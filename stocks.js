@@ -139,7 +139,7 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return  A Q promise indicating task completion
+ * @return {object}  A Q promise indicating task completion
  * @function module:stocks~Stocks#updateRankingInformation
  */
 Stocks.prototype.updateRankingInformation = function(ctx) {
@@ -158,7 +158,7 @@ Stocks.prototype.updateRankingInformation = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return  A Q promise indicating task completion
+ * @return {object}  A Q promise indicating task completion
  * @function module:stocks~Stocks#updateValueHistory
  */
 Stocks.prototype.updateValueHistory = function(ctx) {
@@ -178,7 +178,7 @@ Stocks.prototype.updateValueHistory = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return  A Q promise indicating task completion
+ * @return {object}  A Q promise indicating task completion
  * @function module:stocks~Stocks#dailyCallback
  */
 Stocks.prototype.dailyCallback = function(ctx) {
@@ -191,7 +191,7 @@ Stocks.prototype.dailyCallback = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return  A Q promise indicating task completion
+ * @return {object}  A Q promise indicating task completion
  * @function module:stocks~Stocks#weeklyCallback
  */
 Stocks.prototype.weeklyCallback = function(ctx) {
@@ -205,7 +205,7 @@ Stocks.prototype.weeklyCallback = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  *
- * @return  A Q promise indicating task completion
+ * @return {object}  A Q promise indicating task completion
  * @function module:stocks~Stocks#cleanUpUnusedStocks
  */
 Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
@@ -225,7 +225,7 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return  A Q promise indicating task completion 
+ * @return {object}  A Q promise indicating task completion 
  * @function module:stocks~Stocks#updateStockValues
  */
 Stocks.prototype.updateStockValues = function(ctx) {

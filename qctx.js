@@ -274,7 +274,7 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * Shorthand method for pushing feed entries.
  * See {@link busreq~feed}.
  * 
- * @return  A Q promise corresponding to successful completion
+ * @return {object}  A Q promise corresponding to successful completion
  * @function module:qctx~QContext#feed
  */
 QContext.prototype.feed = function(data) {
@@ -290,7 +290,7 @@ QContext.prototype.feed = function(data) {
  * Shorthand method for executing database queries.
  * See {@link busreq~dbQuery}.
  * 
- * @return  A Q promise corresponding to successful completion
+ * @return {object}  A Q promise corresponding to successful completion
  * @function module:qctx~QContext#query
  */
 QContext.prototype.query = function(query, args, readonly) {
@@ -314,7 +314,7 @@ QContext.prototype.query = function(query, args, readonly) {
  * @param {function} restart  Callback that will be invoked when the current transaction
  *                            needs restarting.
  * 
- * @return  A Q promise corresponding to successful completion
+ * @return {object}  A Q promise corresponding to successful completion
  *          (with an Object with `conn`, `commit` and `rollback` entries)
  * @function module:qctx~QContext#getConnection
  */
@@ -383,7 +383,7 @@ QContext.prototype.getConnection = function(readonly, restart) {
  *                                           <code>true</code> to just rollback and call the
  *                                           startTransaction callback again.
  * 
- * @return  A Q promise corresponding to successful completion, including
+ * @return {object}  A Q promise corresponding to successful completion, including
  *          .commit() and .rollback() shortcuts (both releasing the connection).
  * @function module:qctx~QContext#startTransaction
  */

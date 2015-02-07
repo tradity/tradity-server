@@ -35,7 +35,7 @@ util.inherits(User, buscomponent.BusComponent);
  * 
  * @param {string} pw  The password string to generate a salt+hash for.
  * 
- * @return  A Q promise for an object of the form { salt: …, hash: … }
+ * @return {object}  A Q promise for an object of the form { salt: …, hash: … }
  * @function module:user~User#generatePWKey
  */
 User.prototype.generatePWKey = function(pw) {
@@ -446,7 +446,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
  */
 
 /**
- * Return all available information on a single user.
+ * Return aAll available information on a single user.
  * 
  * @param {string|int} query.lookfor  The user id or name for which data should be returned.
  *                                    As a special value, '$self' can be used to inspect own data.

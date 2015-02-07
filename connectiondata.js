@@ -595,7 +595,7 @@ ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'glo
  * 
  * @param {object} obj  Any kind of object to be sent.
  * 
- * @return  A Q promise for the encoded object.
+ * @return {object}  A Q promise for the encoded object.
  * 
  * @function module:connectiondata~ConnectionData#wrapForReply
  */

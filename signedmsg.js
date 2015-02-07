@@ -50,8 +50,10 @@ SignedMessaging.prototype.onBusConnect = function() {
  */
 SignedMessaging.prototype.useConfig = function(cfg) {
 	this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
-	this.publicKeys = fs.readFileSync(cfg.publicKeys, {encoding: 'utf-8'})
+	this.publicKeys = cfg.publicKeys.map(function(pkfile) {
+		return fs.readFileSync(pkfile, {encoding: 'utf-8'})
 		.replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
+	}).reduce(function(a, b) { return a.concat(b); });
 	this.algorithm = cfg.signatureAlgorithm || this.algorithm;
 };
 

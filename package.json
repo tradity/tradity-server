@@ -10,7 +10,8 @@
 		"email": "developers@tradity.de"
 	},
 	"devDependencies": {
-		"mocha": "*"
+		"mocha": "*",
+		"nodemailer-sendmail-transport": "~1.0.0"
 	},
 	"dependencies": {
 		"csv": "~0.4.1",

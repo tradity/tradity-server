@@ -907,8 +907,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			return { code: 'invalid-provision' };
 		
 		query.lang = String(query.lang || cfg.languages[0].id);
-		if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() != -1)
-			return cb('reg-invalid-language');
+		if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() == -1)
+			return { code: 'reg-invalid-language' };
 		
 		if (!query.school) // e. g., empty string
 			query.school = null;

@@ -2,6 +2,7 @@
 
 var commonAPI = require('tradity-connection');
 var sio = require('socket.io-client');
+var fs = require('fs');
 var _ = require('lodash');
 
 function NodeSoTradeConnection (opt) {
@@ -46,6 +47,14 @@ function NodeSoTradeConnection (opt) {
 	if (typeof opt.logDevCheck == 'undefined')
 		opt.logDevCheck = true;
 	
+	var ownVersion = 'SOTS0';
+	try {
+		ownVersion = require('./buildstamp.js');
+	} catch(e) {
+		console.warn(e);
+	}
+	
+	opt.clientSoftwareVersion = opt.clientSoftwareVersion || ownVersion;
 	return new commonAPI.SoTradeConnection(opt);
 };
 

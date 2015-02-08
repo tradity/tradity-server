@@ -5,3 +5,4 @@ errors.log
 errors-*.log
 out
 doc
+buildstamp.js

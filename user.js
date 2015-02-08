@@ -494,19 +494,27 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			'week_va.totalvalue AS weekstarttotalvalue',
 			'day_va.totalvalue  AS daystarttotalvalue'
 		]).join(', ');
-			
+		
+		var lookfor, lookforColumn;
+		if (parseInt(query.lookfor) == query.lookfor) {
+			lookfor = parseInt(query.lookfor);
+			lookforColumn = 'id';
+		} else {
+			lookfor = String(query.lookfor);
+			lookforColumn = 'name';
+		}
+		
 		return ctx.query('SELECT ' + columns + ' FROM users AS u ' +
 			'JOIN users_finance AS uf ON u.id = uf.id ' +
 			'JOIN users_data AS ud ON u.id = ud.id ' +
 			'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
 			'LEFT JOIN valuehistory AS day_va  ON day_va.userid  = u.id AND day_va.time  = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
-			'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid '+
-			'LEFT JOIN stocks ON u.id = stocks.leader '+
-			'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" '+
-			'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" '+
-			'WHERE u.id = ? OR u.name = ?', 
-			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000,
-				parseInt(query.lookfor) == query.lookfor ? query.lookfor : -1, String(query.lookfor)]);
+			'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid ' +
+			'LEFT JOIN stocks ON u.id = stocks.leader ' +
+			'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
+			'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" ' +
+			'WHERE u.' + lookforColumn + ' = ?',
+			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]);
 	}).then(function(users) {
 		if (users.length == 0)
 			return { code: 'get-user-info-notfound' };

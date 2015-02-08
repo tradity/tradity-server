@@ -491,16 +491,18 @@ ConnectionData.prototype.queryHandler = function(query) {
 					// fall-through
 				}
 				
-				return self.request({
-					name: 'client-' + query.type,
-					query: query,
-					ctx: self.ctx.clone(),
-					xdata: self.pickXDataFields()
+				return Q().then(function() {
+					return self.request({
+						name: 'client-' + query.type,
+						query: query,
+						ctx: self.ctx.clone(),
+						xdata: self.pickXDataFields()
+					});
 				}).catch(function(e) {
 					if (e.nonexistentType) {
 						return { code: 'unknown-query-type' };
 					} else {
-						return { code: 'server-fail' };
+						return { code: 'internal-server-error' };
 						self.emitError(e);
 					}
 				});

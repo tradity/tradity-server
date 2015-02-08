@@ -869,7 +869,10 @@ Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transact
  * @function c2s~get-trade-info
  */
 Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx) {
-	return this.getServerConfig().then(function(cfg) {
+	var cfg;
+	return this.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
+		
 		return ctx.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh '+
 			'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
 			'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid '+

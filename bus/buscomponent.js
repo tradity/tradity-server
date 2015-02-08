@@ -74,14 +74,10 @@ BusComponent.prototype[requestType] = function(req, onReply) {
 		onReply = this.callbackFilters[i](onReply);
 	
 	this.unansweredBusRequests++;
-	this.bus[requestType](this.imprint(req), _.bind(function() {
+	this.bus[requestType](this.imprint(req), _.bind(function(returnValue) {
 		this.unansweredBusRequests--;
 		if (this.wantsUnplug)
 			this.unplugBus();
-		
-		var returnValue = Array.prototype.slice.apply(arguments); 
-		if (requestType == 'request' || requestType == 'requestNearest')
-			returnValue = returnValue[0];
 		
 		return onReply(returnValue);
 	}, this));

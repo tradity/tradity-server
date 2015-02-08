@@ -67,6 +67,7 @@ function ConnectionData(socket) {
 	this.ctx.addProperty({name: 'lastSessionUpdate', value: null});
 	this.ctx.addProperty({name: 'pendingTicks', value: 0});
 	this.ctx.addProperty({name: 'remoteProtocolVersion', value: null});
+	this.ctx.addProperty({name: 'remoteClientSoftware', value: null});
 	this.ctx.addProperty({name: 'lzmaSupport', value: false});
 	this.ctx.addProperty({name: 'isBusTransport', value: false});
 	this.ctx.debugHandlers.push(_.bind(this.dbgHandler, this));
@@ -344,6 +345,7 @@ ConnectionData.prototype.onLogout = function() {
  *                                      See {@link module:signedmsg}.
  * @param {boolean} query.lzma  If true, the response may be encoded using LZMA compression.
  * @param {int} query.pv  The current remote protocol version.
+ * @param {string} query.cs  A version string describing the client software.
  * @param {string} query.type  A string describing what kind of requests is to be handled.
  *                             The various kinds of types are documented in the
  *                             {@link c2s} namespace.
@@ -389,6 +391,9 @@ ConnectionData.prototype.queryHandler = function(query) {
 		self.ctx.setProperty('remoteProtocolVersion', 
 			(query.pv ? parseInt(query.pv) ||
 			self.ctx.getProperty('remoteProtocolVersion') : 1));
+		self.ctx.setProperty('remoteClientSoftware', 
+			(query.cs ? String(query.cs) ||
+			self.ctx.getProperty('remoteClientSoftware') : 'NULL0'));
 		
 		var hadUser = self.ctx.user ? true : false;
 		
@@ -486,16 +491,18 @@ ConnectionData.prototype.queryHandler = function(query) {
 					// fall-through
 				}
 				
-				return self.request({
-					name: 'client-' + query.type,
-					query: query,
-					ctx: self.ctx.clone(),
-					xdata: self.pickXDataFields()
+				return Q().then(function() {
+					return self.request({
+						name: 'client-' + query.type,
+						query: query,
+						ctx: self.ctx.clone(),
+						xdata: self.pickXDataFields()
+					});
 				}).catch(function(e) {
 					if (e.nonexistentType) {
 						return { code: 'unknown-query-type' };
 					} else {
-						return { code: 'server-fail' };
+						return { code: 'internal-server-error' };
 						self.emitError(e);
 					}
 				});
@@ -616,6 +623,7 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 	if (!self.socket) {
 		self.ctx.setProperty('lzmaSupport', false);
 		self.ctx.setProperty('remoteProtocolVersion', null);
+		self.ctx.setProperty('remoteClientSoftware', null);
 	}
 	
 	return (s.length > 20480 && self.ctx.getProperty('lzmaSupport') ? function(cont) {

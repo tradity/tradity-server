@@ -324,8 +324,8 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  * 
  * @param {?int} [query.since=0]  The ranking starting time as a unix timestamp.
  * @param {?int} [query.upto=now]  The ranking end time as a unix timestamp.
- * @param {?string} [query.search]  A string to use for filtering by user names and,
- *                                  if permitted by the them, their real names.
+ * @param {?string} [query.search]  A string to use for filtering by user names and
+ *                                  their real names (if permitted by them).
  * @param {?int|string} [query.schoolid]  When given, only return users in the group specified
  *                                        by this id or path.
  * @param {?boolean} [query.includeAll=false]  Whether users should be included that are not
@@ -400,7 +400,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere,
-			[query.since, query.upto].concat(likestringUnit))
+			[query.since, query.upto].concat(likestringUnit));
 	}).then(function(ranking) {
 		return { code: 'get-ranking-success', 'result': ranking };
 	});

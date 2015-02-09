@@ -458,10 +458,10 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 	if (!query.schoolname)
 		return { code: 'format-error' };
 	
-	query.schoolname = String(query.schoolname || '').toLowerCase();
+	query.schoolname = String(query.schoolname || '');
 	
 	if (!query.schoolpath)
-		query.schoolpath = '/' + query.schoolname.replace(/[^\w_-]/g, '');
+		query.schoolpath = '/' + query.schoolname.toLowerCase().replace(/[^\w_-]/g, '');
 	
 	var conn;
 	return ctx.startTransaction().then(function(conn_) {

@@ -366,6 +366,9 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
 		}).then(function() {
 			return ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)]);
 		}).then(function() {
+			return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ?',
+				[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%']);
+		}).then(function() {
 			return { code: 'join-schools-success' };
 		});
 	});

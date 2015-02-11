@@ -158,7 +158,7 @@ User.prototype.login = buscomponent.provide('client-login',
 		var query = 'SELECT id, pwsalt, pwhash '+
 			'FROM users ' +
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
-			'ORDER BY id DESC';
+			'ORDER BY email_verif DESC, id DESC';
 
 		if (ctx.getProperty('readonly'))
 			return ctx.query(query, [name, name])

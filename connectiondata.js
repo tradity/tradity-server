@@ -61,7 +61,7 @@ function ConnectionData(socket) {
 	this.lastInfoPush = 0;
 	this.currentInfoPush = null;
 	this.currentFetchingEvents = null;
-	this.mostRecentEventTime = 0;
+	this.mostRecentEventTime = null;
 	this.socket = socket;
 	this.isShuttingDown = false;
 	this.unansweredCount = 0;
@@ -305,7 +305,10 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
 		if (self.socket === null)
 			return;
 		
-		deferred.resolve(self.fetchEvents({since: self.mostRecentEventTime, count: null}));
+		deferred.resolve(self.fetchEvents({
+			since: self.mostRecentEventTime === null ? Date.now() / 1000 : self.mostRecentEventTime,
+			count: null
+		}));
 	}, 1000);
 	
 	return deferred.promise;

@@ -36,6 +36,7 @@ describe('fsdb', function() {
 			}).then(function() {
 				return socket.emit('get-user-info', {
 					lookfor: '$self',
+					noCache: true, __sign__: true,
 					nohistory: true
 				});
 			}).then(function(res) {

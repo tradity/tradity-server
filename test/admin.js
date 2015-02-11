@@ -57,7 +57,10 @@ describe('admin', function() {
 			}).then(function(result) {
 				assert.equal(result.code, 'impersonate-user-success');
 				
-				return socket.emit('get-user-info', { lookfor: '$self' });
+				return socket.emit('get-user-info', {
+					lookfor: '$self',
+					noCache: true, __sign__: true
+				});
 			}).then(function(userInfo) {
 				assert.equal(userInfo.code, 'get-user-info-success');
 				
@@ -85,7 +88,8 @@ describe('admin', function() {
 			var newCommentText = '<a>New comment</a>';
 			
 			return socket.emit('get-user-info', {
-				lookfor: '$self'
+				lookfor: '$self',
+				noCache: true, __sign__: true
 			}).then(function(userInfo) {
 				assert.equal(userInfo.code, 'get-user-info-success');
 				assert.ok(userInfo.result.registerevent);
@@ -98,7 +102,8 @@ describe('admin', function() {
 				assert.equal(result.code, 'comment-success');
 				
 				return socket.emit('get-user-info', {
-					lookfor: '$self'
+					lookfor: '$self',
+					noCache: true, __sign__: true
 				});
 			}).then(function(userInfo) {
 				assert.equal(userInfo.code, 'get-user-info-success');
@@ -116,7 +121,8 @@ describe('admin', function() {
 				assert.equal(result.code, 'change-comment-text-success');
 				
 				return socket.emit('get-user-info', {
-					lookfor: '$self'
+					lookfor: '$self',
+					noCache: true, __sign__: true
 				});
 			}).then(function(userInfo) {
 				assert.equal(userInfo.code, 'get-user-info-success');

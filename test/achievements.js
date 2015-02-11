@@ -72,7 +72,8 @@ describe('achievements', function() {
 				assert.equal(result.code, 'achievement-success');
 				
 				return socket.emit('get-user-info', {
-					lookfor: '$self'
+					lookfor: '$self',
+					noCache: true, __sign__: true
 				});
 			}).then(function(userInfo) {
 				assert.equal(userInfo.code, 'get-user-info-success');
@@ -116,7 +117,8 @@ describe('achievements', function() {
 						assert.equal(result.code, 'dl-achievement-success');
 						
 						return socket.emit('get-user-info', {
-							lookfor: '$self'
+							lookfor: '$self',
+							noCache: true, __sign__: true
 						});
 					}).then(function(userInfo) {
 						assert.equal(userInfo.code, 'get-user-info-success');

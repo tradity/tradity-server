@@ -11,6 +11,51 @@ var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 require('datejs');
 
+// ad-hoc cache class
+function Cache() {
+	this.entries = {};
+}
+
+Cache.prototype.has = function(key) {
+	return this.entries[key] != null;
+};
+
+Cache.prototype.use = function(key) {
+	var entry = this.entries[key];
+	entry.lastUsed = Date.now();
+	entry.usage++;
+	
+	return entry.promise;
+};
+
+Cache.prototype.add = function(key, validity, promise) {
+	var now = Date.now();
+	
+	this.entries[key] = {
+		created: now,
+		usage: 0,
+		validityDate: now + validity,
+		promise: Q(promise)
+	};
+	
+	this.flush();
+	
+	return this.use(key);
+};
+
+Cache.prototype.flush = function() {
+	var self = this;
+	
+	process.nextTick(function() {
+		var now = Date.now();
+		
+		for (var key in self.entries) {
+			if (now > self.entries[key].validityDate)
+				delete self.entries[key];
+		}
+	});
+};
+
 /**
  * Provides all single-user non-financial client requests.
  * 
@@ -26,6 +71,8 @@ require('datejs');
  */
 function User () {
 	User.super_.apply(this, arguments);
+	
+	this.cache = new Cache();
 }
 
 util.inherits(User, buscomponent.BusComponent);
@@ -340,13 +387,6 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
 User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx) {
 	var self = this;
 	
-	query.since = parseInt(query.since) || 0;
-	query.upto = parseInt(query.upto) || parseInt(Date.now() / 10000) * 10;
-	// upto is rounded so that the SQL query cache will be used more effectively
-	
-	if (parseInt(query.since) != query.since)
-		return { code: 'format-error' };
-	
 	var likestringWhere = '';
 	var likestringUnit = [];
 	
@@ -385,7 +425,20 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 	}).then(function(schoolAdminResult) {
 		var fullData = schoolAdminResult.ok;
 		
-		return ctx.query('SELECT u.id AS uid, u.name AS name, ' +
+		query.since = parseInt(query.since) || 0;
+		query.upto = parseInt(query.upto) || 'now';
+		var now = Date.now();
+		
+		var cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
+		if (self.cache.has(cacheKey))
+			return self.cache.use(cacheKey);
+		
+		if (query.upto == 'now') {
+			// upto is rounded so that the SQL query cache will be used more effectively
+			query.upto = parseInt(now / 20000) * 20;
+		}
+		
+		return self.cache.add(cacheKey, 30000, ctx.query('SELECT u.id AS uid, u.name AS name, ' +
 			'c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
 			'tradecount != 0 as hastraded, ' + 
 			'now_va.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
@@ -400,7 +453,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere,
-			[query.since, query.upto].concat(likestringUnit));
+			[query.since, query.upto].concat(likestringUnit)));
 	}).then(function(ranking) {
 		return { code: 'get-ranking-success', 'result': ranking };
 	});
@@ -467,6 +520,8 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 	var self = this;
 	var cfg;
 	
+	var cacheable = !(ctx.access.has('caching') && query.noCache);
+	
 	return self.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
 	
@@ -504,7 +559,11 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			lookforColumn = 'name';
 		}
 		
-		return ctx.query('SELECT ' + columns + ' FROM users AS u ' +
+		var cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
+		if (self.cache.has(cacheKey) && cacheable)
+			return self.cache.use(cacheKey);
+		
+		return self.cache.add(cacheKey, 60000, ctx.query('SELECT ' + columns + ' FROM users AS u ' +
 			'JOIN users_finance AS uf ON u.id = uf.id ' +
 			'JOIN users_data AS ud ON u.id = ud.id ' +
 			'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
@@ -514,7 +573,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
 			'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" ' +
 			'WHERE u.' + lookforColumn + ' = ?',
-			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]);
+			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
 	}).then(function(users) {
 		if (users.length == 0)
 			return { code: 'get-user-info-notfound' };
@@ -529,15 +588,23 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		delete xuser.pwhash;
 		delete xuser.pwsalt;
 		
-		return ctx.query('SELECT SUM(amount) AS samount, SUM(1) AS sone ' +
-			'FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid]).then(function(followers) {
+		return Q().then(function() {
+			var cacheKey2 = 'get-user-info2:' + xuser.lstockid + ':' + xuser.dschoolid;
+			if (self.cache.has(cacheKey2) && cacheable)
+				return self.cache.use(cacheKey2);
+			
+			return self.cache.add(cacheKey2, 60000, 
+				Q.all([
+					ctx.query('SELECT SUM(amount) AS samount, SUM(1) AS sone ' +
+						'FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid]), 
+					ctx.query('SELECT p.name, p.path, p.id FROM schools AS c ' +
+						'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' + 
+						'WHERE c.id = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid])
+				]));
+		}).spread(function(followers, schools) {
 			xuser.f_amount = followers[0].samount || 0;
 			xuser.f_count = followers[0].sone || 0;
-				
-			return ctx.query('SELECT p.name, p.path, p.id FROM schools AS c ' +
-				'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' + 
-				'WHERE c.id = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid]);
-		}).then(function(schools) {
+			
 			/* do some validation on the schools array.
 			 * this is not necessary; however, it may help catch bugs long 
 			 * before they actually do a lot of harm.
@@ -549,35 +616,48 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			xuser.schools = schools;
 			if (query.nohistory) 
 				return { code: 'get-user-info-success', result: xuser };
+				
+			var viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
 		
-			var orders, achievements, values;
-			return ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
-				'LEFT JOIN users AS l ON oh.leader = l.id ' + 
-				'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
-				'ORDER BY buytime DESC',
-				[xuser.uid, (!ctx.user || (xuser.delayorderhist && xuser.uid != ctx.user.uid && !ctx.access.has('stocks')))
-					? cfg.delayOrderHistTime : 0]).then(function(orders_) {
-				orders = orders_;
-				return ctx.query('SELECT * FROM achievements ' +
-					'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
-					'WHERE userid = ?', [xuser.uid]);
-			}).then(function(achievements_) {
-				achievements = achievements_;
-				return ctx.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid]);
-			}).then(function(values_) {
-				values = values_;
+			var cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
+			
+			var result = {
+				code: 'get-user-info-success', 
+				result: xuser
+			};
+			
+			return Q().then(function() {
+				if (self.cache.has(cacheKey3) && cacheable)
+					return self.cache.use(cacheKey3);
+				
+				return self.cache.add(cacheKey3, 120000, Q.all([
+					// orders
+					ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
+						'LEFT JOIN users AS l ON oh.leader = l.id ' + 
+						'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
+						'ORDER BY buytime DESC',
+						[xuser.uid, viewDOHPermission ? 0 : cfg.delayOrderHistTime]),
+					// achievements
+					ctx.query('SELECT * FROM achievements ' + 
+						'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
+						'WHERE userid = ?', [xuser.uid]),
+					// values
+					ctx.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid]),
+				]));
+			}).spread(function(orders, achievements, values) {
+				result.orders = orders;
+				result.achievements = achievements;
+				result.values = values;
+				
 				return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
 					'FROM ecomments AS c ' + 
 					'LEFT JOIN users AS u ON c.commenter = u.id ' + 
 					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
 					'WHERE c.eventid = ?', [xuser.registerevent]);
 			}).then(function(comments) {
-				return { code: 'get-user-info-success', 
-					result: xuser,
-					orders: orders,
-					achievements: achievements,
-					values: values,
-					pinboard: comments };
+				result.pinboard = comments;
+				
+				return result;
 			});
 		});
 	});

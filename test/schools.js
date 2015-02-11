@@ -232,7 +232,8 @@ describe('schools', function() {
 				assert.equal(res.code, 'school-kick-user-success');
 				
 				return socket.emit('get-user-info', {
-					lookfor: '$self'
+					lookfor: '$self',
+					noCache: true, __sign__: true
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'get-user-info-success');
@@ -248,7 +249,8 @@ describe('schools', function() {
 			}).then(function(res) {
 				assert.equal(res.code, 'reg-success');
 				return socket.emit('get-user-info', {
-					lookfor: '$self'
+					lookfor: '$self',
+					noCache: true, __sign__: true
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'get-user-info-success');

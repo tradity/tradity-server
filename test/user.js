@@ -21,7 +21,8 @@ describe('user', function() {
 		it('Should return no values with .nohistory', function() {
 			return socket.emit('get-user-info', {
 				lookfor: user.name,
-				nohistory: true
+				nohistory: true,
+				noCache: true, __sign__: true
 			}).then(function(res) {
 				assert.equal(res.code, 'get-user-info-success');
 				assert.ok(res.result);
@@ -36,7 +37,8 @@ describe('user', function() {
 				__sign__: true
 			}).then(function() {
 				return socket.emit('get-user-info', {
-					lookfor: user.name
+					lookfor: user.name,
+					noCache: true, __sign__: true
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'get-user-info-success');
@@ -50,10 +52,12 @@ describe('user', function() {
 		it('Should be able to search by name and by ID', function() {
 			return Q.all([socket.emit('get-user-info', {
 				lookfor: user.name,
-				nohistory: true
+				nohistory: true,
+				noCache: true, __sign__: true
 			}), socket.emit('get-user-info', {
 				lookfor: user.uid,
-				nohistory: true
+				nohistory: true,
+				noCache: true, __sign__: true
 			})]).spread(function(byName, byID) {
 				assert.equal(byName.code, 'get-user-info-success');
 				assert.equal(byID.code, 'get-user-info-success');

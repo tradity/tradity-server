@@ -120,7 +120,8 @@ describe('stocks', function() {
 				assert.ok(data.results.length > 0);
 				
 				return socket.emit('get-user-info', {
-					lookfor: '$self'
+					lookfor: '$self',
+					noCache: true, __sign__: true
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'get-user-info-success');

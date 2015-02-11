@@ -59,6 +59,7 @@ function ConnectionData(socket) {
 	this.connectTime = now;
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
+	this.currentInfoPush = null;
 	this.mostRecentEventTime = 0;
 	this.socket = socket;
 	this.isShuttingDown = false;
@@ -245,7 +246,11 @@ ConnectionData.prototype.pushSelfInfo = function() {
 		var curUnixTime = Date.now();
 		if (curUnixTime > self.lastInfoPush + cfg.infopushMinDelta) {
 			self.lastInfoPush = curUnixTime;
-			return self.request({
+			
+			if (self.currentInfoPush)
+				return self.currentInfoPush;
+			
+			return self.currentInfoPush = self.request({
 				name: 'client-get-user-info',
 				query: {
 					lookfor: '$self',
@@ -258,6 +263,8 @@ ConnectionData.prototype.pushSelfInfo = function() {
 				assert.ok(result.result);
 				
 				result.result.type = 'self-info';
+				self.currentInfoPush = null;
+				
 				return self.push(result.result);
 			});
 		}

@@ -170,6 +170,9 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	if (!self.ctx.user)
 		return; // no user – no user events.
 	
+	if (query.since)
+		self.mostRecentEventTime = Math.max(self.mostRecentEventTime, parseInt(query.since));
+	
 	// possibly push info 
 	self.pushSelfInfo();
 	
@@ -464,7 +467,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				 * See {@link module:connectiondata~ConnectionData#fetchEvents}
 				 * for the query structure.
 				 * 
-				 * @return {object} Returns with <code>fetching events</code>.
+				 * @return {object} Returns with <code>fetching-events</code>.
 				 * 
 				 * @function c2s~fetch-events
 				 */

@@ -175,8 +175,14 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 	if (this.queryTypes.indexOf(query.query.type) == -1)
 		return { code: 'unknown-query-type' };
 	
+	var userinfo = _.clone(ctx.user);
+	delete userinfo.pwsalt;
+	delete userinfo.pwhash;
+	delete userinfo.clientopt;
+	delete userinfo.clientstorage;
+	
 	return ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
-		[String(query.condition), qstr, JSON.stringify(ctx.user), ctx.access.toJSON()]).then(function(r) {
+		[String(query.condition), qstr, JSON.stringify(userinfo), ctx.access.toJSON()]).then(function(r) {
 		query.queryid = r.insertId;
 		query.userinfo = ctx.user;
 		query.accessinfo = ctx.access;
@@ -380,10 +386,11 @@ DelayedQueries.prototype.executeQuery = function(query) {
 		name: 'client-' + query.query.type,
 		query: query.query,
 		ctx: ctx
-	}).then(function(code) {
+	}).then(function(result) {
 		var json = query.query.dquerydata || {};
-		json.result = code;
-		if (!query.query.retainUntilCode || query.query.retainUntilCode == code) {
+		json.result = result.code;
+		
+		if (!query.query.retainUntilCode || query.query.retainUntilCode == result.code) {
 			return ctx.feed({
 				'type': 'dquery-exec',
 				'targetid': null,

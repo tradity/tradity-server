@@ -368,9 +368,15 @@ DelayedQueries.prototype.parseCondition = function(str) {
 DelayedQueries.prototype.executeQuery = function(query) {
 	var self = this;
 	
+	assert.strictEqual(self.queries[query.queryid], query);
+	
 	var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: self});
 	query.query._isDelayed = true;
-	return self.request({
+	
+	if (query.executionPromise)
+		return query.executionPromise;
+	
+	return query.executionPromise = self.request({
 		name: 'client-' + query.query.type,
 		query: query.query,
 		ctx: ctx
@@ -387,6 +393,8 @@ DelayedQueries.prototype.executeQuery = function(query) {
 			}).then(function() {
 				return self.removeQuery(query, ctx);
 			});
+		} else {
+			delete query.executionPromise;
 		}
 	});
 };

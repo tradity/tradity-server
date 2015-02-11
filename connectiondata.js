@@ -60,6 +60,7 @@ function ConnectionData(socket) {
 	this.pushEventsTimer = null;
 	this.lastInfoPush = 0;
 	this.currentInfoPush = null;
+	this.currentFetchingEvents = null;
 	this.mostRecentEventTime = 0;
 	this.socket = socket;
 	this.isShuttingDown = false;
@@ -172,8 +173,20 @@ ConnectionData.prototype.fetchEvents = function(query) {
 	// possibly push info 
 	self.pushSelfInfo();
 	
+	if (self.currentFetchingEvents)
+		return self.currentFetchingEvents;
+	
 	// fetch regular events
-	return self.request({name: 'feedFetchEvents', query: query, ctx: self.ctx.clone()}).then(function(evlist) {
+	return self.currentFetchingEvents = self.request({
+		name: 'feedFetchEvents',
+		query: query,
+		ctx: self.ctx.clone()
+	}).then(function(evlist) {
+		self.currentFetchingEvents = null;
+		
+		if (evlist.length == 0)
+			return;
+		
 		_.each(evlist, function(ev) {
 			self.mostRecentEventTime = Math.max(self.mostRecentEventTime, ev.eventtime);
 		});

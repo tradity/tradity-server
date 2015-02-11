@@ -8,53 +8,9 @@ var Q = require('q');
 var serverUtil = require('./server-util.js');
 var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
+var Cache = require('./minicache.js').Cache;
 var qctx = require('./qctx.js');
 require('datejs');
-
-// ad-hoc cache class
-function Cache() {
-	this.entries = {};
-}
-
-Cache.prototype.has = function(key) {
-	return this.entries[key] != null;
-};
-
-Cache.prototype.use = function(key) {
-	var entry = this.entries[key];
-	entry.lastUsed = Date.now();
-	entry.usage++;
-	
-	return entry.promise;
-};
-
-Cache.prototype.add = function(key, validity, promise) {
-	var now = Date.now();
-	
-	this.entries[key] = {
-		created: now,
-		usage: 0,
-		validityDate: now + validity,
-		promise: Q(promise)
-	};
-	
-	this.flush();
-	
-	return this.use(key);
-};
-
-Cache.prototype.flush = function() {
-	var self = this;
-	
-	process.nextTick(function() {
-		var now = Date.now();
-		
-		for (var key in self.entries) {
-			if (now > self.entries[key].validityDate)
-				delete self.entries[key];
-		}
-	});
-};
 
 /**
  * Provides all single-user non-financial client requests.

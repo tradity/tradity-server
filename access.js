@@ -4,7 +4,7 @@
  * Provides the {@link module:access~Access} object.
  * 
  * @public
- * @module Access
+ * @module access
  */
 
 /**

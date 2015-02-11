@@ -154,12 +154,28 @@ User.prototype.login = buscomponent.provide('client-login',
 	var name = String(query.name);
 	var pw = String(query.pw);
 	
-	/* use a write connection to the server with write access
-	 * (otherwise we might end up with slightly outdated data) */
-	return ctx.query('SELECT id, pwsalt, pwhash '+
-		'FROM users ' +
-		'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
-		'ORDER BY id DESC', [name, name], ctx.getProperty('readonly')).then(function(res) {
+	return Q().then(function() {
+		var query = 'SELECT id, pwsalt, pwhash '+
+			'FROM users ' +
+			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
+			'ORDER BY id DESC';
+
+		if (ctx.getProperty('readonly'))
+			return ctx.query(query, [name, name])
+		
+		var conn, res;
+		return ctx.startTransaction({
+			users: 'r'
+		}).then(function(conn_) {
+			conn = conn_;
+			return conn.query(query, [name, name]);
+		}).then(function(res_) {
+			res = res_;
+			return conn.commit();
+		}).then(function() {
+			return res;
+		});
+	}).then(function(res) {
 		if (res.length == 0)
 			return { code: 'login-badname' };
 		

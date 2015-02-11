@@ -153,6 +153,10 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 			
 			return ctx.query('REPLACE INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
 				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version]).then(function(res) {
+				if (res.affectedRows != 1)
+					return;
+				
+				// REPLACE INTO actually created a row
 				return ctx.feed({
 					type: 'achievement',
 					srcuser: uid,

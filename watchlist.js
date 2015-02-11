@@ -60,6 +60,9 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
 			'(watcher, watchstarttime, watchstartvalue, watched) '+
 			'VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
 			[ctx.user.id, res[0].bid, String(query.stockid)]).then(function(r) {
+			if (r.affectedRows != 1) // REPLACE INTO did not add a new entry
+				return;
+			
 			return ctx.feed({
 				type: 'watch-add',
 				targetid: r.insertId,

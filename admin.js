@@ -312,9 +312,8 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
 				return { code: 'rename-school-notfound' };
 			
-			return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [query.schoolpath]).then(function(er) {
-				assert.equal(er.length, 1);
-				if (query.schoolpath && er[0].c == 1)
+			return ctx.query('SELECT path FROM schools WHERE path = ?', [query.schoolpath]).then(function(er) {
+				if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() != query.schoolpath)
 					return { code: 'rename-school-already-exists' };
 				
 				return ctx.query('UPDATE schools SET name = ? WHERE id = ?',

@@ -319,10 +319,11 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 				
 				return ctx.query('UPDATE schools SET name = ? WHERE id = ?',
 					[String(query.schoolname), parseInt(query.schoolid)]).then(function() {
-					if (query.schoolpath) {
-						return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ? OR path = ?',
-							[query.schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
-					}
+					if (query.schoolpath == '/')
+						return;
+						
+					return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ? OR path = ?',
+						[query.schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
 				}).then(function() {
 					return { code: 'rename-school-success' };
 				});

@@ -54,15 +54,15 @@ Mailer.prototype._init = function() {
  * @function busreq~sendTemplateMail
  */
 Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
-	['variables', 'template', 'ctx', 'mailtype'],
-	function(variables, template, ctx, mailtype) {
+	['variables', 'template', 'ctx', 'mailtype', 'uid'],
+	function(variables, template, ctx, mailtype, uid) {
 	var self = this;
 	
 	return self.request({name: 'readEMailTemplate', 
 		template: template,
 		variables: variables || {},
 	}).then(function(opt) {
-		return self.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '');
+		return self.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '', uid);
 	});
 });
 
@@ -147,8 +147,8 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
  * @function busreq~sendMail
  */
 Mailer.prototype.sendMail = buscomponent.provide('sendMail',
-	['opt', 'ctx', 'template', 'mailtype'],
-	buscomponent.needsInit(function(opt, ctx, template, mailtype)
+	['opt', 'ctx', 'template', 'mailtype', 'uid'],
+	buscomponent.needsInit(function(opt, ctx, template, mailtype, uid)
 {
 	var self = this;
 	var shortId;
@@ -169,7 +169,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		if (ctx && !ctx.getProperty('readonly'))
 			return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
 				'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[(ctx.user && ctx.user.id) || null, String(shortId), String(template) || null,
+				[uid || (ctx.user && ctx.user.id) || null, String(shortId), String(template) || null,
 				String(mailtype), String(origTo)]);
 		
 		return Q();

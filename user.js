@@ -1279,6 +1279,7 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 			return self.request({name: 'sendTemplateMail', 
 				template: 'password-reset-email.eml',
 				ctx: ctx,
+				uid: u.id,
 				variables: {'password': pw, 'username': query.name, 'email': u.email},
 			});
 		}).then(function() {

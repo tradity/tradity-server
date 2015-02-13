@@ -17,7 +17,7 @@ var pt = require('./bus/processtransport.js');
 var dt = require('./bus/directtransport.js');
 var sio = require('socket.io-client');
 
-var af = require(cfg.stockloader);
+var af = require(cfg.stockloader.path);
 var achievementList = require('./achievement-list.js');
 
 /**
@@ -53,7 +53,7 @@ mainBus.addOutputFilter(function(packet) {
 	return packet;
 });
 
-var afql = new af.ArivaFinanceQuoteLoader();
+var afql = new af.ArivaFinanceQuoteLoader(cfg.stockloader);
 afql.on('error', function(e) { manager.emitError(e); });
 
 manager.getServerConfig = buscomponent.provide('getServerConfig', [], function() { return cfg; });

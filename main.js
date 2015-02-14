@@ -179,8 +179,7 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 			}
 		});
 		
-		for (var i = 0; i < cfg.socketIORemotes.length; ++i)
-			connectToSocketIORemote(cfg.socketIORemotes[i]);
+		connectToSocketIORemotes().done();
 	}
 });
 
@@ -224,12 +223,18 @@ function worker() {
 			
 			return stserver.setBus(mainBus, 'serverMaster');
 		}).then(function() {
-			if (process.isBackgroundWorker)
+			if (process.isBackgroundWorker) {
 				console.log('bw started');
-			else
+				return connectToSocketIORemotes();
+			} else {
 				return stserver.start(msg.port);
+			}
 		}).done();
 	});
+}
+
+function connectToSocketIORemotes() {
+	return Q.all(cfg.socketIORemotes.map(connectToSocketIORemote));
 }
 
 function connectToSocketIORemote(remote) {
@@ -285,7 +290,7 @@ function connectToSocketIORemote(remote) {
 				signedContent: signed
 			});
 		});
-	}).done();
+	});
 }
 
 function loadComponents(componentsForLoading) {

@@ -224,7 +224,17 @@ DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dque
 DelayedQueries.prototype.addQuery = function(ctx, query) {
 	assert.ok(query);
 
-	var cond = this.parseCondition(query.condition);
+	var cond;
+	
+	try {
+		cond = this.parseCondition(query.condition);
+	} catch(e) {
+		if (e.code)
+			return { code: e.code, error: e };
+		else
+			throw e;
+	}
+	
 	query.check = cond.check;
 	query.neededStocks = cond.neededStocks;
 	
@@ -285,8 +295,12 @@ DelayedQueries.prototype.parseCondition = function(str) {
 	_.each(clauses, _.bind(function(cl) {
 		cl = cl.trim();
 		var terms = cl.split(/[<>]/);
-		if (terms.length != 2)
-			throw new Error('condition clause must contain exactly one < or > expression');
+		if (terms.length != 2) {
+			var e = new Error('condition clause must contain exactly one < or > expression');
+			e.code = 'format-error'; // XXX
+			throw e;
+		}
+		
 		var lt = cl.indexOf('<') != -1;
 		var lhs = terms[0].trim();
 		var rhs = terms[1].trim();

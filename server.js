@@ -164,6 +164,7 @@ SoTradeServer.prototype.listen = function(port, host) {
 		if (e.code != 'EADDRINUSE')
 			return deferred.reject(e);
 		
+		console.log(process.pid, 'has address in use on', port, host);
 		deferred.resolve(Q.delay(500).then(function() {
 			try {
 				self.httpServer.close();
@@ -178,6 +179,7 @@ SoTradeServer.prototype.listen = function(port, host) {
 	self.httpServer.addListener('listening', listenHandler);
 	
 	process.nextTick(function() {
+		console.log(process.pid, 'listening on', port, host);
 		self.httpServer.listen(port, host);
 	});
 	

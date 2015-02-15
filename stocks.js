@@ -869,6 +869,9 @@ Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transact
  * @function c2s~get-trade-info
  */
 Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx) {
+	if (parseInt(query.tradeid) != query.tradeid)
+		return { code: 'format-error' };
+	
 	var cfg;
 	return this.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;

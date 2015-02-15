@@ -117,6 +117,10 @@ SoTradeServer.prototype.start = function(port) {
 			self.httpServer = http.createServer();
 		
 		self.httpServer.on('request', _.bind(self.handleHTTPRequest, self));
+		self.httpServer.on('error', function(e) {
+			return self.emitError(e);
+		});
+		
 		self.httpServer.listen(port, cfg.wshost);
 		
 		self.io = sio.listen(self.httpServer, _.bind(cfg.configureSocketIO, self)(sio, cfg));

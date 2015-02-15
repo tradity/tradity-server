@@ -254,8 +254,8 @@ Bus.prototype.addTransport = function(transport, done) {
 					if (disconnected)
 						return;
 					
-					if (waitingForPing) // ping larger than interval
-						transport.weight = self.pingIntervalMs;
+					/*if (waitingForPing) // ping larger than interval
+						transport.weight = self.pingIntervalMs;*/
 					
 					waitingForPing = true;
 					transport.emit('bus::ping', {outTime: Date.now(), stage: 0});
@@ -281,7 +281,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		
 		var oldWeight = transport.weight;
 		if (data.stage > 0) {
-			transport.weight = now - data.outTime;
+			/*transport.weight = now - data.outTime;*/
 			
 			var relativeWeightChange = Math.max(oldWeight, transport.weight) / Math.min(oldWeight, transport.weight);
 			

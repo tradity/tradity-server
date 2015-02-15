@@ -119,6 +119,8 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 				bw.on('message', function(msg) {
 					if (msg.cmd == 'startRequest' && !sentSBW) {
 						sentSBW = true;
+						
+						console.log('Sending SBW to', bw.process.pid);
 						bw.send({cmd: 'startBackgroundWorker'});
 					}
 				});
@@ -139,10 +141,12 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 					w.on('message', function(msg) {
 						if (msg.cmd == 'startRequest' && !sentSSW) {
 							sentSSW = true;
+							var port = getFreePort(w.process.pid);
 							
+							console.log('Sending SSW[', port, '] to', w.process.pid);
 							w.send({
 								cmd: 'startStandardWorker',
-								port: getFreePort(w.process.pid)
+								port: port
 							});
 						}
 					});
@@ -195,9 +199,13 @@ function worker() {
 			return;
 		
 		if (msg.cmd == 'startBackgroundWorker') {
+			console.log(process.pid, 'received SBW');
+			
 			process.isBackgroundWorker = true;
 		} else if (msg.cmd == 'startStandardWorker') {
 			assert.ok(msg.port);
+			
+			console.log(process.pid, 'received SSW[', msg.port, ']');
 			process.isBackgroundWorker = false;
 		} else {
 			return;
@@ -216,6 +224,7 @@ function worker() {
 			'./watchlist.js', './wordpress-feed.js'
 		]);
 		
+		console.log(process.pid, 'loading');
 		var stserver;
 		return loadComponents(componentsForLoading).then(function() {
 			var server = require('./server.js');
@@ -223,9 +232,13 @@ function worker() {
 			
 			return stserver.setBus(mainBus, 'serverMaster');
 		}).then(function() {
+			console.log(process.pid, 'loaded');
+			
 			if (process.isBackgroundWorker) {
-				console.log('bw started');
-				return connectToSocketIORemotes();
+				console.log('BW started at', process.pid, 'connecting to remotes...');
+				return connectToSocketIORemotes().then(function() {
+					console.log('BW connected to remotes', process.pid);
+				});
 			} else {
 				return stserver.start(msg.port);
 			}

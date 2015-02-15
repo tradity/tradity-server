@@ -7,6 +7,7 @@ var crypto = require('crypto');
 var os = require('os');
 var https = require('https');
 var cluster = require('cluster');
+var events = require('events');
 var Q = require('q');
 
 var qctx = require('./qctx.js');
@@ -34,6 +35,7 @@ var bwpid = null;
 
 Error.stackTraceLimit = cfg.stackTraceLimit || 20;
 Q.longStackSupport = cfg.longStackTraces || false;
+events.EventEmitter.defaultMaxListeners = 0;
 
 var mainBus = new bus.Bus();
 var manager = new buscomponent.BusComponent();
@@ -190,8 +192,10 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 function worker() {
 	var hasReceivedStartCommand = false;
 	var startRequestInterval = setInterval(function() {
-		if (!hasReceivedStartCommand)
+		if (!hasReceivedStartCommand) {
+			console.log('Requesting start commands', process.pid);
 			process.send({cmd: 'startRequest'});
+		}
 	}, 250);
 	
 	process.on('message', function(msg) {

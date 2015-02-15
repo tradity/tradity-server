@@ -109,26 +109,79 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
  */
 SoTradeServer.prototype.start = function(port) {
 	var self = this;
+	var cfg;
 	
-	return self.getServerConfig().then(function(cfg) {
+	return self.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
+		
 		if (cfg.protocol == 'https')
 			self.httpServer = https.createServer(cfg.http);
 		else
 			self.httpServer = http.createServer();
 		
 		self.httpServer.on('request', _.bind(self.handleHTTPRequest, self));
-		self.httpServer.on('error', function(e) {
-			return self.emitError(e);
-		});
 		
-		self.httpServer.listen(port, cfg.wshost);
-		
+		return self.listen(port, cfg.wshost);
+	}).then(function() {
 		self.io = sio.listen(self.httpServer, _.bind(cfg.configureSocketIO, self)(sio, cfg));
-		
 		self.io.adapter(busAdapter(self.bus));
 		
 		self.io.sockets.on('connection', _.bind(self.handleConnection, self));
 	});
+};
+
+/**
+ * Set up the server for listening
+ * 
+ * @param {int} port  The port for this server to listen on
+ * @param {string} host  The host to listen on
+ * 
+ * @return {object}  A Q promise fulfilled when the server is fully available
+ * 
+ * @function module:server~SoTradeServer#listen
+ */
+SoTradeServer.prototype.listen = function(port, host) {
+	var self = this;
+	var deferred = Q.defer();
+	
+	var listenSuccess = false;
+	
+	var listenHandler = function() {
+		self.httpServer.on('error', function(e) {
+			return self.emitError(e);
+		});
+		
+		listenSuccess = true;
+		deferred.resolve();
+	};
+	
+	self.httpServer.once('error', function(e) {
+		if (listenSuccess) // only handle pre-listen errors
+			return;
+		
+		self.httpServer.removeListener('listening', listenHandler);
+		
+		if (e.code != 'EADDRINUSE')
+			return deferred.reject(e);
+		
+		deferred.resolve(Q.delay(500).then(function() {
+			try {
+				self.httpServer.close();
+			} catch(e2) {
+				console.warn(e2);
+			}
+			
+			return self.listen(port, host);
+		}));
+	});
+	
+	self.httpServer.addListener('listening', listenHandler);
+	
+	process.nextTick(function() {
+		self.httpServer.listen(port, host);
+	});
+	
+	return deferred.promise;
 };
 
 /**

@@ -47,7 +47,7 @@ echo "Running tests..." >&2
 
 time (for file in test/*.js; do
 	echo "Running $file..." >&2
-	mocha -s 15000 -t 50000 "$@" $file
+	mocha -s 15000 -t 80000 "$@" $file
 done)
 
 echo "Thank you for watching, please subscribe to my channel to view other tests" >&2

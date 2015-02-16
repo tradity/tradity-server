@@ -7,7 +7,7 @@ var events = require('events');
 var os = require('os');
 var crypto = require('crypto');
 var cytoscape = require('cytoscape');
-var lzma = require('lzma-native');
+var zlib = require('zlib');
 var objectHash = require('object-hash');
 
 function Bus () {
@@ -78,7 +78,10 @@ function Bus () {
 		if (!Buffer.isBuffer(data))
 			data = new Buffer(data);
 		
-		lzma.decompress(data, function(data) {
+		zlib.inflateRaw(data, function(error, data) {
+			if (error)
+				return self.emitError(error);
+			
 			data = JSON.parse(data);
 			assert.ok(data.id && _.isString(data.id));
 			assert.ok(data.graph);
@@ -138,7 +141,10 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
 		graph: self.busGraph.json()
 	};
 
-	lzma.compress(JSON.stringify(info), {preset: 3}, function(encodedInfo) {
+	zlib.deflateRaw(JSON.stringify(info), function(error, encodedInfo) {
+		if (error)
+			return self.emitError(error);
+		
 		// note that initial infos are transport events, whereas
 		// non-initial infos are bus events (and therefore bus packets)
 		if (initial) {
@@ -214,7 +220,10 @@ Bus.prototype.addTransport = function(transport, done) {
 		if (!Buffer.isBuffer(data))
 			data = new Buffer(data);
 		
-		lzma.decompress(data, function(data) {
+		zlib.inflateRaw(data, function(error, data) {
+			if (error)
+				return self.emitError(error);
+			
 			data = JSON.parse(data);
 			if (data.id == self.id)
 				return;

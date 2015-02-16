@@ -185,11 +185,11 @@ if (require.main === module) {
 		apeWants: 'BANANA'
 	};
 	
-	smdb.createSignedMessage(message, function(signed) {
+	smdb.createSignedMessage(message).then(function(signed) {
 		console.log(signed);
-		smdb.verifySignedMessage(signed, 100, function(message) {
-			console.log('message.apeWants =', message.apeWants);
-		});
+		return smdb.verifySignedMessage(signed, 100);
+	}).then(function(message) {
+		console.log('message.apeWants =', message.apeWants);
 	});
 }
 

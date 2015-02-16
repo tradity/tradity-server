@@ -80,7 +80,7 @@ function Bus () {
 		
 		zlib.inflateRaw(data, function(error, data) {
 			if (error)
-				return self.emitError(error);
+				return self.emit('error', error);
 			
 			data = JSON.parse(data);
 			assert.ok(data.id && _.isString(data.id));
@@ -143,7 +143,7 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
 
 	zlib.deflateRaw(JSON.stringify(info), function(error, encodedInfo) {
 		if (error)
-			return self.emitError(error);
+			return self.emit('error', error);
 		
 		// note that initial infos are transport events, whereas
 		// non-initial infos are bus events (and therefore bus packets)
@@ -222,7 +222,7 @@ Bus.prototype.addTransport = function(transport, done) {
 		
 		zlib.inflateRaw(data, function(error, data) {
 			if (error)
-				return self.emitError(error);
+				return self.emit('error', error);
 			
 			data = JSON.parse(data);
 			if (data.id == self.id)

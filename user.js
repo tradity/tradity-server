@@ -97,7 +97,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 	return self.login({
 		name: data.email,
 		stayloggedin: true,
-	}, ctx, xdata, true).then(function(loginResp_) {
+	}, ctx, xdata, true, true).then(function(loginResp_) {
 		loginResp = loginResp_;
 		assert.equal(loginResp.code, 'login-success');
 		
@@ -148,7 +148,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
  * @function c2s~login
  */
 User.prototype.login = buscomponent.provide('client-login', 
-	['query', 'ctx', 'xdata', 'ignorePassword'], function(query, ctx, xdata, ignorePassword) {
+	['query', 'ctx', 'xdata', 'useTransaction', 'ignorePassword'], function(query, ctx, xdata, useTransaction, ignorePassword) {
 	var self = this;
 	
 	var name = String(query.name);
@@ -164,14 +164,21 @@ User.prototype.login = buscomponent.provide('client-login',
 			return ctx.query(query, [name, name])
 		
 		var conn, res;
-		return ctx.startTransaction({
-			users: 'r'
+		return Q().then(function() {
+			if (!useTransaction)
+				return ctx;
+			
+			return ctx.startTransaction({
+				users: 'r'
+			});
 		}).then(function(conn_) {
 			conn = conn_;
 			return conn.query(query, [name, name]);
 		}).then(function(res_) {
 			res = res_;
-			return conn.commit();
+			
+			if (useTransaction)
+				return conn.commit();
 		}).then(function() {
 			return res;
 		});
@@ -726,7 +733,7 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 				return self.login({
 					name: email,
 					stayloggedin: true,
-				}, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, true);
+				}, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, true, true);
 			});
 		});
 	});

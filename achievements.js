@@ -302,7 +302,7 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
  * @return {object}  Returns with <code>achievement-unknown-name</code>,
  *                   <code>achievement-success</code> or a common error code.
  * 
- * @function c2s~achievements
+ * @function c2s~achievement
  */
 Achievements.prototype.clientAchievement = buscomponent.provideW('client-achievement',
 	['query', 'ctx', 'verified'],

@@ -183,14 +183,22 @@ User.prototype.login = buscomponent.provide('client-login',
 			return res;
 		});
 	}).then(function(res) {
-		if (res.length == 0)
+		if (res.length == 0) {
+			if (!useTransaction)
+				return self.login(query, ctx, xdata, true, ignorePassword);
+			
 			return { code: 'login-badname' };
+		}
 		
 		var uid = res[0].id;
 		var pwsalt = res[0].pwsalt;
 		var pwhash = res[0].pwhash;
-		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword)
+		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
+			if (!useTransaction)
+				return self.login(query, ctx, xdata, true, ignorePassword);
+			
 			return { code: 'login-wrongpw' };
+		}
 		
 		var key;
 		return Q.nfcall(crypto.randomBytes, 16).then(function(buf) {

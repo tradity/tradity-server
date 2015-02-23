@@ -200,7 +200,10 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					
 					release();
 					
-					return Q(restart()).then(deferred.resolve.bind(deferred));
+					return Q().then(restart).then(function(data) {
+						deferred.resolve(data);
+						return deferred.promise;
+					});
 				}
 				
 				var exception = null;

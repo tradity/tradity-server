@@ -4,6 +4,7 @@ var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
+var semaphore = require('q-semaphore');
 
 /**
  * Provides an entry point for client-induced regular cleanup
@@ -21,6 +22,8 @@ var buscomponent = require('./stbuscomponent.js');
  * @augments module:stbuscomponent~STBusComponent
  */
 function BackgroundWorker () {
+	this.sem = semaphore(1);
+	
 	BackgroundWorker.super_.apply(this, arguments);
 }
 util.inherits(BackgroundWorker, buscomponent.BusComponent);
@@ -40,12 +43,18 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
 	
 	if (ctx.access.has('server') == -1)
 		return { code: 'prod-not-allowed' };
-		
-	var starttime = Date.now(), userdbtime;
 	
-	return self.request({name: 'regularCallbackUser', query: query, ctx: ctx}).then(function() {
+	var starttime, userdbtime;
+	
+	return self.sem.take().then(function() {
+		starttime = Date.now();
+	
+		return self.request({name: 'regularCallbackUser', query: query, ctx: ctx});
+	}).then(function() {
 		userdbtime = Date.now();
 		return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
+	}).then(function() {
+		return self.sem.leave();
 	}).then(function() {
 		return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
 	});

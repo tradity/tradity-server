@@ -24,6 +24,7 @@ var buscomponent = require('./stbuscomponent.js');
 function Stocks () {
 	Stocks.super_.apply(this, arguments);
 	
+	this.knownStockIDs = null; // ISIN list for more efficient stock updating
 	this.quoteLoader = null;
 }
 
@@ -38,9 +39,29 @@ Stocks.prototype.onBusConnect = function() {
 		self.quoteLoader = ql;
 		
 		var ctx = new qctx.QContext({parentComponent: self});
+		
 		self.quoteLoader.on('record', function(rec) {
 			Q(self.updateRecord(ctx, rec)).done();
 		});
+		
+		return self.updateStockIDCache(ctx);
+	});
+};
+
+/**
+ * Updates the internal cache of stock ids
+ * 
+ * @function module:stocks~Stocks#updateStockIDCache
+ */
+Stocks.prototype.updateStockIDCache = function(ctx) {
+	var self = this;
+	
+	return self.knownStockIDs = ctx.query('SELECT stockid, id FROM stocks').then(function(stockidlist) {
+		// generate ISIN |-> id map
+		return self.knownStockIDs = _.chain(stockidlist).map(function(entry) {
+			assert.equal(typeof entry.id, 'number');
+			return [entry.stockid, entry.id];
+		}).zipObject().value();
 	});
 };
 
@@ -70,6 +91,7 @@ Stocks.prototype.stocksFilter = function(cfg, rec) {
  * {@link module:stocks~Stocks#updateRankingInformation}
  * {@link module:stocks~Stocks#weeklyCallback}
  * {@link module:stocks~Stocks#dailyCallback}
+ * {@link module:stocks~Stocks#updateStockIDCache}
  * 
  * @param {Query} query  A query structure, indicating which functions of the above should be called:
  * @param {Query} query.weekly  Run {@link module:stocks~Stocks#weeklyCallback}
@@ -85,7 +107,7 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 	if (ctx.getProperty('readonly'))
 		return;
 		
-	var rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET;
+	var rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET, usicST;
 	rcbST = Date.now();
 	
 	return self.cleanUpUnusedStocks(ctx).then(function() {
@@ -120,6 +142,9 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 			wcbET = Date.now();
 		}
 	}).then(function() {
+		usicST = Date.now();
+		return self.updateStockIDCache(ctx);
+	}).then(function() {
 		rcbET = Date.now();
 		console.log('cleanUpUnusedStocks:      ' + (cuusET  - rcbST)  + ' ms');
 		console.log('updateStockValues:        ' + (usvET   - cuusET) + ' ms');
@@ -128,7 +153,8 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 		console.log('updateRankingInformation: ' + (uriET   - upET)   + ' ms');
 		console.log('updateValueHistory:       ' + (uvhET   - uriET)  + ' ms');
 		console.log('weeklyCallback:           ' + (wcbET   - uvhET)  + ' ms');
-		console.log('dailyCallback:            ' + (rcbET   - wcbET)  + ' ms');
+		console.log('dailyCallback:            ' + (usicST  - wcbET)  + ' ms');
+		console.log('updateStockIDCache:       ' + (rcbET   - usicST) + ' ms');
 		console.log('Total stocks rcb:         ' + (rcbET   - rcbST)  + ' ms');
 	});
 });
@@ -298,14 +324,49 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 	
 	assert.notStrictEqual(rec.pieces, null);
 	
-	return (ctx.getProperty('readonly') ? Q() :
-		ctx.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, lrutime, leader, name, exchange, pieces) '+
-			'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
-			'UPDATE lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), ' +
-			'name = IF(LENGTH(name) >= LENGTH(?), name, ?), exchange = ?, pieces = ?',
-		[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.exchange, rec.pieces,
-		 rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000, rec.name, rec.name, rec.exchange, rec.pieces]))
-		.then(function() {
+	return Q().then(function() {
+		if (ctx.getProperty('readonly'))
+			return;
+		
+		var knownStockIDs;
+		
+		// on duplicate key is likely to be somewhat slower than other options
+		// -> check whether we already know the primary key
+		return Q(self.knownStockIDs).then(function(knownStockIDs_) {
+			knownStockIDs = knownStockIDs_;
+			return knownStockIDs[rec.symbol]; // might be a promise from INSERT INTO
+		}).then(function(ksid) {
+			var updateQueryString = 'lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), ' +
+				'name = IF(LENGTH(name) >= ?, name, ?), exchange = ?, pieces = ? ';
+			var updateParams = [rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
+				rec.name.length, rec.name, rec.exchange, rec.pieces];
+			
+			if (typeof ksid == 'number') {
+				return ctx.query('UPDATE stocks SET ' + updateQueryString +
+					'WHERE id = ?', updateParams.concat([ksid]));
+			} else {
+				assert.equal(typeof ksid, 'undefined');
+				
+				return knownStockIDs[rec.symbol] = ctx.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, ' +
+					'lrutime, leader, name, exchange, pieces) '+
+					'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
+					'UPDATE ' + updateQueryString,
+					[rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
+					rec.name, rec.exchange, rec.pieces].concat(updateParams)).then(function(res) {
+						if (res.affectedRows == 1) // insert took place
+							return knownStockIDs[rec.symbol] = res.insertId;
+						
+						// no insert -> look the id up
+						return ctx.query('SELECT id FROM stocks WHERE stockid = ?', [rec.symbol], function(res) {
+							assert.ok(res[0]);
+							assert.ok(res[0].id);
+							
+							return knownStockIDs[rec.symbol] = res[0].id;
+						});
+					});
+			}
+		});
+	}).then(function() {
 		return self.emitGlobal('stock-update', {
 			'stockid': rec.symbol,
 			'lastvalue': rec.lastTradePrice * 10000,

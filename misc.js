@@ -188,18 +188,17 @@ Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-db
  */
 Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatistics', [], function() {
 	var ctx = new qctx.QContext({parentComponent: this});
-	
-	var ret = {};
-	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL').then(function(ures) {
-		ret.userCount = ures[0].c;
-		return ctx.query('SELECT COUNT(*) AS c FROM orderhistory');
-	}).then(function(ores) {
-		ret.tradeCount = ores[0].c;
-		return ctx.query('SELECT COUNT(*) AS c FROM schools');
-	}).then(function(sres) {
-		ret.schoolCount = sres[0].c;
-		
-		return ret;
+
+	return Q.all([
+		ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL'),
+		ctx.query('SELECT COUNT(*) AS c FROM orderhistory'),
+		ctx.query('SELECT COUNT(*) AS c FROM schools')
+	]).spread(function(ures, ores, sres) {
+		return {
+			userCount: ures[0].c,
+			tradeCount: ores[0].c,
+			schoolCount: sres[0].c
+		};
 	});
 });
 

@@ -164,24 +164,19 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
 	if (ctx.user.id == uid)
 		return { code: 'delete-user-self-notallowed' };
 	
-	var conn;
-	return ctx.startTransaction().then(function(conn_) {
-		conn = conn_;
-		return conn.query('DELETE FROM sessions WHERE uid = ?', [uid]);
-	}).then(function() {
-		return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
-	}).then(function() {
-		return conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]);
-	}).then(function() {
-		return conn.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
-			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE id = ?', [uid]);
-	}).then(function() {
-		return conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE id = ?', [uid]);
-	}).then(function() {
-		return conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
-		'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid]);
-	}).then(function() {
-		return conn.commit();
+	return ctx.startTransaction().then(function(conn) {
+		return Q.all([
+			conn.query('DELETE FROM sessions WHERE uid = ?', [uid]),
+			conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
+			conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]),
+			conn.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
+				'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE id = ?', [uid]),
+			conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE id = ?', [uid]),
+			conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
+				'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid])
+		]).then(function() {
+			return conn.commit();
+		});
 	}).then(function() {
 		return { code: 'delete-user-success' };
 	});

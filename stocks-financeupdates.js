@@ -149,34 +149,33 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	var lmuStart = Date.now();
 	var conn, users, res_static, cfg;
 	
-	return self.getServerConfig().then(function(cfg_) {
-		cfg = cfg_;
-		return ctx.startTransaction({
+	return Q.all([
+		self.getServerConfig(),
+		ctx.startTransaction({
 			depot_stocks: { alias: 'ds', mode: 'r' },
 			users_finance: { mode: 'w' },
 			stocks: { alias: 's', mode: 'w' }
-		});
-	}).then(function (conn_) {
+		})
+	]).spread(function (cfg_, conn_) {
+		cfg = cfg_;
 		conn = conn_;
-		return conn.query('SELECT ds.userid AS uid FROM depot_stocks AS ds ' +
-			'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL');
-	}).then(function(users_) {
-		users = users_;
-		return conn.query('SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
-			'freemoney, users_finance.wprov_sum + users_finance.lprov_sum AS prov_sum ' +
-			'FROM depot_stocks AS ds ' +
-			'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
-			'LEFT JOIN users_finance ON ds.userid = users_finance.id ' +
-			'GROUP BY uid ');
-	}).then(function(res_static_) {
-		res_static = res_static_;
-		return conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
-			'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0');
-	}).then(function(res_static2) {
+		
+		return Q.all([
+			conn.query('SELECT DISTINCT ds.userid AS uid FROM depot_stocks AS ds ' +
+				'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL'),
+			conn.query('SELECT ds.userid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +
+				'freemoney, users_finance.wprov_sum + users_finance.lprov_sum AS prov_sum ' +
+				'FROM depot_stocks AS ds ' +
+				'LEFT JOIN stocks AS s ON s.leader IS NULL AND s.id = ds.stockid ' +
+				'LEFT JOIN users_finance ON ds.userid = users_finance.id ' +
+				'GROUP BY uid'),
+			conn.query('SELECT id AS uid, 0 AS askvalsum, 0 AS valsum, freemoney, wprov_sum + lprov_sum AS prov_sum ' +
+				'FROM users_finance WHERE (SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.userid = users_finance.id) = 0'),
+			conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
+				'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid')
+		]);
+	}).spread(function(users, res_static, res_static2, res_leader) {
 		res_static = res_static.concat(res_static2);
-		return conn.query('SELECT s.leader AS luid, ds.userid AS fuid, ds.amount AS amount ' +
-			'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.id = ds.stockid');
-	}).then(function(res_leader) {
 		users = _.uniq(_.pluck(users, 'uid'));
 		
 		var lmuFetchData = Date.now();
@@ -316,12 +315,12 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		}).then(function() {
 			var lmuEnd = Date.now();
 			console.log('lmu timing: ' +
-				presgesvTotalTime + ' ms\tpre-sgesv total, ' +
-				sgesvTotalTime + ' ms\tsgesv total, ' +
-				postsgesvTotalTime + ' ms\tpost-sgesv total, ' +
-				(lmuEnd - lmuStart) + ' ms\tlmu total, ' +
-				(lmuFetchData - lmuStart) + ' ms\tfetching, ' +
-				(lmuEnd - lmuComputationsComplete) + ' ms\twriting');
+				presgesvTotalTime + ' ms pre-sgesv total, ' +
+				sgesvTotalTime + ' ms sgesv total, ' +
+				postsgesvTotalTime + ' ms post-sgesv total, ' +
+				(lmuEnd - lmuStart) + ' ms lmu total, ' +
+				(lmuFetchData - lmuStart) + ' ms fetching, ' +
+				(lmuEnd - lmuComputationsComplete) + ' ms writing');
 			
 			return _.each(res, function(r) {
 				self.emitGlobal('stock-update', r);

@@ -168,77 +168,70 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 			
 		assert.ok(s.config);
 		
-		return self.loadSchoolAdmins(s.id, ctx).then(function(admins) {
-			s.admins = admins;
-			
-			return ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%']).then(function(subschools) {
-				s.subschools = subschools;
-				return ctx.query('SELECT COUNT(uid) AS usercount ' +
-					'FROM schools AS p '+
-					'LEFT JOIN schools AS c ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
-					'LEFT JOIN schoolmembers AS sm ON sm.schoolid = c.id AND NOT pending ' +
-					'WHERE p.id = ?', [s.id]);
-			}).then(function(usercount) {
-				s.usercount = usercount[0].usercount;
-				return ctx.query('SELECT c.*, u.name AS username, u.id AS uid, url AS profilepic, trustedhtml ' +
-					'FROM ecomments AS c '+
-					'LEFT JOIN users AS u ON c.commenter = u.id ' +
-					'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
-					'WHERE c.eventid = ?',
-					[s.eventid]);
-			}).then(function(comments) {
-				s.comments = comments;
-				
-				return ctx.query('SELECT * FROM blogposts ' +
-					'JOIN feedblogs ON feedblogs.blogid = blogposts.blogid ' +
-					'JOIN events ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
-					'WHERE feedblogs.schoolid = ?',
-					[s.id]);
-			}).then(function(blogposts) {
-				s.blogposts = blogposts.map(function(post) {
-					var expost = _.extend(post, JSON.parse(post.postjson))
-					delete expost.postjson;
-					return expost;
-				});
-				
-				return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
-					'SUM(ABS(money)) AS moneysum, ' +
-					'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
-					'FROM orderhistory AS oh ' +
-					'JOIN schoolmembers AS sm ON sm.uid = oh.userid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
-					'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id]);
-			}).then(function(popular) {
-				s.popularStocks = popular;
-				
-				if (!ctx.access.has('wordpress'))
-					return [];
-				
+		return Q.all([
+			self.loadSchoolAdmins(s.id, ctx), // admins
+			ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%']), // subschools
+			ctx.query('SELECT COUNT(uid) AS usercount ' +
+				'FROM schools AS p '+
+				'LEFT JOIN schools AS c ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' +
+				'LEFT JOIN schoolmembers AS sm ON sm.schoolid = c.id AND NOT pending ' +
+				'WHERE p.id = ?', [s.id]), // usercount[0].usercount
+			ctx.query('SELECT c.*, u.name AS username, u.id AS uid, url AS profilepic, trustedhtml ' +
+				'FROM ecomments AS c '+
+				'LEFT JOIN users AS u ON c.commenter = u.id ' +
+				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
+				'WHERE c.eventid = ?',
+				[s.eventid]), // comments
+			ctx.query('SELECT * FROM blogposts ' +
+				'JOIN feedblogs ON feedblogs.blogid = blogposts.blogid ' +
+				'JOIN events ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
+				'WHERE feedblogs.schoolid = ?',
+				[s.id]).then(function(blogposts) {
+					return blogposts.map(function(post) {
+						var expost = _.extend(post, JSON.parse(post.postjson))
+						delete expost.postjson;
+						return expost;
+					});
+				}), // blogposts
+			ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
+				'SUM(ABS(money)) AS moneysum, ' +
+				'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
+				'FROM orderhistory AS oh ' +
+				'JOIN schoolmembers AS sm ON sm.uid = oh.userid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
+				'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.id]), // popularStocks
+			!ctx.access.has('wordpress') ? [] : 
 				// compare wordpress-feed.js
-				return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
+				ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
 					'bloguser, COUNT(*) AS postcount, users.name ' +
 					'FROM feedblogs ' + 
 					'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
 					'LEFT JOIN users ON feedblogs.bloguser = users.id ' +
 					'LEFT JOIN schools ON feedblogs.schoolid = schools.id ' +
 					'WHERE schoolid = ? ' +
-					'GROUP BY blogid', [s.id]);
-			}).then(function(feedblogs) {
-				s.feedblogs = feedblogs;
-			
+					'GROUP BY blogid', [s.id]), // feedblogs
+			Q().then(function() {
 				if (s.path.replace(/[^\/]/g, '').length != 1) // need higher-level 
 					s.parentPath = commonUtil.parentPath(s.path);
 				
 				return s.parentPath ? self.loadSchoolInfo(s.parentPath, ctx, cfg) :
 					Q({schoolinfo: null});
-			}).then(function(result) {
-				assert.ok(typeof result.code == 'undefined' || result.code == 'get-school-info-success');
-				
-				s.parentSchool = result;
-				s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults,
-					s.parentSchool ? s.parentSchool.config : {}, s.config);
-				
-				return {code: 'get-school-info-success', schoolinfo: s};
-			});
+			}) // parentResult
+		]).spread(function(admins, subschools, usercount, comments, blogposts, popularStocks, feedblogs, parentResult) {
+			s.admins = admins;
+			s.subschools = subschools;
+			s.usercount = usercount[0].usercount;
+			s.comments = comments;
+			s.blogposts = blogposts;
+			s.popularStocks = popularStocks;
+			s.feedblogs = feedblogs;
+			
+			assert.ok(typeof parentResult.code == 'undefined' || parentResult.code == 'get-school-info-success');
+			
+			s.parentSchool = parentResult;
+			s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults,
+				s.parentSchool ? s.parentSchool.config : {}, s.config);
+			
+			return {code: 'get-school-info-success', schoolinfo: s};
 		});
 	});
 };
@@ -265,12 +258,8 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
  * @property {module:schools~schoolinfo[]} subschools  A list of subschools of this school
  *                                                     (in short notation, i.e. no event/comment information etc.).
  * @property {string} parentPath  The parent path of this school, or '/' if this school is top-level.
-<<<<<<< HEAD
- * @property {object[]} popular  See {@link c2s~list-popular-stocks}.
- * @property {object[]} feedblogs  See {@link c2s~list-wordpress-feeds}.
-=======
  * @property {object[]} popularStocks  See {@link c2s~list-popular-stocks}.
->>>>>>> master
+ * @property {object[]} feedblogs  See {@link c2s~list-wordpress-feeds}.
  */
 
 /**

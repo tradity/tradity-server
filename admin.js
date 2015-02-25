@@ -141,9 +141,9 @@ Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-us
 		if (r[0].c == 0)
 			throw new this.SoTradeClientError('impersonate-user-notfound');
 	
-		return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid]).then(function() {
-			return { code: 'impersonate-user-success', extra: 'repush' };
-		});
+		return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid]);
+	}).then(function() {
+		return { code: 'impersonate-user-success', extra: 'repush' };
 	});
 }));
 
@@ -165,7 +165,9 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
 	if (ctx.user.id == uid)
 		throw new this.SoTradeClientError('delete-user-self-notallowed');
 	
-	return ctx.startTransaction().then(function(conn) {
+	var conn;
+	return ctx.startTransaction().then(function(conn_) {
+		conn = conn_;
 		return Q.all([
 			conn.query('DELETE FROM sessions WHERE uid = ?', [uid]),
 			conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
@@ -303,28 +305,27 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 		assert.ok(oldpath.length > 1);
 
 		return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
-			[commonUtil.parentPath(query.schoolpath)]).then(function(pr) {
+			[commonUtil.parentPath(query.schoolpath)]);
+	}).then(function(pr) {
+		assert.equal(pr.length, 1);
+		if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
+			throw new self.SoTradeClientError('rename-school-notfound');
+		
+		return ctx.query('SELECT path FROM schools WHERE path = ?', [query.schoolpath]);
+	}).then(function(er) {
+		if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() == query.schoolpath)
+			throw new self.SoTradeClientError('rename-school-already-exists');
+		
+		return ctx.query('UPDATE schools SET name = ? WHERE id = ?',
+			[String(query.schoolname), parseInt(query.schoolid)]);
+	}).then(function() {
+		if (query.schoolpath == '/')
+			return;
 			
-			assert.equal(pr.length, 1);
-			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
-				throw new self.SoTradeClientError('rename-school-notfound');
-			
-			return ctx.query('SELECT path FROM schools WHERE path = ?', [query.schoolpath]).then(function(er) {
-				if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() != query.schoolpath)
-					throw new self.SoTradeClientError('rename-school-already-exists');
-				
-				return ctx.query('UPDATE schools SET name = ? WHERE id = ?',
-					[String(query.schoolname), parseInt(query.schoolid)]).then(function() {
-					if (query.schoolpath == '/')
-						return;
-						
-					return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ? OR path = ?',
-						[query.schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
-				}).then(function() {
-					return { code: 'rename-school-success' };
-				});
-			});
-		});
+		return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ? OR path = ?',
+			[query.schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
+	}).then(function() {
+		return { code: 'rename-school-success' };
 	});
 }));
 
@@ -345,11 +346,10 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
 	var self = this;
 	
-	var mr;
-	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)]).then(function(mr_) {
-		mr = mr_;
-		return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.subschool)]);
-	}).then(function(sr) {
+	return Q.all([
+		ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)]),
+		ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.subschool)])
+	]).spread(function(mr, sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);
 		
@@ -358,20 +358,18 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
 		if (mr.length > 0 && commonUtil.parentPath(mr[0].path) != commonUtil.parentPath(sr[0].path))
 			throw new self.SoTradeClientError('join-schools-diff-parent');
 		
-		return ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
-			[parseInt(query.masterschool), parseInt(query.subschool)]).then(function() {
-			return ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
-				[parseInt(query.masterschool), parseInt(query.subschool)]);
-		}).then(function() {
-			return ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)]);
-		}).then(function() {
-			return ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)]);
-		}).then(function() {
-			return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ?',
-				[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%']);
-		}).then(function() {
-			return { code: 'join-schools-success' };
-		});
+		return Q.all([
+			ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
+				[parseInt(query.masterschool), parseInt(query.subschool)]),
+			ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
+				[parseInt(query.masterschool), parseInt(query.subschool)]),
+			ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)]),
+			ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)]),
+			ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ?',
+				[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%'])
+		]);
+	}).then(function() {
+		return { code: 'join-schools-success' };
 	});
 }));
 

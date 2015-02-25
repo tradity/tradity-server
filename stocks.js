@@ -395,77 +395,76 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx) {
 	var self = this;
 	
-	return self.getServerConfig().then(function(cfg) {
-		var str = String(query.name);
-		if (!str || str.length < 3)
-			throw new self.SoTradeClientError('stock-search-too-short');
-		
-		str = str.trim();
-		
-		var leadertest = str.match(/__LEADER_(\d+)__/);
-		var lid = -1;
-		if (leadertest !== null)
-			lid = leadertest[1];
-		
-		var xstr = '%' + str.replace(/%/g, '\\%') + '%';
-		
-		return Q.all([
-			ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
-				'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
-				'FROM stocks ' +
-				'JOIN users ON stocks.leader = users.id ' +
-				'JOIN users_finance ON users.id = users_finance.id ' +
-				'WHERE users.name LIKE ? OR users.id = ?', [xstr, lid]),
-			ctx.query('SELECT *, 0 AS wprovision, 0 AS lprovision ' +
-				'FROM stocks ' +
-				'WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL',
-				[xstr, xstr])
-		]).spread(function(localResults, externalStocks) {
-			var externalStocksIDs = _.pluck(externalStocks, 'stockid');
+	var str = String(query.name);
+	if (!str || str.length < 3)
+		throw new self.SoTradeClientError('stock-search-too-short');
+	
+	str = str.trim();
+	
+	var leadertest = str.match(/__LEADER_(\d+)__/);
+	var lid = -1;
+	if (leadertest !== null)
+		lid = leadertest[1];
+	
+	var xstr = '%' + str.replace(/%/g, '\\%') + '%';
+	
+	return Q.all([
+		self.getServerConfig(),
+		ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
+			'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
+			'FROM stocks ' +
+			'JOIN users ON stocks.leader = users.id ' +
+			'JOIN users_finance ON users.id = users_finance.id ' +
+			'WHERE users.name LIKE ? OR users.id = ?', [xstr, lid]),
+		ctx.query('SELECT *, 0 AS wprovision, 0 AS lprovision ' +
+			'FROM stocks ' +
+			'WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL',
+			[xstr, xstr])
+	]).spread(function(cfg, localResults, externalStocks) {
+		var externalStocksIDs = _.pluck(externalStocks, 'stockid');
 
-			// 12 ~ ISIN, 6 ~ WAN
-			if ([12, 6].indexOf(str.length) != -1)
-				externalStocksIDs.push(str.toUpperCase());
+		// 12 ~ ISIN, 6 ~ WAN
+		if ([12, 6].indexOf(str.length) != -1)
+			externalStocksIDs.push(str.toUpperCase());
+		
+		externalStocksIDs = _.uniq(externalStocksIDs);
+		
+		var deferred = Q.defer();
+		
+		(externalStocksIDs.length == 0 ? function(cont) {
+			return cont([]);
+		} : function(cont) {
+			return self.quoteLoader.loadQuotesList(externalStocksIDs, _.bind(self.stocksFilter, self, cfg), cont);
+		})(function(externalResults) {
+			var results = _.union(localResults, _.map(externalResults, function(r) {
+				return {
+					'stockid': r.symbol,
+					'lastvalue': r.lastTradePrice * 10000,
+					'ask': r.ask * 10000,
+					'bid': r.bid * 10000,
+					'name': r.name,
+					'exchange': r.exchange,
+					'leader': null,
+					'leadername': null,
+					'wprovision': 0,
+					'lprovision': 0,
+					'pieces': r.pieces
+				};
+			}));
 			
-			externalStocksIDs = _.uniq(externalStocksIDs);
+			results = _.uniq(results, false, function(r) { return r.stockid; });
+			var symbols = _.pluck(results, 'stockid');
 			
-			var deferred = Q.defer();
+			if (symbols.length > 0 && !ctx.getProperty('readonly')) {
+				symbols = _.map(symbols, escape);
+				ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
+					'WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
+			}
 			
-			(externalStocksIDs.length == 0 ? function(cont) {
-				return cont([]);
-			} : function(cont) {
-				return self.quoteLoader.loadQuotesList(externalStocksIDs, _.bind(self.stocksFilter, self, cfg), cont);
-			})(function(externalResults) {
-				var results = _.union(localResults, _.map(externalResults, function(r) {
-					return {
-						'stockid': r.symbol,
-						'lastvalue': r.lastTradePrice * 10000,
-						'ask': r.ask * 10000,
-						'bid': r.bid * 10000,
-						'name': r.name,
-						'exchange': r.exchange,
-						'leader': null,
-						'leadername': null,
-						'wprovision': 0,
-						'lprovision': 0,
-						'pieces': r.pieces
-					};
-				}));
-				
-				results = _.uniq(results, false, function(r) { return r.stockid; });
-				var symbols = _.pluck(results, 'stockid');
-				
-				if (symbols.length > 0 && !ctx.getProperty('readonly')) {
-					symbols = _.map(symbols, escape);
-					ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
-						'WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
-				}
-				
-				return deferred.resolve({ code: 'stock-search-success', results: results });
-			});
-			
-			return deferred.promise;
+			return deferred.resolve({ code: 'stock-search-success', results: results });
 		});
+		
+		return deferred.promise;
 	});
 });
 
@@ -620,7 +619,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	if (ctx.getProperty('readonly'))
 		throw new self.SoTradeClientError('server-readonly');
 	
-	var conn, cfg;
+	var conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
+	var fee, oh_res = null, tradeID = null, perffull = null;
+	
 	return this.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
 		assert.ok(ctx.user);
@@ -664,9 +665,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		
 		assert.equal(res.length, 1);
 		
-		var r = res[0];
+		r = res[0];
 		
-		var hadDepotStocksEntry = (r.amount !== null);
+		hadDepotStocksEntry = (r.amount !== null);
 		
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
@@ -698,14 +699,14 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			});
 		}
 		
-		var amount = parseInt(query.amount);
+		amount = parseInt(query.amount);
 		if (amount < -r.amount || amount != amount) {
 			return conn.rollback().then(function() {
 				throw new self.SoTradeClientError('stock-buy-not-enough-stocks');
 			});
 		}
 		
-		var ta_value = amount > 0 ? r.ask : r.bid;
+		ta_value = amount > 0 ? r.ask : r.bid;
 		
 		assert.ok(r.ask >= 0);
 		assert.ok(r.stockid);
@@ -715,115 +716,115 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			conn.query('SELECT freemoney, totalvalue FROM users_finance AS f WHERE id = ?', [ctx.user.id]),
 			conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
 				[r.stockid, ctx.user.id, r.amount])
-		]).spread(function(ures, ohr) {
-			assert.equal(ures.length, 1);
-			assert.equal(ohr.length, 1);
-			
-			var price = amount * ta_value;
-			if (price > ures[0].freemoney && price >= 0) {
-				return conn.rollback().then(function() {
-					throw new self.SoTradeClientError('stock-buy-out-of-money');
-				});
-			}
-			
-			var tradedToday = ohr[0].amount || 0;
-			
-			if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !ctx.access.has('stocks')) {
-				return conn.rollback().then(function() {
-					throw new self.SoTradeClientError('stock-buy-single-paper-share-exceed');
-				});
-			}
-			
-			if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
-				return conn.rollback().then(function() {
-					throw new self.SoTradeClientError('stock-buy-over-pieces-limit');
-				});
-			}
-			
-			// point of no return
-			var fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
-			var oh_res = null, tradeID = null, perffull = null;
-			
-			return conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
-				'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)',
-				[ctx.user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount]).then(function(oh_res_) {
-				oh_res = oh_res_;
-				
-				if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0))) {
-					var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
-					var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
-
-					if (wprovPay < 0) wprovPay = 0;
-					if (lprovPay > 0) lprovPay = 0;
-					
-					var totalprovPay = wprovPay + lprovPay;
-					
-					return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
-						'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
-						[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({
-							reason: 'trade',
-							provision_hwm: r.provision_hwm,
-							provision_lwm: r.provision_lwm,
-							bid: r.bid,
-							depot_amount: amount
-						})]).then(function() {
-							return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
-							[totalprovPay, totalprovPay, ctx.user.id]);
-						}).then(function() {
-							return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
-							[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid]);
-						});
-				} else {
-					return Q();
-				}
-			}).then(function() {
-				return ctx.feed({
-					'type': 'trade',
-					'targetid': oh_res.insertId,
-					'srcuser': ctx.user.id,
-					'json': {delay: !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
-					'feedusers': r.leader ? [r.leader] : [],
-					'conn': conn
-				});
-			}).then(function() {
-				tradeID = oh_res.insertId;
-				
-				var perfn = r.leader ? 'fperf' : 'operf';
-				var perfv = amount >= 0 ? 'bought' : 'sold';
-				perffull = perfn + '_' + perfv;
-				
-				return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
-					'(?, "stockprice", ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?), ' +
-					'(?, "fee",        ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?)',
-					[oh_res.insertId, r.stockid, ctx.user.id, price, JSON.stringify({reason: 'trade'}),
-					 oh_res.insertId, r.stockid, ctx.user.id, fee,   JSON.stringify({reason: 'trade'})]);
-			}).then(function() {
-				return conn.query('UPDATE users AS fu SET tradecount = tradecount+1 WHERE id = ?', [ctx.user.id]);
-			}).then(function() {
-				return conn.query('UPDATE users_finance AS f SET freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
-					perffull + '=' + perffull + ' + ABS(?) ' +
-					' WHERE id = ?', [price+fee, fee, price, ctx.user.id]);
-			}).then(function() {
-				if (!hadDepotStocksEntry) {
-					assert.ok(amount >= 0);
-					
-					return conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
-						[ctx.user.id, r.id, amount, price, ta_value, ta_value]);
-				} else {
-					return conn.query('UPDATE depot_stocks SET ' +
-						'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
-						'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
-						'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
-						'amount = amount + ? ' +
-						'WHERE userid = ? AND stockid = ?', 
-						[price, price, amount, price, amount, amount, ctx.user.id, r.id]);
-				}
-			}).then(function() {
-				return conn.commit();
-			}).then(function() {
-				return { code: 'stock-buy-success', fee: fee, tradeid: tradeID, extra: 'repush' };
+		]);
+	}).spread(function(ures_, ohr_) {
+		ures = ures_;
+		ohr = ohr_;
+		
+		assert.equal(ures.length, 1);
+		assert.equal(ohr.length, 1);
+		
+		price = amount * ta_value;
+		if (price > ures[0].freemoney && price >= 0) {
+			return conn.rollback().then(function() {
+				throw new self.SoTradeClientError('stock-buy-out-of-money');
 			});
+		}
+		
+		var tradedToday = ohr[0].amount || 0;
+		
+		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !ctx.access.has('stocks')) {
+			return conn.rollback().then(function() {
+				throw new self.SoTradeClientError('stock-buy-single-paper-share-exceed');
+			});
+		}
+		
+		if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
+			return conn.rollback().then(function() {
+				throw new self.SoTradeClientError('stock-buy-over-pieces-limit');
+			});
+		}
+		
+		// point of no return
+		fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
+		
+		return conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
+			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)',
+			[ctx.user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount]);
+	}).then(function(oh_res_) {
+		oh_res = oh_res_;
+		
+		if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0))) {
+			var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
+			var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
+
+			if (wprovPay < 0) wprovPay = 0;
+			if (lprovPay > 0) lprovPay = 0;
+			
+			var totalprovPay = wprovPay + lprovPay;
+			
+			return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
+				'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
+				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({
+					reason: 'trade',
+					provision_hwm: r.provision_hwm,
+					provision_lwm: r.provision_lwm,
+					bid: r.bid,
+					depot_amount: amount
+				})]).then(function() {
+					return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
+					[totalprovPay, totalprovPay, ctx.user.id]);
+				}).then(function() {
+					return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid]);
+				});
+		}
+	}).then(function() {
+		return ctx.feed({
+			'type': 'trade',
+			'targetid': oh_res.insertId,
+			'srcuser': ctx.user.id,
+			'json': {delay: !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
+			'feedusers': r.leader ? [r.leader] : [],
+			'conn': conn
 		});
+	}).then(function() {
+		tradeID = oh_res.insertId;
+		
+		var perfn = r.leader ? 'fperf' : 'operf';
+		var perfv = amount >= 0 ? 'bought' : 'sold';
+		perffull = perfn + '_' + perfv;
+		
+		return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
+			'(?, "stockprice", ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?), ' +
+			'(?, "fee",        ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?)',
+			[oh_res.insertId, r.stockid, ctx.user.id, price, JSON.stringify({reason: 'trade'}),
+			 oh_res.insertId, r.stockid, ctx.user.id, fee,   JSON.stringify({reason: 'trade'})]);
+	}).then(function() {
+		return conn.query('UPDATE users AS fu SET tradecount = tradecount+1 WHERE id = ?', [ctx.user.id]);
+	}).then(function() {
+		return conn.query('UPDATE users_finance AS f SET freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
+			perffull + '=' + perffull + ' + ABS(?) ' +
+			' WHERE id = ?', [price+fee, fee, price, ctx.user.id]);
+	}).then(function() {
+		if (!hadDepotStocksEntry) {
+			assert.ok(amount >= 0);
+			
+			return conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
+				[ctx.user.id, r.id, amount, price, ta_value, ta_value]);
+		} else {
+			return conn.query('UPDATE depot_stocks SET ' +
+				'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
+				'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
+				'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
+				'amount = amount + ? ' +
+				'WHERE userid = ? AND stockid = ?', 
+				[price, price, amount, price, amount, amount, ctx.user.id, r.id]);
+		}
+	}).then(function() {
+		return conn.commit();
+	}).then(function() {
+		return { code: 'stock-buy-success', fee: fee, tradeid: tradeID, extra: 'repush' };
 	});
 });
 

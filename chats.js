@@ -106,7 +106,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		params.push(numEndpoints, numEndpoints);
 	}
 	
-	var chatid;
+	var chatid, chat;
 	return ctx.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
 		'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
 		'WHERE ' + whereString + ' ' +
@@ -149,7 +149,8 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 				return Q({chatid: chatid, eventid: eventid});
 			});
 		});
-	}).then(function(chat) {
+	}).then(function(chat_) {
+		chat = chat_;
 		if (chat === null) {
 			if (ctx.getProperty('readonly'))
 				throw new self.SoTradeClientError('server-readonly');
@@ -169,30 +170,30 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 			'FROM chatmembers AS cm ' +
 			'JOIN users AS u ON u.id = cm.userid ' +
 			'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
-			'WHERE cm.chatid = ?', [chat.chatid]).then(function(endpoints) {
-			assert.ok(endpoints.length > 0);
-			chat.endpoints = endpoints;
-			
-			var ownChatsIsEndpoint = false;
-			for (var i = 0; i < chat.endpoints.length; ++i) {
-				if (chat.endpoints[i].uid == ctx.user.id) {
-					ownChatsIsEndpoint = true;
-					break;
-				}
+			'WHERE cm.chatid = ?', [chat.chatid]);
+	}).then(function(endpoints) {
+		assert.ok(endpoints.length > 0);
+		chat.endpoints = endpoints;
+		
+		var ownChatsIsEndpoint = false;
+		for (var i = 0; i < chat.endpoints.length; ++i) {
+			if (chat.endpoints[i].uid == ctx.user.id) {
+				ownChatsIsEndpoint = true;
+				break;
 			}
-			
-			if (!ownChatsIsEndpoint)
-				throw new self.SoTradeClientError('chat-get-notfound');
-			
-			return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
-				'FROM ecomments AS c ' + 
-				'LEFT JOIN users AS u ON c.commenter = u.id ' + 
-				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
-				'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
-				chat.messages = comments;
-				return { code: 'chat-get-success', chat: chat };
-			});	
-		});
+		}
+		
+		if (!ownChatsIsEndpoint)
+			throw new self.SoTradeClientError('chat-get-notfound');
+		
+		return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+			'FROM ecomments AS c ' + 
+			'LEFT JOIN users AS u ON c.commenter = u.id ' + 
+			'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+			'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
+			chat.messages = comments;
+			return { code: 'chat-get-success', chat: chat };
+		});	
 	});
 });
 
@@ -224,45 +225,47 @@ Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', f
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
 		throw new self.FormatError();
 	
+	var username, chat;
+	
 	return ctx.query('SELECT name FROM users WHERE id = ?', [query.userid]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('chat-adduser-user-notfound');
 		
 		assert.equal(res.length, 1);
-		var username = res[0].name;
+		username = res[0].name;
 		
 		return self.getChat({
 			chatid: query.chatid,
 			failOnMissing: true
-		}, ctx).then(function(getChatsResult) {
-			var status = getChatsResult.code;
-			switch (status) {
-				case 'chat-get-notfound':
-					throw new self.SoTradeClientError('chat-adduser-chat-notfound');
-				case 'chat-get-success':
-					break;
-				default:
-					throw new self.SoTradeClientError(status);
-			}
-			
-			var chat = getChatsResult.chat;
-			
-			return ctx.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid]).then(function(r) {
-				var feedusers = _.pluck(chat.endpoints, 'uid');
-				feedusers.push(query.userid);
-				
-				return ctx.feed({
-					type: 'chat-user-added',
-					targetid: query.chatid,
-					srcuser: ctx.user.id,
-					noFollowers: true,
-					feedusers: _.pluck(chat.endpoints, 'uid'),
-					json: {addedChats: query.userid, addedChatsName: username, endpoints: chat.endpoints}
-				});
-			}).then(function() {
-				return { code: 'chat-adduser-success' };
-			});
+		}, ctx);
+	}).then(function(getChatsResult) {
+		var status = getChatsResult.code;
+		switch (status) {
+			case 'chat-get-notfound':
+				throw new self.SoTradeClientError('chat-adduser-chat-notfound');
+			case 'chat-get-success':
+				break;
+			default:
+				throw new self.SoTradeClientError(status);
+		}
+		
+		chat = getChatsResult.chat;
+		
+		return ctx.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid]);
+	}).then(function(r) {
+		var feedusers = _.pluck(chat.endpoints, 'uid');
+		feedusers.push(query.userid);
+		
+		return ctx.feed({
+			type: 'chat-user-added',
+			targetid: query.chatid,
+			srcuser: ctx.user.id,
+			noFollowers: true,
+			feedusers: _.pluck(chat.endpoints, 'uid'),
+			json: {addedChats: query.userid, addedChatsName: username, endpoints: chat.endpoints}
 		});
+	}).then(function() {
+		return { code: 'chat-adduser-success' };
 	});
 });
 

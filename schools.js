@@ -149,6 +149,7 @@ Schools.prototype.loadSchoolAdmins = function(schoolid, ctx) {
 Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 	var self = this;
 	
+	var s;
 	return ctx.query('SELECT schools.id, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
 		'FROM schools ' +
 		'LEFT JOIN events ON events.targetid = schools.id AND events.type = "school-create" ' +
@@ -158,7 +159,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 		if (res.length == 0)
 			throw new this.SoTradeClientError('get-school-info-notfound');
 		
-		var s = res[0];	
+		s = res[0];	
 		s.parentPath = null;
 		
 		assert.ok(s.eventid);
@@ -218,23 +219,23 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 				return s.parentPath ? self.loadSchoolInfo(s.parentPath, ctx, cfg) :
 					Q({schoolinfo: null});
 			}) // parentResult
-		]).spread(function(admins, subschools, usercount, comments, blogposts, popularStocks, feedblogs, parentResult) {
-			s.admins = admins;
-			s.subschools = subschools;
-			s.usercount = usercount[0].usercount;
-			s.comments = comments;
-			s.blogposts = blogposts;
-			s.popularStocks = popularStocks;
-			s.feedblogs = feedblogs;
-			
-			assert.ok(typeof parentResult.code == 'undefined' || parentResult.code == 'get-school-info-success');
-			
-			s.parentSchool = parentResult;
-			s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults,
-				s.parentSchool ? s.parentSchool.config : {}, s.config);
-			
-			return {code: 'get-school-info-success', schoolinfo: s};
-		});
+		]);
+	}).spread(function(admins, subschools, usercount, comments, blogposts, popularStocks, feedblogs, parentResult) {
+		s.admins = admins;
+		s.subschools = subschools;
+		s.usercount = usercount[0].usercount;
+		s.comments = comments;
+		s.blogposts = blogposts;
+		s.popularStocks = popularStocks;
+		s.feedblogs = feedblogs;
+		
+		assert.ok(typeof parentResult.code == 'undefined' || parentResult.code == 'get-school-info-success');
+		
+		s.parentSchool = parentResult;
+		s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults,
+			s.parentSchool ? s.parentSchool.config : {}, s.config);
+		
+		return { code: 'get-school-info-success', schoolinfo: s };
 	});
 };
 
@@ -381,12 +382,12 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
-		return self.request({ name: 'readTemplate', template: 'comment-deleted-by-group-admin.html' }).then(function(commentContent) {
-			return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-				[commentContent, parseInt(query.commentid)]);
-		}).then(function() {
-			return { code: 'school-delete-comment-success' };
-		});
+		return self.request({ name: 'readTemplate', template: 'comment-deleted-by-group-admin.html' });
+	}).then(function(commentContent) {
+		return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
+			[commentContent, parseInt(query.commentid)]);
+	}).then(function() {
+		return { code: 'school-delete-comment-success' };
 	});
 }));
 
@@ -470,31 +471,33 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 			});
 		}
 		
-		return (query.schoolpath.replace(/[^\/]/g, '').length == 1 ? Q([{c: 1}])
-			: conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
-			[commonUtil.parentPath(String(query.schoolpath))])).then(function(r) {
-			assert.equal(r.length, 1);
-			
-			if (r[0].c != 1) {
-				return conn.rollback().then(function() {
-					throw new self.SoTradeClientError('create-school-missing-parent');
-				});
-			}
-			
-			return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
-				[String(query.schoolname), String(query.schoolpath)]).then(function(res) {
-				return ctx.feed({
-					'type': 'school-create',
-					'targetid': res.insertId,
-					'srcuser': ctx.user.id,
-					'conn': conn
-				});
-			}).then(function() {
-				return conn.commit();
-			}).then(function() {
-				return { code: 'create-school-success', path: String(query.schoolpath) };
+		if (String(query.schoolpath).replace(/[^\/]/g, '').length == 1)
+			return [{c: 1}];
+		else
+			return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
+			[commonUtil.parentPath(String(query.schoolpath))]);
+	}).then(function(r) {
+		assert.equal(r.length, 1);
+		
+		if (r[0].c != 1) {
+			return conn.rollback().then(function() {
+				throw new self.SoTradeClientError('create-school-missing-parent');
 			});
+		}
+		
+		return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
+			[String(query.schoolname), String(query.schoolpath)]);
+	}).then(function(res) {
+		return ctx.feed({
+			'type': 'school-create',
+			'targetid': res.insertId,
+			'srcuser': ctx.user.id,
+			'conn': conn
 		});
+	}).then(function() {
+		return conn.commit();
+	}).then(function() {
+		return { code: 'create-school-success', path: String(query.schoolpath) };
 	});
 });
 

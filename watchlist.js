@@ -49,36 +49,40 @@ util.inherits(Watchlist, buscomponent.BusComponent);
 Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx) {
 	var self = this;
 	
+	var uid, res;
+	
 	return ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
 		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ? OR stocks.stockid = ?',
-		[String(query.stockid), String(query.stockid)]).then(function(res) {
+		[String(query.stockid), String(query.stockid)]).then(function(res_) {
+		res = res_;
 		if (res.length == 0)
 			throw new self.SoTradeClientError('watchlist-add-notfound');
-		var uid = res[0].uid;
+		
+		uid = res[0].uid;
 		if (uid == ctx.user.id)
 			throw new self.SoTradeClientError('watchlist-add-self');
 		
 		return ctx.query('REPLACE INTO watchlists ' +
 			'(watcher, watchstarttime, watchstartvalue, watched) '+
 			'VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
-			[ctx.user.id, res[0].bid, String(query.stockid)]).then(function(r) {
-			if (r.affectedRows != 1) // REPLACE INTO did not add a new entry
-				return;
-			
-			return ctx.feed({
-				type: 'watch-add',
-				targetid: r.insertId,
-				srcuser: ctx.user.id,
-				json: {
-					watched: query.stockid, 
-					watcheduser: uid,
-					watchedname: res[0].name
-				},
-				feedusers: uid ? [uid] : []
-			});
-		}).then(function() {
+			[ctx.user.id, res[0].bid, String(query.stockid)]);
+	}).then(function(r) {
+		if (r.affectedRows != 1) // REPLACE INTO did not add a new entry
 			return { code: 'watchlist-add-success' };
-		}); 
+		
+		return ctx.feed({
+			type: 'watch-add',
+			targetid: r.insertId,
+			srcuser: ctx.user.id,
+			json: {
+				watched: query.stockid, 
+				watcheduser: uid,
+				watchedname: res[0].name
+			},
+			feedusers: uid ? [uid] : []
+		});
+	}).then(function() {
+		return { code: 'watchlist-add-success' };
 	});
 });
 

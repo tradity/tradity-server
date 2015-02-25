@@ -231,17 +231,18 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 	if (!query.comment || parseInt(query.eventid) != query.eventid)
 		throw new self.FormatError();
 	
+	var feedschool = null;
+	var feedchat = null;
+	var feedusers = [];
+	var noFollowers = false;
+	
 	return ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events ' +
 		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?',
 		[parseInt(query.eventid)]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('comment-notfound');
 		
-		var feedschool = null;
-		var feedchat = null;
-		var feedusers = [];
 		var r = res[0];
-		var noFollowers = false;
 		
 		switch (r.type) {
 			case 'user-register':
@@ -265,19 +266,19 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 		
 		return ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
 			[parseInt(query.eventid), ctx.user.id, String(query.comment),
-			 query.ishtml && ctx.access.has('comments') ? 1 : 0]).then(function(res) {
-			return ctx.feed({
-				type: 'comment',
-				targetid: res.insertId,
-				srcuser: ctx.user.id,
-				feedusers: feedusers,
-				feedschool: feedschool,
-				feedchat: feedchat,
-				noFollowers: noFollowers
-			});
-		}).then(function() {
-			return { code: 'comment-success' };
+			 query.ishtml && ctx.access.has('comments') ? 1 : 0]);
+	}).then(function(res) {
+		return ctx.feed({
+			type: 'comment',
+			targetid: res.insertId,
+			srcuser: ctx.user.id,
+			feedusers: feedusers,
+			feedschool: feedschool,
+			feedchat: feedchat,
+			noFollowers: noFollowers
 		});
+	}).then(function() {
+		return { code: 'comment-success' };
 	});
 });
 

@@ -151,9 +151,9 @@ WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-w
 			throw new self.FormatError();
 		
 		return ctx.query('INSERT INTO feedblogs (endpoint, category, schoolid, bloguser, active) VALUES(?, ?, ?, ?, 1)',
-			[query.endpoint, query.category, query.schoolid, query.bloguser]).then(function() {
-			return { code: 'add-wordpress-feed-success' };
-		});
+			[query.endpoint, query.category, query.schoolid, query.bloguser]);
+	}).then(function() {
+		return { code: 'add-wordpress-feed-success' };
 	});
 });
 

@@ -164,7 +164,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		throw new self.SoTradeClientError('server-readonly');
 	
 	var content = query.content;
-	var uniqrole, cfg;
+	var uniqrole, cfg, filehash, filename, url, content;
 	
 	return self.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
@@ -220,15 +220,15 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			}
 		}
 		
-		var filehash = serverUtil.sha256(content + String(Date.now())).substr(0, 32);
+		filehash = serverUtil.sha256(content + String(Date.now())).substr(0, 32);
 		query.name = query.name ? String(query.name) : filehash;
 		
-		var filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
-		var url = cfg.varReplace(cfg.fsdb.puburl.replace(/\{\$name\}/g, filename));
+		filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
+		url = cfg.varReplace(cfg.fsdb.puburl.replace(/\{\$name\}/g, filename));
 		
 		groupassoc = parseInt(groupassoc) == groupassoc ? parseInt(groupassoc) : null;
 		
-		return ((uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) ? function() {
+		if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
 			var sql = 'DELETE FROM httpresources WHERE role = ? ';
 			var dataarr = [String(query.role)];
 			
@@ -244,26 +244,24 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			}
 			
 			return ctx.query(sql, dataarr);
-		} : function() {
-			return Q();
-		})().then(function() {
-			return ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
-				'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
-				String(query.role), content, groupassoc, query.proxy ? 1:0]);
-		}).then(function(res) {
-			if (ctx.user) {
-				return ctx.feed({
-					'type': 'file-publish',
-					'targetid': res.insertId,
-					'srcuser': ctx.user.id
-				});
-			}
-			
-			return Q();
-		}).then(function() {
-			return { code: 'publish-success', extra: 'repush' };
-		});
+		}
+	}).then(function() {
+		return ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
+			'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
+			[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
+			String(query.role), content, groupassoc, query.proxy ? 1:0]);
+	}).then(function(res) {
+		if (ctx.user) {
+			return ctx.feed({
+				'type': 'file-publish',
+				'targetid': res.insertId,
+				'srcuser': ctx.user.id
+			});
+		}
+		
+		return Q();
+	}).then(function() {
+		return { code: 'publish-success', extra: 'repush' };
 	});
 });
 

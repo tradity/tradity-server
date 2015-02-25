@@ -931,26 +931,30 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
 	if (parseInt(query.tradeid) != query.tradeid)
 		return { code: 'format-error' };
 	
+	var r;
 	return Q.all([
 		this.getServerConfig(),
-		ctx.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh '+
-			'LEFT JOIN stocks AS s ON s.leader = oh.leader '+
-			'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid '+
-			'LEFT JOIN users AS u ON u.id = oh.leader '+
-			'LEFT JOIN users AS trader ON trader.id = oh.userid WHERE oh.orderid = ?', [parseInt(query.tradeid)]),
-		ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml '+
-			'FROM ecomments AS c '+
-			'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
-			'LEFT JOIN users AS u ON c.commenter = u.id WHERE c.eventid = ?', [r.eventid])
-	]).spread(function(cfg, oh_res, comments) {
+		ctx.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh ' +
+			'LEFT JOIN stocks AS s ON s.leader = oh.leader ' +
+			'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid ' +
+			'LEFT JOIN users AS u ON u.id = oh.leader ' +
+			'LEFT JOIN users AS trader ON trader.id = oh.userid WHERE oh.orderid = ?', [parseInt(query.tradeid)])
+	]).spread(function(cfg, oh_res) {
 		if (oh_res.length == 0)
 			return { code: 'get-trade-info-notfound' };
-		var r = oh_res[0];
+		r = oh_res[0];
 		
-		assert.ok(r.userid);
 		if (r.userid != ctx.user.id && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
 			return { code: 'get-trade-delayed-history' };
 		
+		assert.ok(r.userid);
+		
+		return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
+			'FROM ecomments AS c ' +
+			'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
+			'LEFT JOIN users AS u ON c.commenter = u.id ' +
+			'WHERE c.eventid = ?', [r.eventid]);
+	}).then(function(comments) {
 		return { code: 'get-trade-info-success', 'trade': r, 'comments': comments };
 	});
 });

@@ -62,6 +62,7 @@ describe('stocks', function() {
 	describe('stock-buy', function() {
 		it('Can buy and sell stocks via forceNow', function() {
 			var amount = 5;
+			
 			return socket.emit('stock-buy', {
 				__sign__: true,
 				amount: amount,

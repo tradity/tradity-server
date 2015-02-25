@@ -196,7 +196,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
 
 		return self.wrapForReply({pushes: evlist}).then(function(r) {
 			if (self.socket)
-				self.socket.emit('push-container', r)
+				self.socket.emit('push-container', r);
 		});
 	});
 };
@@ -306,7 +306,7 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
 			return;
 		
 		deferred.resolve(self.fetchEvents({
-			since: self.mostRecentEventTime === null ? Date.now() / 1000 : self.mostRecentEventTime,
+			since: self.mostRecentEventTime === null ? Date.now() / 1000 - 10 : self.mostRecentEventTime,
 			count: null
 		}));
 	}, 1000);

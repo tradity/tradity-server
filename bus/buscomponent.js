@@ -148,12 +148,14 @@ function provide(name, args, fn, prefilter) {
 		
 		return Q().then(function() {
 			return fn.apply(self, passArgs);
-		}).then(function(result) {
-			return data.reply(result);
 		}).catch(function(e) {
 			if (e.busTransmitAsJSON)
 				return e.toJSON();
 			
+			throw e;
+		}).then(function(result) {
+			return data.reply(result);
+		}).catch(function(e) {
 			self.emitError(e);
 		}).done();
 	};

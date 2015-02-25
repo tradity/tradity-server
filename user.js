@@ -646,7 +646,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 				return result;
 			});
 		});
-	}).catch(function(e) { console.log('!$', e); throw e; });
+	});
 });
 
 /**

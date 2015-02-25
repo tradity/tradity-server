@@ -56,23 +56,19 @@ function SoTradeClientError(code, msg) {
 	this.message = msg || tmp.message;
 	this.code = code;
 	this.busTransmitAsJSON = true;
-	
-	Object.defineProperty(this, 'stack', {
-		get: function() {
-			return tmp.stack;
-		}
-	});
+	this.stack = tmp.stack;
 	
 	return this;
-};
-
-SoTradeClientError.prototype.toJSON = function() {
-	return _.pick(this, 'name', 'message', 'code');
 };
 
 var IntermediateInheritor = function() {};
 IntermediateInheritor.prototype = Error.prototype;
 SoTradeClientError.prototype = new IntermediateInheritor();
+
+SoTradeClientError.prototype.toJSON = function() {
+	return _.pick(this, 'name', 'message', 'code');
+};
+
 STBusComponent.prototype.SoTradeClientError = SoTradeClientError;
 
 function PermissionDenied (msg) {

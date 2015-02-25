@@ -141,7 +141,7 @@ DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquer
 			return { code: 'dquery-remove-success' };
 		});
 	} else {
-		return { code: 'dquery-remove-notfound' };
+		throw new this.SoTradeClientError('dquery-remove-notfound');
 	}
 });
 
@@ -164,16 +164,17 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 	var self = this;
 	
 	var qstr = null;
+	self.parseCondition(query.condition);
+	
 	try {
-		self.parseCondition(query.condition);
 		qstr = JSON.stringify(query.query);
 	} catch (e) {
 		self.emitError(e);
-		return { code: 'format-error' };
+		throw new self.FormatError();
 	}
 	
 	if (this.queryTypes.indexOf(query.query.type) == -1)
-		return { code: 'unknown-query-type' };
+		throw new self.SoTradeClientError('unknown-query-type');
 	
 	var userinfo = _.clone(ctx.user);
 	delete userinfo.pwsalt;
@@ -201,10 +202,10 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
  * @function c2s~dquery-checkall
  */
 DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dquery-checkall', function(query, ctx) {
-	if (!ctx.access.has('dqueries'))
-		return { code: 'permission-denied' };
-	
 	var self = this;
+	
+	if (!ctx.access.has('dqueries'))
+		throw new self.PermissionDenied();
 	
 	return Q.all(_.chain(self.queries).values().map(function(q) {
 		return self.checkAndExecute(ctx, q);
@@ -224,16 +225,7 @@ DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dque
 DelayedQueries.prototype.addQuery = function(ctx, query) {
 	assert.ok(query);
 
-	var cond;
-	
-	try {
-		cond = this.parseCondition(query.condition);
-	} catch(e) {
-		if (e.code)
-			return { code: e.code, error: e };
-		else
-			throw e;
-	}
+	var cond = this.parseCondition(query.condition);
 	
 	query.check = cond.check;
 	query.neededStocks = cond.neededStocks;
@@ -292,14 +284,11 @@ DelayedQueries.prototype.parseCondition = function(str) {
 	var clauses = str.split('∧');
 	var cchecks = [];
 	var stocks = [];
-	_.each(clauses, _.bind(function(cl) {
+	_.each(clauses, function(cl) {
 		cl = cl.trim();
 		var terms = cl.split(/[<>]/);
-		if (terms.length != 2) {
-			var e = new Error('condition clause must contain exactly one < or > expression');
-			e.code = 'format-error'; // XXX
-			throw e;
-		}
+		if (terms.length != 2)
+			throw new self.FormatError('condition clause must contain exactly one < or > expression');
 		
 		var lt = cl.indexOf('<') != -1;
 		var lhs = terms[0].trim();
@@ -315,7 +304,7 @@ DelayedQueries.prototype.parseCondition = function(str) {
 				break;
 			case 'stock':
 				if (variable.length != 3)
-					throw new Error('expecting level 3 nesting for stock variable');
+					throw new self.FormatError('expecting level 3 nesting for stock variable');
 				var stockid = variable[1];
 				var fieldname = variable[2];
 				if (_.indexOf(stocks, stockid) == -1)
@@ -339,7 +328,7 @@ DelayedQueries.prototype.parseCondition = function(str) {
 						break;
 					default:
 						if (!/^\w+$/.test(fieldname))
-							throw new Error('bad fieldname');
+							throw new self.FormatError('bad fieldname');
 						cchecks.push(function(ctx) {
 							return ctx.query('SELECT ' + fieldname + ' FROM stocks WHERE stockid = ?',
 								[String(stockid)]).then(function(r) {
@@ -350,9 +339,9 @@ DelayedQueries.prototype.parseCondition = function(str) {
 				}
 				break;
 			default:
-				throw new Error('unknown variable type');
+				throw new self.FormatError('unknown variable type');
 		}
-	}, this));
+	});
 	
 	return {
 		check: function(ctx) {

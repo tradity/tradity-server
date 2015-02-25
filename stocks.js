@@ -398,7 +398,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 	return self.getServerConfig().then(function(cfg) {
 		var str = String(query.name);
 		if (!str || str.length < 3)
-			return { code: 'stock-search-too-short' };
+			throw new self.SoTradeClientError('stock-search-too-short');
 		
 		str = str.trim();
 		
@@ -618,7 +618,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	var self = this;
 	
 	if (ctx.getProperty('readonly'))
-		return { code: 'server-readonly' };
+		throw new self.SoTradeClientError('server-readonly');
 	
 	var conn, cfg;
 	return this.getServerConfig().then(function(cfg_) {
@@ -658,7 +658,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	}).then(function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			return conn.rollback().then(function() {
-				return { code: 'stock-buy-stock-not-found' };
+				throw new self.SoTradeClientError('stock-buy-stock-not-found');
 			});
 		}
 		
@@ -673,7 +673,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		
 		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !forceNow) {
 			return conn.rollback().then(function() {
-				return { code: 'stock-buy-email-not-verif' };
+				throw new self.SoTradeClientError('stock-buy-email-not-verif');
 			});
 		}
 		
@@ -691,9 +691,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 						}
 					});
 					
-					return { code: 'stock-buy-autodelay-sxnotopen' };
+					throw new self.SoTradeClientError('stock-buy-autodelay-sxnotopen');
 				} else {
-					return { code: 'stock-buy-sxnotopen' };
+					throw new self.SoTradeClientError('stock-buy-sxnotopen');
 				}
 			});
 		}
@@ -701,7 +701,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		var amount = parseInt(query.amount);
 		if (amount < -r.amount || amount != amount) {
 			return conn.rollback().then(function() {
-				return { code: 'stock-buy-not-enough-stocks' };
+				throw new self.SoTradeClientError('stock-buy-not-enough-stocks');
 			});
 		}
 		
@@ -722,7 +722,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			var price = amount * ta_value;
 			if (price > ures[0].freemoney && price >= 0) {
 				return conn.rollback().then(function() {
-					return { code: 'stock-buy-out-of-money' };
+					throw new self.SoTradeClientError('stock-buy-out-of-money');
 				});
 			}
 			
@@ -730,13 +730,13 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			
 			if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !ctx.access.has('stocks')) {
 				return conn.rollback().then(function() {
-					return { code: 'stock-buy-single-paper-share-exceed' };
+					throw new self.SoTradeClientError('stock-buy-single-paper-share-exceed');
 				});
 			}
 			
 			if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
 				return conn.rollback().then(function() {
-					return { code: 'stock-buy-over-pieces-limit' };
+					throw new self.SoTradeClientError('stock-buy-over-pieces-limit');
 				});
 			}
 			
@@ -928,8 +928,10 @@ Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transact
  * @function c2s~get-trade-info
  */
 Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx) {
+	var self = this;
+	
 	if (parseInt(query.tradeid) != query.tradeid)
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	
 	var r;
 	return Q.all([
@@ -941,11 +943,11 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
 			'LEFT JOIN users AS trader ON trader.id = oh.userid WHERE oh.orderid = ?', [parseInt(query.tradeid)])
 	]).spread(function(cfg, oh_res) {
 		if (oh_res.length == 0)
-			return { code: 'get-trade-info-notfound' };
+			throw new self.SoTradeClientError('get-trade-info-notfound');
 		r = oh_res[0];
 		
 		if (r.userid != ctx.user.id && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
-			return { code: 'get-trade-delayed-history' };
+			throw new self.SoTradeClientError('get-trade-delayed-history');
 		
 		assert.ok(r.userid);
 		

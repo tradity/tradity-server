@@ -69,25 +69,27 @@ util.inherits(Chats, buscomponent.BusComponent);
  * @function c2s~chat-get
  */
 Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx) {
+	var self = this;
+	
 	var whereString = '';
 	var params = [];
 	
 	if (!query.endpoints || !query.endpoints.length) {
 		if (!query.chatid || parseInt(query.chatid) != query.chatid)
-			return { code: 'format-error' };
+			throw new self.FormatError();
 		
 		whereString += ' chatid = ?';
 		params.push(query.chatid);
 	} else {
 		if (query.chatid)
-			return { code: 'format-error' };
+			throw new self.FormatError();
 		
 		var containsOwnChats = false;
 		for (var i = 0; i < query.endpoints.length; ++i) {
 			var uid = query.endpoints[i];
 			containsOwnChats = containsOwnChats || (uid == ctx.user.id);
 			if (parseInt(uid) != uid)
-				return { code: 'format-error' };
+				throw new self.FormatError();
 		}
 		
 		if (!containsOwnChats && ctx.user)
@@ -150,9 +152,9 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 	}).then(function(chat) {
 		if (chat === null) {
 			if (ctx.getProperty('readonly'))
-				return { code: 'server-readonly' };
+				throw new self.SoTradeClientError('server-readonly');
 			else
-				return { code: 'chat-get-notfound' };
+				throw new self.SoTradeClientError('chat-get-notfound');
 		}
 		
 		assert.notStrictEqual(chat.chatid, null);
@@ -180,7 +182,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 			}
 			
 			if (!ownChatsIsEndpoint)
-				return { code: 'chat-get-notfound' };
+				throw new self.SoTradeClientError('chat-get-notfound');
 			
 			return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
 				'FROM ecomments AS c ' + 
@@ -220,11 +222,11 @@ Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', f
 	var self = this;
 	
 	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
-		return { code: 'format-error' };
+		throw new self.FormatError();
 	
 	return ctx.query('SELECT name FROM users WHERE id = ?', [query.userid]).then(function(res) {
 		if (res.length == 0)
-			return { code: 'chat-adduser-user-notfound' };
+			throw new self.SoTradeClientError('chat-adduser-user-notfound');
 		
 		assert.equal(res.length, 1);
 		var username = res[0].name;
@@ -236,11 +238,11 @@ Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', f
 			var status = getChatsResult.code;
 			switch (status) {
 				case 'chat-get-notfound':
-					return { code: 'chat-adduser-chat-notfound' };
+					throw new self.SoTradeClientError('chat-adduser-chat-notfound');
 				case 'chat-get-success':
 					break;
 				default:
-					return { code: status }; // assume other error
+					throw new self.SoTradeClientError(status);
 			}
 			
 			var chat = getChatsResult.chat;

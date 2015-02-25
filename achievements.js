@@ -280,7 +280,7 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
 	
 	if (query.today) {
 		if (!ctx.access.has('achievements'))
-			return { code: 'permission-denied' };
+			throw new this.PermissionDenied();
 		
 		today = String(query.today);
 	}
@@ -311,12 +311,12 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
 	var self = this;
 	
 	if (!query.name)
-		return { code: 'format-error' };
+		throw new self.FormatError();
 	
 	query.name = String(query.name);
 	
 	if (self.clientAchievements.indexOf(query.name) == -1)
-		return { code: 'achievement-unknown-name' };
+		throw new self.SoTradeClientError('achievement-unknown-name');
 	
 	return ctx.query('REPLACE INTO achievements_client (userid, achname, verified) VALUES(?, ?, ?)',
 		[ctx.user.id, query.name, verified || 0]).then(function()
@@ -342,7 +342,7 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 	var uid = ctx.user.id;
 	
 	if (!query.certs || !query.certs.map)
-		return { code: 'format-error' };
+		throw new self.FormatError();
 		
 	return self.getServerConfig().then(function(cfg) {
 		return Q.all(query.certs.map(function(cert) {

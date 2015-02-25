@@ -144,14 +144,17 @@ function provide(name, args, fn, prefilter) {
 		for (var i = 0; i < args.length; ++i)
 			passArgs.push(data[args[i]]);
 		
-		var this_ = this;
+		var self = this;
 		
 		return Q().then(function() {
-			return fn.apply(this_, passArgs);
+			return fn.apply(self, passArgs);
 		}).then(function(result) {
 			return data.reply(result);
 		}).catch(function(e) {
-			this_.emitError(e);
+			if (e.busTransmitAsJSON)
+				return e.toJSON();
+			
+			self.emitError(e);
 		}).done();
 	};
 	
@@ -201,14 +204,14 @@ BusComponent.prototype.onBusConnect = function() {};
 
 function needsInit (fn) {
 	return function() {
-		var this_ = this;
+		var self = this;
 		var arguments_ = arguments;
 		
 		if (this.initPromise === null)
 			this.initPromise = Q(this._init());
 		
 		return this.initPromise.then(function() {
-			return fn.apply(this_, arguments_);
+			return fn.apply(self, arguments_);
 		});
 	};
 };

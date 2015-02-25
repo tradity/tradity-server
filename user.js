@@ -187,7 +187,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			if (!useTransaction)
 				return self.login(query, ctx, xdata, true, ignorePassword);
 			
-			return { code: 'login-badname' };
+			throw new self.SoTradeClientError('login-badname');
 		}
 		
 		var uid = res[0].id;
@@ -197,7 +197,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			if (!useTransaction)
 				return self.login(query, ctx, xdata, true, ignorePassword);
 			
-			return { code: 'login-wrongpw' };
+			throw new self.SoTradeClientError('login-wrongpw');
 		}
 		
 		var key;
@@ -563,7 +563,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
 	}).then(function(users) {
 		if (users.length == 0)
-			return { code: 'get-user-info-notfound' };
+			throw new self.SoTradeClientError('get-user-info-notfound');
 		
 		var xuser = users[0];
 		xuser.isSelf = (ctx.user && xuser.uid == ctx.user.uid);
@@ -594,8 +594,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			
 			/* do some validation on the schools array.
 			 * this is not necessary; however, it may help catch bugs long 
-			 * before they actually do a lot of harm.
-			 */
+			 * before they actually do a lot of harm. */
 			var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; });
 			if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
 				return self.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
@@ -647,7 +646,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 				return result;
 			});
 		});
-	});
+	}).catch(function(e) { console.log('!$', e); throw e; });
 });
 
 /**
@@ -706,14 +705,14 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 	var key = String(query.key);
 	
 	if (uid != query.uid)
-		return { code: 'format-error' };
+		throw new self.FormatError();
 	
 	return ctx.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
 	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?',
 		[uid, uid, key]).then(function(res) {
 		if (res.length != 2) {
 			console.warn('strange email-verif stuff', res);
-			return { code: 'email-verify-failure' };
+			throw new self.SoTradeClientError('email-verify-failure');
 		}
 		
 		var email = null;
@@ -722,16 +721,16 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 				email = res[i].email;
 					
 				if (res[i].y == 42 && res[i].v != 0) 
-					return { code: 'email-verify-already-verified' };
+					throw new self.SoTradeClientError('email-verify-already-verified');
 			}
 			
 			if (res[i].y == 41 && res[i].v < 1 && !ctx.access.has('userdb'))
-				return { code: 'email-verify-failure' };
+				throw new self.SoTradeClientError('email-verify-failure');
 		}
 		
 		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND id != ?', [email, uid]).then(function(res) {
 			if (res[0].c > 0)
-				return { code: 'email-verify-other-already-verified' };
+				throw new self.SoTradeClientError('email-verify-other-already-verified');
 		
 			return ctx.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid]).then(function() {
 				return ctx.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid])
@@ -876,7 +875,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
  */
 User.prototype.register = buscomponent.provideWQT('client-register', function(query, ctx, xdata) {
 	if (ctx.user !== null)
-		return { code: 'already-logged-in' };
+		throw new this.SoTradeClientError('already-logged-in');
 	return this.updateUser(query, 'register', ctx, xdata);
 });
 
@@ -957,15 +956,15 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 	return self.getServerConfig().then(function(cfg) {
 		var uid = ctx.user !== null ? ctx.user.id : null;
 		if (!query.name || !query.email)
-			return { code: 'format-error' };
+			throw new self.FormatError();
 		
 		if ((query.password || type != 'change') && (!query.password || query.password.length < 5))
-			return { code: 'reg-too-short-pw' };
+			throw new self.SoTradeClientError('reg-too-short-pw');
 		
 		query.email = String(query.email);
 		query.name = String(query.name);
 		if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) || parseInt(query.name) == query.name)
-			return { code: 'reg-name-invalid-char' };
+			throw new self.SoTradeClientError('reg-name-invalid-char');
 		
 		query.giv_name = String(query.giv_name || '');
 		query.fam_name = String(query.fam_name || '');
@@ -979,11 +978,11 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		
 		if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
 			query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
-			return { code: 'invalid-provision' };
+			throw new self.SoTradeClientError('invalid-provision');
 		
 		query.lang = String(query.lang || cfg.languages[0].id);
 		if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() == -1)
-			return { code: 'reg-invalid-language' };
+			throw new self.SoTradeClientError('reg-invalid-language');
 		
 		if (!query.school) // e. g., empty string
 			query.school = null;
@@ -1019,16 +1018,16 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
 				type == 'register' && !ctx.access.has('userdb')) {
 				return conn.rollback().then(function() {
-					return { code: 'reg-beta-necessary' };
+					throw new self.SoTradeClientError('reg-beta-necessary');
 				});
 			}
 			
 			if (res.length > 0 && res[0].id !== uid) {
 				return conn.rollback().then(function() {
 					if (res[0].email.toLowerCase() == query.email.toLowerCase())
-						return { code: 'reg-email-already-present' };
+						throw new self.SoTradeClientError('reg-email-already-present');
 					else
-						return { code: 'reg-name-already-present' };
+						throw new self.SoTradeClientError('reg-name-already-present');
 				});
 			}
 			
@@ -1038,7 +1037,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 				return ((res.length == 0 && query.school !== null) ? function(cont) {
 					if (parseInt(query.school) == query.school || !query.school) {
 						return conn.rollback().then(function() {
-							return { code: 'reg-unknown-school' };
+							throw new self.SoTradeClientError('reg-unknown-school');
 						});
 					}
 					
@@ -1225,7 +1224,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 	
 	return self.getServerConfig().then(function(cfg) {
 		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
-			return { code: 'permission-denied' };
+			throw new self.PermissionDenied();
 		
 		assert.ok(ctx.user);
 		assert.ok(ctx.access);
@@ -1272,14 +1271,14 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 	var self = this;
 	
 	if (ctx.user)
-		return { code: 'already-logged-in' };
+		throw new self.SoTradeClientError('already-logged-in');
 	
 	var name = String(query.name);
 	
 	return ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
 		[name, name]).then(function(res) {
 		if (res.length == 0)
-			return { code: 'password-reset-notfound' };
+			throw new self.SoTradeClientError('password-reset-notfound');
 		
 		var u = res[0];
 		assert.ok(u);
@@ -1319,7 +1318,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
 	
 	return ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]).then(function(res) {
 		if (res.length == 0)
-			return { code: 'get-invitekey-info-notfound' };
+			throw new self.SoTradeClientError('get-invitekey-info-notfound');
 	
 		return self.getServerConfig().then(function(cfg) {
 			assert.equal(res.length, 1);
@@ -1346,10 +1345,10 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 		
 		if (!ctx.access.has('userdb')) {
 			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
-				return { code: 'create-invite-link-invalid-email' };
+				throw new self.SoTradeClientError('create-invite-link-invalid-email');
 			
 			if (!ctx.access.has('email_verif'))
-				return { code: 'create-invite-link-not-verif' };
+				throw new self.SoTradeClientError('create-invite-link-not-verif');
 		}
 		
 		var sendKeyToCaller = ctx.access.has('userdb');

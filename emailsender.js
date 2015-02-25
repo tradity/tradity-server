@@ -99,16 +99,18 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx'],
 	function(query, internal, ctx)
 {
+	var self = this;
+	
 	if (!ctx)
-		ctx = new qctx.QContext({parentComponent: this});
+		ctx = new qctx.QContext({parentComponent: self});
 	
 	if (!internal && !ctx.access.has('email-bounces'))
-		return { code: 'permission-denied' };
+		throw new self.PermissionDenied();
 	
 	var mail;
 	return ctx.query('SELECT mailid, uid FROM sentemails WHERE messageid = ?', [String(query.messageId)]).then(function(r) {
 		if (r.length == 0)
-			return { code: 'email-bounced-notfound' };
+			throw new self.SoTradeClientError('email-bounced-notfound');
 		
 		assert.equal(r.length, 1);
 		mail = r[0];

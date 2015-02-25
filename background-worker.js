@@ -42,7 +42,7 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
 	assert.ok(ctx.access);
 	
 	if (ctx.access.has('server') == -1)
-		return { code: 'prod-not-allowed' };
+		throw new self.SoTradeClientError('prod-not-allowed');
 	
 	var starttime, userdbtime;
 	

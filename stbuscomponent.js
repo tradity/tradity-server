@@ -25,7 +25,6 @@ util.inherits(STBusComponent, buscomponent.BusComponent);
 
 STBusComponent.prototype.getServerConfig = function() { return this.request({name: 'getServerConfig'}); };
 
-exports.BusComponent = STBusComponent;
 exports.provide   = buscomponent.provide;
 exports.listener  = buscomponent.listener;
 exports.needsInit = buscomponent.needsInit;
@@ -50,4 +49,45 @@ exports.provideW    = provideW;
 exports.provideQT   = provideQT;
 exports.provideWQT  = provideWQT;
 
+// inheriting from Error is pretty ugly
+function SoTradeClientError(code, msg) {
+	var tmp = Error.call(this, code);
+	tmp.name = this.name = 'SoTradeClientError';
+	this.message = msg || tmp.message;
+	this.code = code;
+	this.busTransmitAsJSON = true;
+	
+	Object.defineProperty(this, 'stack', {
+		get: function() {
+			return tmp.stack;
+		}
+	});
+	
+	return this;
+};
+
+SoTradeClientError.prototype.toJSON = function() {
+	return _.pick(this, 'name', 'message', 'code');
+};
+
+var IntermediateInheritor = function() {};
+IntermediateInheritor.prototype = Error.prototype;
+SoTradeClientError.prototype = new IntermediateInheritor();
+STBusComponent.prototype.SoTradeClientError = SoTradeClientError;
+
+function PermissionDenied (msg) {
+	PermissionDenied.super_.call(this, 'permission-denied', msg);
+}
+
+util.inherits(PermissionDenied, SoTradeClientError);
+STBusComponent.prototype.PermissionDenied = PermissionDenied;
+
+function FormatError(msg) {
+	FormatError.super_.call(this, 'format-error', sg);
+}
+
+util.inherits(FormatError, SoTradeClientError);
+STBusComponent.prototype.FormatError = FormatError;
+
+exports.BusComponent = STBusComponent;
 })();

@@ -39,7 +39,7 @@ util.inherits(WordpressFeed, buscomponent.BusComponent);
  */
 WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-wordpress-feed', function(query, ctx) {
 	if (ctx.access.has('wordpress') == -1)
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, MAX(posttime) AS lastposttime ' +
 		'FROM feedblogs ' + 
@@ -90,7 +90,7 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
  */
 WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list-wordpress-feeds', function(query, ctx) {
 	if (ctx.access.has('wordpress') == -1)
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	// compare schools.js
 	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
@@ -124,14 +124,16 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
  * @function c2s~add-wordpress-feed
  */
 WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-wordpress-feed', function(query, ctx) {
+	var self = this;
+	
 	if (ctx.access.has('wordpress') == -1)
-		return { code: 'permission-denied' };
+		throw new self.PermissionDenied();
 	
 	query.schoolid = query.schoolid ? parseInt(query.schoolid) : null;
 	query.category = query.category ? String(query.category) : null;
 	
 	if (query.schoolid != query.schoolid)
-		return { code: 'format-error' };
+		throw new self.FormatError();
 	
 	return ctx.query('SELECT endpoint, bloguser FROM feedblogs WHERE schoolid IS NULL LIMIT 1').then(function(res) {
 		if (res.length > 0) {
@@ -140,13 +142,13 @@ WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-w
 		}
 		
 		if ((!query.endpoint || query.bloguser == null) && res.length == 0) {
-			return { code: 'add-wordpress-feed-missingdata' };
+			throw new self.SoTradeClientError('add-wordpress-feed-missingdata');
 		}
 		
 		query.endpoint = query.endpoint ? String(query.endpoint) : res[0].endpoint;
 		query.bloguser = query.bloguser != null ? parseInt(query.bloguser) : res[0].bloguser;
 		if (query.bloguser != query.bloguser)
-			return { code: 'format-error' };
+			throw new self.FormatError();
 		
 		return ctx.query('INSERT INTO feedblogs (endpoint, category, schoolid, bloguser, active) VALUES(?, ?, ?, ?, 1)',
 			[query.endpoint, query.category, query.schoolid, query.bloguser]).then(function() {
@@ -168,12 +170,12 @@ WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-w
  */
 WordpressFeed.prototype.removeWordpressFeed = buscomponent.provideWQT('client-remove-wordpress-feed', function(query, ctx) {
 	if (ctx.access.has('wordpress') == -1)
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	query.blogid = parseInt(query.blogid);
 	
 	if (query.blogid != query.blogid)
-		return { code: 'format-error' };
+		throw new this.FormatError();
 
 	return ctx.query('UPDATE feedblogs SET active = 0 WHERE blogid = ?', [query.blogid]).then(function() {
 		return { code: 'remove-wordpress-feed-success' };

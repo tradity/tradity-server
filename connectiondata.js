@@ -455,13 +455,13 @@ ConnectionData.prototype.queryHandler = function(query) {
 			return Q().then(function() {
 				self.unansweredCount++;
 				if (self.isShuttingDown)
-					return { code: 'server-shutting-down' };
+					throw new self.SoTradeClientError('server-shutting-down');
 				
 				if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
 					self.ctx.user === null &&
 					!self.ctx.access.has('login_override'))
 				{
-					return { code: 'not-logged-in' };
+					throw new self.SoTradeClientError('not-logged-in');
 				}
 			
 				switch (query.type) {
@@ -476,7 +476,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				 */
 				case 'fetch-events':
 					self.fetchEvents(query).done();
-					return { code: 'fetching-events' };
+					throw new self.SoTradeClientError('fetching-events');
 				/**
 				 * Sets up this connection as a bus (server-to-server) transport.
 				 * This requires unlimited privileges.
@@ -492,7 +492,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				 */
 				case 'init-bus-transport':
 					if (!masterAuthorization)
-						return { code: 'permission-denied' };
+						throw new self.PermissionDenied();
 					
 					self.ctx.setProperty('isBusTransport', true);
 					self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false));
@@ -508,7 +508,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				 */
 				case 'set-debug-mode':
 					if (!self.ctx.access.has('server'))
-						return { code: 'permission-denied' };
+						throw new self.PermissionDenied();
 					self.ctx.setProperty('debugEnabled', query.debugMode);
 					return { code: 'set-debug-mode-success' };
 				// documented in user.js
@@ -526,12 +526,14 @@ ConnectionData.prototype.queryHandler = function(query) {
 					});
 				}).catch(function(e) {
 					if (e.nonexistentType) {
-						return { code: 'unknown-query-type' };
+						throw new self.SoTradeClientError('unknown-query-type');
 					} else {
-						return { code: 'internal-server-error' };
+						throw new self.SoTradeClientError('internal-server-error');
 						self.emitError(e);
 					}
 				});
+			}).catch(function (e) {
+				return e.toJSON();
 			}).then(function(result) {
 				assert.ok(result);
 				assert.ok(result.code);

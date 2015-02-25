@@ -205,7 +205,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
  */
 FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx) {
 	if (parseInt(query.eventid) != query.eventid)
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	
 	return ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', 
 		[parseInt(query.eventid), ctx.user.id]).then(function() {
@@ -226,14 +226,16 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * @function c2s~comment
  */
 FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx) {
+	var self = this;
+	
 	if (!query.comment || parseInt(query.eventid) != query.eventid)
-		return { code: 'format-error' };
+		throw new self.FormatError();
 	
 	return ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events ' +
 		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?',
 		[parseInt(query.eventid)]).then(function(res) {
 		if (res.length == 0)
-			return { code: 'comment-notfound' };
+			throw new self.SoTradeClientError('comment-notfound');
 		
 		var feedschool = null;
 		var feedchat = null;

@@ -39,7 +39,7 @@ function _reqpriv (required, f) {
 	
 	return function(query, ctx, xdata) {
 		if (ctx.user === null || !ctx.access.has(requiredPermission))
-			return { code: 'permission-denied' };
+			throw new this.PermissionDenied();
 		else
 			return _.bind(f, this)(query, ctx, xdata);
 	};
@@ -110,10 +110,11 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
  * @function c2s~shutdown
  */
 Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(query, ctx) {
-	if (!ctx.access.has('server'))
-		return { code: 'permission-denied' };
-	
 	var self = this;
+	
+	if (!ctx.access.has('server'))
+		throw new self.PermissionDenied();
+	
 	Q.delay(2000).then(function() {
 		self.emit('globalShutdown');
 	}).done();
@@ -133,12 +134,12 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(qu
  */
 Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [parseInt(query.uid)]).then(function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
-			return { code: 'impersonate-user-notfound' };
+			throw new this.SoTradeClientError('impersonate-user-notfound');
 	
 		return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid]).then(function() {
 			return { code: 'impersonate-user-success', extra: 'repush' };
@@ -159,10 +160,10 @@ Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-us
 Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
 	var uid = parseInt(query.uid);
 	if (uid != uid) // NaN
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	
 	if (ctx.user.id == uid)
-		return { code: 'delete-user-self-notallowed' };
+		throw new this.SoTradeClientError('delete-user-self-notallowed');
 	
 	return ctx.startTransaction().then(function(conn) {
 		return Q.all([
@@ -197,7 +198,7 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
  */
 Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	
 	return ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
 		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)]).then(function() {
@@ -289,12 +290,13 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * @function c2s~rename-school
  */
 Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
+	var self = this;
 	query.schoolpath = String(query.schoolpath || '/').toLowerCase();
 	
 	var oldpath;
 	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)]).then(function(r) {
 		if (r.length == 0)
-			return { code: 'rename-school-notfound' };
+			throw new self.SoTradeClientError('rename-school-notfound');
 		
 		oldpath = r[0].path;
 		assert.ok(oldpath);
@@ -305,11 +307,11 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 			
 			assert.equal(pr.length, 1);
 			if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
-				return { code: 'rename-school-notfound' };
+				throw new self.SoTradeClientError('rename-school-notfound');
 			
 			return ctx.query('SELECT path FROM schools WHERE path = ?', [query.schoolpath]).then(function(er) {
 				if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() != query.schoolpath)
-					return { code: 'rename-school-already-exists' };
+					throw new self.SoTradeClientError('rename-school-already-exists');
 				
 				return ctx.query('UPDATE schools SET name = ? WHERE id = ?',
 					[String(query.schoolname), parseInt(query.schoolid)]).then(function() {
@@ -341,6 +343,8 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
  * @function c2s~join-schools
  */
 Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
+	var self = this;
+	
 	var mr;
 	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)]).then(function(mr_) {
 		mr = mr_;
@@ -350,9 +354,9 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
 		assert.ok(sr.length <= 1);
 		
 		if (sr.length == 0 || ((mr.length == 0 || mr[0].path == sr[0].path) && query.masterschool != null))
-			return { code: 'join-schools-notfound' };
+			throw new self.SoTradeClientError('join-schools-notfound');
 		if (mr.length > 0 && commonUtil.parentPath(mr[0].path) != commonUtil.parentPath(sr[0].path))
-			return { code: 'join-schools-diff-parent' };
+			throw new self.SoTradeClientError('join-schools-diff-parent');
 		
 		return ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
 			[parseInt(query.masterschool), parseInt(query.subschool)]).then(function() {
@@ -384,7 +388,7 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
  */
 Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _reqpriv('userdb', function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	
 	return ctx.query('SELECT u.name, u.id, ds.* ' +
 		'FROM stocks AS s ' +

@@ -47,20 +47,22 @@ function _reqschooladm (f, soft, scdb, status) {
 	soft = soft || false;
 	
 	return function(query, ctx) {
-		var forward = _.bind(function() { return _.bind(f, this)(query, ctx); }, this);
+		var self = this;
+		
+		var forward = function() { return f.call(self, query, ctx); };
 		
 		if (soft && !query.schoolid)
 			return forward();
 		
 		var lsa = null;
-		if (this && this.bus) lsa = this;
+		if (self && self.bus) lsa = self;
 		if (scdb && scdb.bus) lsa = scdb;
 		
 		assert.ok(lsa);
 		
 		return lsa.request({name: 'isSchoolAdmin', ctx: ctx, status: status, schoolid: query.schoolid}).then(function(schoolAdminResult) {
 			if (!schoolAdminResult.ok)
-				return { code: 'permission-denied' };
+				throw new self.PermissionDenied();
 			
 			// in the case that schoolid was not numerical before
 			query.schoolid = schoolAdminResult.schoolid;
@@ -154,7 +156,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 
 		'LIMIT 1', [String(lookfor)]).then(function(res) {
 		if (res.length == 0)
-			return { code: 'get-school-info-notfound' };
+			throw new this.SoTradeClientError('get-school-info-notfound');
 		
 		var s = res[0];	
 		s.parentPath = null;
@@ -338,7 +340,7 @@ Schools.prototype.changeDescription = buscomponent.provideWQT('client-school-cha
  */
 Schools.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	
 	return ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
 		[parseInt(query.uid), parseInt(query.schoolid)]).then(function() {
@@ -375,7 +377,7 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
 		'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
 		[parseInt(query.commentid), parseInt(query.schoolid)]).then(function(res) {
 		if (res.length == 0)
-			return { code: 'permission-denied' };
+			throw new self.PermissionDenied();
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
@@ -401,7 +403,7 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
  */
 Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx) {
 	if (parseInt(query.uid) != query.uid || parseInt(query.schoolid) != query.schoolid)
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	
 	return ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
 		[parseInt(query.uid), parseInt(query.schoolid)]).then(function() {
@@ -444,8 +446,10 @@ Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', 
  * @function c2s~create-school
  */
 Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school', function(query, ctx) {
+	var self = this;
+	
 	if (!query.schoolname)
-		return { code: 'format-error' };
+		throw new self.FormatError();
 	
 	query.schoolname = String(query.schoolname || '');
 	
@@ -462,7 +466,7 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 		if (r[0].c == 1 || !query.schoolname.trim() || 
 			!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
 			return conn.rollback().then(function() {
-				return { code: 'create-school-already-exists' };
+				throw new self.SoTradeClientError('create-school-already-exists');
 			});
 		}
 		
@@ -473,7 +477,7 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 			
 			if (r[0].c != 1) {
 				return conn.rollback().then(function() {
-					return { code: 'create-school-missing-parent' };
+					throw new self.SoTradeClientError('create-school-missing-parent');
 				});
 			}
 			

@@ -47,14 +47,16 @@ util.inherits(Watchlist, buscomponent.BusComponent);
  * @function c2s~watchlist-add
  */
 Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx) {
+	var self = this;
+	
 	return ctx.query('SELECT stockid, users.id AS uid, users.name, bid FROM stocks ' +
 		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.id = ? OR stocks.stockid = ?',
 		[String(query.stockid), String(query.stockid)]).then(function(res) {
 		if (res.length == 0)
-			return { code: 'watchlist-add-notfound' };
+			throw new self.SoTradeClientError('watchlist-add-notfound');
 		var uid = res[0].uid;
 		if (uid == ctx.user.id)
-			return { code: 'watchlist-add-self' };
+			throw new self.SoTradeClientError('watchlist-add-self');
 		
 		return ctx.query('REPLACE INTO watchlists ' +
 			'(watcher, watchstarttime, watchstartvalue, watched) '+

@@ -161,7 +161,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 	var self = this;
 	
 	if (ctx.getProperty('readonly'))
-		return { code: 'server-readonly' };
+		throw new self.SoTradeClientError('server-readonly');
 	
 	var content = query.content;
 	var uniqrole, cfg;
@@ -182,9 +182,9 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		
 		if (!ctx.access.has('filesystem')) {
 			if (content.length + total > cfg.fsdb.userquota)
-				return { code: 'publish-quota-exceed' };
+				throw new self.SoTradeClientError('publish-quota-exceed');
 			if (cfg.fsdb.allowroles.indexOf(query.role) == -1)
-				return { code: 'publish-inacceptable-role' };
+				throw new self.SoTradeClientError('publish-inacceptable-role');
 				
 			if (query.proxy) {
 				var hasRequiredAccess = false;
@@ -211,12 +211,12 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				}
 				
 				if (!hasRequiredAccess)
-					return { code: 'publish-proxy-not-allowed' };
+					throw new self.SoTradeClientError('publish-proxy-not-allowed');
 			} else {
 				// local mime type is ignored for proxy requests
 				
 				if (cfg.fsdb.allowmime.indexOf(query.mime) == -1)
-					return { code: 'publish-inacceptable-mime' };
+					throw new self.SoTradeClientError('publish-inacceptable-mime');
 			}
 		}
 		

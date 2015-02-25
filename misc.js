@@ -49,7 +49,7 @@ Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstora
 	try {
 		var storage = new Buffer(query.storage);
 	} catch (e) {
-		return { code: 'format-error' };
+		throw new this.FormatError();
 	}
 	
 	return ctx.query('UPDATE users_data SET clientstorage = ? WHERE id = ?', [storage, ctx.user.id]).then(function() {
@@ -80,7 +80,7 @@ Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx)
  */
 Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	ctx.emitError(new Error('Client-induced non-failure'));
 	return { code: 'artificial-error-success' };
@@ -96,7 +96,7 @@ Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error
  */
 Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-deadlock', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	var conn1, conn2, id;
 	var deferred = Q.defer();
@@ -136,7 +136,7 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
  */
 Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-stalelock', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	var conn;
 	return ctx.startTransaction({httpresources: 'w'}).then(function(conn_) {
@@ -155,7 +155,7 @@ Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-
  */
 Misc.prototype.forceReadonly = buscomponent.provideQT('client-force-readonly', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	this.emitImmediate('change-readability-mode', { readonly: query.readonly ? true : false });
 	
@@ -171,7 +171,7 @@ Misc.prototype.forceReadonly = buscomponent.provideQT('client-force-readonly', f
  */
 Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-dberror', function(query, ctx) {
 	if (!ctx.access.has('server'))
-		return { code: 'permission-denied' };
+		throw new this.PermissionDenied();
 	
 	return ctx.query('INVALID SQL').catch(function(err) {
 		return { code: 'artificial-dberror-success', err: err };

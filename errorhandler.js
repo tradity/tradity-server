@@ -4,6 +4,8 @@ var _ = require('lodash');
 var fs = require('fs');
 var util = require('util');
 var Q = require('q');
+var semaphore = require('q-semaphore');
+var ratelimit = require('q-ratelimit');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -22,6 +24,9 @@ var buscomponent = require('./stbuscomponent.js');
  */
 function ErrorHandler() {
 	ErrorHandler.super_.apply(this, arguments);
+	
+	this.sem = semaphore(1);
+	this.throttle = ratelimit(10000);
 }
 
 util.inherits(ErrorHandler, buscomponent.BusComponent);
@@ -44,11 +49,15 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 		return self.err(new Error('Error without Error object caught -- abort'), true);
 	
 	var cfg, longErrorText;
+	
 	self.getServerConfig().catch(function(e2) {
 		console.error('Could not get server config due to', e2);
 		return null;
 	}).then(function(cfg_) {
 		cfg = cfg_;
+		
+		return Q.all([self.sem.take(), self.throttle()]);
+	}).then(function() {
 		noemail = noemail || false;
 		
 		longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
@@ -80,6 +89,8 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 		}
 	}).catch(function(e2) {
 		console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
+	}).then(function() {
+		return self.sem.leave();
 	}).done();
 });
 

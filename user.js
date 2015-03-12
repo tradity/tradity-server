@@ -1339,9 +1339,10 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 	ctx = ctx.clone(); // so we can’t lose the user object during execution
 	
 	var sendKeyToCaller = ctx.access.has('userdb');
-	var key, url;
+	var key, url, cfg;
 	
-	return self.getServerConfig().then(function(cfg) {
+	return self.getServerConfig().then(function(cfg_) {
+		cfg = cfg_;
 		query.email = query.email ? String(query.email) : null;
 		
 		if (!ctx.access.has('userdb')) {

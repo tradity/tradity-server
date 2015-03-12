@@ -622,7 +622,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		throw new self.SoTradeClientError('server-readonly');
 	
 	var conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
-	var fee, oh_res = null, tradeID = null, perffull = null;
+	var fee, oh_res = null, tradeID = null, perffull = null, forceNow;
 	
 	opt = opt || {};
 	opt.forceNow = opt.forceNow || false;
@@ -679,11 +679,8 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			'LEFT JOIN users_finance AS l ON stocks.leader = l.id AND depot_stocks.userid != l.id ' +
 			'WHERE stocks.stockid = ?', [ctx.user.id, String(query.stockid)]);
 	}).then(function(res) {
-		if (res.length == 0 || res[0].lastvalue == 0) {
-			return conn.rollback().then(function() {
-				throw new self.SoTradeClientError('stock-buy-stock-not-found');
-			});
-		}
+		if (res.length == 0 || res[0].lastvalue == 0)
+			throw new self.SoTradeClientError('stock-buy-stock-not-found');
 		
 		assert.equal(res.length, 1);
 		
@@ -694,39 +691,31 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !opt.forceNow) {
-			return conn.rollback().then(function() {
-				throw new self.SoTradeClientError('stock-buy-email-not-verif');
-			});
-		}
+		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !opt.forceNow)
+			throw new self.SoTradeClientError('stock-buy-email-not-verif');
 		
 		forceNow = opt.forceNow || (ctx.access.has('stocks') && query.forceNow);
 		
 		if (!self.stockExchangeIsOpen(r.exchange, cfg) && !forceNow) {
-			return conn.rollback().then(function() {
-				if (!query._isDelayed) {
-					query.retainUntilCode = 'stock-buy-success';
-					self.request({name: 'client-dquery', 
-						ctx: ctx,
-						query: { 
-							condition: 'stock::' + r.stockid + '::exchange-open > 0',
-							query: query,
-						}
-					});
-					
-					throw new self.SoTradeClientError('stock-buy-autodelay-sxnotopen');
-				} else {
-					throw new self.SoTradeClientError('stock-buy-sxnotopen');
-				}
-			});
+			if (!query._isDelayed) {
+				query.retainUntilCode = 'stock-buy-success';
+				self.request({name: 'client-dquery', 
+					ctx: ctx,
+					query: { 
+						condition: 'stock::' + r.stockid + '::exchange-open > 0',
+						query: query,
+					}
+				});
+				
+				throw new self.SoTradeClientError('stock-buy-autodelay-sxnotopen');
+			} else {
+				throw new self.SoTradeClientError('stock-buy-sxnotopen');
+			}
 		}
 		
 		amount = parseInt(query.amount);
-		if (amount < -r.amount || amount != amount) {
-			return conn.rollback().then(function() {
-				throw new self.SoTradeClientError('stock-buy-not-enough-stocks');
-			});
-		}
+		if (amount < -r.amount || amount != amount)
+			throw new self.SoTradeClientError('stock-buy-not-enough-stocks');
 		
 		ta_value = amount > 0 ? r.ask : r.bid;
 		
@@ -747,29 +736,21 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		assert.equal(ohr.length, 1);
 		
 		price = amount * ta_value;
-		if (price > ures[0].freemoney && price >= 0) {
-			return conn.rollback().then(function() {
-				throw new self.SoTradeClientError('stock-buy-out-of-money');
-			});
-		}
+		if (price > ures[0].freemoney && price >= 0)
+			throw new self.SoTradeClientError('stock-buy-out-of-money');
 		
 		var tradedToday = ohr[0].amount || 0;
 		
-		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !ctx.access.has('stocks')) {
-			return conn.rollback().then(function() {
-				throw new self.SoTradeClientError('stock-buy-single-paper-share-exceed');
-			});
-		}
+		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 &&
+		    !ctx.access.has('stocks'))
+			throw new self.SoTradeClientError('stock-buy-single-paper-share-exceed');
 		
-		if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
-			return conn.rollback().then(function() {
-				throw new self.SoTradeClientError('stock-buy-over-pieces-limit');
-			});
-		}
+		if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow)
+			throw new self.SoTradeClientError('stock-buy-over-pieces-limit');
 		
 		// point of no return
 		if (opt.testOnly)
-			return { code: 'stock-buy-success', testOnly: true };
+			throw { code: 'stock-buy-success', testOnly: true };
 		
 		fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
 		
@@ -850,6 +831,13 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		return conn.commit();
 	}).then(function() {
 		return { code: 'stock-buy-success', fee: fee, tradeid: tradeID, extra: 'repush' };
+	}).catch(function(err) {
+		return (conn ? conn.rollback() : Q()).then(function() {
+			if (err.code == 'stock-buy-success')
+				return err; // for testOnly runs
+			else
+				throw err; // re-throw
+		});
 	});
 });
 

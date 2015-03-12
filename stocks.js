@@ -531,7 +531,9 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
 			return self.buyStock({
 				amount: -depotentry.amount,
 				leader: ctx.user.id,
-			}, newCtx, true);
+			}, newCtx, {
+				forceNow: true
+			});
 		}));
 	});
 });
@@ -616,20 +618,43 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
  * @function c2s~stock-buy
  */
 Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
-	['query', 'ctx', 'forceNow'], function(query, ctx, forceNow) {
+	['query', 'ctx', 'opt'], function(query, ctx, opt) {
 	var self = this;
 	
-	if (ctx.getProperty('readonly'))
+	opt = opt || {};
+	opt.forceNow = opt.forceNow || false;
+	opt.testOnly = opt.testOnly || false;
+	opt.skipTest = opt.skipTest || false;
+	
+	if (ctx.getProperty('readonly') && !options)
 		return { code: 'server-readonly' };
 	
-	var conn, cfg;
+	var conn, cfg, forceNow, xresult = null;
 	return this.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
+		
+		if (opt.skipTest || opt.testOnly)
+			return { code: 'stock-buy-success', skippedTest: true };
+		
+		var mopt = _.clone(opt);
+		mopt.testOnly = true;
+		return self.buyStock(query, ctx, mopt);
+	}).then(function(result) {
+		if (result.code != 'stock-buy-success')
+			return xresult = result;
+		
 		assert.ok(ctx.user);
 		assert.ok(ctx.access);
 		
 		if (query.leader != null)
 			query.stockid = '__LEADER_' + query.leader + '__';
+		
+		if (opt.testOnly) {
+			return {
+				query: _.bind(ctx.query, ctx),
+				commit: Q, rollback: Q
+			};
+		}
 		
 		return ctx.startTransaction([
 			{ name: 'depot_stocks', mode: 'w' },
@@ -645,6 +670,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			{ name: 'watchlists', mode: 'r' } // feed
 		]);
 	}).then(function(conn_) {
+		if (xresult) return xresult;
 		conn = conn_;
 		return conn.query('SELECT stocks.*, ' +
 			'depot_stocks.amount AS amount, ' +
@@ -658,6 +684,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			'LEFT JOIN users_finance AS l ON stocks.leader = l.id AND depot_stocks.userid != l.id ' +
 			'WHERE stocks.stockid = ?', [ctx.user.id, String(query.stockid)]);
 	}).then(function(res) {
+		if (xresult) return xresult;
 		if (res.length == 0 || res[0].lastvalue == 0) {
 			return conn.rollback().then(function() {
 				return { code: 'stock-buy-stock-not-found' };
@@ -673,13 +700,13 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !forceNow) {
+		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !opt.forceNow) {
 			return conn.rollback().then(function() {
 				return { code: 'stock-buy-email-not-verif' };
 			});
 		}
 		
-		forceNow = forceNow || (ctx.access.has('stocks') && query.forceNow);
+		forceNow = opt.forceNow || (ctx.access.has('stocks') && query.forceNow);
 		
 		if (!self.stockExchangeIsOpen(r.exchange, cfg) && !forceNow) {
 			return conn.rollback().then(function() {
@@ -740,6 +767,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 						return { code: 'stock-buy-over-pieces-limit' };
 					});
 				}
+				
+				if (opt.testOnly)
+					return { code: 'stock-buy-success', testOnly: true };
 				
 				// point of no return
 				var fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);

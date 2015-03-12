@@ -3,6 +3,7 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var validator = require('validator');
 var Q = require('q');
 require('datejs');
 
@@ -425,8 +426,8 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 		}).then(function(externalStocks) {
 			var externalStocksIDs = _.pluck(externalStocks, 'stockid');
 
-			// 12 ~ ISIN, 6 ~ WAN
-			if ([12, 6].indexOf(str.length) != -1)
+			// ISIN or WKN
+			if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str))
 				externalStocksIDs.push(str.toUpperCase());
 			
 			externalStocksIDs = _.uniq(externalStocksIDs);

@@ -28,6 +28,7 @@
 		"object-hash": "~0.5.0",
 		"q": "~1.1.2",
 		"q-semaphore": "~1.0.2",
+		"q-ratelimit": "~0.0.1",
 		"socket.io": ">=1.2.1",
 		"socket.io-adapter": "~0.3.1",
 		"socket.io-client": ">=1.2.1",

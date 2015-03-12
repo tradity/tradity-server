@@ -768,6 +768,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		}
 		
 		// point of no return
+		if (opt.testOnly)
+			return { code: 'stock-buy-success', testOnly: true };
+		
 		fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
 		
 		return conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
@@ -785,7 +788,6 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			
 			var totalprovPay = wprovPay + lprovPay;
 			
-<<<<<<< HEAD
 			return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
 				'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
 				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({
@@ -797,65 +799,6 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 				})]).then(function() {
 					return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
 					[totalprovPay, totalprovPay, ctx.user.id]);
-=======
-			return conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
-				[r.stockid, ctx.user.id, r.amount]).then(function(ohr) {
-				assert.equal(ohr.length, 1);
-				
-				var tradedToday = ohr[0].amount || 0;
-				
-				if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 && !ctx.access.has('stocks')) {
-					return conn.rollback().then(function() {
-						return { code: 'stock-buy-single-paper-share-exceed' };
-					});
-				}
-				
-				if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
-					return conn.rollback().then(function() {
-						return { code: 'stock-buy-over-pieces-limit' };
-					});
-				}
-				
-				if (opt.testOnly)
-					return { code: 'stock-buy-success', testOnly: true };
-				
-				// point of no return
-				var fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
-				var oh_res = null, tradeID = null, perffull = null;
-				
-				return conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
-					'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)',
-					[ctx.user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount]).then(function(oh_res_) {
-					oh_res = oh_res_;
-					
-					if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0))) {
-						var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
-						var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
-
-						if (wprovPay < 0) wprovPay = 0;
-						if (lprovPay > 0) lprovPay = 0;
-						
-						var totalprovPay = wprovPay + lprovPay;
-						
-						return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
-							'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
-							[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({
-								reason: 'trade',
-								provision_hwm: r.provision_hwm,
-								provision_lwm: r.provision_lwm,
-								bid: r.bid,
-								depot_amount: amount
-							})]).then(function() {
-								return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
-								[totalprovPay, totalprovPay, ctx.user.id]);
-							}).then(function() {
-								return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
-								[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid]);
-							});
-					} else {
-						return Q();
-					}
->>>>>>> master
 				}).then(function() {
 					return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
 					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid]);

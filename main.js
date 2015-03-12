@@ -169,6 +169,11 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 		cluster.on('exit', function(worker, code, signal) {
 			workers = _.filter(workers, function(w) { w.process.pid != worker.process.pid; });
 			
+			var shouldRestart = !shuttingDown;
+			
+			if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
+				shouldRestart = false;
+			
 			console.warn('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
 			
 			if (!shuttingDown) {

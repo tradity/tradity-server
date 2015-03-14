@@ -42,14 +42,14 @@ var socket = new sotradeClient.SoTradeConnection({
 	socketopts: query.ssldefault ? { 
 		agent: new https.Agent(cfg.ssl)
 	}: null,
-	logDevCheck: !query.quiet
+	logDevCheck: !query['q-quiet']
 	});
 
-if (query.timeout) {
+if (query['q-timeout']) {
 	setTimeout(function() {
 		console.log('timeout exceeded');
 		process.exit(1);
-	}, query.timeout * 1000);
+	}, query['q-timeout'] * 1000);
 }
 
 socket.once('server-config').then(function() {

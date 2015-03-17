@@ -7,7 +7,7 @@
 	"version": "0.0.1",
 	"homepage": "https://tradity.de",
 	"bugs": {
-		"email": "developers@tradity.de"
+		"email": "tech@tradity.de"
 	},
 	"devDependencies": {
 		"mocha": "*",

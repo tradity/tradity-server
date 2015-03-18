@@ -62,7 +62,7 @@ function _reqschooladm (f, soft, scdb, status) {
 		
 		return lsa.request({name: 'isSchoolAdmin', ctx: ctx, status: status, schoolid: query.schoolid}).then(function(schoolAdminResult) {
 			if (!schoolAdminResult.ok)
-				throw new self.PermissionDenied();
+				throw new lsa.PermissionDenied();
 			
 			// in the case that schoolid was not numerical before
 			query.schoolid = schoolAdminResult.schoolid;

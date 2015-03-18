@@ -18,7 +18,7 @@
 		"cytoscape": "~2.3.5",
 		"datejs": "1.0.0-rc1",
 		"iconv": "~2.1.4",
-		"lapack": "~0.0.7",
+		"lapack": "0.0.7",
 		"lodash": "~3.3.1",
 		"lzma-native": ">=0.2.8",
 		"mailparser": "~0.4.6",

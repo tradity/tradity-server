@@ -476,7 +476,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				 */
 				case 'fetch-events':
 					self.fetchEvents(query).done();
-					throw new self.SoTradeClientError('fetching-events');
+					return { code: 'fetching-events' };
 				/**
 				 * Sets up this connection as a bus (server-to-server) transport.
 				 * This requires unlimited privileges.

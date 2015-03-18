@@ -699,7 +699,7 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', function(query, ctx, xdata) {
 	var self = this;
 	
-	var uid = parseInt(query.uid);
+	var uid = parseInt(query.uid), email;
 	var key = String(query.key);
 	
 	if (uid != query.uid)
@@ -713,7 +713,7 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 			throw new self.SoTradeClientError('email-verify-failure');
 		}
 		
-		var email = null;
+		email = null;
 		for (var i = 0; i < res.length; ++i) {
 			if (res[i].y == 42) {
 				email = res[i].email;

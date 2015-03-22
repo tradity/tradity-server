@@ -213,6 +213,7 @@ Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-em
  * 
  * @param {int} query.commentid  The numerical id of the target comment.
  * @param {string} query.comment The new comment text.
+ * @param {string} query.cstate  The new comment state.
  * @param {boolean} query.trustedhtml  If truthy, the new text is HTML-formatted.
  * 
  * @return {object} Returns with <code>change-comment-text-success</code> or
@@ -221,8 +222,10 @@ Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-em
  * @function c2s~change-comment-text
  */
 Admin.prototype.changeCommentText = buscomponent.provideWQT('client-change-comment-text', _reqpriv('moderate', function(query, ctx) {
-	return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = ? WHERE commentid = ?',
-		[String(query.comment), ctx.access.has('server') && query.trustedhtml ? 1:0, parseInt(query.commentid)]).then(function() {
+	return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = ?, cstate = ? WHERE commentid = ?',
+		[String(query.comment),
+		 ctx.access.has('server') && query.trustedhtml ? 1:0,
+		 String(query.cstate || ''), parseInt(query.commentid)]).then(function() {
 		return { code: 'change-comment-text-success' };
 	});
 }));

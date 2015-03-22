@@ -211,7 +211,7 @@ describe('schools', function() {
 				assert.ok(comments.length > 0);
 				
 				var comment = comments.sort(function(a, b) { return b.time - a.time; })[0]; // most recent comment
-				assert.notEqual(comment.comment, origCommentText);
+				assert.ok(comment.cstate == 'gdeleted');
 			})
 		});
 	});

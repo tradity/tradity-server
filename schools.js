@@ -382,9 +382,8 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
-		// using a fixed string is only a temporary solution
-		return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-			['<em>Dieser Kommentar wurde durch die Moderatoren gelöscht.</em>', parseInt(query.commentid)]);
+		return ctx.query('UPDATE ecomments SET cstate = "gdeleted" WHERE commentid = ?',
+			[parseInt(query.commentid)]);
 	}).then(function() {
 		return { code: 'school-delete-comment-success' };
 	});

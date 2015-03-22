@@ -188,6 +188,9 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 				delete ev.postjson;
 			}
 			
+			if (['gdeleted', 'mdeleted'].indexOf(ev.cstate) != -1)
+				return null;
+			
 			delete ev.json;
 			return ev;
 		}).reject(function(ev) { return !ev; }).value();
@@ -264,7 +267,7 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 				break;
 		}
 		
-		return ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, time) VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())', 
+		return ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, cstate, time) VALUES(?, ?, ?, ?, "", UNIX_TIMESTAMP())', 
 			[parseInt(query.eventid), ctx.user.id, String(query.comment),
 			 query.ishtml && ctx.access.has('comments') ? 1 : 0]);
 	}).then(function(res) {

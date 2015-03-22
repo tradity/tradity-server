@@ -86,6 +86,7 @@ describe('admin', function() {
 	describe('change-comment-text', function() {
 		it('Should be able to change the text of a recently made comment', function() {
 			var newCommentText = '<a>New comment</a>';
+			var newCState = 'Banananana';
 			
 			return socket.emit('get-user-info', {
 				lookfor: '$self',
@@ -115,7 +116,8 @@ describe('admin', function() {
 					__sign__: true,
 					comment: newCommentText,
 					trustedhtml: 1,
-					commentid: userInfo.pinboard[0].commentid
+					commentid: userInfo.pinboard[0].commentid,
+					cstate: newCState
 				});
 			}).then(function(result) {
 				assert.equal(result.code, 'change-comment-text-success');
@@ -129,8 +131,8 @@ describe('admin', function() {
 				
 				assert.ok(userInfo.pinboard);
 				assert.ok(userInfo.pinboard.length > 0);
-				assert.ok(userInfo.pinboard[0].trustedhtml);
 				assert.equal(userInfo.pinboard[0].comment, newCommentText);
+				assert.equal(userInfo.pinboard[0].cstate, newCState);
 			});
 		});
 	});

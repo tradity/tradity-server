@@ -382,10 +382,9 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
 		
 		assert.ok(res.length == 1 && res[0].cid == query.commentid);
 		
-		return self.request({ name: 'readTemplate', template: 'comment-deleted-by-group-admin.html' });
-	}).then(function(commentContent) {
+		// using a fixed string is only a temporary solution
 		return ctx.query('UPDATE ecomments SET comment = ?, trustedhtml = 1 WHERE commentid = ?',
-			[commentContent, parseInt(query.commentid)]);
+			['<em>Dieser Kommentar wurde durch die Moderatoren gelöscht.</em>', parseInt(query.commentid)]);
 	}).then(function() {
 		return { code: 'school-delete-comment-success' };
 	});

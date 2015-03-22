@@ -1,0 +1,8 @@
+Sender: tech@tradity.de
+From: ${sendermail}
+Subject: Tradity invitation („${sendername}“)
+To: ${email}
+X-Mailtype: invite
+
+<p>The user “${sendername}” wants to invite you to the stock trading game “Tradity”.
+<a href="${url}">Click here to join.</a></p>

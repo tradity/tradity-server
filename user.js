@@ -117,6 +117,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 		return self.request({name: 'sendTemplateMail', 
 			template: 'register-email.eml',
 			ctx: ctx,
+			lang: data.lang,
 			variables: {'url': url, 'username': data.name, 'email': data.email}
 		});
 	}).then(function() {
@@ -1273,7 +1274,11 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 	
 	var name = String(query.name), pw, u;
 	
-	return ctx.query('SELECT id, email FROM users WHERE name = ? OR email = ? AND deletiontime IS NULL LIMIT 1',
+	return ctx.query('SELECT users.id, email, lang ' +
+		'FROM users ' +
+		'JOIN users_data ON users.id = users_data.id ' +
+		'WHERE name = ? OR email = ? AND deletiontime IS NULL ' +
+		'LIMIT 1',
 		[name, name]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('password-reset-notfound');
@@ -1292,6 +1297,7 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 			template: 'password-reset-email.eml',
 			ctx: ctx,
 			uid: u.id,
+			lang: u.lang,
 			variables: {'password': pw, 'username': query.name, 'email': u.email},
 		});
 	}).then(function() {

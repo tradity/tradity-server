@@ -48,18 +48,20 @@ Mailer.prototype._init = function() {
  * 
  * @param {object} variables  See {@link busreq~readEMailTemplate}.
  * @param {string} template  See {@link busreq~readEMailTemplate}.
+ * @param {?string} lang  The preferred language for the files to be read in.
  * @param {string} mailtype  See {@link busreq~sendMail}.
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
  * @function busreq~sendTemplateMail
  */
 Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
-	['variables', 'template', 'ctx', 'mailtype', 'uid'],
-	function(variables, template, ctx, mailtype, uid) {
+	['variables', 'template', 'ctx', 'lang', 'mailtype', 'uid'],
+	function(variables, template, ctx, lang, mailtype, uid) {
 	var self = this;
 	
 	return self.request({name: 'readEMailTemplate', 
 		template: template,
+		lang: lang || (ctx.user && ctx.user.lang),
 		variables: variables || {},
 	}).then(function(opt) {
 		return self.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '', uid);

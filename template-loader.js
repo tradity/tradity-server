@@ -33,6 +33,7 @@ util.inherits(TemplateLoader, buscomponent.BusComponent);
  * <code>${varname}</code>.
  * 
  * @param {string} template  The file name of the remplate to read in.
+ * @param {string} lang  The preferred language for the files to be read in.
  * @param {?object} variables  An dictionary of variables to replace.
  * 
  * @return {string} Returns the template, variables having been substituted.
@@ -40,29 +41,33 @@ util.inherits(TemplateLoader, buscomponent.BusComponent);
  * @function busreq~readTemplate
  */
 TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
-	['template', 'variables'],
-	function(template, variables) 
+	['template', 'lang', 'variables'],
+	function(template, lang, variables)
 {
-	variables = variables || {};
-	var t = templates[template];
+	var self = this;
 	
-	if (!t) {
-		this.emitError(new Error('Template not found: ' + template));
-		return null;
-	}
-	
-	_.chain(variables).keys().each(function(e) {
-		var r = new RegExp('\\$\\{' + e + '\\}', 'g');
-		t = t.replace(r, variables[e]);
-	}).value();
-	
-	var unresolved = t.match(/\$\{([^\}]*)\}/);
-	if (unresolved) {
-		this.emitError(new Error('Unknown variable “' + unresolved[1] + '” in template ' + template));
-		return null;
-	}
-	
-	return t;
+	return self.getServerConfig().then(function(cfg) {
+		variables = variables || {};
+		
+		var t = templates[lang] && templates[lang][template];
+		
+		for (var i = 0; !t && i < cfg.languages.length; ++i)
+			t = templates[cfg.languages[i].id][template];
+		
+		if (!t)
+			throw new Error('Template not found: ' + template);
+		
+		_.chain(variables).keys().each(function(e) {
+			var r = new RegExp('\\$\\{' + e + '\\}', 'g');
+			t = t.replace(r, variables[e]);
+		}).value();
+		
+		var unresolved = t.match(/\$\{([^\}]*)\}/);
+		if (unresolved)
+			throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
+		
+		return t;
+	});
 });
 
 /**
@@ -72,18 +77,24 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
  * for passing to {@link busreq~sendMail} is returned rather than a string.
  * 
  * @param {string} template  The file name of the remplate to read in.
+ * @param {string} lang  The preferred language for the files to be read in.
  * @param {?object} variables  An dictionary of variables to replace.
  * 
  * @function busreq~readEMailTemplate
  */
-TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate', ['template', 'variables'], function(template, variables) {
-	return Q(this.readTemplate(template, variables)).then(function(t) {
+TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate',
+	['template', 'lang', 'variables'], function(template, lang, variables) {
+	return this.readTemplate(template, lang, variables).then(function(t) {
 		var headerend = t.indexOf('\n\n');
 		
 		var headers = t.substr(0, headerend).split('\n');
 		var body = t.substr(headerend + 2);
 		
-		var opt = {headers:{}};
+		var opt = {
+			headers: {
+				'X-SoTrade-Lang': lang
+			}
+		};
 		
 		for (var i = 0; i < headers.length; ++i) {
 			var h = headers[i];

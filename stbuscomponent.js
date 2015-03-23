@@ -79,7 +79,7 @@ util.inherits(PermissionDenied, SoTradeClientError);
 STBusComponent.prototype.PermissionDenied = PermissionDenied;
 
 function FormatError(msg) {
-	FormatError.super_.call(this, 'format-error', sg);
+	FormatError.super_.call(this, 'format-error', msg);
 }
 
 util.inherits(FormatError, SoTradeClientError);

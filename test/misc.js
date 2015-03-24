@@ -46,6 +46,14 @@ describe('misc', function() {
 				assert.ok(testHelpers.bufferEqual(res.result.clientstorage, buf));
 			});
 		});
+		
+		it('Should fail with format-error when given invalid input', function() {
+			return socket.emit('set-clientstorage', {
+				storage: null
+			}).then(function(res) {
+				assert.equal(res.code, 'format-error');
+			});
+		});
 	});
 	
 	describe('ping', function() {

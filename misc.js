@@ -49,7 +49,7 @@ Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstora
 	try {
 		var storage = new Buffer(query.storage);
 	} catch (e) {
-		throw new this.FormatError();
+		throw new this.FormatError(e);
 	}
 	
 	return ctx.query('UPDATE users_data SET clientstorage = ? WHERE id = ?', [storage, ctx.user.id]).then(function() {

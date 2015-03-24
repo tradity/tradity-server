@@ -157,7 +157,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 		'WHERE ? IN (schools.id, schools.path, schools.name) ' + 
 		'LIMIT 1', [String(lookfor)]).then(function(res) {
 		if (res.length == 0)
-			throw new this.SoTradeClientError('get-school-info-notfound');
+			throw new self.SoTradeClientError('get-school-info-notfound');
 		
 		s = res[0];	
 		s.parentPath = null;

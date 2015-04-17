@@ -4,6 +4,7 @@
 
 Error.stackTraceLimit = Infinity;
 
+var minimist = require('minimist');
 var MailParser = new require('mailparser').MailParser;
 var sotradeClient = require('./sotrade-client.js');
 var socket = new sotradeClient.SoTradeConnection({ logDevCheck: false });
@@ -19,11 +20,14 @@ function notifyServer() {
 }
 
 var mailparser = new MailParser();
+var options = minimist(process.argv.slice(2), {
+	boolean: ['raw']
+});
 
 function handleMail(mail) {
 	var attachments = mail.attachments;
 	
-	if (process.argv.indexOf('--raw') != -1) {
+	if (options.raw) {
 		messageId = mail.headers['message-id'].replace(/^<|@.+$/g, '');
 		diagnostic_code = 'Raw return to mail bounce handler script';
 		

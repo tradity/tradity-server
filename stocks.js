@@ -275,15 +275,8 @@ Stocks.prototype.updateStockValues = function(ctx) {
 			return !/^__LEADER_(\d+)__$/.test(s);
 		});
 		
-		var deferred = Q.defer();
-		
-		if (stocklist.length > 0) {
-			self.quoteLoader.loadQuotesList(stocklist, _.bind(self.stocksFilter, self, cfg), function() {
-				deferred.resolve();
-			});
-			
-			return deferred.promise;
-		}
+		if (stocklist.length > 0)
+			return self.quoteLoader.loadQuotesList(stocklist, _.bind(self.stocksFilter, self, cfg));
 	});
 };
 
@@ -409,6 +402,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 	
 	var xstr = '%' + str.replace(/%/g, '\\%') + '%';
 	
+	var localResults;
 	return Q.all([
 		self.getServerConfig(),
 		ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
@@ -421,51 +415,42 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 			'FROM stocks ' +
 			'WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL',
 			[xstr, xstr])
-	]).spread(function(cfg, localResults, externalStocks) {
+	]).spread(function(cfg, localResults_, externalStocks) {
+		localResults = localResults_;
 		var externalStocksIDs = _.pluck(externalStocks, 'stockid');
 
 		// ISIN or WKN
 		if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str))
 			externalStocksIDs.push(str.toUpperCase());
 		
-		externalStocksIDs = _.uniq(externalStocksIDs);
+		return self.quoteLoader.loadQuotesList(_.uniq(externalStocksIDs), _.bind(self.stocksFilter, self, cfg));
+	}).then(function(externalResults) {
+		var results = _.union(localResults, _.map(externalResults, function(r) {
+			return {
+				'stockid': r.symbol,
+				'lastvalue': r.lastTradePrice * 10000,
+				'ask': r.ask * 10000,
+				'bid': r.bid * 10000,
+				'name': r.name,
+				'exchange': r.exchange,
+				'leader': null,
+				'leadername': null,
+				'wprovision': 0,
+				'lprovision': 0,
+				'pieces': r.pieces
+			};
+		}));
 		
-		var deferred = Q.defer();
+		results = _.uniq(results, false, function(r) { return r.stockid; });
+		var symbols = _.pluck(results, 'stockid');
 		
-		(externalStocksIDs.length == 0 ? function(cont) {
-			return cont([]);
-		} : function(cont) {
-			return self.quoteLoader.loadQuotesList(externalStocksIDs, _.bind(self.stocksFilter, self, cfg), cont);
-		})(function(externalResults) {
-			var results = _.union(localResults, _.map(externalResults, function(r) {
-				return {
-					'stockid': r.symbol,
-					'lastvalue': r.lastTradePrice * 10000,
-					'ask': r.ask * 10000,
-					'bid': r.bid * 10000,
-					'name': r.name,
-					'exchange': r.exchange,
-					'leader': null,
-					'leadername': null,
-					'wprovision': 0,
-					'lprovision': 0,
-					'pieces': r.pieces
-				};
-			}));
-			
-			results = _.uniq(results, false, function(r) { return r.stockid; });
-			var symbols = _.pluck(results, 'stockid');
-			
-			if (symbols.length > 0 && !ctx.getProperty('readonly')) {
-				symbols = _.map(symbols, escape);
-				ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
-					'WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
-			}
-			
-			return deferred.resolve({ code: 'stock-search-success', results: results });
-		});
+		if (symbols.length > 0 && !ctx.getProperty('readonly')) {
+			symbols = _.map(symbols, escape);
+			ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
+				'WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
+		}
 		
-		return deferred.promise;
+		return { code: 'stock-search-success', results: results };
 	});
 });
 

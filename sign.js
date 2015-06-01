@@ -5,7 +5,7 @@ var smdb = new SignedMessaging();
 smdb.useConfig(cfg);
 
 if (process.argv.length < 2) {
-	consoler.log('signing requires a JSON-encoded object as a parameter');
+	console.log('signing requires a JSON-encoded object as a parameter');
 	process.exit(0);
 }
 

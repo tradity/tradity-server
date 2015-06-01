@@ -5,7 +5,7 @@ var smdb = new SignedMessaging();
 smdb.useConfig(cfg);
 
 if (process.argv.length < 2) {
-	consoler.log('verifying requires a verifiable message as a parameter');
+	console.log('verifying requires a verifiable message as a parameter');
 	process.exit(0);
 }
 

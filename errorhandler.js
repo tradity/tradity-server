@@ -78,7 +78,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 			console.error(longErrorText);
 		
 		if (cfg && cfg.errorLogFile)
-			return Q.nfcall(fs.appendFile, cfg.errorLogFile, longErrorText);
+			return Q.nfcall(fs.appendFile, cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
 	}).then(function() {
 		if (cfg && cfg.mail) {
 			var opt = _.clone(cfg.mail['errorBase']);

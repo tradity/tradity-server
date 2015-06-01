@@ -5,7 +5,7 @@ set -e
 [ -e res/ ] && [ -e main.js ] && node -e ''
 
 export DEBUG=''
-export SOTRADE_TEST=1 # indicates using config.test.js
+export SOTRADE_CONFIG=test # indicates using config.test.js
 export SOTRADE_ERROR_LOG_FILE=/tmp/errors-$(date +%s).log
 export SOTRADE_DO_NOT_OUTPUT_ERRORS=1
 

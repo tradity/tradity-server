@@ -33,6 +33,7 @@
 		"socket.io": ">=1.2.1",
 		"socket.io-adapter": "~0.3.1",
 		"socket.io-client": ">=1.2.1",
+		"request": "^2.55.0",
 		"unionfind": "~0.0.3",
 		"weak": "~0.4.0",
 		"wordpress-rest-api": "~0.4.0",

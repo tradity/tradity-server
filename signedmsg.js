@@ -9,9 +9,9 @@ var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
- * Provides methods for signing and verifiying messages
+ * Provides methods for signing and verifying messages
  * from other server or client instances.
- * This allows authorized queries to be employed securely.
+ * This allows authorized queries to be sent securely.
  * 
  * @public
  * @module signedmsg

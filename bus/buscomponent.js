@@ -160,6 +160,10 @@ function provide(name, args, fn, prefilter) {
 		}).done();
 	};
 	
+	for (var i in fn)
+		if (fn.hasOwnProperty(i) && i !== 'requestCB' && typeof fn.requestCB[i] === 'undefined')
+			fn.requestCB[i] = fn[i];
+	
 	return fn;
 };
 

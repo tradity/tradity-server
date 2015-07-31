@@ -290,8 +290,8 @@ Stocks.prototype.updateStockValues = function(ctx) {
  * @property {number} ask  The current stock ask price (1/10000 units)
  * @property {number} bid  The current stock bid price (1/10000 units)
  * @property {string} name  A human-readable name for the stock
- * @property {?string} leader   If this is a leader stock, this is the leader’s user id.
- * @property {?int} leadername  If this is a leader stock, this is the leader’s user name.
+ * @property {?int} leader   If this is a leader stock, this is the leader’s user id.
+ * @property {?string} leadername  If this is a leader stock, this is the leader’s user name.
  * @property {string} exchange  A unique identifier of the stock exchange where the stock is being traded.
  * @property {int} pieces  The number of shares of this stock that have been traded on the current day.
  */

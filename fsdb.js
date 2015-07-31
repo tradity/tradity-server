@@ -176,7 +176,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		if (query.base64)
 			content = new Buffer(query.content, 'base64');
 		
-		return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.id : null]);
+		return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.uid : null]);
 	}).then(function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
@@ -223,7 +223,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		filehash = serverUtil.sha256(content + String(Date.now())).substr(0, 32);
 		query.name = query.name ? String(query.name) : filehash;
 		
-		filename = (ctx.user ? ctx.user.id + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
+		filename = (ctx.user ? ctx.user.uid + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
 		url = cfg.varReplace(cfg.fsdb.puburl.replace(/\{\$name\}/g, filename));
 		
 		groupassoc = parseInt(groupassoc) == groupassoc ? parseInt(groupassoc) : null;
@@ -237,7 +237,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				sql += 'AND `' + fieldname + '` = ? ';
 				
 				switch (fieldname) {
-					case 'user': dataarr.push(ctx.user.id); break;
+					case 'user': dataarr.push(ctx.user.uid); break;
 					case 'groupassoc': dataarr.push(groupassoc); break;
 					default: self.emitError(new Error('Unknown uniqrole field: ' + fieldname));
 				}
@@ -248,14 +248,14 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 	}).then(function() {
 		return ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 			'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-			[ctx.user ? ctx.user.id : null, filename, url, query.mime ? String(query.mime) : null, filehash,
+			[ctx.user ? ctx.user.uid : null, filename, url, query.mime ? String(query.mime) : null, filehash,
 			String(query.role), content, groupassoc, query.proxy ? 1:0]);
 	}).then(function(res) {
 		if (ctx.user) {
 			return ctx.feed({
 				'type': 'file-publish',
 				'targetid': res.insertId,
-				'srcuser': ctx.user.id
+				'srcuser': ctx.user.uid
 			});
 		}
 		

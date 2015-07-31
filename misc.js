@@ -35,6 +35,7 @@ Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', 
 	var r = _.clone(ctx.user);
 	delete r.pwhash;
 	delete r.pwsalt;
+	r.id = r.uid; // backwards compatibility
 	return { code: 'get-own-options-success', 'result': r };
 });
 
@@ -52,7 +53,7 @@ Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstora
 		throw new this.FormatError(e);
 	}
 	
-	return ctx.query('UPDATE users_data SET clientstorage = ? WHERE id = ?', [storage, ctx.user.id]).then(function() {
+	return ctx.query('UPDATE users_data SET clientstorage = ? WHERE uid = ?', [storage, ctx.user.uid]).then(function() {
 		return { code: 'set-clientstorage-success' };
 	});
 });
@@ -67,7 +68,7 @@ Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstora
  * @function c2s~ping
  */
 Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx) {
-	return { code: 'pong', 'uid': ctx.user ? ctx.user.uid : null };
+	return { code: 'pong', uid: ctx.user ? ctx.user.uid : null };
 });
 
 /**
@@ -106,7 +107,9 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
 	}).then(function(r) {
 		id = r.insertId;
 		return ctx.startTransaction({}, {restart: function() {
-			deferred.resolve({ code: 'artificial-deadlock-success' });
+			return ctx.query('DROP TABLE deadlocktest').then(function() {
+				return deferred.resolve({ code: 'artificial-deadlock-success' });
+			});
 		}});
 	}).then(function(conn1_) {
 		conn1 = conn1_;

@@ -441,7 +441,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 			if (masterAuthorization) {
 				self.ctx.access.grantAny();
 				if (user == null && query.uid != null)
-					user = {uid: query.uid, id: query.uid};
+					user = {uid: query.uid};
 			}
 			
 			self.ctx.user = user;

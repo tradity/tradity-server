@@ -57,11 +57,12 @@ Stocks.prototype.onBusConnect = function() {
 Stocks.prototype.updateStockIDCache = function(ctx) {
 	var self = this;
 	
-	return self.knownStockIDs = ctx.query('SELECT stockid, id FROM stocks').then(function(stockidlist) {
+	return self.knownStockIDs = ctx.query('SELECT stockid, stocktextid FROM stocks').then(function(stockidlist) {
 		// generate ISIN |-> id map
 		return self.knownStockIDs = _.chain(stockidlist).map(function(entry) {
-			assert.equal(typeof entry.id, 'number');
-			return [entry.stockid, entry.id];
+			assert.equal(typeof entry.stockid, 'number');
+			assert.ok(validator.isISIN(entry.stocktextid));
+			return [entry.stocktextid, entry.stockid];
 		}).zipObject().value();
 	});
 };
@@ -173,10 +174,10 @@ Stocks.prototype.updateRankingInformation = function(ctx) {
 	var self = this;
 	
 	return ctx.query('UPDATE users_finance SET ' +
-		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
-			'WHERE userid=users_finance.id AND leader IS NOT NULL), ' +
-		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.id ' +
-			'WHERE userid=users_finance.id AND leader IS NULL)');
+		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.stockid ' +
+			'WHERE uid = users_finance.uid AND leader IS NOT NULL), ' +
+		'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.stockid ' +
+			'WHERE uid = users_finance.uid AND leader IS NULL)');
 };
 
 /**
@@ -192,9 +193,9 @@ Stocks.prototype.updateValueHistory = function(ctx) {
 	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
 	return ctx.query('INSERT INTO tickshistory (ticks, time) ' +
 		'SELECT value, UNIX_TIMESTAMP() FROM globalvars WHERE name="ticks"').then(function() {
-		return ctx.query('CREATE TEMPORARY TABLE users_dindex SELECT id, deletiontime FROM users; ' +
-			'INSERT INTO valuehistory (userid, ' + copyFields + ', time) SELECT users_finance.id, ' + copyFields + ', UNIX_TIMESTAMP() ' +
-			'FROM users_finance JOIN users_dindex ON users_dindex.id = users_finance.id WHERE users_dindex.deletiontime IS NULL; ' +
+		return ctx.query('CREATE TEMPORARY TABLE users_dindex SELECT uid, deletiontime FROM users; ' +
+			'INSERT INTO valuehistory (uid, ' + copyFields + ', time) SELECT users_finance.uid, ' + copyFields + ', UNIX_TIMESTAMP() ' +
+			'FROM users_finance JOIN users_dindex ON users_dindex.uid = users_finance.uid WHERE users_dindex.deletiontime IS NULL; ' +
 			'DROP TABLE users_dindex');
 	});
 };
@@ -240,8 +241,8 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
 		return ctx.query('DELETE FROM depot_stocks WHERE amount = 0');
 	}).then(function() {
 		return ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
-			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.id) != 0 ' +
-			'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched = stocks.id) != 0 ' +
+			'(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.stockid) != 0 ' +
+			'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched  = stocks.stockid) != 0 ' +
 			'OR leader IS NOT NULL');
 	});
 };
@@ -266,7 +267,7 @@ Stocks.prototype.updateStockValues = function(ctx) {
 			'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
 		[cfg.lrutimeLimit, cfg.refetchLimit]);
 	}).then(function(res) {
-		stocklist = _.pluck(res, 'stockid')
+		stocklist = _.pluck(res, 'stocktextid')
 		return self.request({name: 'neededStocksDQ'});
 	}).then(function(dqNeededStocks) {
 		stocklist = _.union(stocklist, dqNeededStocks);
@@ -337,11 +338,11 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 			
 			if (typeof ksid == 'number') {
 				return ctx.query('UPDATE stocks SET ' + updateQueryString +
-					'WHERE id = ?', updateParams.concat([ksid]));
+					'WHERE stockid = ?', updateParams.concat([ksid]));
 			} else {
 				assert.equal(typeof ksid, 'undefined');
 				
-				return knownStockIDs[rec.symbol] = ctx.query('INSERT INTO stocks (stockid, lastvalue, ask, bid, lastchecktime, ' +
+				return knownStockIDs[rec.symbol] = ctx.query('INSERT INTO stocks (stocktextid, lastvalue, ask, bid, lastchecktime, ' +
 					'lrutime, leader, name, exchange, pieces) '+
 					'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
 					'UPDATE ' + updateQueryString,
@@ -351,11 +352,11 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 							return knownStockIDs[rec.symbol] = res.insertId;
 						
 						// no insert -> look the id up
-						return ctx.query('SELECT id FROM stocks WHERE stockid = ?', [rec.symbol], function(res) {
+						return ctx.query('SELECT stockid FROM stocks WHERE stocktext = ?', [rec.symbol], function(res) {
 							assert.ok(res[0]);
-							assert.ok(res[0].id);
+							assert.ok(res[0].stockid);
 							
-							return knownStockIDs[rec.symbol] = res[0].id;
+							return knownStockIDs[rec.symbol] = res[0].stockid;
 						});
 					});
 			}
@@ -407,17 +408,17 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 		self.getServerConfig(),
 		ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
 			'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
-			'FROM stocks ' +
-			'JOIN users ON stocks.leader = users.id ' +
-			'JOIN users_finance ON users.id = users_finance.id ' +
-			'WHERE users.name LIKE ? OR users.id = ?', [xstr, lid]),
+			'FROM users ' +
+			'JOIN stocks ON stocks.leader = users.uid ' +
+			'JOIN users_finance ON users.uid = users_finance.uid ' +
+			'WHERE users.name LIKE ? OR users.uid = ?', [xstr, lid]),
 		ctx.query('SELECT *, 0 AS wprovision, 0 AS lprovision ' +
 			'FROM stocks ' +
-			'WHERE (name LIKE ? OR stockid LIKE ?) AND leader IS NULL',
+			'WHERE (name LIKE ? OR stocktextid LIKE ?) AND leader IS NULL',
 			[xstr, xstr])
 	]).spread(function(cfg, localResults_, externalStocks) {
 		localResults = localResults_;
-		var externalStocksIDs = _.pluck(externalStocks, 'stockid');
+		var externalStocksIDs = _.pluck(externalStocks, 'stocktextid');
 
 		// ISIN or WKN
 		if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str))
@@ -427,7 +428,8 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 	}).then(function(externalResults) {
 		var results = _.union(localResults, _.map(externalResults, function(r) {
 			return {
-				'stockid': r.symbol,
+				'stockid': r.symbol, /* backwards compatibility */
+				'stocktextid': r.symbol,
 				'lastvalue': r.lastTradePrice * 10000,
 				'ask': r.ask * 10000,
 				'bid': r.bid * 10000,
@@ -441,13 +443,13 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 			};
 		}));
 		
-		results = _.uniq(results, false, function(r) { return r.stockid; });
-		var symbols = _.pluck(results, 'stockid');
+		results = _.uniq(results, false, function(r) { return r.stocktextid; });
+		var symbols = _.pluck(results, 'stocktextid');
 		
 		if (symbols.length > 0 && !ctx.getProperty('readonly')) {
 			symbols = _.map(symbols, escape);
 			ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
-				'WHERE stockid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
+				'WHERE stocktextid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
 		}
 		
 		return { code: 'stock-search-success', results: results };
@@ -501,19 +503,19 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
 	
 	return ctx.query('SELECT s.*, ds.* ' +
 		'FROM stocks AS s ' +
-		'JOIN depot_stocks AS ds ON ds.stockid = s.id ' +
-		'WHERE s.leader = ?', [ctx.user.id]).then(function(depotEntries) {
+		'JOIN depot_stocks AS ds ON ds.stockid = s.stockid ' +
+		'WHERE s.leader = ?', [ctx.user.uid]).then(function(depotEntries) {
 		
 		return Q.all(depotEntries.map(function(depotentry) {
 			var newCtx = new qctx.QContext({
 				parentComponent: this,
-				user: {id: depotentry.userid, uid: depotentry.userid},
+				user: {uid: depotentry.uid},
 				access: ctx.access
 			});
 			
 			return self.buyStock({
 				amount: -depotentry.amount,
-				leader: ctx.user.id,
+				leader: ctx.user.uid,
 			}, newCtx, {
 				forceNow: true
 			});
@@ -560,9 +562,10 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
  * [delayed queries database]{@link module:dqueries}.
  * 
  * @param {?int} query.leader  The id of a leader to buy shares from.
- *                             Either leader or stockid must be given.
- * @param {?string} query.stockid  The id of a stock to buy shares from.
- *                                 Either leader or stockid must be given.
+ *                             Either leader or stocktextid must be given.
+ * @param {?string} query.stocktextid  The id of a stock to buy shares from.
+ *                                     Either leader or stocktextid must be given.
+ *                                     (<code>query.stockid</code> is deprecated, but equivalent).
  * @param {?object} query.dquerydata  A generic data object to be used with
  *                                    delayed query support (for closed stock 
  *                                    exchanges or unmet preconditions).
@@ -577,7 +580,7 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
  * @return {object} Returns with <ul>
  *                  <li><code>stock-buy-success</code> in case of success</li>
  *                  <li><code>stock-buy-stock-not-found</code> in case no stock according to
- *                  <code>.leader</code>/<code>.stockid</code> was found</li>
+ *                  <code>.leader</code>/<code>.stocktextid</code> was found</li>
  *                  <li><code>stock-buy-email-not-verif</code> in case a leader stock was requested
  *                  and the buying user’s e-mail was not verified yet</li>
  *                  <li><code>stock-buy-autodelay-sxnotopen</code> in case the stock exchange was not open
@@ -629,7 +632,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		assert.ok(ctx.access);
 		
 		if (query.leader != null)
-			query.stockid = '__LEADER_' + query.leader + '__';
+			query.stocktextid = '__LEADER_' + query.leader + '__';
+		else if (query.stockid && typeof query.stockid == 'undefined')
+			query.stocktextid = String(query.stockid); // backwards compatibility
 		
 		if (opt.testOnly) {
 			return {
@@ -659,11 +664,11 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			'depot_stocks.provision_hwm, depot_stocks.provision_lwm, stocks.bid, ' +
 			'stocks.bid - depot_stocks.provision_hwm AS hwmdiff, ' +
 			'stocks.bid - depot_stocks.provision_lwm AS lwmdiff, ' +
-			'l.id AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
+			'l.uid AS lid, l.wprovision AS wprovision, l.lprovision AS lprovision ' +
 			'FROM stocks ' +
-			'LEFT JOIN depot_stocks ON depot_stocks.userid = ? AND depot_stocks.stockid = stocks.id ' +
-			'LEFT JOIN users_finance AS l ON stocks.leader = l.id AND depot_stocks.userid != l.id ' +
-			'WHERE stocks.stockid = ?', [ctx.user.id, String(query.stockid)]);
+			'LEFT JOIN depot_stocks ON depot_stocks.uid = ? AND depot_stocks.stockid = stocks.stockid ' +
+			'LEFT JOIN users_finance AS l ON stocks.leader = l.uid AND depot_stocks.uid != l.uid ' +
+			'WHERE stocks.stocktextid = ?', [ctx.user.uid, String(query.stocktextid)]);
 	}).then(function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0)
 			throw new self.SoTradeClientError('stock-buy-stock-not-found');
@@ -677,7 +682,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (/__LEADER_(\d+)__/.test(query.stockid) && !ctx.access.has('email_verif') && !opt.forceNow)
+		if (/__LEADER_(\d+)__/.test(query.stocktextid) && !ctx.access.has('email_verif') && !opt.forceNow)
 			throw new self.SoTradeClientError('stock-buy-email-not-verif');
 		
 		forceNow = opt.forceNow || (ctx.access.has('stocks') && query.forceNow);
@@ -688,7 +693,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 				self.request({name: 'client-dquery', 
 					ctx: ctx,
 					query: { 
-						condition: 'stock::' + r.stockid + '::exchange-open > 0',
+						condition: 'stock::' + r.stocktextid + '::exchange-open > 0',
 						query: query,
 					}
 				});
@@ -706,13 +711,14 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		ta_value = amount > 0 ? r.ask : r.bid;
 		
 		assert.ok(r.ask >= 0);
-		assert.ok(r.stockid);
+		assert.ok(r.stocktextid);
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
 		return Q.all([
-			conn.query('SELECT freemoney, totalvalue FROM users_finance AS f WHERE id = ?', [ctx.user.id]),
-			conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory WHERE stocktextid = ? AND userid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
-				[r.stockid, ctx.user.id, r.amount])
+			conn.query('SELECT freemoney, totalvalue FROM users_finance AS f WHERE uid = ?', [ctx.user.uid]),
+			conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory ' +
+				'WHERE stocktextid = ? AND uid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
+				[r.stocktextid, ctx.user.uid, r.amount])
 		]);
 	}).spread(function(ures_, ohr_) {
 		ures = ures_;
@@ -740,9 +746,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		
 		fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
 		
-		return conn.query('INSERT INTO orderhistory (userid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
+		return conn.query('INSERT INTO orderhistory (uid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
 			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)',
-			[ctx.user.id, r.stockid, r.leader, price, amount, fee, r.name, r.money, r.amount]);
+			[ctx.user.uid, r.stocktextid, r.leader, price, amount, fee, r.name, r.money, r.amount]);
 	}).then(function(oh_res_) {
 		oh_res = oh_res_;
 		
@@ -757,17 +763,21 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			
 			return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
 				'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
-				[oh_res.insertId, r.stockid, ctx.user.id, r.lid, totalprovPay, JSON.stringify({
+				[oh_res.insertId, r.stocktextid, ctx.user.uid, r.lid, totalprovPay, JSON.stringify({
 					reason: 'trade',
 					provision_hwm: r.provision_hwm,
 					provision_lwm: r.provision_lwm,
 					bid: r.bid,
 					depot_amount: amount
 				})]).then(function() {
-					return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? WHERE id = ?',
-					[totalprovPay, totalprovPay, ctx.user.id]);
+					return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, ' +
+						'totalvalue = totalvalue - ? ' +
+						'WHERE uid = ?',
+					[totalprovPay, totalprovPay, ctx.user.uid]);
 				}).then(function() {
-					return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? WHERE id = ?',
+					return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, ' +
+						'totalvalue = totalvalue + ?, wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? ' +
+						'WHERE uid = ?',
 					[totalprovPay, totalprovPay, wprovPay, lprovPay, r.lid]);
 				});
 		}
@@ -775,7 +785,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		return ctx.feed({
 			'type': 'trade',
 			'targetid': oh_res.insertId,
-			'srcuser': ctx.user.id,
+			'srcuser': ctx.user.uid,
 			'json': {delay: !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
 			'feedusers': r.leader ? [r.leader] : [],
 			'conn': conn
@@ -790,28 +800,28 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
 			'(?, "stockprice", ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?), ' +
 			'(?, "fee",        ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?)',
-			[oh_res.insertId, r.stockid, ctx.user.id, price, JSON.stringify({reason: 'trade'}),
-			 oh_res.insertId, r.stockid, ctx.user.id, fee,   JSON.stringify({reason: 'trade'})]);
+			[oh_res.insertId, r.stocktext, ctx.user.uid, price, JSON.stringify({reason: 'trade'}),
+			 oh_res.insertId, r.stocktext, ctx.user.uid, fee,   JSON.stringify({reason: 'trade'})]);
 	}).then(function() {
-		return conn.query('UPDATE users AS fu SET tradecount = tradecount+1 WHERE id = ?', [ctx.user.id]);
+		return conn.query('UPDATE users AS fu SET tradecount = tradecount + 1 WHERE uid = ?', [ctx.user.uid]);
 	}).then(function() {
-		return conn.query('UPDATE users_finance AS f SET freemoney = freemoney-(?), totalvalue = totalvalue-(?), '+
+		return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ?, '+
 			perffull + '=' + perffull + ' + ABS(?) ' +
-			' WHERE id = ?', [price+fee, fee, price, ctx.user.id]);
+			' WHERE uid = ?', [price+fee, fee, price, ctx.user.uid]);
 	}).then(function() {
 		if (!hadDepotStocksEntry) {
 			assert.ok(amount >= 0);
 			
-			return conn.query('INSERT INTO depot_stocks (userid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
-				[ctx.user.id, r.id, amount, price, ta_value, ta_value]);
+			return conn.query('INSERT INTO depot_stocks (uid, stockid, amount, buytime, buymoney, provision_hwm, provision_lwm) VALUES(?,?,?,UNIX_TIMESTAMP(),?,?,?)', 
+				[ctx.user.uid, r.stockid, amount, price, ta_value, ta_value]);
 		} else {
 			return conn.query('UPDATE depot_stocks SET ' +
 				'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
 				'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
 				'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
 				'amount = amount + ? ' +
-				'WHERE userid = ? AND stockid = ?', 
-				[price, price, amount, price, amount, amount, ctx.user.id, r.id]);
+				'WHERE uid = ? AND stockid = ?', 
+				[price, price, amount, price, amount, amount, ctx.user.uid, r.stockid]);
 		}
 	}).then(function() {
 		return conn.commit();
@@ -861,14 +871,18 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot', function(query, ctx) {
 	return ctx.query('SELECT '+
 		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, '+
-		's.stockid AS stockid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, '+
-		'users.id AS leader, users.name AS leadername, exchange, s.name, ' +
+		's.stocktextid AS stocktextid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, '+
+		'users.uid AS leader, users.name AS leadername, exchange, s.name, ' +
 		'IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
 		'FROM depot_stocks AS ds ' +
-		'JOIN stocks AS s ON s.id = ds.stockid ' +
-		'LEFT JOIN users ON s.leader = users.id ' +
-		'WHERE userid = ? AND amount != 0',
-		[ctx.user.id]).then(function(results) {
+		'JOIN stocks AS s ON s.stockid = ds.stockid ' +
+		'LEFT JOIN users ON s.leader = users.uid ' +
+		'WHERE uid = ? AND amount != 0',
+		[ctx.user.uid]).then(function(results) {
+		/* backwards compatibility */
+		for (var i = 0; i < results.length; ++i)
+			results[i].stockid = results[i].stocktextid;
+		
 		return { code: 'list-own-depot-success', 'results': results };
 	});
 });
@@ -906,10 +920,10 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
  */
 Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transactions', function(query, ctx) {
 	return ctx.query('SELECT t.*, a.name AS aname, p.name AS pname, s.name AS stockname FROM transactionlog AS t ' +
-		'LEFT JOIN users AS a ON a.id = t.a_user ' +
-		'LEFT JOIN users AS p ON p.id = t.p_user ' +
-		'LEFT JOIN stocks AS s ON s.stockid = t.stocktextid ' +
-		'WHERE t.a_user = ? OR t.p_user = ? ', [ctx.user.id, ctx.user.id]).then(function(results) {
+		'LEFT JOIN users AS a ON a.uid = t.a_user ' +
+		'LEFT JOIN users AS p ON p.uid = t.p_user ' +
+		'LEFT JOIN stocks AS s ON s.stocktextid = t.stocktextid ' +
+		'WHERE t.a_user = ? OR t.p_user = ? ', [ctx.user.uid, ctx.user.uid]).then(function(results) {
 		for (var i = 0; i < results.length; ++i)
 			results[i].json = results[i].json ? JSON.parse(results[i].json) : {};
 
@@ -936,25 +950,26 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
 	var r;
 	return Q.all([
 		this.getServerConfig(),
-		ctx.query('SELECT oh.*,s.*,u.name,events.eventid AS eventid,trader.delayorderhist FROM orderhistory AS oh ' +
+		ctx.query('SELECT oh.* ,s.*, u.name, events.eventid AS eventid, trader.delayorderhist FROM orderhistory AS oh ' +
 			'LEFT JOIN stocks AS s ON s.leader = oh.leader ' +
 			'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid ' +
-			'LEFT JOIN users AS u ON u.id = oh.leader ' +
-			'LEFT JOIN users AS trader ON trader.id = oh.userid WHERE oh.orderid = ?', [parseInt(query.tradeid)])
+			'LEFT JOIN users AS u ON u.uid = oh.leader ' +
+			'LEFT JOIN users AS trader ON trader.uid = oh.uid WHERE oh.orderid = ?', [parseInt(query.tradeid)])
 	]).spread(function(cfg, oh_res) {
 		if (oh_res.length == 0)
 			throw new self.SoTradeClientError('get-trade-info-notfound');
 		r = oh_res[0];
 		
-		if (r.userid != ctx.user.id && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
+		if (r.uid != ctx.user.uid && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
 			throw new self.SoTradeClientError('get-trade-delayed-history');
 		
-		assert.ok(r.userid);
+		r.userid = r.uid; // backwards compatibility
+		assert.ok(r.uid);
 		
-		return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
+		return ctx.query('SELECT c.*,u.name AS username, u.uid AS uid, url AS profilepic, trustedhtml ' +
 			'FROM ecomments AS c ' +
 			'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
-			'LEFT JOIN users AS u ON c.commenter = u.id ' +
+			'LEFT JOIN users AS u ON c.commenter = u.uid ' +
 			'WHERE c.eventid = ?', [r.eventid]);
 	}).then(function(comments) {
 		return { code: 'get-trade-info-success', 'trade': r, 'comments': comments };
@@ -987,12 +1002,16 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
  * @function c2s~list-popular-stocks
  */
 Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx) {
-	return ctx.query('SELECT oh.stocktextid AS stockid, oh.stockname, ' +
+	return ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
 		'SUM(ABS(money)) AS moneysum, ' +
 		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 		'FROM orderhistory AS oh ' +
 		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
 		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20').then(function(popular) {
+		/* backwards compatibility */
+		for (var i = 0; i < popular.length; ++i)
+			popular[i].stockid = popular[i].stocktextid;
+		
 		return { code: 'list-popular-stocks-success', 'results': popular };
 	});
 });

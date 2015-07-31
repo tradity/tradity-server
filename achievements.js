@@ -62,7 +62,7 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
 	if (ctx.getProperty('readonly'))
 		return;
 	
-	return ctx.query('SELECT * FROM achievements WHERE userid = ?', [ctx.user.id]).then(function(userAchievements) {
+	return ctx.query('SELECT * FROM achievements WHERE uid = ?', [ctx.user.uid]).then(function(userAchievements) {
 		return Q.all(self.achievementList.map(function(achievementEntry) {
 			return self.checkAchievement(achievementEntry, ctx, userAchievements);
 		}));
@@ -87,7 +87,7 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
  * @type {object}
  * 
  * @property {int} achid  An unique numerical identifier for this achievement.
- * @property {int} userid  The numerical id of the user who completed the achievement.
+ * @property {int} uid  The numerical id of the user who completed the achievement.
  * @property {string} achname  The achievement type identifier for this achievement.
  * @property {int} xp  The amount of XP awarded for this achievement.
  * @property {int} version  The version of this achievement type when it was completed.
@@ -108,7 +108,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 	if (!ctx.user)
 		return;
 	
-	var uid = ctx.user.id;
+	var uid = ctx.user.uid;
 	assert.equal(uid, parseInt(uid));
 	assert.ok(!uid.splice);
 	
@@ -125,7 +125,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 		lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
 		
 		return ctx.query('SELECT * FROM achievements ' +
-			'WHERE userid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
+			'WHERE uid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
 			[uid].splice(0).concat(lookfor));
 	}).then(function(userAchievements) {
 		userAchievements = _.chain(userAchievements).map(function(a) { return [a.achname, a]; }).object().value();
@@ -151,7 +151,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 			if (!hasBeenAchieved)
 				return;
 			
-			return ctx.query('REPLACE INTO achievements (userid, achname, xp, version) VALUES (?, ?, ?, ?)', 
+			return ctx.query('REPLACE INTO achievements (uid, achname, xp, version) VALUES (?, ?, ?, ?)', 
 				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version]).then(function(res) {
 				if (res.affectedRows != 1)
 					return;
@@ -195,7 +195,7 @@ Achievements.prototype.registerObservers = function(achievementEntry) {
 				assert.notEqual(typeof userIDs.length, 'undefined');
 				
 				return Q.all(_.map(userIDs, function(uid) {
-					return self.checkAchievement(achievementEntry, new qctx.QContext({user: {id: uid, uid: uid}, parentComponent: self}));
+					return self.checkAchievement(achievementEntry, new qctx.QContext({user: {uid: uid}, parentComponent: self}));
 				}));
 			});
 		});
@@ -286,7 +286,7 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
 	}
 	
 	return this.request({name: 'createSignedMessage', msg: {
-		uid: ctx.user.id,
+		uid: ctx.user.uid,
 		date: today,
 		certType: 'wasOnline'
 	}}).then(function(cert) {
@@ -318,10 +318,10 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
 	if (self.clientAchievements.indexOf(query.name) == -1)
 		throw new self.SoTradeClientError('achievement-unknown-name');
 	
-	return ctx.query('REPLACE INTO achievements_client (userid, achname, verified) VALUES(?, ?, ?)',
-		[ctx.user.id, query.name, verified || 0]).then(function()
+	return ctx.query('REPLACE INTO achievements_client (uid, achname, verified) VALUES(?, ?, ?)',
+		[ctx.user.uid, query.name, verified || 0]).then(function()
 	{
-		self.emitImmediate('clientside-achievement', {srcuser: ctx.user.id, name: query.name});
+		self.emitImmediate('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
 		
 		return { code: 'achievement-success' };
 	});
@@ -339,7 +339,7 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
  */
 Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-achievement', function(query, ctx) {
 	var self = this;
-	var uid = ctx.user.id;
+	var uid = ctx.user.uid;
 	
 	if (!query.certs || !query.certs.map)
 		throw new self.FormatError();

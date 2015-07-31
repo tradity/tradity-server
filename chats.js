@@ -87,20 +87,20 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		var containsOwnChats = false;
 		for (var i = 0; i < query.endpoints.length; ++i) {
 			var uid = query.endpoints[i];
-			containsOwnChats = containsOwnChats || (uid == ctx.user.id);
+			containsOwnChats = containsOwnChats || (uid == ctx.user.uid);
 			if (parseInt(uid) != uid)
 				throw new self.FormatError();
 		}
 		
 		if (!containsOwnChats && ctx.user)
-			query.endpoints.push(ctx.user.id);
+			query.endpoints.push(ctx.user.uid);
 		
 		var endpointsList = query.endpoints.join(',');
 		var numEndpoints = query.endpoints.length;
 		
 		whereString += 
-			' (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.id = cm.userid WHERE cm.chatid = c.chatid ' +
-			'  AND cm.userid IN (' +  endpointsList + ')) = ? ' +
+			' (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.uid = cm.uid WHERE cm.chatid = c.chatid ' +
+			'  AND cm.uid IN (' +  endpointsList + ')) = ? ' +
 			'AND (SELECT COUNT(*) FROM chatmembers AS cm WHERE cm.chatid = c.chatid) = ? ';
 		
 		params.push(numEndpoints, numEndpoints);
@@ -119,12 +119,12 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 			return Q(null);
 		
 		// query.endpoints has undergone validation and can be assumed to be all integers
-		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE id IN (' + query.endpoints.join(',') + ')',
+		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid IN (' + query.endpoints.join(',') + ')',
 			[]).then(function(endpointUserCount) {
 			if (endpointUserCount[0].c != query.endpoints.length)
 				return Q(null);
 			
-			return ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.id]).then(function(res) {
+			return ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.uid]).then(function(res) {
 				chatid = res.insertId;
 				
 				var members = [];
@@ -135,12 +135,12 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 					memberValues.push(String(query.endpoints[i]));
 				}
 				
-				return ctx.query('INSERT INTO chatmembers(chatid, userid, jointime) VALUES ' + members.join(','), memberValues);
+				return ctx.query('INSERT INTO chatmembers(chatid, uid, jointime) VALUES ' + members.join(','), memberValues);
 			}).then(function() {
 				return ctx.feed({
 					type: 'chat-start',
 					targetid: chatid, 
-					srcuser: ctx.user.id,
+					srcuser: ctx.user.uid,
 					noFollowers: true,
 					feedusers: query.endpoints,
 					json: {endpoints: query.endpoints}
@@ -166,9 +166,9 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		if (query.noMessages)
 			return { code: 'chat-get-success', chat: chat };
 		
-		return ctx.query('SELECT u.name AS username, u.id AS uid, url AS profilepic ' +
+		return ctx.query('SELECT u.name AS username, u.uid AS uid, url AS profilepic ' +
 			'FROM chatmembers AS cm ' +
-			'JOIN users AS u ON u.id = cm.userid ' +
+			'JOIN users AS u ON u.uid = cm.uid ' +
 			'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
 			'WHERE cm.chatid = ?', [chat.chatid]);
 	}).then(function(endpoints) {
@@ -177,7 +177,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		
 		var ownChatsIsEndpoint = false;
 		for (var i = 0; i < chat.endpoints.length; ++i) {
-			if (chat.endpoints[i].uid == ctx.user.id) {
+			if (chat.endpoints[i].uid == ctx.user.uid) {
 				ownChatsIsEndpoint = true;
 				break;
 			}
@@ -186,9 +186,9 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		if (!ownChatsIsEndpoint)
 			throw new self.SoTradeClientError('chat-get-notfound');
 		
-		return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+		return ctx.query('SELECT c.*,u.name AS username,u.uid AS uid, url AS profilepic, trustedhtml ' + 
 			'FROM ecomments AS c ' + 
-			'LEFT JOIN users AS u ON c.commenter = u.id ' + 
+			'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
 			'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
 			'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
 			chat.messages = comments;
@@ -211,7 +211,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 /**
  * Add a user to a specific chat.
  * 
- * @param {int} query.userid  The numerical id of the user to be added.
+ * @param {int} query.uid  The numerical id of the user to be added.
  * @param {int} query.chatid  The numerical id of the target chat.
  * 
  * @return {object} Returns with <code>chat-adduser-notfound</code>,
@@ -222,12 +222,16 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', function(query, ctx) {
 	var self = this;
 	
-	if (parseInt(query.userid) != query.userid || parseInt(query.chatid) != query.chatid)
+	/* backwards compatibility */
+	if (parseInt(query.userid) == query.userid && parseInt(query.uid) != query.userid)
+		query.uid = query.userid;
+	
+	if (parseInt(query.uid) != query.uid || parseInt(query.chatid) != query.chatid)
 		throw new self.FormatError();
 	
 	var username, chat;
 	
-	return ctx.query('SELECT name FROM users WHERE id = ?', [query.userid]).then(function(res) {
+	return ctx.query('SELECT name FROM users WHERE uid = ?', [query.uid]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('chat-adduser-user-notfound');
 		
@@ -251,18 +255,18 @@ Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', f
 		
 		chat = getChatsResult.chat;
 		
-		return ctx.query('INSERT INTO chatmembers (chatid, userid) VALUES (?, ?)', [query.chatid, query.userid]);
+		return ctx.query('INSERT INTO chatmembers (chatid, uid) VALUES (?, ?)', [query.chatid, query.uid]);
 	}).then(function(r) {
 		var feedusers = _.pluck(chat.endpoints, 'uid');
-		feedusers.push(query.userid);
+		feedusers.push(query.uid);
 		
 		return ctx.feed({
 			type: 'chat-user-added',
 			targetid: query.chatid,
-			srcuser: ctx.user.id,
+			srcuser: ctx.user.uid,
 			noFollowers: true,
 			feedusers: _.pluck(chat.endpoints, 'uid'),
-			json: {addedChats: query.userid, addedChatsName: username, endpoints: chat.endpoints}
+			json: {addedChats: query.uid, addedChatsName: username, endpoints: chat.endpoints}
 		});
 	}).then(function() {
 		return { code: 'chat-adduser-success' };
@@ -279,16 +283,16 @@ Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', f
  * @function c2s~list-all-chats
  */
 Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', function(query, ctx) {
-	return ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.id AS member, u.name AS membername, url AS profilepic, ' +
-		'eventid AS chatstartevent ' +
+	return ctx.query('SELECT c.chatid, c.creator, creator_u.name AS creatorname, u.uid AS member, u.name AS membername, ' +
+		'url AS profilepic, eventid AS chatstartevent ' +
 		'FROM chatmembers AS cmi ' +
 		'JOIN chats AS c ON c.chatid = cmi.chatid ' +
 		'JOIN chatmembers AS cm ON cm.chatid = c.chatid ' +
-		'JOIN users AS u ON cm.userid = u.id ' +
-		'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
-		'JOIN users AS creator_u ON c.creator = creator_u.id ' +
+		'JOIN users AS u ON cm.uid = u.uid ' +
+		'LEFT JOIN httpresources ON httpresources.user = u.uid AND httpresources.role = "profile.image" ' +
+		'JOIN users AS creator_u ON c.creator = creator_u.uid ' +
 		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" ' +
-		'WHERE cmi.userid = ?', [ctx.user.id]).then(function(res) {
+		'WHERE cmi.uid = ?', [ctx.user.uid]).then(function(res) {
 		var ret = {};
 		
 		for (var i = 0; i < res.length; ++i) {
@@ -297,7 +301,12 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
 				ret[res[i].chatid].members = [];
 			}
 			
-			ret[res[i].chatid].members.push({id: res[i].member, name: res[i].membername, profilepic: res[i].profilepic});
+			ret[res[i].chatid].members.push({
+				id: res[i].member, /* backwards compatibility */
+				uid: res[i].member,
+				name: res[i].membername,
+				profilepic: res[i].profilepic
+			});
 		}
 		
 		return { code: 'list-all-chats-success', chats: ret };

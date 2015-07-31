@@ -97,8 +97,8 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
 		'bloguser, COUNT(*) AS postcount, users.name ' +
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
-		'LEFT JOIN users ON feedblogs.bloguser = users.id ' +
-		'LEFT JOIN schools ON feedblogs.schoolid = schools.id ' +
+		'LEFT JOIN users ON feedblogs.bloguser = users.uid ' +
+		'LEFT JOIN schools ON feedblogs.schoolid = schools.schoolid ' +
 		'WHERE feedblogs.active ' +
 		'GROUP BY blogid').then(function(res) {
 		return { code: 'list-wordpress-feeds-success', results: res };

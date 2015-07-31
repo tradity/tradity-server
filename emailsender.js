@@ -173,7 +173,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		if (ctx && !ctx.getProperty('readonly'))
 			return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
 				'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[uid || (ctx.user && ctx.user.id) || null, String(shortId), String(template) || null,
+				[uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,
 				String(mailtype), String(origTo)]);
 		
 		return Q();

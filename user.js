@@ -105,14 +105,14 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 	}).then(function(buf) {
 		key = buf.toString('hex');
 		
-		return ctx.query('INSERT INTO email_verifcodes (`userid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
-			[ctx.user.id, key]);
+		return ctx.query('INSERT INTO email_verifcodes (`uid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
+			[ctx.user.uid, key]);
 	}).then(function(res) {
 		return self.getServerConfig();
 	}).then(function(cfg) {
 		var url = cfg.varReplace(cfg.regurl
 			.replace(/\{\$key\}/g, key)
-			.replace(/\{\$uid\}/g, ctx.user.id));
+			.replace(/\{\$uid\}/g, ctx.user.uid));
 		
 		return self.request({name: 'sendTemplateMail', 
 			template: 'register-email.eml',
@@ -157,10 +157,10 @@ User.prototype.login = buscomponent.provide('client-login',
 	var key, uid, pwsalt, pwhash;
 	
 	return Q().then(function() {
-		var query = 'SELECT id, pwsalt, pwhash '+
+		var query = 'SELECT uid, pwsalt, pwhash '+
 			'FROM users ' +
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
-			'ORDER BY email_verif DESC, id DESC';
+			'ORDER BY email_verif DESC, uid DESC';
 
 		if (ctx.getProperty('readonly'))
 			return ctx.query(query, [name, name])
@@ -192,7 +192,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			throw new self.SoTradeClientError('login-badname');
 		}
 		
-		uid = res[0].id;
+		uid = res[0].uid;
 		pwsalt = res[0].pwsalt;
 		pwhash = res[0].pwhash;
 		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
@@ -268,7 +268,7 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  * 
  * @property {int} uid  Often aliased to <code>id</code>, this is the user’s numerical id.
  *                      Use of the attribute <code>id</code> is deprecated, though, and it
- *                      will be removed somewhen in the future.
+ *                      will be removed at some point in the future.
  * @property {string} name  The name chosen by the user.
  * @property {int} school  Usually the numerical id of the group in which this user is a member.
  * @property {string} schoolpath  The path of the school in which this user is a member.
@@ -379,14 +379,14 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 	var likestringUnit = [];
 	
 	var join = 'FROM users AS u ' +
-		'JOIN users_data ON users_data.id = u.id ' +
+		'JOIN users_data ON users_data.id = u.uid ' +
 		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid ' +
-		'LEFT JOIN schools AS c ON sm.schoolid = c.id ' +
-		'JOIN (SELECT userid, MIN(time) AS min_t, MAX(time) AS max_t FROM valuehistory ' +
-			'WHERE time > ? AND time < ? GROUP BY userid) AS locator_va ON u.id = locator_va.userid ' +
-		'JOIN valuehistory AS past_va ON past_va.userid = u.id AND past_va.time = locator_va.min_t ' +
-		'JOIN valuehistory AS now_va ON now_va.userid = u.id AND now_va.time = locator_va.max_t ';
-			
+		'LEFT JOIN schools AS c ON sm.schoolid = c.schoolid ' +
+		'JOIN (SELECT uid, MIN(time) AS min_t, MAX(time) AS max_t FROM valuehistory ' +
+			'WHERE time > ? AND time < ? GROUP BY uid) AS locator_va ON u.uid = locator_va.uid ' +
+		'JOIN valuehistory AS past_va ON past_va.uid = u.uid AND past_va.time = locator_va.min_t ' +
+		'JOIN valuehistory AS now_va  ON  now_va.uid = u.uid AND  now_va.time = locator_va.max_t ';
+	
 	if (!query.includeAll)
 		likestringWhere += ' AND email_verif != 0 ';
 
@@ -400,8 +400,8 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 		if (!query.schoolid)
 			return ctx.access.has('userdb');
 		
-		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ';
-		likestringWhere += 'AND (p.id = ? OR p.path = ?) ';
+		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ';
+		likestringWhere += 'AND (p.schoolid = ? OR p.path = ?) ';
 		likestringUnit.push(String(query.schoolid), String(query.schoolid).toLowerCase());
 		
 		return self.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid})
@@ -426,8 +426,8 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			query.upto = parseInt(now / 20000) * 20;
 		}
 		
-		return self.cache.add(cacheKey, 30000, ctx.query('SELECT u.id AS uid, u.name AS name, ' +
-			'c.path AS schoolpath, c.id AS school, c.name AS schoolname, jointime, pending, ' +
+		return self.cache.add(cacheKey, 30000, ctx.query('SELECT u.uid AS uid, u.name AS name, ' +
+			'c.path AS schoolpath, c.schoolid AS school, c.name AS schoolname, jointime, pending, ' +
 			'tradecount != 0 as hastraded, ' + 
 			'now_va.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
 			'now_va.wprov_sum + now_va.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
@@ -437,7 +437,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 				'(now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
 			(fullData ? '' : 'IF(realnamepublish != 0,giv_name,NULL) AS ') + ' giv_name, ' +
 			(fullData ? '' : 'IF(realnamepublish != 0,fam_name,NULL) AS ') + ' fam_name, ' +
-			'(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.userid = u.id) AS xp ' +
+			'(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.uid = u.uid) AS xp ' +
 			join + /* needs query.since and query.upto parameters */
 			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
 			likestringWhere,
@@ -514,18 +514,18 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		cfg = cfg_;
 	
 		if (query.lookfor == '$self' && ctx.user)
-			query.lookfor = ctx.user.id;
+			query.lookfor = ctx.user.uid;
 		
-		var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.id ? [
+		var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.uid ? [
 			'u.*', 'ud.*', 'uf.*',
 		] : [
 			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
 			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
 		]).concat([
-			'u.id AS uid', 'u.name AS name', 'birthday',
+			'u.uid AS uid', 'u.name AS name', 'birthday',
 			'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
 			'`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
-			'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.id AS lstockid',
+			'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.stockid AS lstockid',
 			'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
 			'((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
 			'((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
@@ -541,7 +541,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		var lookfor, lookforColumn;
 		if (parseInt(query.lookfor) == query.lookfor) {
 			lookfor = parseInt(query.lookfor);
-			lookforColumn = 'id';
+			lookforColumn = 'uid';
 		} else {
 			lookfor = String(query.lookfor);
 			lookforColumn = 'name';
@@ -552,14 +552,16 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			return self.cache.use(cacheKey);
 		
 		return self.cache.add(cacheKey, 60000, ctx.query('SELECT ' + columns + ' FROM users AS u ' +
-			'JOIN users_finance AS uf ON u.id = uf.id ' +
-			'JOIN users_data AS ud ON u.id = ud.id ' +
-			'LEFT JOIN valuehistory AS week_va ON week_va.userid = u.id AND week_va.time = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
-			'LEFT JOIN valuehistory AS day_va  ON day_va.userid  = u.id AND day_va.time  = (SELECT MIN(time) FROM valuehistory WHERE userid = u.id AND time > ?) ' +
-			'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid ' +
-			'LEFT JOIN stocks ON u.id = stocks.leader ' +
-			'LEFT JOIN httpresources ON httpresources.user = u.id AND httpresources.role = "profile.image" ' +
-			'LEFT JOIN events ON events.targetid = u.id AND events.type = "user-register" ' +
+			'JOIN users_finance AS uf ON u.uid = uf.uid ' +
+			'JOIN users_data AS ud ON u.uid = ud.uid ' +
+			'LEFT JOIN valuehistory AS week_va ON week_va.uid = u.uid AND week_va.time = ' +
+				'(SELECT MIN(time) FROM valuehistory WHERE uid = u.uid AND time > ?) ' +
+			'LEFT JOIN valuehistory AS day_va  ON day_va.uid  = u.uid AND day_va.time =  ' +
+				'(SELECT MIN(time) FROM valuehistory WHERE uid = u.uid AND time > ?) ' +
+			'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
+			'LEFT JOIN stocks ON u.uid = stocks.leader ' +
+			'LEFT JOIN httpresources ON httpresources.user = u.uid AND httpresources.role = "profile.image" ' +
+			'LEFT JOIN events ON events.targetid = u.uid AND events.type = "user-register" ' +
 			'WHERE u.' + lookforColumn + ' = ?',
 			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
 	}).then(function(users) {
@@ -570,6 +572,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		xuser.isSelf = (ctx.user && xuser.uid == ctx.user.uid);
 		if (xuser.isSelf) 
 			xuser.access = ctx.access.toArray();
+		xuser.id = xuser.uid; // backwards compatibility
 		
 		assert.ok(xuser.registerevent);
 		
@@ -583,10 +586,10 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		return self.cache.add(cacheKey2, 60000, 
 			Q.all([
 				ctx.query('SELECT SUM(amount) AS samount, SUM(1) AS sone ' +
-					'FROM depot_stocks AS ds WHERE ds.stockid=?', [xuser.lstockid]), 
-				ctx.query('SELECT p.name, p.path, p.id FROM schools AS c ' +
-					'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.id = c.id ' + 
-					'WHERE c.id = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid])
+					'FROM depot_stocks AS ds WHERE ds.stockid = ?', [xuser.lstockid]), 
+				ctx.query('SELECT p.name, p.path, p.schoolid FROM schools AS c ' +
+					'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ' + 
+					'WHERE c.schoolid = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid])
 			]));
 	}).spread(function(followers, schools) {
 		xuser.f_amount = followers[0].samount || 0;
@@ -595,9 +598,13 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		/* do some validation on the schools array.
 		 * this is not necessary; however, it may help catch bugs long 
 		 * before they actually do a lot of harm. */
-		var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; });
+		var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
 		if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
 			return self.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
+		
+		/* backwards compatibility */
+		for (var i = 0; i < schools.length; ++i)
+			schools[i].id = schools[i].stockid;
 		
 		xuser.schools = schools;
 		if (query.nohistory) 
@@ -619,25 +626,25 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			return self.cache.add(cacheKey3, 120000, Q.all([
 				// orders
 				ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
-					'LEFT JOIN users AS l ON oh.leader = l.id ' + 
-					'WHERE userid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
+					'LEFT JOIN users AS l ON oh.leader = l.uid ' + 
+					'WHERE uid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
 					[xuser.uid, viewDOHPermission ? 0 : cfg.delayOrderHistTime]),
 				// achievements
 				ctx.query('SELECT * FROM achievements ' + 
 					'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
-					'WHERE userid = ?', [xuser.uid]),
+					'WHERE uid = ?', [xuser.uid]),
 				// values
-				ctx.query('SELECT time, totalvalue FROM valuehistory WHERE userid = ?', [xuser.uid]),
+				ctx.query('SELECT time, totalvalue FROM valuehistory WHERE uid = ?', [xuser.uid]),
 			]));
 		}).spread(function(orders, achievements, values) {
 			result.orders = orders;
 			result.achievements = achievements;
 			result.values = values;
 			
-			return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' + 
+			return ctx.query('SELECT c.*, u.name AS username,u.uid AS uid, url AS profilepic, trustedhtml ' + 
 				'FROM ecomments AS c ' + 
-				'LEFT JOIN users AS u ON c.commenter = u.id ' + 
+				'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
 				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
 				'WHERE c.eventid = ?', [xuser.registerevent]);
 		}).then(function(comments) {
@@ -667,18 +674,18 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 	
 	return Q.all([
 		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
-		ctx.query('SELECT p.id, p.path, users.access FROM schools AS p ' +
-			'JOIN events ON events.type="school-create" AND events.targetid = p.id ' +
-			'JOIN users ON users.id = events.srcuser ' +
+		ctx.query('SELECT p.schoolid, p.path, users.access FROM schools AS p ' +
+			'JOIN events ON events.type="school-create" AND events.targetid = p.schoolid ' +
+			'JOIN users ON users.uid = events.srcuser ' +
 			'WHERE ' +
-			'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.id) = 0 AND ' +
+			'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.schoolid) = 0 AND ' +
 			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0 AND ' +
-			'(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.id) = 0').then(function(schools) {
+			'(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.schoolid) = 0').then(function(schools) {
 			return Q.all(schools.filter(function(school) {
 				return !Access.fromJSON(school.access).has('schooldb') &&
 					(school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));
 			}).map(function(school) {
-				return ctx.query('DELETE FROM schools WHERE id = ?', [school.id]);
+				return ctx.query('DELETE FROM schools WHERE schoolid = ?', [school.schoolid]);
 			}));
 		})
 	]);
@@ -706,35 +713,29 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 	if (uid != query.uid)
 		throw new self.FormatError();
 	
-	return ctx.query('SELECT email_verif AS v, 42 AS y, email FROM users WHERE id = ? ' +
-	'UNION SELECT COUNT(*) AS v, 41 AS y, "Wulululu" AS email FROM email_verifcodes WHERE userid = ? AND `key` = ?',
-		[uid, uid, key]).then(function(res) {
-		if (res.length != 2) {
-			console.warn('strange email-verif stuff', res);
+	return ctx.query('SELECT email_verif, email FROM users WHERE id = ?', [uid]).then(function(res) {
+		if (res.length !== 1)
 			throw new self.SoTradeClientError('email-verify-failure');
-		}
 		
-		email = null;
-		for (var i = 0; i < res.length; ++i) {
-			if (res[i].y == 42) {
-				email = res[i].email;
-					
-				if (res[i].y == 42 && res[i].v != 0) 
-					throw new self.SoTradeClientError('email-verify-already-verified');
-			}
-			
-			if (res[i].y == 41 && res[i].v < 1 && !ctx.access.has('userdb'))
-				throw new self.SoTradeClientError('email-verify-failure');
-		}
+		email = res[0].email;
+		if (res[0].email_verif)
+			throw new self.SoTradeClientError('email-verify-already-verified');
 		
-		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND id != ?', [email, uid]);
+		return ctx.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ?', [uid, key]);
+	}).then(function(res) {
+		assert.equal(res.length, 1);
+		
+		if (res[0].c < 1 && !ctx.access.has('userdb'))
+			throw new self.SoTradeClientError('email-verify-failure');
+		
+		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ?', [email, uid]);
 	}).then(function(res) {
 		if (res[0].c > 0)
 			throw new self.SoTradeClientError('email-verify-other-already-verified');
 	
-		return ctx.query('DELETE FROM email_verifcodes WHERE userid = ?', [uid]);
+		return ctx.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
 	}).then(function() {
-		return ctx.query('UPDATE users SET email_verif = 1 WHERE id = ?', [uid])
+		return ctx.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
 	}).then(function() {
 		ctx.access.grant('email_verif');
 		
@@ -780,7 +781,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 		
 		return Q.all([
 			ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]),
-			ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ticks, user.id])
+			ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ticks, user.uid])
 		]);
 	}
 });
@@ -821,16 +822,16 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 		if (!loginInfo)
 			return null;
 		
-		return ctx.query('SELECT users.*, users_finance.*, users_data.*, users.id AS uid, ' +
+		return ctx.query('SELECT users.*, users_finance.*, users_data.*, users.uid AS uid, ' +
 			(signedLogin ? '' : 'sessions.id AS sid, ') +
-			'schools.path AS schoolpath, schools.id AS school, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
+			'schools.path AS schoolpath, schools.schoolid AS schoolid, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
 			'FROM users ' +
-			'JOIN users_finance ON users_finance.id = users.id ' +
-			'JOIN users_data ON users_data.id = users.id ' +
-			(signedLogin ? '' : 'JOIN sessions ON sessions.uid = users.id ') +
-			'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
-			'LEFT JOIN schools ON schools.id = sm.schoolid ' +
-			'WHERE ' + (signedLogin ? 'uid = ? ' : '`key` = ? ' +
+			'JOIN users_finance ON users_finance.uid = users.uid ' +
+			'JOIN users_data ON users_data.uid = users.uid ' +
+			(signedLogin ? '' : 'JOIN sessions ON sessions.uid = users.uid ') +
+			'LEFT JOIN schoolmembers AS sm ON sm.uid = users.uid ' +
+			'LEFT JOIN schools ON schools.schoolid = sm.schoolid ' +
+			'WHERE ' + (signedLogin ? 'users.uid = ? ' : '`key` = ? ' +
 			(ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
 			'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
 		.then(function(res) {
@@ -840,9 +841,11 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 			
 			assert.equal(res.length, 1);
 			var user = res[0];
+			/* backwards compatibility */
 			user.id = user.uid;
+			user.school = user.schoolid;
 			
-			assert.ok(user.id == loginInfo.uid || loginInfo.uid === null);
+			assert.ok(user.uid == loginInfo.uid || loginInfo.uid === null);
 			
 			user.realnamepublish = !!user.realnamepublish;
 			user.delayorderhist = !!user.delayorderhist;
@@ -957,7 +960,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 	var conn, res, uid, cfg;
 	return self.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
-		uid = ctx.user !== null ? ctx.user.id : null;
+		uid = ctx.user !== null ? ctx.user.uid : null;
 		if (!query.name || !query.email)
 			throw new self.FormatError();
 		
@@ -1009,7 +1012,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		]);
 	}).then(function(conn_) {
 		conn = conn_;
-		return conn.query('SELECT email,name,id FROM users WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(id != ?)',
+		return conn.query('SELECT email, name, uid FROM users ' +
+			'WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(uid != ?)',
 			[query.email, query.name, uid]);
 	}).then(function(res_) {
 		res = res_;
@@ -1023,7 +1027,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			});
 		}
 		
-		if (res.length > 0 && res[0].id !== uid) {
+		if (res.length > 0 && res[0].uid !== uid) {
 			return conn.rollback().then(function() {
 				if (res[0].email.toLowerCase() == query.email.toLowerCase())
 					throw new self.SoTradeClientError('reg-email-already-present');
@@ -1033,7 +1037,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		}
 		
 		return (query.school === null ? [] :
-			conn.query('SELECT id FROM schools WHERE ? IN (id, name, path)', [String(query.school)]));
+			conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path)', [String(query.school)]));
 	}).then(function(res) {
 		if (res.length == 0 && query.school !== null) {
 			if (parseInt(query.school) == query.school || !query.school) {
@@ -1046,8 +1050,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 				[String(query.school), String(query.school)]);
 		} else {
 			if (query.school !== null) {
-				assert.ok(parseInt(query.school) != query.school || query.school == res[0].id);
-				query.school = res[0].id;
+				assert.ok(parseInt(query.school) != query.school || query.school == res[0].schoolid);
+				query.school = res[0].schoolid;
 			}
 			
 			return [];
@@ -1086,7 +1090,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 					return { code: 'reg-success', uid: uid, extra: 'repush' };
 				else
 					return self.sendRegisterEmail(query,
-						new qctx.QContext({user: {id: uid, uid: uid}, access: ctx.access,
+						new qctx.QContext({user: {uid: uid}, access: ctx.access,
 							parentComponent: self}),
 						xdata);
 			});
@@ -1097,20 +1101,20 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			.then(function(pwdata) {
 			if (type == 'change') {
 				return conn.query('UPDATE users SET name = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?, ' +
-					'delayorderhist = ?, skipwalkthrough = ? WHERE id = ?',
+					'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
 					[String(query.name), pwdata.hash, pwdata.salt,
 					String(query.email), query.email == ctx.user.email ? 1 : 0, 
 					query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]).then(function() {
 				return conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
 					'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-					'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE id = ?',
+					'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE uid = ?',
 					[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 					query.birthday, String(query.desc), String(query.street),
 					String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
 					query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
 					String(query.lang), uid]);
 				}).then(function() {
-				return conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE id = ?',
+				return conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
 					[query.wprovision, query.lprovision, uid]);
 				}).then(function() {
 				if (query.school != ctx.user.school) {
@@ -1167,7 +1171,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 					}
 					
 					gainUIDCBs.push(function() {
-						return conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.id, uid]);
+						return conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.iid, uid]);
 					});
 				});
 				}).then(function() {
@@ -1179,9 +1183,9 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 				}).then(function(res) {
 					uid = res.insertId;
 					
-					return conn.query('INSERT INTO users_data (id, giv_name, fam_name, realnamepublish, traditye, ' +
+					return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
 						'street, zipcode, town, schoolclass, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
-						'INSERT INTO users_finance(id, wprovision, lprovision, freemoney, totalvalue) '+
+						'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
 						'VALUES (?, ?, ?, ?, ?)',
 						[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 						query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
@@ -1191,7 +1195,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 				}).then(function() {
 					return ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid, 'conn': conn});
 				}).then(function() {
-					return conn.query('INSERT INTO stocks (stockid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
+					return conn.query('INSERT INTO stocks (stocktextid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
 						['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity']);
 				}).then(function() {
 					if (query.school) {
@@ -1233,7 +1237,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 				'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
 				'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
 				'wprov_sum = 0, lprov_sum = 0 ' + 
-				'WHERE id = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid]);
+				'WHERE uid = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid]);
 		}).then(function() {
 			return self.request({name: 'sellAll', query: query, ctx: ctx});
 		}).then(function() {
@@ -1243,7 +1247,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 				ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
 					'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
 					[val, val, val, val, val, ctx.user.uid]),
-				ctx.query('DELETE FROM valuehistory WHERE userid = ?', [ctx.user.uid]),
+				ctx.query('DELETE FROM valuehistory WHERE uid = ?', [ctx.user.uid]),
 				ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid}),
 				self.request({name: 'dqueriesResetUser', ctx: ctx})
 			]);
@@ -1274,9 +1278,9 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 	
 	var name = String(query.name), pw, u;
 	
-	return ctx.query('SELECT users.id, email, lang ' +
+	return ctx.query('SELECT users.uid, email, lang ' +
 		'FROM users ' +
-		'JOIN users_data ON users.id = users_data.id ' +
+		'JOIN users_data ON users.uid = users_data.uid ' +
 		'WHERE name = ? OR email = ? AND deletiontime IS NULL ' +
 		'LIMIT 1',
 		[name, name]).then(function(res) {
@@ -1291,12 +1295,12 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 		pw = buf.toString('hex');
 		return self.generatePWKey(pw);
 	}).then(function(pwdata) {
-		return ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE id = ?', [pwdata.salt, pwdata.hash, u.id]);
+		return ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE uid = ?', [pwdata.salt, pwdata.hash, u.uid]);
 	}).then(function() {
 		return self.request({name: 'sendTemplateMail', 
 			template: 'password-reset-email.eml',
 			ctx: ctx,
-			uid: u.id,
+			uid: u.uid,
 			lang: u.lang,
 			variables: {'password': pw, 'username': query.name, 'email': u.email},
 		});
@@ -1365,7 +1369,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 		return ctx.query('INSERT INTO invitelink ' +
 			'(uid, `key`, email, ctime, schoolid) VALUES ' +
 			'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-			[ctx.user.id, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
+			[ctx.user.uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
 	}).then(function() {
 		url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
 	

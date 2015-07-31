@@ -27,6 +27,7 @@ function Stocks () {
 	
 	this.knownStockIDs = null; // ISIN list for more efficient stock updating
 	this.quoteLoader = null;
+	this.leaderStockTextIDFormat = /^__LEADER_(\d+)__$/;
 }
 
 util.inherits(Stocks, buscomponent.BusComponent);
@@ -273,7 +274,7 @@ Stocks.prototype.updateStockValues = function(ctx) {
 		stocklist = _.union(stocklist, dqNeededStocks);
 		
 		stocklist = _.filter(stocklist, function(s) {
-			return !/^__LEADER_(\d+)__$/.test(s);
+			return !self.leaderStockTextIDFormat.test(s);
 		});
 		
 		if (stocklist.length > 0)
@@ -396,7 +397,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 	
 	str = str.trim();
 	
-	var leadertest = str.match(/__LEADER_(\d+)__/);
+	var leadertest = str.match(leaderStockTextIDFormat);
 	var lid = -1;
 	if (leadertest !== null)
 		lid = leadertest[1];
@@ -682,7 +683,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		if (r.money === null)  r.money = 0;
 		if (r.amount === null) r.amount = 0;
 		
-		if (/__LEADER_(\d+)__/.test(query.stocktextid) && !ctx.access.has('email_verif') && !opt.forceNow)
+		if (leaderStockTextIDFormat.test(query.stocktextid) && !ctx.access.has('email_verif') && !opt.forceNow)
 			throw new self.SoTradeClientError('stock-buy-email-not-verif');
 		
 		forceNow = opt.forceNow || (ctx.access.has('stocks') && query.forceNow);

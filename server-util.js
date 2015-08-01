@@ -14,6 +14,7 @@ var _ = require('lodash');
  * 
  * @param {string} s  The input string.
  * 
+ * @function server-util~sha256
  * @return {string}  The hexadecimal hashed value.
  */
 var sha256 = function (s) {
@@ -35,6 +36,7 @@ exports.sha256 = sha256;
  * @param {object} u  One or more objects that will be merged into the original one.
  *                    Multiple parameters are accepted.
  * 
+ * @function server-util~deepupdate
  * @return {object} A modified version of the original object.
  */
 var deepupdate = function (orig, u /*, ... */) {

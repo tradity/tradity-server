@@ -1066,7 +1066,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			query.school = schoolid;
 			
 			gainUIDCBs.push(function() {
-				assert.ok(uid != null);
+				assert.equal(uid, parseInt(uid));
 				
 				return ctx.feed({
 					'type': 'school-create',
@@ -1081,7 +1081,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			if (uid === null)
 				uid = res.insertId;
 			
-			assert.ok(uid != null);
+			assert.strictEqual(uid, parseInt(uid));
 			
 			return gainUIDCBs.reduce(Q.when, Q()).then(function() {
 				return conn.commit();

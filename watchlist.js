@@ -77,7 +77,7 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
 			json: {
 				watched: query.stockid, 
 				watcheduser: uid,
-				watchedname: res[0].name
+				watchedname: res[0].name,
 				stocktextid: res[0].stocktextid
 			},
 			feedusers: uid ? [uid] : []

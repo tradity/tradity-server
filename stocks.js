@@ -949,7 +949,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
 		if (r.userid != ctx.user.id && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
 			throw new self.SoTradeClientError('get-trade-delayed-history');
 		
-		assert.ok(r.userid);
+		assert.equal(r.userid, parseInt(r.userid));
 		
 		return ctx.query('SELECT c.*,u.name AS username,u.id AS uid, url AS profilepic, trustedhtml ' +
 			'FROM ecomments AS c ' +

@@ -56,7 +56,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
 	
 	assert.ok(data.type);
 	assert.ok(data.type.length);
-	assert.ok(data.srcuser);
+	assert.equal(data.srcuser, parseInt(data.srcuser));
 	
 	var json = JSON.stringify(data.json ? data.json : {});
 	data = _.extend(data, data.json);

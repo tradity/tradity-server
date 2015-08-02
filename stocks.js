@@ -965,7 +965,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
 			throw new self.SoTradeClientError('get-trade-delayed-history');
 		
 		r.userid = r.uid; // backwards compatibility
-		assert.ok(r.uid);
+		assert.equal(r.uid, parseInt(r.uid));
 		
 		return ctx.query('SELECT c.*,u.name AS username, u.uid AS uid, url AS profilepic, trustedhtml ' +
 			'FROM ecomments AS c ' +

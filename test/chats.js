@@ -66,7 +66,7 @@ describe('chats', function() {
 				
 				return socket.emit('chat-adduser', {
 					chatid: chatid,
-					userid: laterAddedUser
+					uid: laterAddedUser
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'chat-adduser-success');

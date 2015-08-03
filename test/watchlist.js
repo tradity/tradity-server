@@ -80,13 +80,13 @@ describe('watchlist', function() {
 				assert.equal(res.code, 'watchlist-show-success');
 				assert.ok(res.results);
 				
-				var entry = res.results.map(function(watchlistEntry) {
+				var entry = res.results.filter(function(watchlistEntry) {
 					return watchlistEntry.uid == uid;
-				});
+				})[0];
 				assert.ok(entry);
 				
 				return socket.emit('watchlist-remove', {
-					stockid: entry.id
+					stockid: entry.stockid
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'watchlist-remove-success');

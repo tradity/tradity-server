@@ -169,7 +169,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		return ctx.query('SELECT u.name AS username, u.uid AS uid, url AS profilepic ' +
 			'FROM chatmembers AS cm ' +
 			'JOIN users AS u ON u.uid = cm.uid ' +
-			'LEFT JOIN httpresources ON httpresources.user = cm.userid AND httpresources.role = "profile.image" ' + 
+			'LEFT JOIN httpresources ON httpresources.uid = cm.uid AND httpresources.role = "profile.image" ' + 
 			'WHERE cm.chatid = ?', [chat.chatid]);
 	}).then(function(endpoints) {
 		assert.ok(endpoints.length > 0);
@@ -189,7 +189,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		return ctx.query('SELECT c.*,u.name AS username,u.uid AS uid, url AS profilepic, trustedhtml ' + 
 			'FROM ecomments AS c ' + 
 			'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
-			'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+			'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' + 
 			'WHERE c.eventid = ?', [chat.chatstartevent]).then(function(comments) {
 			chat.messages = comments;
 			return { code: 'chat-get-success', chat: chat };
@@ -289,7 +289,7 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
 		'JOIN chats AS c ON c.chatid = cmi.chatid ' +
 		'JOIN chatmembers AS cm ON cm.chatid = c.chatid ' +
 		'JOIN users AS u ON cm.uid = u.uid ' +
-		'LEFT JOIN httpresources ON httpresources.user = u.uid AND httpresources.role = "profile.image" ' +
+		'LEFT JOIN httpresources ON httpresources.uid = u.uid AND httpresources.role = "profile.image" ' +
 		'JOIN users AS creator_u ON c.creator = creator_u.uid ' +
 		'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" ' +
 		'WHERE cmi.uid = ?', [ctx.user.uid]).then(function(res) {

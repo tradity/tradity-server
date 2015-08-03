@@ -397,6 +397,10 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
 		'JOIN users AS u ON ds.uid = u.uid ' +
 		'WHERE s.leader = ?', [parseInt(query.uid)]).then(function(res) {
 		
+		/* backwards compatibility */
+		for (var i = 0; i < res.length; ++i)
+			res[i].id = res[i].uid;
+		
 		return { code: 'get-followers-success', results: res };
 	});
 }));

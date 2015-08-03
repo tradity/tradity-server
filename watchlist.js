@@ -52,7 +52,7 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add
 	var uid, res;
 	
 	return ctx.query('SELECT stockid, stocktextid, users.uid AS uid, users.name, bid FROM stocks ' +
-		'LEFT JOIN users ON users.id = stocks.leader WHERE stocks.stockid = ? OR stocks.stocktextid = ?',
+		'LEFT JOIN users ON users.uid = stocks.leader WHERE stocks.stockid = ? OR stocks.stocktextid = ?',
 		[String(query.stockid), String(query.stockid)]).then(function(res_) {
 		res = res_;
 		if (res.length == 0)
@@ -156,6 +156,11 @@ Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-sho
 		'LEFT JOIN watchlists AS rw ON rw.watched = rs.stockid AND rw.watcher = s.leader ' +
 		'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
 		'WHERE w.watcher = ?', [ctx.user.uid]).then(function(res) {
+		/* backwards compatibility */
+		for (var i = 0; i < res.length; ++i) {
+			res[i].id = res[i].stockid;
+		}
+		
 		return { code: 'watchlist-show-success', 'results': res };
 	});
 });

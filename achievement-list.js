@@ -318,7 +318,7 @@ AchievementList.push({
 	check: function(uid, userAchievements, cfg, ctx) {
 		return ctx.query('SELECT COUNT(*) AS tradecount ' + 
 			'FROM orderhistory AS o1 ' +
-			'JOIN orderhistory AS o2 ON o1.userid = o2.uid AND ' +
+			'JOIN orderhistory AS o2 ON o1.uid = o2.uid AND ' +
 				'o1.stocktextid = o2.stocktextid AND ' +
 				'o1.buytime < o2.buytime - 864000 '+
 			'WHERE o1.uid = ?', [uid])
@@ -334,7 +334,7 @@ AchievementList.push({
 	fireOn: { 'feed-file-publish': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 150,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT COUNT(*) AS imgcount FROM httpresources WHERE user = ? AND role = "profile.image"', [uid])
+		return ctx.query('SELECT COUNT(*) AS imgcount FROM httpresources WHERE uid = ? AND role = "profile.image"', [uid])
 			.then(function(res) { return res[0].imgcount >= 1; });
 	},
 	version: 0,

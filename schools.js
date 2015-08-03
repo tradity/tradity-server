@@ -183,7 +183,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 			ctx.query('SELECT c.*, u.name AS username, u.uid, url AS profilepic, trustedhtml ' +
 				'FROM ecomments AS c '+
 				'LEFT JOIN users AS u ON c.commenter = u.uid ' +
-				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" '+
+				'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" '+
 				'WHERE c.eventid = ?',
 				[s.eventid]), // comments
 			ctx.query('SELECT * FROM blogposts ' +
@@ -202,16 +202,17 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 				'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
 				'FROM orderhistory AS oh ' +
 				'JOIN schoolmembers AS sm ON sm.uid = oh.uid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
-				'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.schoolid]), // popularStocks
+				'WHERE buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
+				'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.schoolid, cfg.popularStocksDays]), // popularStocks
 			!ctx.access.has('wordpress') ? [] : 
 				// compare wordpress-feed.js
-				ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
+				ctx.query('SELECT feedblogs.blogid, endpoint, category, schools.schoolid, path AS schoolpath, ' +
 					'bloguser, COUNT(*) AS postcount, users.name ' +
 					'FROM feedblogs ' + 
 					'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
 					'LEFT JOIN users ON feedblogs.bloguser = users.uid ' +
 					'LEFT JOIN schools ON feedblogs.schoolid = schools.schoolid ' +
-					'WHERE schoolid = ? ' +
+					'WHERE schools.schoolid = ? ' +
 					'GROUP BY blogid', [s.schoolid]), // feedblogs
 			Q().then(function() {
 				if (s.path.replace(/[^\/]/g, '').length != 1) // need higher-level 

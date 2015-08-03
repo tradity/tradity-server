@@ -379,8 +379,8 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 	var likestringUnit = [];
 	
 	var join = 'FROM users AS u ' +
-		'JOIN users_data ON users_data.id = u.uid ' +
-		'LEFT JOIN schoolmembers AS sm ON u.id = sm.uid ' +
+		'JOIN users_data ON users_data.uid = u.uid ' +
+		'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
 		'LEFT JOIN schools AS c ON sm.schoolid = c.schoolid ' +
 		'JOIN (SELECT uid, MIN(time) AS min_t, MAX(time) AS max_t FROM valuehistory ' +
 			'WHERE time > ? AND time < ? GROUP BY uid) AS locator_va ON u.uid = locator_va.uid ' +
@@ -560,7 +560,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 				'(SELECT MIN(time) FROM valuehistory WHERE uid = u.uid AND time > ?) ' +
 			'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
 			'LEFT JOIN stocks ON u.uid = stocks.leader ' +
-			'LEFT JOIN httpresources ON httpresources.user = u.uid AND httpresources.role = "profile.image" ' +
+			'LEFT JOIN httpresources ON httpresources.uid = u.uid AND httpresources.role = "profile.image" ' +
 			'LEFT JOIN events ON events.targetid = u.uid AND events.type = "user-register" ' +
 			'WHERE u.' + lookforColumn + ' = ?',
 			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
@@ -604,7 +604,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		
 		/* backwards compatibility */
 		for (var i = 0; i < schools.length; ++i)
-			schools[i].id = schools[i].stockid;
+			schools[i].id = schools[i].schoolid;
 		
 		xuser.schools = schools;
 		if (query.nohistory) 
@@ -627,7 +627,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 				// orders
 				ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
 					'LEFT JOIN users AS l ON oh.leader = l.uid ' + 
-					'WHERE uid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
+					'WHERE oh.uid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
 					'ORDER BY buytime DESC',
 					[xuser.uid, viewDOHPermission ? 0 : cfg.delayOrderHistTime]),
 				// achievements
@@ -645,7 +645,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			return ctx.query('SELECT c.*, u.name AS username,u.uid AS uid, url AS profilepic, trustedhtml ' + 
 				'FROM ecomments AS c ' + 
 				'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
-				'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' + 
+				'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' + 
 				'WHERE c.eventid = ?', [xuser.registerevent]);
 		}).then(function(comments) {
 			result.pinboard = comments;
@@ -1232,7 +1232,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 		assert.ok(ctx.user);
 		assert.ok(ctx.access);
 		
-		return ctx.query('DELETE FROM depot_stocks WHERE userid = ?', [ctx.user.uid]).then(function() {
+		return ctx.query('DELETE FROM depot_stocks WHERE uid = ?', [ctx.user.uid]).then(function() {
 			return ctx.query('UPDATE users_finance SET freemoney = ?, totalvalue = ?, ' +
 				'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
 				'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 

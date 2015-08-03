@@ -184,13 +184,13 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		
 		var lmuFetchData = Date.now();
 		
-		var userIdToIndex = [];
+		var uidToIndex = [];
 		for (var k = 0; k < users.length; ++k)
-			userIdToIndex[users[k]] = k;
+			uidToIndex[users[k]] = k;
 		
-		var userIdToResStaticIndex = [];
+		var uidToResStaticIndex = [];
 		for (var k = 0; k < res_static.length; ++k)
-			userIdToResStaticIndex[res_static[k].uid] = k;
+			uidToResStaticIndex[res_static[k].uid] = k;
 			
 		var followerToResLeaderIndices = [];
 		for (var k = 0; k < res_leader.length; ++k) {
@@ -207,7 +207,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		// find connected components
 		var uf = new UnionFind(users.length);
 		for (var i = 0; i < res_leader.length; ++i)
-			uf.union(userIdToIndex[res_leader[i].luid], userIdToIndex[res_leader[i].fuid]);
+			uf.union(uidToIndex[res_leader[i].luid], uidToIndex[res_leader[i].fuid]);
 		
 		var components = {};
 		for (var i = 0; i < users.length; ++i) {
@@ -227,9 +227,9 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 			var cusers = components[ci];
 			var n = cusers.length;
 			
-			var cuserIdToIndex = {};
+			var cuidToIndex = {};
 			for (var k = 0; k < cusers.length; ++k)
-				cuserIdToIndex[cusers[k]] = k;
+				cuidToIndex[cusers[k]] = k;
 			
 			var A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
 			var B = _.map(_.range(n), function() { return [0.0, 0.0]; });
@@ -240,8 +240,8 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 				
 				// res_static
 				{
-					var r = res_static[userIdToResStaticIndex[uid]];
-					var localIndex = cuserIdToIndex[uid];
+					var r = res_static[uidToResStaticIndex[uid]];
+					var localIndex = cuidToIndex[uid];
 					
 					assert.strictEqual(r.uid, uid);
 					assert.ok(localIndex < n);
@@ -263,7 +263,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 					var r = res_leader[rlIndices[j]];
 					
 					assert.equal(r.fuid, uid); // the follower part is already known
-					var l = cuserIdToIndex[r.luid]; // find leader uid
+					var l = cuidToIndex[r.luid]; // find leader uid
 					
 					// the leader MUST be in the same connected component
 					assert.notEqual(typeof l, 'undefined');
@@ -311,7 +311,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 			return conn.commit(false);
 		}).then(function() {
 			return conn.query('SELECT stocktextid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
-				'FROM stocks JOIN users ON leader = users.id WHERE leader IS NOT NULL',
+				'FROM stocks JOIN users ON leader = users.uid WHERE leader IS NOT NULL',
 					[users[i]]);
 		}).then(function(res_) {
 			res = res_;

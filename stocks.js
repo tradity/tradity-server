@@ -634,7 +634,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		
 		if (query.leader != null)
 			query.stocktextid = '__LEADER_' + query.leader + '__';
-		else if (query.stockid && typeof query.stockid == 'undefined')
+		else if (query.stockid && typeof query.stocktextid == 'undefined')
 			query.stocktextid = String(query.stockid); // backwards compatibility
 		
 		if (opt.testOnly) {
@@ -878,7 +878,7 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
 		'FROM depot_stocks AS ds ' +
 		'JOIN stocks AS s ON s.stockid = ds.stockid ' +
 		'LEFT JOIN users ON s.leader = users.uid ' +
-		'WHERE uid = ? AND amount != 0',
+		'WHERE ds.uid = ? AND amount != 0',
 		[ctx.user.uid]).then(function(results) {
 		/* backwards compatibility */
 		for (var i = 0; i < results.length; ++i)
@@ -969,7 +969,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
 		
 		return ctx.query('SELECT c.*,u.name AS username, u.uid AS uid, url AS profilepic, trustedhtml ' +
 			'FROM ecomments AS c ' +
-			'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
+			'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' +
 			'LEFT JOIN users AS u ON c.commenter = u.uid ' +
 			'WHERE c.eventid = ?', [r.eventid]);
 	}).then(function(comments) {
@@ -995,6 +995,9 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
  *     </li>
  * </ul>
  * 
+ * @param {?int} query.days  A number of days specifying how long into the past
+ *                  the popular stocks list should reach.
+ * 
  * @return {object} Returns with <code>list-popular-stocks-success</code>,
  *                  with <code>.results</code> being set to a list of stocks,
  *                  which carry the properties <code>stockid, stockname, moneysum, wsum</code>,
@@ -1003,12 +1006,19 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
  * @function c2s~list-popular-stocks
  */
 Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx) {
-	return ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
-		'SUM(ABS(money)) AS moneysum, ' +
-		'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
-		'FROM orderhistory AS oh ' +
-		'WHERE buytime > UNIX_TIMESTAMP() - 86400*21 ' +
-		'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20').then(function(popular) {
+	var days = parseInt(query.days);
+	
+	return this.getServerConfig().then(function(cfg) {
+		if (days != days || (days > cfg.popularStocksDays && !ctx.access.has('stocks')))
+			days = cfg.popularStocksDays;
+		
+		return ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
+			'SUM(ABS(money)) AS moneysum, ' +
+			'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
+			'FROM orderhistory AS oh ' +
+			'WHERE buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
+			'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days]);
+	}).then(function(popular) {
 		/* backwards compatibility */
 		for (var i = 0; i < popular.length; ++i)
 			popular[i].stockid = popular[i].stocktextid;

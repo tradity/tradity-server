@@ -163,7 +163,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'LEFT JOIN users AS trader ON trader.uid = IF(e2.type="trade", oh.uid, IF(e2.type="user-register", e2.targetid, NULL)) ' +
 		'LEFT JOIN achievements ON achievements.achid = events.targetid AND events.type="achievement" ' +
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification" ' +
-		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
+		'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' +
 		'LEFT JOIN sentemails ON sentemails.mailid = events.targetid AND events.type="email-bounced" ' +
 		'LEFT JOIN blogposts ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
 		'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +

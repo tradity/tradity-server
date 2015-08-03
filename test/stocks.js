@@ -137,7 +137,7 @@ describe('stocks', function() {
 				assert.equal(res.code, 'get-trade-info-success');
 				
 				assert.ok(res.trade);
-				assert.equal(res.trade.userid, user.uid);
+				assert.equal(res.trade.uid, user.uid);
 			});
 		});
 	});

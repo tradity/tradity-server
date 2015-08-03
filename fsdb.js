@@ -176,7 +176,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		if (query.base64)
 			content = new Buffer(query.content, 'base64');
 		
-		return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE user = ?', [ctx.user ? ctx.user.uid : null]);
+		return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ?', [ctx.user ? ctx.user.uid : null]);
 	}).then(function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
@@ -237,7 +237,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				sql += 'AND `' + fieldname + '` = ? ';
 				
 				switch (fieldname) {
-					case 'user': dataarr.push(ctx.user.uid); break;
+					case 'uid': dataarr.push(ctx.user.uid); break;
 					case 'groupassoc': dataarr.push(groupassoc); break;
 					default: self.emitError(new Error('Unknown uniqrole field: ' + fieldname));
 				}
@@ -246,7 +246,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			return ctx.query(sql, dataarr);
 		}
 	}).then(function() {
-		return ctx.query('INSERT INTO httpresources(user, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
+		return ctx.query('INSERT INTO httpresources(uid, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 			'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
 			[ctx.user ? ctx.user.uid : null, filename, url, query.mime ? String(query.mime) : null, filehash,
 			String(query.role), content, groupassoc, query.proxy ? 1:0]);

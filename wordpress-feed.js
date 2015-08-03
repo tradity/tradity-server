@@ -93,7 +93,7 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
 		throw new this.PermissionDenied();
 	
 	// compare schools.js
-	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
+	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schools.schoolid, path AS schoolpath, ' +
 		'bloguser, COUNT(*) AS postcount, users.name ' +
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +

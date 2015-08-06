@@ -37,7 +37,7 @@ util.inherits(WordpressFeed, buscomponent.BusComponent);
  * @loginignore
  * @function c2s~process-wordpress-feed
  */
-WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-wordpress-feed', function(query, ctx) {
+WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-wordpress-feed', function(query, ctx) {
 	if (ctx.access.has('wordpress') == -1)
 		throw new this.PermissionDenied();
 	
@@ -45,7 +45,7 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
 		'WHERE feedblogs.active ' +
-		'GROUP BY blogid').then(function(res) {
+		'GROUP BY blogid FOR UPDATE').then(function(res) {
 		return Q.all(res.map(function(bloginfo) {
 			var wp = new WP({endpoint: bloginfo.endpoint});
 			var catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;

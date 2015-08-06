@@ -46,13 +46,13 @@ util.inherits(Watchlist, buscomponent.BusComponent);
  * @noreadonly
  * @function c2s~watchlist-add
  */
-Watchlist.prototype.watchlistAdd = buscomponent.provideWQT('client-watchlist-add', function(query, ctx) {
+Watchlist.prototype.watchlistAdd = buscomponent.provideTXQT('client-watchlist-add', function(query, ctx) {
 	var self = this;
 	
 	var uid, res;
 	
 	return ctx.query('SELECT stockid, stocktextid, users.uid AS uid, users.name, bid FROM stocks ' +
-		'LEFT JOIN users ON users.uid = stocks.leader WHERE stocks.stockid = ? OR stocks.stocktextid = ?',
+		'LEFT JOIN users ON users.uid = stocks.leader WHERE stocks.stockid = ? OR stocks.stocktextid = ? LOCK IN SHARE MODE',
 		[String(query.stockid), String(query.stockid)]).then(function(res_) {
 		res = res_;
 		if (res.length == 0)

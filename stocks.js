@@ -644,7 +644,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			};
 		}
 		
-		return ctx.startTransaction({isolation: 'SERIALIZABLE'});
+		return ctx.startTransaction({}, {isolation: 'SERIALIZABLE'});
 	}).then(function(conn_) {
 		conn = conn_;
 		return conn.query('SELECT stocks.*, ' +
@@ -657,7 +657,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			'FROM stocks ' +
 			'LEFT JOIN depot_stocks ON depot_stocks.uid = ? AND depot_stocks.stockid = stocks.stockid ' +
 			'LEFT JOIN users_finance AS l ON stocks.leader = l.uid AND depot_stocks.uid != l.uid ' +
-			'WHERE stocks.stocktextid = ?', [ctx.user.uid, String(query.stocktextid)]);
+			'WHERE stocks.stocktextid = ? FOR UPDATE', [ctx.user.uid, String(query.stocktextid)]);
 	}).then(function(res) {
 		if (res.length == 0 || res[0].lastvalue == 0)
 			throw new self.SoTradeClientError('stock-buy-stock-not-found');
@@ -704,7 +704,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
 		return Q.all([
-			conn.query('SELECT freemoney, totalvalue FROM users_finance AS f WHERE uid = ?', [ctx.user.uid]),
+			conn.query('SELECT freemoney, totalvalue FROM users_finance AS f WHERE uid = ? FOR UPDATE', [ctx.user.uid]),
 			conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory ' +
 				'WHERE stocktextid = ? AND uid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
 				[r.stocktextid, ctx.user.uid, r.amount])

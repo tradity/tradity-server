@@ -107,7 +107,8 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 	}
 	
 	var chatid, chat;
-	return ctx.query('SELECT chatid, eventid AS chatstartevent FROM chats AS c ' +
+	return ctx.query('SELECT chatid, eventid AS chatstartevent ' + 
+		'FROM chats AS c ' +
 		'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
 		'WHERE ' + whereString + ' ' +
 		'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC ' +
@@ -219,7 +220,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
  * 
  * @function c2s~chat-adduser
  */
-Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', function(query, ctx) {
+Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', function(query, ctx) {
 	var self = this;
 	
 	/* backwards compatibility */
@@ -231,7 +232,7 @@ Chats.prototype.addUserToChat = buscomponent.provideWQT('client-chat-adduser', f
 	
 	var username, chat;
 	
-	return ctx.query('SELECT name FROM users WHERE uid = ?', [query.uid]).then(function(res) {
+	return ctx.query('SELECT name FROM users WHERE uid = ? LOCK IN SHARE MODE', [query.uid]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('chat-adduser-user-notfound');
 		

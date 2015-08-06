@@ -44,7 +44,7 @@ function txwrap(tables, options, fn) {
 		arguments[1] = ctx;
 		
 		return ctx.txwrap(fn).apply(this, arguments);
-	}
+	};
 }
 
 exports.provide   = buscomponent.provide;
@@ -68,7 +68,7 @@ function provideW(name, args, fn) {
 
 function provideQT(name, fn) { return provide(name, ['query', 'ctx', 'xdata'], fn); };
 function provideWQT(name, fn) { return provideW(name, ['query', 'ctx', 'xdata'], fn); };
-function provideTXQT(name, tables, options, fn) { return provideWQT(txwrap(tables, options, fn)); };
+function provideTXQT(name, tables, options, fn) { return provideWQT(name, txwrap(tables, options, fn)); };
 
 exports.provideW    = provideW;
 exports.provideQT   = provideQT;

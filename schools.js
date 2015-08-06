@@ -465,9 +465,7 @@ Schools.prototype.createSchool = buscomponent.provideTXQT('client-create-school'
 		assert.equal(r.length, 1);
 		if (r[0].c == 1 || !query.schoolname.trim() || 
 			!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
-			return ctx.rollback().then(function() {
-				throw new self.SoTradeClientError('create-school-already-exists');
-			});
+			throw new self.SoTradeClientError('create-school-already-exists');
 		}
 		
 		if (String(query.schoolpath).replace(/[^\/]/g, '').length == 1)
@@ -479,9 +477,7 @@ Schools.prototype.createSchool = buscomponent.provideTXQT('client-create-school'
 		assert.equal(r.length, 1);
 		
 		if (r[0].c != 1) {
-			return ctx.rollback().then(function() {
-				throw new self.SoTradeClientError('create-school-missing-parent');
-			});
+			throw new self.SoTradeClientError('create-school-missing-parent');
 		}
 		
 		return ctx.query('INSERT INTO schools (name, path) VALUES(?, ?)',

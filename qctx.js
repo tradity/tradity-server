@@ -6,6 +6,7 @@ var assert = require('assert');
 var weak = require('weak');
 var buscomponent = require('./stbuscomponent.js');
 var _ = require('lodash');
+var Q = require('q');
 
 /**
  * Provides the {@link module:qctx~QContext} object.
@@ -301,8 +302,6 @@ QContext.prototype.txwrap = function(fn) {
 	assert.ok(!self.contextTransaction);
 	
 	return function() {
-		assert.ok(self.contextTransaction);
-		
 		return Q(fn.apply(this, arguments)).then(function(v) {
 			return self.commit().then(function() {
 				self.contextTransaction = null;
@@ -322,6 +321,8 @@ QContext.prototype.enterTransactionOnQuery = function(tables, options) {
 	assert.ok(!this.contextTransaction);
 	
 	this.startTransactionOnQuery = {tables: tables, options: options};
+	
+	return this;
 };
 
 QContext.prototype.commit = function() {

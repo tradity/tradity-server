@@ -164,9 +164,13 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		throw new self.SoTradeClientError('server-readonly');
 	
 	var content = query.content;
-	var uniqrole, cfg, filehash, filename, url, content;
+	var uniqrole, cfg, filehash, filename, url, content, conn;
 	
-	return self.getServerConfig().then(function(cfg_) {
+	return Q.all([
+		self.getServerConfig(),
+		ctx.startTransaction()
+	]).spread(function(cfg_, conn_) {
+		conn = conn_;
 		cfg = cfg_;
 		uniqrole = cfg.fsdb.uniqroles[query.role];
 		
@@ -176,7 +180,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		if (query.base64)
 			content = new Buffer(query.content, 'base64');
 		
-		return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ?', [ctx.user ? ctx.user.uid : null]);
+		return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE', [ctx.user ? ctx.user.uid : null]);
 	}).then(function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
@@ -243,10 +247,10 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				}
 			}
 			
-			return ctx.query(sql, dataarr);
+			return conn.query(sql, dataarr);
 		}
 	}).then(function() {
-		return ctx.query('INSERT INTO httpresources(uid, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
+		return conn.query('INSERT INTO httpresources(uid, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
 			'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
 			[ctx.user ? ctx.user.uid : null, filename, url, query.mime ? String(query.mime) : null, filehash,
 			String(query.role), content, groupassoc, query.proxy ? 1:0]);
@@ -255,11 +259,18 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			return ctx.feed({
 				'type': 'file-publish',
 				'targetid': res.insertId,
-				'srcuser': ctx.user.uid
+				'srcuser': ctx.user.uid,
+				'conn': conn
 			});
 		}
 		
 		return Q();
+	}).catch(function(err) {
+		return (conn? conn.rollback() : Q()).then(function() {
+			throw err;
+		});
+	}).then(function() {
+		return conn.commit();
 	}).then(function() {
 		return { code: 'publish-success', extra: 'repush' };
 	});

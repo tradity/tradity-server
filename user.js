@@ -160,7 +160,7 @@ User.prototype.login = buscomponent.provide('client-login',
 		var query = 'SELECT uid, pwsalt, pwhash '+
 			'FROM users ' +
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
-			'ORDER BY email_verif DESC, uid DESC';
+			'ORDER BY email_verif DESC, uid DESC FOR UPDATE';
 
 		if (ctx.getProperty('readonly'))
 			return ctx.query(query, [name, name])
@@ -711,7 +711,12 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 	if (uid != query.uid)
 		throw new self.FormatError();
 	
-	return ctx.query('SELECT email_verif, email FROM users WHERE id = ?', [uid]).then(function(res) {
+	var conn;
+	return ctx.startTransaction().then(function(conn_) {
+		conn = conn_;
+		
+		return conn.query('SELECT email_verif, email FROM users WHERE id = ? LOCK IN SHARE MODE', [uid]);
+	}).then(function(res) {
 		if (res.length !== 1)
 			throw new self.SoTradeClientError('email-verify-failure');
 		
@@ -719,24 +724,26 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 		if (res[0].email_verif)
 			throw new self.SoTradeClientError('email-verify-already-verified');
 		
-		return ctx.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ?', [uid, key]);
+		return conn.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ? FOR UPDATE', [uid, key]);
 	}).then(function(res) {
 		assert.equal(res.length, 1);
 		
 		if (res[0].c < 1 && !ctx.access.has('userdb'))
 			throw new self.SoTradeClientError('email-verify-failure');
 		
-		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ?', [email, uid]);
+		return conn.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ? LOCK IN SHARE MODE', [email, uid]);
 	}).then(function(res) {
 		if (res[0].c > 0)
 			throw new self.SoTradeClientError('email-verify-other-already-verified');
 	
-		return ctx.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
+		return conn.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
 	}).then(function() {
-		return ctx.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
+		return conn.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
 	}).then(function() {
 		ctx.access.grant('email_verif');
 		
+		return conn.commit();
+	}).then(function() {
 		return self.login({
 			name: email,
 			stayloggedin: true,
@@ -991,15 +998,15 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		if (!query.school) // e. g., empty string
 			query.school = null;
 		
-		return ctx.startTransaction({isolation: 'SERIALIZABLE'});
+		return ctx.startTransaction({}, {isolation: 'SERIALIZABLE'});
 	}).then(function(conn_) {
 		conn = conn_;
 		return conn.query('SELECT email, name, uid FROM users ' +
-			'WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(uid != ?)',
+			'WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
 			[query.email, query.name, uid]);
 	}).then(function(res_) {
 		res = res_;
-		return conn.query('SELECT `key` FROM betakeys WHERE `id` = ?',
+		return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
 			[betakey[0]]);
 	}).then(function(βkey) {
 		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
@@ -1019,7 +1026,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		}
 		
 		return (query.school === null ? [] :
-			conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path)', [String(query.school)]));
+			conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) LOCK IN SHARE MODE', [String(query.school)]));
 	}).then(function(res) {
 		if (res.length == 0 && query.school !== null) {
 			if (parseInt(query.school) == query.school || !query.school) {
@@ -1252,7 +1259,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  * @noreadonly
  * @function c2s~password-reset
  */
-User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', function(query, ctx) {
+User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset', function(query, ctx) {
 	var self = this;
 	
 	if (ctx.user)
@@ -1264,7 +1271,7 @@ User.prototype.passwordReset = buscomponent.provideWQT('client-password-reset', 
 		'FROM users ' +
 		'JOIN users_data ON users.uid = users_data.uid ' +
 		'WHERE name = ? OR email = ? AND deletiontime IS NULL ' +
-		'LIMIT 1',
+		'LIMIT 1 FOR UPDATE',
 		[name, name]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('password-reset-notfound');

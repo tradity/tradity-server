@@ -132,11 +132,11 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(qu
  * 
  * @function c2s~impersonate-user
  */
-Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
+Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
 		throw new this.PermissionDenied();
 	
-	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ?', [parseInt(query.uid)]).then(function(r) {
+	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [parseInt(query.uid)]).then(function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
 			throw new this.SoTradeClientError('impersonate-user-notfound');
@@ -288,12 +288,12 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * 
  * @function c2s~rename-school
  */
-Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
+Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
 	var self = this;
 	query.schoolpath = String(query.schoolpath || '/').toLowerCase();
 	
 	var oldpath;
-	return ctx.query('SELECT path FROM schools WHERE schoolid = ?', [parseInt(query.schoolid)]).then(function(r) {
+	return ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.schoolid)]).then(function(r) {
 		if (r.length == 0)
 			throw new self.SoTradeClientError('rename-school-notfound');
 		
@@ -301,14 +301,14 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 		assert.ok(oldpath);
 		assert.ok(oldpath.length > 1);
 
-		return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
+		return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ? LOCK IN SHARE MODE',
 			[commonUtil.parentPath(query.schoolpath)]);
 	}).then(function(pr) {
 		assert.equal(pr.length, 1);
 		if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
 			throw new self.SoTradeClientError('rename-school-notfound');
 		
-		return ctx.query('SELECT path FROM schools WHERE path = ?', [query.schoolpath]);
+		return ctx.query('SELECT path FROM schools WHERE path = ? FOR UPDATE', [query.schoolpath]);
 	}).then(function(er) {
 		if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() == query.schoolpath)
 			throw new self.SoTradeClientError('rename-school-already-exists');
@@ -340,12 +340,12 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
  * 
  * @function c2s~join-schools
  */
-Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
+Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
 	var self = this;
 	
 	return Q.all([
-		ctx.query('SELECT path FROM schools WHERE schoolid = ?', [parseInt(query.masterschool)]),
-		ctx.query('SELECT path FROM schools WHERE schoolid = ?', [parseInt(query.subschool)])
+		ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [parseInt(query.masterschool)]),
+		ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.subschool)])
 	]).spread(function(mr, sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);

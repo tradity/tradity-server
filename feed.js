@@ -229,7 +229,7 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * 
  * @function c2s~comment
  */
-FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx) {
+FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment', function(query, ctx) {
 	var self = this;
 	
 	if (!query.comment || parseInt(query.eventid) != query.eventid)
@@ -241,7 +241,7 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 	var noFollowers = false;
 	
 	return ctx.query('SELECT events.type, events.targetid, oh.uid AS trader FROM events ' +
-		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?',
+		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ? LOCK IN SHARE MODE',
 		[parseInt(query.eventid)]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('comment-notfound');

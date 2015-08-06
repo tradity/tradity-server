@@ -157,7 +157,7 @@ Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-us
  * 
  * @function c2s~delete-user
  */
-Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
+Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
 	var uid = parseInt(query.uid);
 	if (uid != uid) // NaN
 		throw new this.FormatError();
@@ -165,22 +165,16 @@ Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqp
 	if (ctx.user.uid == uid)
 		throw new this.SoTradeClientError('delete-user-self-notallowed');
 	
-	var conn;
-	return ctx.startTransaction().then(function(conn_) {
-		conn = conn_;
-		return Q.all([
-			conn.query('DELETE FROM sessions WHERE uid = ?', [uid]),
-			conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
-			conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]),
-			conn.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
-				'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE uid = ?', [uid]),
-			conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE uid = ?', [uid]),
-			conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
-				'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE uid = ?', [uid, uid])
-		]).then(function() {
-			return conn.commit();
-		});
-	}).then(function() {
+	return Q.all([
+		ctx.query('DELETE FROM sessions WHERE uid = ?', [uid]),
+		ctx.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
+		ctx.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]),
+		ctx.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
+			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE uid = ?', [uid]),
+		ctx.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE uid = ?', [uid]),
+		ctx.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
+			'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE uid = ?', [uid, uid])
+	]).then(function() {
 		return { code: 'delete-user-success' };
 	});
 }));

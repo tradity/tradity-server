@@ -170,9 +170,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			if (!useTransaction)
 				return ctx;
 			
-			return ctx.startTransaction({
-				users: 'r'
-			});
+			return ctx.startTransaction();
 		}).then(function(conn_) {
 			conn = conn_;
 			return conn.query(query, [name, name]);
@@ -232,7 +230,7 @@ User.prototype.login = buscomponent.provide('client-login',
 			return self.regularCallback({}, ctx).then(function() {
 				// use transaction with lock to make sure all server nodes have the same data
 				
-				return ctx.startTransaction({ sessions: 'w' });
+				return ctx.startTransaction();
 			}).then(function(conn_) {
 				conn = conn_;
 				
@@ -993,23 +991,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		if (!query.school) // e. g., empty string
 			query.school = null;
 		
-		return ctx.startTransaction([
-			{ name: 'users', mode: 'w', },
-			{ name: 'users_finance', mode: 'w', },
-			{ name: 'users_data', mode: 'w', },
-			{ name: 'stocks', mode: 'w', },
-			{ name: 'betakeys', mode: 'w', },
-			{ name: 'inviteaccept', mode: 'w', },
-			{ name: 'invitelink', mode: 'r', },
-			{ name: 'schoolmembers', mode: 'w', },
-			{ name: 'schooladmins', mode: 'w', },
-			{ name: 'schools', mode: 'w', },
-			{ name: 'stocks', alias: 'stocks1', mode: 'r' }, // feed
-			{ name: 'events', mode: 'w' }, // feed
-			{ name: 'events_users', mode: 'w' }, // feed
-			{ name: 'depot_stocks', mode: 'r' }, // feed
-			{ name: 'watchlists', mode: 'r' } // feed
-		]);
+		return ctx.startTransaction({isolation: 'SERIALIZABLE'});
 	}).then(function(conn_) {
 		conn = conn_;
 		return conn.query('SELECT email, name, uid FROM users ' +

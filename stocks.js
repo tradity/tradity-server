@@ -644,19 +644,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			};
 		}
 		
-		return ctx.startTransaction([
-			{ name: 'depot_stocks', mode: 'w' },
-			{ name: 'users_finance', alias: 'l', mode: 'w' },
-			{ name: 'users_finance', alias: 'f', mode: 'w' },
-			{ name: 'users', alias: 'fu', mode: 'w' },
-			{ name: 'stocks', mode: 'r' },
-			{ name: 'orderhistory', mode: 'w' },
-			{ name: 'transactionlog', mode: 'w' },
-			{ name: 'stocks', alias: 'stocks1', mode: 'r' }, // feed
-			{ name: 'events', mode: 'w' }, // feed
-			{ name: 'events_users', mode: 'w' }, // feed
-			{ name: 'watchlists', mode: 'r' } // feed
-		]);
+		return ctx.startTransaction({isolation: 'SERIALIZABLE'});
 	}).then(function(conn_) {
 		conn = conn_;
 		return conn.query('SELECT stocks.*, ' +

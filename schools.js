@@ -450,7 +450,7 @@ Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', 
  * @noreadonly
  * @function c2s~create-school
  */
-Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school', function(query, ctx) {
+Schools.prototype.createSchool = buscomponent.provideTXQT('client-create-school', function(query, ctx) {
 	var self = this;
 	
 	if (!query.schoolname)
@@ -460,17 +460,12 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 	
 	if (!query.schoolpath)
 		query.schoolpath = '/' + query.schoolname.toLowerCase().replace(/[^\w_-]/g, '');
-	
-	var conn;
-	return ctx.startTransaction().then(function(conn_) {
-		conn = conn_;
 		
-		return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)]);
-	}).then(function(r) {
+	return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)]).then(function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 1 || !query.schoolname.trim() || 
 			!/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
-			return conn.rollback().then(function() {
+			return ctx.rollback().then(function() {
 				throw new self.SoTradeClientError('create-school-already-exists');
 			});
 		}
@@ -478,28 +473,25 @@ Schools.prototype.createSchool = buscomponent.provideWQT('client-create-school',
 		if (String(query.schoolpath).replace(/[^\/]/g, '').length == 1)
 			return [{c: 1}];
 		else
-			return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
+			return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
 			[commonUtil.parentPath(String(query.schoolpath))]);
 	}).then(function(r) {
 		assert.equal(r.length, 1);
 		
 		if (r[0].c != 1) {
-			return conn.rollback().then(function() {
+			return ctx.rollback().then(function() {
 				throw new self.SoTradeClientError('create-school-missing-parent');
 			});
 		}
 		
-		return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
+		return ctx.query('INSERT INTO schools (name, path) VALUES(?, ?)',
 			[String(query.schoolname), String(query.schoolpath)]);
 	}).then(function(res) {
 		return ctx.feed({
 			'type': 'school-create',
 			'targetid': res.insertId,
-			'srcuser': ctx.user.uid,
-			'conn': conn
+			'srcuser': ctx.user.uid
 		});
-	}).then(function() {
-		return conn.commit();
 	}).then(function() {
 		return { code: 'create-school-success', path: String(query.schoolpath) };
 	});

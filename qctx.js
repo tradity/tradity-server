@@ -31,7 +31,13 @@ var _ = require('lodash');
  * @property {int} queryCount  The number of executed single database queries.
  * @property {int} incompleteQueryCount  The number of not-yet-completed single database queries.
  * @property {string} creationStack  A stack trace of this query context’s construction call
- * @property {int} creationTime  Millisecond unix timestmap of this query context’s construction call
+ * @property {int} creationTime  Millisecond unix timestmap of this query context’s construc
+ * 
+ * @property {?object} startTransactionOnQuery  Indicates whether to start a transaction when a query
+ *                                              is encountered (<code>null</code> if not, otherwise
+ *                                              <code>{tables: …, options: …}</code>)
+ * @property {?object} contextTransaction  A transaction to which all queries within this context
+ *                                         will be appended
  * 
  * @public
  * @constructor module:qctx~QContext
@@ -57,6 +63,8 @@ function QContext(obj) {
 	self.incompleteQueryCount = 0;
 	self.creationStack = getStack();
 	self.creationTime = Date.now();
+	self.startTransactionOnQuery = null;
+	self.contextTransaction = null;
 	
 	var parentQCtx = null;
 	
@@ -278,12 +286,54 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * @function module:qctx~QContext#feed
  */
 QContext.prototype.feed = function(data) {
-	var conn = data.conn || null;
+	var conn = data.conn || this.contextTransaction || null;
 	delete data.conn;
 	var onEventId = data.onEventId || function() {};
 	delete data.onEventId;
 	
 	return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn});
+};
+
+QContext.prototype.txwrap = function(fn) {
+	var self = this;
+	
+	assert.ok(self.startTransactionOnQuery);
+	assert.ok(!self.contextTransaction);
+	
+	return function() {
+		assert.ok(self.contextTransaction);
+		
+		return Q(fn.apply(this, arguments)).then(function(v) {
+			return self.commit().then(function() {
+				self.contextTransaction = null;
+				return v;
+			});
+		}).catch(function(err) {
+			return self.rollback().then(function() {
+				self.contextTransaction = null;
+				throw err;
+			});
+		});
+	};
+};
+
+QContext.prototype.enterTransactionOnQuery = function(tables, options) {
+	assert.ok(!this.startTransactionOnQuery);
+	assert.ok(!this.contextTransaction);
+	
+	this.startTransactionOnQuery = {tables: tables, options: options};
+};
+
+QContext.prototype.commit = function() {
+	assert.ok(this.contextTransaction);
+	
+	return this.contextTransaction.commit.apply(this, arguments);
+};
+
+QContext.prototype.rollback = function() {
+	assert.ok(this.contextTransaction);
+	
+	return this.contextTransaction.rollback.apply(this, arguments);
 };
 
 /**
@@ -295,6 +345,24 @@ QContext.prototype.feed = function(data) {
  */
 QContext.prototype.query = function(query, args, readonly) {
 	var self = this;
+	var queryArgs = arguments;
+	var sToQ = self.startTransactionOnQuery;
+	
+	if (self.contextTransaction) {
+		assert.ok(sToQ);
+		
+		return self.contextTransaction.query.apply(self, queryArgs);
+	}
+	
+	if (sToQ) {
+		assert.ok(!self.contextTransaction);
+		
+		return self.startTransaction(sToQ.tables, sToQ.options).then(function(conn) {
+			self.contextTransaction = conn;
+			return self.query.apply(self, queryArgs);
+		});
+	}
+	
 	self.debug('Executing query [unbound]', query, args);
 	self.incompleteQueryCount++;
 	
@@ -322,26 +390,28 @@ QContext.prototype.getConnection = function(readonly, restart) {
 	var self = this;
 	
 	var oci = self.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
+	var conn;
 	
-	return self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(function(conn) {
+	var postTransaction = function(doRelease) {
+		delete self.openConnections[oci];
+		if (_.compact(self.openConnections) == [])
+			self.openConnections = [];
+		
+		if (typeof doRelease == 'undefined')
+			doRelease = true;
+		
+		if (doRelease)
+			return conn.release();
+	};
+	
+	var oldrestart = restart;
+	restart = function() {
+		return Q(postTransaction()).then(oldrestart);
+	};
+	
+	return self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(function(conn_) {
+		conn = conn_;
 		assert.ok(conn);
-		
-		var postTransaction = function(doRelease) {
-			delete self.openConnections[oci];
-			if (_.compact(self.openConnections) == [])
-				self.openConnections = [];
-			
-			if (typeof doRelease == 'undefined')
-				doRelease = true;
-			
-			if (doRelease)
-				return conn.release();
-		};
-		
-		var oldrestart = restart;
-		restart = function() {
-			return Q(postTransaction()).then(oldrestart);
-		};
 		
 		/* return wrapper object for better debugging, no semantic change */
 		var conn_ = {
@@ -382,6 +452,8 @@ QContext.prototype.getConnection = function(readonly, restart) {
  *                                           restarting, e.g. in case of database deadlocks. Use
  *                                           <code>true</code> to just rollback and call the
  *                                           startTransaction callback again.
+ * @param {string} [options.isolationLevel='READ COMMITTED']  The transaction isolation level for
+ *                                                            this transaction.
  * 
  * @return {object}  A Q promise corresponding to successful completion, including
  *          .commit() and .rollback() shortcuts (both releasing the connection).
@@ -443,6 +515,13 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
 		
 		var tables = _.keys(tablelocks);
 		var init = 'SET autocommit = 0; ';
+		
+		init += 'SET TRANSACTION ISOLATION LEVEL ' + ({
+			'RU': 'READ UNCOMMITTED',
+			'RC': 'READ COMMITTED',
+			'RR': 'REPEATABLE READ',
+			'S': 'SERIALIZABLE'
+		}[(options.isolationLevel || 'RC').toUpperCase()] || options.isolationLevel).toUpperCase() + '; ';
 		
 		if (tables.length == 0)
 			init += 'START TRANSACTION ';

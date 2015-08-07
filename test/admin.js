@@ -225,7 +225,7 @@ describe('admin', function() {
 				assert.ok(result.results.length > 0);
 				
 				var ownUserFollowerEntry = result.results.filter(function(follower) {
-					return follower.id == user.uid;
+					return follower.uid == user.uid;
 				})[0];
 				
 				assert.ok(ownUserFollowerEntry);

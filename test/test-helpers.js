@@ -73,7 +73,7 @@ var getTestUser = _.memoize(function() {
 		}).then(function(data) {
 			assert.equal(data.code, 'get-own-options-success');
 			assert.ok(!data.result.pwhash);
-			assert.ok(data.result.uid);
+			assert.equal(data.result.uid, parseInt(data.result.uid));
 			
 			return {
 				name: name,

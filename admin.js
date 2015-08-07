@@ -88,15 +88,15 @@ function _reqpriv (required, f) {
  */
 Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _reqpriv('userdb', function(query, ctx) {
 	return ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, ' +
-		'users.id AS uid, tradecount, email, email_verif AS emailverif, ' +
+		'users.uid, tradecount, email, email_verif AS emailverif, ' +
 		'wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, registertime, lang, ' +
-		'schools.path AS schoolpath, schools.id AS schoolid, pending, jointime, ' +
-		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=users.id) AS commentcount, '+
-		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=users.id) AS lastcommenttime FROM users ' +
-		'JOIN users_data ON users.id = users_data.id ' +
-		'JOIN users_finance ON users.id = users_finance.id ' +
-		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.id ' +
-		'LEFT JOIN schools ON schools.id = sm.schoolid ',
+		'schools.path AS schoolpath, schools.schoolid, pending, jointime, ' +
+		'(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=users.uid) AS commentcount, '+
+		'(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=users.uid) AS lastcommenttime FROM users ' +
+		'JOIN users_data ON users.uid = users_data.uid ' +
+		'JOIN users_finance ON users.uid = users_finance.uid ' +
+		'LEFT JOIN schoolmembers AS sm ON sm.uid = users.uid ' +
+		'LEFT JOIN schools ON schools.schoolid = sm.schoolid ',
 		[]).then(function(userlist) {
 		return { code: 'list-all-users-success', results: userlist };
 	});
@@ -132,11 +132,11 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(qu
  * 
  * @function c2s~impersonate-user
  */
-Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
+Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
 		throw new this.PermissionDenied();
 	
-	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE id = ?', [parseInt(query.uid)]).then(function(r) {
+	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [parseInt(query.uid)]).then(function(r) {
 		assert.equal(r.length, 1);
 		if (r[0].c == 0)
 			throw new this.SoTradeClientError('impersonate-user-notfound');
@@ -157,30 +157,24 @@ Admin.prototype.impersonateUser = buscomponent.provideWQT('client-impersonate-us
  * 
  * @function c2s~delete-user
  */
-Admin.prototype.deleteUser = buscomponent.provideWQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
+Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
 	var uid = parseInt(query.uid);
 	if (uid != uid) // NaN
 		throw new this.FormatError();
 	
-	if (ctx.user.id == uid)
+	if (ctx.user.uid == uid)
 		throw new this.SoTradeClientError('delete-user-self-notallowed');
 	
-	var conn;
-	return ctx.startTransaction().then(function(conn_) {
-		conn = conn_;
-		return Q.all([
-			conn.query('DELETE FROM sessions WHERE uid = ?', [uid]),
-			conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
-			conn.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]),
-			conn.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
-				'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE id = ?', [uid]),
-			conn.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE id = ?', [uid]),
-			conn.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
-				'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE id = ?', [uid, uid])
-		]).then(function() {
-			return conn.commit();
-		});
-	}).then(function() {
+	return Q.all([
+		ctx.query('DELETE FROM sessions WHERE uid = ?', [uid]),
+		ctx.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
+		ctx.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]),
+		ctx.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
+			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE uid = ?', [uid]),
+		ctx.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE uid = ?', [uid]),
+		ctx.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
+			'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE uid = ?', [uid, uid])
+	]).then(function() {
 		return { code: 'delete-user-success' };
 	});
 }));
@@ -202,7 +196,7 @@ Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-em
 	if (parseInt(query.uid) != query.uid)
 		throw new this.FormatError();
 	
-	return ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE id = ?',
+	return ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE uid = ?',
 		[String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)]).then(function() {
 		return { code: 'change-user-email-success' };
 	});
@@ -272,7 +266,7 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
 		return ctx.feed({
 			'type': 'mod-notification',
 			'targetid': res.insertId,
-			'srcuser': ctx.user.id,
+			'srcuser': ctx.user.uid,
 			'everyone': true
 		});
 	}).then(function() {
@@ -294,12 +288,12 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * 
  * @function c2s~rename-school
  */
-Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
+Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
 	var self = this;
 	query.schoolpath = String(query.schoolpath || '/').toLowerCase();
 	
 	var oldpath;
-	return ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.schoolid)]).then(function(r) {
+	return ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.schoolid)]).then(function(r) {
 		if (r.length == 0)
 			throw new self.SoTradeClientError('rename-school-notfound');
 		
@@ -307,19 +301,19 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
 		assert.ok(oldpath);
 		assert.ok(oldpath.length > 1);
 
-		return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
+		return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ? LOCK IN SHARE MODE',
 			[commonUtil.parentPath(query.schoolpath)]);
 	}).then(function(pr) {
 		assert.equal(pr.length, 1);
 		if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
 			throw new self.SoTradeClientError('rename-school-notfound');
 		
-		return ctx.query('SELECT path FROM schools WHERE path = ?', [query.schoolpath]);
+		return ctx.query('SELECT path FROM schools WHERE path = ? FOR UPDATE', [query.schoolpath]);
 	}).then(function(er) {
 		if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() == query.schoolpath)
 			throw new self.SoTradeClientError('rename-school-already-exists');
 		
-		return ctx.query('UPDATE schools SET name = ? WHERE id = ?',
+		return ctx.query('UPDATE schools SET name = ? WHERE schoolid = ?',
 			[String(query.schoolname), parseInt(query.schoolid)]);
 	}).then(function() {
 		if (query.schoolpath == '/')
@@ -346,12 +340,12 @@ Admin.prototype.renameSchool = buscomponent.provideWQT('client-rename-school', _
  * 
  * @function c2s~join-schools
  */
-Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
+Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
 	var self = this;
 	
 	return Q.all([
-		ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.masterschool)]),
-		ctx.query('SELECT path FROM schools WHERE id = ?', [parseInt(query.subschool)])
+		ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [parseInt(query.masterschool)]),
+		ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.subschool)])
 	]).spread(function(mr, sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);
@@ -367,7 +361,7 @@ Admin.prototype.joinSchools = buscomponent.provideWQT('client-join-schools', _re
 			ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
 				[parseInt(query.masterschool), parseInt(query.subschool)]),
 			ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)]),
-			ctx.query('DELETE FROM schools WHERE id = ?', [parseInt(query.subschool)]),
+			ctx.query('DELETE FROM schools WHERE schoolid = ?', [parseInt(query.subschool)]),
 			ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ?',
 				[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%'])
 		]);
@@ -391,11 +385,15 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
 	if (parseInt(query.uid) != query.uid)
 		throw new this.FormatError();
 	
-	return ctx.query('SELECT u.name, u.id, ds.* ' +
+	return ctx.query('SELECT u.name, u.uid, ds.* ' +
 		'FROM stocks AS s ' +
-		'JOIN depot_stocks AS ds ON ds.stockid = s.id ' +
-		'JOIN users AS u ON ds.userid = u.id ' +
+		'JOIN depot_stocks AS ds ON ds.stockid = s.stockid ' +
+		'JOIN users AS u ON ds.uid = u.uid ' +
 		'WHERE s.leader = ?', [parseInt(query.uid)]).then(function(res) {
+		
+		/* backwards compatibility */
+		for (var i = 0; i < res.length; ++i)
+			res[i].id = res[i].uid;
 		
 		return { code: 'get-followers-success', results: res };
 	});

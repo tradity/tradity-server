@@ -37,7 +37,7 @@ util.inherits(WordpressFeed, buscomponent.BusComponent);
  * @loginignore
  * @function c2s~process-wordpress-feed
  */
-WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-wordpress-feed', function(query, ctx) {
+WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-wordpress-feed', function(query, ctx) {
 	if (ctx.access.has('wordpress') == -1)
 		throw new this.PermissionDenied();
 	
@@ -45,7 +45,7 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideWQT('client-process-w
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
 		'WHERE feedblogs.active ' +
-		'GROUP BY blogid').then(function(res) {
+		'GROUP BY blogid FOR UPDATE').then(function(res) {
 		return Q.all(res.map(function(bloginfo) {
 			var wp = new WP({endpoint: bloginfo.endpoint});
 			var catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
@@ -93,12 +93,12 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
 		throw new this.PermissionDenied();
 	
 	// compare schools.js
-	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, path AS schoolpath, ' +
+	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schools.schoolid, path AS schoolpath, ' +
 		'bloguser, COUNT(*) AS postcount, users.name ' +
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
-		'LEFT JOIN users ON feedblogs.bloguser = users.id ' +
-		'LEFT JOIN schools ON feedblogs.schoolid = schools.id ' +
+		'LEFT JOIN users ON feedblogs.bloguser = users.uid ' +
+		'LEFT JOIN schools ON feedblogs.schoolid = schools.schoolid ' +
 		'WHERE feedblogs.active ' +
 		'GROUP BY blogid').then(function(res) {
 		return { code: 'list-wordpress-feeds-success', results: res };

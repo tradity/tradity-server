@@ -62,7 +62,7 @@ for (var i = 0; i < tcaKeys.length; ++i) {
 			fireOn: { 'feed-trade': function (ev, ctx) { return [ev.srcuser]; } },
 			xp: tradeCountAchievements[count],
 			check: function(uid, userAchievements, cfg, ctx) {
-				return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ?', [uid])
+				return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ?', [uid])
 					.then(function(res) { return res[0].tradecount >= count; });
 			},
 			version: 0,
@@ -85,7 +85,7 @@ for (var i = 0; i < ftcaKeys.length; ++i) {
 			fireOn: { 'feed-trade': function (ev, ctx) { return [ev.srcuser]; } },
 			xp: followerTradeCountAchievements[count],
 			check: function(uid, userAchievements, cfg, ctx) {
-				return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND leader IS NOT NULL', [uid])
+				return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND leader IS NOT NULL', [uid])
 					.then(function(res) { return res[0].tradecount >= count; });
 			},
 			version: 0,
@@ -109,7 +109,7 @@ for (var i = 0; i < rcaKeys.length; ++i) {
 				'feed-user-register': function(ev, ctx) {
 					return ctx.query('SELECT il.uid AS invitor ' +
 						'FROM inviteaccept AS ia ' +
-						'JOIN invitelink AS il ON il.id = ia.iid ' +
+						'JOIN invitelink AS il ON il.iid = ia.iid ' +
 						'WHERE ia.uid = ?', [ev.srcuser]).then(function(res) {
 						assert.ok(res.length <= 1);
 						return res.length == 0 ? [] : [res[0].invitor];
@@ -119,10 +119,10 @@ for (var i = 0; i < rcaKeys.length; ++i) {
 			xp: referralCountAchievements[count],
 			check: function(uid, userAchievements, cfg, ctx) {
 				return ctx.query('SELECT SUM((SELECT COUNT(*) > 0 ' +
-						'FROM orderhistory AS oh WHERE oh.userid = ia.uid)) ' +
+						'FROM orderhistory AS oh WHERE oh.uid = ia.uid)) ' +
 					'AS invitecount ' +
 					'FROM invitelink AS il ' +
-					'JOIN inviteaccept AS ia ON il.id = ia.iid ' +
+					'JOIN inviteaccept AS ia ON il.iid = ia.iid ' +
 					'WHERE il.uid = ?', [uid]).then(function(res) {
 					assert.equal(res.length, 1);
 					
@@ -198,7 +198,7 @@ for (var i = 0; i < ClientAchievements.length; ++i) { (function() {
 		fireOn: { 'clientside-achievement': function (ev, ctx) { return ev.name == achievement.name ? [ev.srcuser] : []; } },
 		xp: achievement.xp,
 		check: function(uid, userAchievements, cfg, ctx) {
-			return ctx.query('SELECT COUNT(*) AS c FROM achievements_client WHERE userid = ? AND achname = ? ' +
+			return ctx.query('SELECT COUNT(*) AS c FROM achievements_client WHERE uid = ? AND achname = ? ' +
 				(achievement.requireVerified ? 'AND verified = 1 ' : ''),
 				[uid, achievement.name]).then(function(res) {
 				assert.equal(res.length, 1);
@@ -226,7 +226,7 @@ AchievementList.push({
 				'FROM chatmembers ' +
 				'WHERE chatid = cm.chatid)) ' +
 			'AS membercount ' +
-			'FROM `chatmembers` AS cm WHERE userid = ?', [uid])
+			'FROM `chatmembers` AS cm WHERE uid = ?', [uid])
 			.then(function(res) { return res[0].membercount >= 5; });
 	},
 	version: 0,
@@ -238,7 +238,7 @@ AchievementList.push({
 	fireOn: { 'feed-trade': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 100,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND money >= 250000000', [uid])
+		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND money >= 250000000', [uid])
 			.then(function(res) { return res[0].tradecount >= 1; });
 	},
 	version: 0,
@@ -251,12 +251,12 @@ AchievementList.push({
 	fireOn: { 'feed-trade': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 100,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND stockname LIKE "A%"', [uid])
+		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND stockname LIKE "A%"', [uid])
 			.then(function(resA) {
 			if (resA[0].tradecount == 0) 
 				return false;
 			
-			return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND stockname LIKE "Z%"', [uid])
+			return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND stockname LIKE "Z%"', [uid])
 				.then(function(resZ) {
 				return resZ[0].tradecount > 0; 
 			});
@@ -272,7 +272,7 @@ AchievementList.push({
 	fireOn: { 'feed-trade': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 250,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND amount > 0 AND prevamount > 0', [uid])
+		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND amount > 0 AND prevamount > 0', [uid])
 			.then(function(res) { return res[0].tradecount > 0; });
 	},
 	version: 0,
@@ -285,7 +285,7 @@ AchievementList.push({
 	fireOn: { 'feed-trade': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 250,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE userid = ? AND amount < 0 AND amount != -prevamount', [uid])
+		return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND amount < 0 AND amount != -prevamount', [uid])
 			.then(function(res) { return res[0].tradecount > 0; });
 	},
 	version: 0,
@@ -300,10 +300,10 @@ AchievementList.push({
 	check: function(uid, userAchievements, cfg, ctx) {
 		return ctx.query('SELECT COUNT(*) AS tradecount ' + 
 			'FROM orderhistory AS o1 ' +
-			'JOIN orderhistory AS o2 ON o1.userid = o2.userid AND ' +
+			'JOIN orderhistory AS o2 ON o1.uid = o2.uid AND ' +
 				'o1.stocktextid = o2.stocktextid AND ' +
 				'o1.buytime < o2.buytime AND o1.buytime > o2.buytime - 3600 '+
-			'WHERE o1.userid = ?', [uid])
+			'WHERE o1.uid = ?', [uid])
 			.then(function(res) { return res[0].tradecount > 0; });
 	},
 	version: 0,
@@ -318,10 +318,10 @@ AchievementList.push({
 	check: function(uid, userAchievements, cfg, ctx) {
 		return ctx.query('SELECT COUNT(*) AS tradecount ' + 
 			'FROM orderhistory AS o1 ' +
-			'JOIN orderhistory AS o2 ON o1.userid = o2.userid AND ' +
+			'JOIN orderhistory AS o2 ON o1.uid = o2.uid AND ' +
 				'o1.stocktextid = o2.stocktextid AND ' +
 				'o1.buytime < o2.buytime - 864000 '+
-			'WHERE o1.userid = ?', [uid])
+			'WHERE o1.uid = ?', [uid])
 			.then(function(res) { return res[0].tradecount > 0; });
 	},
 	version: 0,
@@ -334,7 +334,7 @@ AchievementList.push({
 	fireOn: { 'feed-file-publish': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 150,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT COUNT(*) AS imgcount FROM httpresources WHERE user = ? AND role = "profile.image"', [uid])
+		return ctx.query('SELECT COUNT(*) AS imgcount FROM httpresources WHERE uid = ? AND role = "profile.image"', [uid])
 			.then(function(res) { return res[0].imgcount >= 1; });
 	},
 	version: 0,
@@ -346,7 +346,7 @@ AchievementList.push({
 	fireOn: { 'feed-user-provchange': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 100,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT wprovision FROM users_finance WHERE id = ?', [uid]).then(function(res) {
+		return ctx.query('SELECT wprovision FROM users_finance WHERE uid = ?', [uid]).then(function(res) {
 			assert.equal(res.length, 1);
 			return res[0].wprovision != cfg.defaultWProvision;
 		});
@@ -360,7 +360,7 @@ AchievementList.push({
 	fireOn: { 'feed-user-provchange': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 100,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT lprovision FROM users_finance WHERE id = ?', [uid]).then(function(res) {
+		return ctx.query('SELECT lprovision FROM users_finance WHERE uid = ?', [uid]).then(function(res) {
 			assert.equal(res.length, 1);
 			return res[0].lprovision != cfg.defaultLProvision;
 		});
@@ -374,7 +374,7 @@ AchievementList.push({
 	fireOn: { 'feed-user-descchange': function (ev, ctx) { return [ev.srcuser]; } },
 	xp: 150,
 	check: function(uid, userAchievements, cfg, ctx) {
-		return ctx.query('SELECT `desc` FROM users_data WHERE id = ?', [uid]).then(function(res) {
+		return ctx.query('SELECT `desc` FROM users_data WHERE uid = ?', [uid]).then(function(res) {
 			assert.equal(res.length, 1);
 			return res[0].desc != '';
 		});

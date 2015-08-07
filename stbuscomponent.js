@@ -25,6 +25,28 @@ util.inherits(STBusComponent, buscomponent.BusComponent);
 
 STBusComponent.prototype.getServerConfig = function() { return this.request({name: 'getServerConfig'}); };
 
+function txwrap(tables, options, fn) {
+	if (typeof fn === 'undefined') {
+		fn = options;
+		options = tables;
+		tables = null;
+	}
+	
+	if (typeof fn === 'undefined') {
+		fn = options;
+		options = null;
+	}
+	
+	return function() {
+		// fn(query, ctx[, xdata, …])
+		var ctx = arguments[1];
+		ctx = ctx.clone().enterTransactionOnQuery(tables, options);
+		arguments[1] = ctx;
+		
+		return ctx.txwrap(fn).apply(this, arguments);
+	};
+}
+
 exports.provide   = buscomponent.provide;
 exports.listener  = buscomponent.listener;
 exports.needsInit = buscomponent.needsInit;
@@ -46,10 +68,12 @@ function provideW(name, args, fn) {
 
 function provideQT(name, fn) { return provide(name, ['query', 'ctx', 'xdata'], fn); };
 function provideWQT(name, fn) { return provideW(name, ['query', 'ctx', 'xdata'], fn); };
+function provideTXQT(name, tables, options, fn) { return provideWQT(name, txwrap(tables, options, fn)); };
 
 exports.provideW    = provideW;
 exports.provideQT   = provideQT;
 exports.provideWQT  = provideWQT;
+exports.provideTXQT = provideTXQT;
 
 // inheriting from Error is pretty ugly
 function SoTradeClientError(code, msg) {

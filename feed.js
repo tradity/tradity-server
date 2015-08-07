@@ -77,33 +77,34 @@ FeedController.prototype.feed = buscomponent.provide('feed',
 			if (additional.indexOf(data.srcuser) == -1)
 				additional.push(data.srcuser);
 			
-			query = 'INSERT INTO events_users (eventid,userid) ';
+			query = 'INSERT INTO events_users (eventid, uid) ';
 			subselects = [];
 			params = [];
 			
 			if (!data.noFollowers) {
 				// all followers
-				subselects.push('SELECT ?, userid ' +
+				subselects.push('SELECT ?, uid ' +
 					'FROM depot_stocks ' +
-					'JOIN stocks ON depot_stocks.stockid = stocks.id AND stocks.leader = ?');
+					'JOIN stocks ON depot_stocks.stockid = stocks.stockid AND stocks.leader = ?');
 				// all users in watchlist
 				subselects.push('SELECT ?, watcher ' +
 					'FROM stocks AS stocks1 ' +
-					'JOIN watchlists ON stocks1.id = watched WHERE stocks1.leader = ?');
+					'JOIN watchlists ON stocks1.stockid = watched ' +
+					'WHERE stocks1.leader = ?');
 				params.push(eventid, data.srcuser, eventid, data.srcuser);
 			}
 			
 			if (data.feedschool) {
 				subselects.push(
 					'SELECT ?, sm.uid FROM schools AS p ' +
-					'JOIN schools AS c ON c.path LIKE CONCAT(p.path, "%") OR p.id = c.id ' +
-					'JOIN schoolmembers AS sm ON sm.schoolid = c.id AND sm.pending = 0 ' +
-					'WHERE p.id = ?');
+					'JOIN schools AS c ON c.path LIKE CONCAT(p.path, "%") OR p.schoolid = c.schoolid ' +
+					'JOIN schoolmembers AS sm ON sm.schoolid = c.schoolid AND sm.pending = 0 ' +
+					'WHERE p.schoolid = ?');
 				params.push(eventid, data.feedschool);
 			}
 			
 			if (data.feedchat) {
-				subselects.push('SELECT ?, userid FROM chatmembers WHERE chatid = ?');
+				subselects.push('SELECT ?, uid FROM chatmembers WHERE chatid = ?');
 				params.push(eventid, data.feedchat);
 			}
 			 
@@ -111,12 +112,12 @@ FeedController.prototype.feed = buscomponent.provide('feed',
 				if (parseInt(additional[i]) != additional[i])
 					return self.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
 				
-				subselects.push('SELECT ?,?');
+				subselects.push('SELECT ?, ?');
 				params.push(eventid, additional[i]);
 			}
 			query += subselects.join(' UNION ');
 		} else {
-			query = 'INSERT INTO events_users (eventid, userid) SELECT ?, id FROM users';
+			query = 'INSERT INTO events_users (eventid, uid) SELECT ?, uid FROM users';
 			params = [eventid];
 		}
 		
@@ -147,8 +148,8 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 	}
 	
 	return ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
-		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.id AS traderid, trader.name AS tradername, ' +
-		'schools.id AS schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
+		'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.uid AS traderid, trader.name AS tradername, ' +
+		'schools.schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
 		'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky, url AS profilepic, ' +
 		'achievements.achname, achievements.xp, sentemails.messageid, sentemails.sendingtime, sentemails.bouncetime, ' +
 		'sentemails.mailtype, sentemails.recipient AS mailrecipient, sentemails.diagnostic_code, ' +
@@ -158,16 +159,16 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'LEFT JOIN ecomments AS c ON c.commentid = events.targetid AND events.type="comment" ' +
 		'LEFT JOIN events AS e2 ON c.eventid = e2.eventid ' +
 		'LEFT JOIN orderhistory AS oh ON oh.orderid = IF(events.type="trade", events.targetid, IF(e2.type="trade", e2.targetid, NULL)) ' +
-		'LEFT JOIN users AS su ON su.id = events.srcuser ' +
-		'LEFT JOIN users AS trader ON trader.id = IF(e2.type="trade", oh.userid, IF(e2.type="user-register", e2.targetid, NULL)) ' +
+		'LEFT JOIN users AS su ON su.uid = events.srcuser ' +
+		'LEFT JOIN users AS trader ON trader.uid = IF(e2.type="trade", oh.uid, IF(e2.type="user-register", e2.targetid, NULL)) ' +
 		'LEFT JOIN achievements ON achievements.achid = events.targetid AND events.type="achievement" ' +
 		'LEFT JOIN mod_notif AS notif ON notif.notifid = events.targetid AND events.type="mod-notification" ' +
-		'LEFT JOIN httpresources ON httpresources.user = c.commenter AND httpresources.role = "profile.image" ' +
+		'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' +
 		'LEFT JOIN sentemails ON sentemails.mailid = events.targetid AND events.type="email-bounced" ' +
 		'LEFT JOIN blogposts ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
 		'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +
-		'LEFT JOIN schools ON schools.id = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
-		'WHERE events_users.userid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
+		'LEFT JOIN schools ON schools.schoolid = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
+		'WHERE events_users.uid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
 		[ctx.user.uid, since, count]).then(function(r) {
 		return _.chain(r).map(function(ev) {
 			if (ev.json) {
@@ -210,8 +211,8 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
 	if (parseInt(query.eventid) != query.eventid)
 		throw new this.FormatError();
 	
-	return ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND userid = ?', 
-		[parseInt(query.eventid), ctx.user.id]).then(function() {
+	return ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND uid = ?', 
+		[parseInt(query.eventid), ctx.user.uid]).then(function() {
 		return { code: 'mark-as-seen-success' };
 	});
 });
@@ -228,7 +229,7 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * 
  * @function c2s~comment
  */
-FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment', function(query, ctx) {
+FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment', function(query, ctx) {
 	var self = this;
 	
 	if (!query.comment || parseInt(query.eventid) != query.eventid)
@@ -239,8 +240,8 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 	var feedusers = [];
 	var noFollowers = false;
 	
-	return ctx.query('SELECT events.type,events.targetid,oh.userid AS trader FROM events ' +
-		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ?',
+	return ctx.query('SELECT events.type, events.targetid, oh.uid AS trader FROM events ' +
+		'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ? LOCK IN SHARE MODE',
 		[parseInt(query.eventid)]).then(function(res) {
 		if (res.length == 0)
 			throw new self.SoTradeClientError('comment-notfound');
@@ -268,13 +269,13 @@ FeedController.prototype.commentEvent = buscomponent.provideWQT('client-comment'
 		}
 		
 		return ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, cstate, time) VALUES(?, ?, ?, ?, "", UNIX_TIMESTAMP())', 
-			[parseInt(query.eventid), ctx.user.id, String(query.comment),
+			[parseInt(query.eventid), ctx.user.uid, String(query.comment),
 			 query.ishtml && ctx.access.has('comments') ? 1 : 0]);
 	}).then(function(res) {
 		return ctx.feed({
 			type: 'comment',
 			targetid: res.insertId,
-			srcuser: ctx.user.id,
+			srcuser: ctx.user.uid,
 			feedusers: feedusers,
 			feedschool: feedschool,
 			feedchat: feedchat,

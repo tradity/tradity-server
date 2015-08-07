@@ -455,8 +455,9 @@ Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-st
 	
 	return ctx.query('SELECT FLOOR(time/?)*? AS timeindex, SUM(ticks) AS ticksum, COUNT(ticks) AS tickcount ' +
 		'FROM tickshistory ' +
+		'WHERE time >= ? AND time < ? ' +
 		'GROUP BY timeindex',
-		[dt, dt, dt, timespanStart, todayStart]).then(function(res) {
+		[dt, dt, timespanStart, todayStart]).then(function(res) {
 		return { code: 'get-ticks-statistics-success', results: res };
 	});
 }));

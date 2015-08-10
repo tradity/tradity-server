@@ -9,9 +9,12 @@ export SOTRADE_CONFIG=test # indicates using config.test.js
 export SOTRADE_ERROR_LOG_FILE=/tmp/errors-$(date +%s).log
 export SOTRADE_DO_NOT_OUTPUT_ERRORS=1
 
+if [ x"SOTRADE_TEST_SKIP_DB_SETUP" = x"" ]; then
 echo "Setting up database..." >&2
 
-unxz < res/testdb.sql.xz | mysql --defaults-file=<(cat <<MYSQL_CONFIG
+(cat res/testdb-preamendments.sql && \
+ unxz < res/testdb.sql.xz && \
+ cat res/testdb-postamendments.sql) | mysql --defaults-file=<(cat <<MYSQL_CONFIG
 [client]
 socket=$(node config db cluster MASTER socketPath)
 password=$(node config db password)
@@ -19,6 +22,7 @@ user=$(node config db user)
 database=$(node config db database)
 MYSQL_CONFIG
 )
+fi
 
 echo "Generating keys..." >&2
 openssl genrsa 2048 > res/test-id_rsa

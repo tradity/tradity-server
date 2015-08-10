@@ -178,8 +178,8 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
 		throw new self.SoTradeClientError('unknown-query-type');
 	
 	var userinfo = _.clone(ctx.user);
-	delete userinfo.pwsalt;
-	delete userinfo.pwhash;
+	assert.ok(!userinfo.pwsalt);
+	assert.ok(!userinfo.pwhash);
 	delete userinfo.clientopt;
 	delete userinfo.clientstorage;
 	

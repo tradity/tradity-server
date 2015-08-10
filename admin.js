@@ -173,7 +173,8 @@ Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _req
 			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE uid = ?', [uid]),
 		ctx.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE uid = ?', [uid]),
 		ctx.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
-			'pwhash="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", deletiontime = UNIX_TIMESTAMP() WHERE uid = ?', [uid, uid])
+			'deletiontime = UNIX_TIMESTAMP() WHERE uid = ?', [uid, uid]),
+		ctx.query('DELETE FROM passwords WHERE uid = ?', [uid])
 	]).then(function() {
 		return { code: 'delete-user-success' };
 	});

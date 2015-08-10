@@ -38,17 +38,84 @@ util.inherits(User, buscomponent.BusComponent);
  * 
  * @param {string} pw  The password string to generate a salt+hash for.
  * 
- * @return {object}  A Q promise for an object of the form { salt: …, hash: … }
+ * @return {object}  A Q promise for an object of the form { salt: …, hash: …, algorithm: … }
  * @function module:user~User#generatePWKey
  */
 User.prototype.generatePWKey = function(pw) {
-	return Q.nfcall(crypto.randomBytes, 16).then(function(buf) {
-		var pwsalt = buf.toString('hex');
-		var pwhash = serverUtil.sha256(pwsalt + String(pw));
+	var self = this;
+	
+	var pwsalt;
+	var iterations;
+	
+	return Q.nfcall(crypto.randomBytes, 32).then(function(pwsalt_) {
+		pwsalt = pwsalt_;
 		
-		return {salt: pwsalt, hash: pwhash};
+		return self.getServerConfig();
+	}).then(function(cfg) {
+		iterations = cfg.passwords.pbkdf2Iterations;
+		assert.strictEqual(iterations, parseInt(iterations));
+		assert.ok(iterations >= cfg.passwords.pbkdf2MinIterations);
+		
+		return Q.nfcall(crypto.pbkdf2, String(pw), pwsalt, 1 << iterations, 64);
+	}).then(function(pwhash) {
+		return {salt: pwsalt, hash: pwhash, algorithm: 'PBKDF2|' + iterations};
 	});
 };
+
+/**
+ * Writes a new hash/salt combination into the database.
+ * 
+ * @param {string} pw  The password string to generate a salt+hash for.
+ * @param {string} timeName  Either <code>'changetime'</code> or <code>'issuetime'</code>,
+ *                           depending on password type
+ * @param {int} uid  The numerical user id for this password.
+ * @param {object} conn  A connection to access the database with.
+ * 
+ * @return {object}  A Q promise for having saved the password.
+ * @function module:user~User#generatePassword
+ */
+User.prototype.generatePassword = function(pw, timeName, uid, conn) {
+	assert.ok(['changetime', 'issuetime'].indexOf(timeName) >= 0);
+	
+	return this.generatePWKey(pw).then(function(pwdata) {
+		return conn.query('INSERT INTO passwords (pwsalt, pwhash, algorithm, uid, ' + timeName + ') ' +
+			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())',
+			[pwdata.salt, pwdata.hash, pwdata.algorithm, uid]);
+	});
+};
+
+/**
+ * Verifies a password hash and salt combination.
+ * 
+ * @param {object} pwdata  The pwsalt, pwhash, algorithm tuple to be checked against
+ * @param {string} pw  The password to be checked
+ * 
+ * @return {object}  A Q promise for a boolean indicating success
+ * @function module:user~User#verifyPassword
+ */
+User.prototype.verifyPassword = function(pwdata, pw) {
+	if (pwdata.algorithm === 'SHA256')
+		return Q(pwdata.pwhash !== serverUtil.sha256(pwdata.pwsalt + pw));
+	
+	var pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
+	if (pbkdf2Match) {
+		var iterations = parseInt(pbkdf2Match[1]);
+		
+		return this.getServerConfig().then(function(cfg) {
+			if (iterations < cfg.passwords.pbkdf2MinIterations)
+				return Q(false);
+			
+			return Q.nfcall(crypto.pbkdf2, String(pw), pwdata.pwsalt, 1 << iterations, 64).then(function(pwhash) {
+				return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
+			});
+		});
+	}
+	
+	console.warn('Unknown password hashing algorithm:', pwdata.algorithm);
+	return Q(false);
+};
+
+User.deprecatedPasswordAlgorithms = /^SHA256$/i;
 
 /**
  * Sends an invite e-mail to a user.
@@ -154,16 +221,17 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	var name = String(query.name);
 	var pw = String(query.pw);
-	var key, uid, pwsalt, pwhash;
+	var key, uid;
 	
 	return Q().then(function() {
-		var query = 'SELECT uid, pwsalt, pwhash '+
-			'FROM users ' +
+		var query = 'SELECT passwords.*, users.email_verif '+
+			'FROM passwords ' +
+			'JOIN users ON users.uid = passwords.uid ' +
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
-			'ORDER BY email_verif DESC, uid DESC FOR UPDATE';
+			'ORDER BY email_verif DESC, users.uid DESC, changetime DESC FOR UPDATE';
 
 		if (ctx.getProperty('readonly'))
-			return ctx.query(query, [name, name])
+			return ctx.query(query, [name, name]);
 		
 		var conn, res;
 		return Q().then(function() {
@@ -190,16 +258,47 @@ User.prototype.login = buscomponent.provide('client-login',
 			throw new self.SoTradeClientError('login-badname');
 		}
 		
-		uid = res[0].uid;
-		pwsalt = res[0].pwsalt;
-		pwhash = res[0].pwhash;
-		if (pwhash != serverUtil.sha256(pwsalt + pw) && !ignorePassword) {
+		/* if there is an user with a verified e-mail address
+		 * do not allow other users with the same e-mail address to log in */
+		var haveVerifiedEMail = _.any(_.pluck(res, 'email_verif'));
+		
+		return res.map(function(r) {
+			return function(foundUser) {
+				if (foundUser !== null)
+					return foundUser; // already found user id -> ok!
+				
+				if (haveVerifiedEMail && !r.email_verif)
+					return null;
+				
+				if (ignorePassword)
+					return r;
+				
+				return self.verifyPassword(r, pw).then(function(passwordOkay) {
+					return passwordOkay ? r : null;
+				});
+			};
+		}).reduce(Q.when, null);
+	}).then(function(r) {
+		if (r === null) {
 			if (!useTransaction)
 				return self.login(query, ctx, xdata, true, ignorePassword);
 			
 			throw new self.SoTradeClientError('login-wrongpw');
 		}
 		
+		uid = r.uid;
+		assert.ok(parseInt(r.pwid) == r.pwid);
+		assert.ok(parseInt(uid) == uid);
+		
+		if (ctx.getProperty('readonly'))
+			return;
+		
+		return Q.all([
+			ctx.query('DELETE FROM passwords WHERE pwid != ? AND uid = ?', [r.pwid, uid]),
+			r.issuetime !== null ? ctx.query('UPDATE passwords SET changetime = UNIX_TIMESTAMP() WHERE pwid = ?', [r.pwid]) : Q(),
+			User.deprecatedPasswordAlgorithms.test(r.algorithm) ? self.generatePassword(pw, 'changetime', uid, ctx) : Q()
+		]);
+	}).then(function() {
 		return Q.nfcall(crypto.randomBytes, 16);
 	}).then(function(buf) {
 		key = buf.toString('hex');
@@ -672,6 +771,7 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 	
 	return Q.all([
 		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
+		ctx.query('DELETE FROM passwords WHERE changetime IS NULL AND issuetime < UNIX_TIMESTAMP() - 7*86400'),
 		ctx.query('SELECT p.schoolid, p.path, users.access FROM schools AS p ' +
 			'JOIN events ON events.type="school-create" AND events.targetid = p.schoolid ' +
 			'JOIN users ON users.uid = events.srcuser ' +
@@ -1085,27 +1185,26 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			});
 		};
 		
-		return (query.password ? self.generatePWKey(query.password) :
-			Q({salt: ctx.user.pwsalt, hash: ctx.user.pwhash}))
-			.then(function(pwdata) {
+		return Q().then(function() {
 			if (type == 'change') {
-				return conn.query('UPDATE users SET name = ?, pwhash = ?, pwsalt = ?, email = ?, email_verif = ?, ' +
-					'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
-					[String(query.name), pwdata.hash, pwdata.salt,
-					String(query.email), query.email == ctx.user.email ? 1 : 0, 
-					query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]).then(function() {
-				return conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
-					'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-					'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE uid = ?',
-					[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
-					query.birthday, String(query.desc), String(query.street),
-					String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-					query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
-					String(query.lang), uid]);
-				}).then(function() {
-				return conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
-					[query.wprovision, query.lprovision, uid]);
-				}).then(function() {
+				return Q.all([
+					conn.query('UPDATE users SET name = ?, email = ?, email_verif = ?, ' +
+						'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
+						[String(query.name),
+						String(query.email), query.email == ctx.user.email ? 1 : 0, 
+						query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
+					conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
+						'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
+						'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE uid = ?',
+						[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
+						query.birthday, String(query.desc), String(query.street),
+						String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
+						query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
+						String(query.lang), uid]),
+					conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
+						[query.wprovision, query.lprovision, uid]),
+					query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q()
+				]).then(function() {
 				if (query.school != ctx.user.school) {
 					if (query.school == null)
 						return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
@@ -1165,13 +1264,15 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 				});
 				}).then(function() {
 					return conn.query('INSERT INTO users ' +
-						'(name, delayorderhist, pwhash, pwsalt, email, email_verif, registertime)' +
-						'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP())',
-						[String(query.name), query.delayorderhist?1:0, pwdata.hash, pwdata.salt,
+						'(name, delayorderhist, email, email_verif, registertime) ' +
+						'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())',
+						[String(query.name), query.delayorderhist?1:0,
 						String(query.email), (inv.email && inv.email == query.email) ? 1 : 0]);
 				}).then(function(res) {
 					uid = res.insertId;
 					
+					return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q();
+				}).then(function() {
 					return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
 						'street, zipcode, town, schoolclass, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
 						'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
@@ -1279,12 +1380,10 @@ User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset',
 		u = res[0];
 		assert.ok(u);
 		
-		return Q.nfcall(crypto.randomBytes, 6);
+		return Q.nfcall(crypto.randomBytes, 8);
 	}).then(function(buf) {
 		pw = buf.toString('hex');
-		return self.generatePWKey(pw);
-	}).then(function(pwdata) {
-		return ctx.query('UPDATE users SET pwsalt = ?, pwhash = ? WHERE uid = ?', [pwdata.salt, pwdata.hash, u.uid]);
+		return self.generatePassword(pw, 'issuetime', u.uid, ctx);
 	}).then(function() {
 		return self.request({name: 'sendTemplateMail', 
 			template: 'password-reset-email.eml',

@@ -55,7 +55,7 @@ mainBus.addOutputFilter(function(packet) {
 	return packet;
 });
 
-var afql = new af.ArivaFinanceQuoteLoader(cfg.stockloader);
+var afql = new af.QuoteLoader(cfg.stockloader);
 afql.on('error', function(e) { manager.emitError(e); });
 
 manager.getServerConfig = buscomponent.provide('getServerConfig', [], function() { return cfg; });

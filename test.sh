@@ -9,7 +9,7 @@ export SOTRADE_CONFIG=test # indicates using config.test.js
 export SOTRADE_ERROR_LOG_FILE=/tmp/errors-$(date +%s).log
 export SOTRADE_DO_NOT_OUTPUT_ERRORS=1
 
-if [ x"SOTRADE_TEST_SKIP_DB_SETUP" = x"" ]; then
+if [ x"$SOTRADE_TEST_SKIP_DB_SETUP" = x"" ]; then
 echo "Setting up database..." >&2
 
 (cat res/testdb-preamendments.sql && \
@@ -22,6 +22,8 @@ user=$(node config db user)
 database=$(node config db database)
 MYSQL_CONFIG
 )
+else
+echo "Skipping database setup..." >&2
 fi
 
 echo "Generating keys..." >&2

@@ -18,7 +18,6 @@ var pt = require('./bus/processtransport.js');
 var dt = require('./bus/directtransport.js');
 var sio = require('socket.io-client');
 
-var af = require(cfg.stockloader.path);
 var achievementList = require('./achievement-list.js');
 
 /**
@@ -55,11 +54,10 @@ mainBus.addOutputFilter(function(packet) {
 	return packet;
 });
 
-var afql = new af.QuoteLoader(cfg.stockloader);
-afql.on('error', function(e) { manager.emitError(e); });
-
+var defaultStockLoaderDeferred = Q.defer();
+var defaultStockLoader = defaultStockLoaderDeferred.promise;
+manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', [], function() { return defaultStockLoader; });
 manager.getServerConfig = buscomponent.provide('getServerConfig', [], function() { return cfg; });
-manager.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', [], function() { return afql; });
 manager.getAchievementList = buscomponent.provide('getAchievementList', [], function() { return achievementList.AchievementList; });
 manager.getClientAchievementList = buscomponent.provide('getClientAchievementList', [], function() { return achievementList.ClientAchievements; });
 
@@ -72,6 +70,8 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 	// load super-essential components
 	return loadComponents(['./errorhandler.js', './emailsender.js', './signedmsg.js']);
 }).then(function() {
+	var managerCTX = new qctx.QContext({parentComponent: manager});
+	
 	process.on('uncaughtException', function(err) {
 		manager.emitError(err);
 		manager.emitImmediate('localShutdown');
@@ -87,6 +87,24 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 		fs.writeFileSync(cfg.varReplace(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid)),
 			'Log:\n\n' + JSON.stringify(mainBus.packetLog) + '\n\n\nUnanswered:\n\n' + JSON.stringify(mainBus.unansweredRequests()));
 	});
+	
+	// setup stock loaders
+	var stockLoaders = {};
+	for (var i in cfg.stockloaders) {
+		if (!cfg.stockloaders[i] || !cfg.stockloaders[i].path)
+			continue;
+		
+		var stockloaderConfig = _.clone(cfg.stockloaders[i]);
+		stockloaderConfig.userAgent = cfg.userAgent;
+		stockloaderConfig.ctx = managerCTX.clone();
+		
+		var slModule = require(stockloaderConfig.path);
+		stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
+		stockLoaders[i].on('error', function(e) { manager.emitError(e); });
+	}
+
+	defaultStockLoader = stockLoaders[cfg.stockloaders._defaultStockLoader];
+	defaultStockLoaderDeferred.resolve(defaultStockLoader);
 
 	if (cluster.isWorker) {
 		mainBus.addTransport(new pt.ProcessTransport(process), worker);
@@ -192,7 +210,7 @@ manager.setBus(mainBus, 'manager-' + process.pid).then(function() {
 		
 		connectToSocketIORemotes().done();
 	}
-});
+}).done();
 
 function worker() {
 	var hasReceivedStartCommand = false;

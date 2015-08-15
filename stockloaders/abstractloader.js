@@ -5,21 +5,29 @@ var Q = require('q');
 var util = require('util');
 var events = require('events');
 
+var MAXLEN_DEFAULT = 196;
+var CACHE_TIME_DEFAULT = 25000;
+
 function AbstractLoader(opt) {
 	AbstractLoader.super_.apply(this);
 	
 	opt = opt || {};
 	
 	this.setMaxListeners(0);
-	this.cacheTime = opt.cacheTime || 25000;
+	this.cacheTime = typeof opt.cacheTime == 'undefined' ? CACHE_TIME_DEFAULT : opt.cacheTime;
+	this.maxlen = typeof opt.maxlen == 'undefined' ? MAXLEN_DEFAULT : opt.maxlen;
 	this.cache = {};
 }
 
 util.inherits(AbstractLoader, events.EventEmitter);
 
 AbstractLoader.prototype._handleRecord = function(record, cached) {
-	if (!cached && record.failure == null)
+	if (!cached && record.failure == null) {
+		if (!record.fetchTime)
+			record.fetchTime = Date.now();
+
 		this.cache['s-' + record.symbol] = record;
+	}
 	
 	this.emit('record', record);
 	
@@ -54,7 +62,20 @@ AbstractLoader.prototype._makeQuoteRequest = function(stocklist) {
 	return Q.all(chunkedStocklist.map(function(chunk) {
 		return self._makeQuoteRequestFetch(chunk);
 	})).then(function(recordListChunks) {
-		return _.flatten(recordListChunks).concat(cachedResults).filter(function(record) {
+		var fetchedRecordList = _.flatten(recordListChunks);
+		
+		var receivedStocks = [];
+		_.each(fetchedRecordList, function(record) {
+			if (record.isin) receivedStocks.push(record.isin);
+			if (record.wkn)  receivedStocks.push(record.wkn);
+		});
+		
+		var notReceivedStocks = _.difference(stocklist, receivedStocks);
+		_.each(notReceivedStocks, function(failedName) {
+			self._handleRecord({failure: failedName}, false);
+		});
+		
+		return fetchedRecordList.concat(cachedResults).filter(function(record) {
 			return !record.failure;
 		});
 	});

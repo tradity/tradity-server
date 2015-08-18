@@ -654,28 +654,19 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 		self.ctx.setProperty('remoteClientSoftware', null);
 	}
 	
-	return (s.length > 20480 && self.ctx.getProperty('lzmaSupport') ? function(cont) {
+	return Q().then(function() {
+		if (s.length < 20480 || !self.ctx.getProperty('lzmaSupport'))
+			return { s: s, e: 'raw' }; // e for encoding
+		
 		self.queryLZMAUsedCount++;
 		
-		var buflist = [];
-		
-		var deferred = Q.defer();
-		var encoder = lzma.createStream('aloneEncoder', {preset: 3});
-		encoder.on('data', function(data) { buflist.push(data); });
-		encoder.on('end', function() {
-			return deferred.resolve(cont(Buffer.concat(buflist), 'lzma'));
+		return lzma.LZMA().compress(s, 3).then(function(result) {
+			return { s: result, e: 'lzma' };
 		});
+	}).then(function(wrappedObject) {
+		wrappedObject.t = Date.now();
 		
-		encoder.end(s);
-		return deferred.promise;
-	} : function(cont) {
-		return cont(s, 'raw');
-	})(function(result, encoding) {
-		return Q({
-			s: result,
-			e: encoding,
-			t: Date.now()
-		});
+		return wrappedObject;
 	});
 };
 

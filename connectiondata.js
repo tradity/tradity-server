@@ -38,8 +38,8 @@ var Access = require('./access.js').Access;
  * @property {int} unansweredCount  Number of received requests which were passed on to the local
  *                                  bus but were not answered yet.
  * @property {int} queryCount  Total number of queries received
- * @property {int} queryLZMACount  Number of queries received with LZMA support indicated
- * @property {int} queryLZMAUsedCount  Number of queries where LZMA was used for the response
+ * @property {int} queryCompressionInfo  Statistical information on compression availability
+ *                                       and usage
  * @property {object} versionInfo.minimum  Minimum client API version supported
  * @property {object} versionInfo.current  Most recent API version
  * 
@@ -70,14 +70,16 @@ function ConnectionData(socket) {
 	this.ctx.addProperty({name: 'pendingTicks', value: 0});
 	this.ctx.addProperty({name: 'remoteProtocolVersion', value: null});
 	this.ctx.addProperty({name: 'remoteClientSoftware', value: null});
-	this.ctx.addProperty({name: 'lzmaSupport', value: false});
+	this.ctx.addProperty({name: 'compressionSupport', value: {}});
 	this.ctx.addProperty({name: 'isBusTransport', value: false});
 	this.ctx.debugHandlers.push(_.bind(this.dbgHandler, this));
 	this.ctx.errorHandlers.push(_.bind(this.ISEHandler, this));
 	
 	this.queryCount = 0;
-	this.queryLZMACount = 0;
-	this.queryLZMAUsedCount = 0;
+	this.queryCompressionInfo = {
+		supported: {lzma: 0, s:0},
+		used: {lzma: 0, s:0, si:0}
+	};
 	
 	this.versionInfo = {
 		minimum: 1,
@@ -121,8 +123,7 @@ ConnectionData.prototype.stats = function() {
 		lastInfoPush: this.lastInfoPush,
 		mostRecentEventTime: this.mostRecentEventTime,
 		queryCount: this.queryCount,
-		queryLZMACount: this.queryLZMACount,
-		queryLZMAUsedCount: this.queryLZMAUsedCount,
+		queryCompressionInfo: this.queryCompressionInfo,
 		ip: this.remoteip,
 		xff: this.hsheaders['x-forwarded-for'],
 		xrip: this.hsheaders['x-real-ip'],
@@ -197,6 +198,8 @@ ConnectionData.prototype.fetchEvents = function(query) {
 		return self.wrapForReply({pushes: evlist}).then(function(r) {
 			if (self.socket)
 				self.socket.emit('push-container', r);
+		}).catch(function(e) {
+			self.emitError(e);
 		});
 	});
 };
@@ -241,6 +244,8 @@ ConnectionData.prototype.push = function(data) {
 			self.socket.emit('push', r);
 	}).then(function() {
 		return self.pushSelfInfo();
+	}).catch(function(e) {
+		return self.emitError(e);
 	});
 };
 
@@ -324,7 +329,9 @@ ConnectionData.prototype.response = function(data) {
 	
 	var res = self.wrapForReply(data).then(function(r) {
 		if (self.socket)
-			self.socket.emit('response', r) 
+			self.socket.emit('response', r);
+	}).catch(function(e) {
+		return self.emitError(e);
 	});
 	
 	if (self.isShuttingDown)
@@ -369,7 +376,9 @@ ConnectionData.prototype.onLogout = function() {
  *                                      This is useful for server-to-server queries
  *                                      and testing admin queries.
  *                                      See {@link module:signedmsg}.
- * @param {boolean} query.lzma  If true, the response may be encoded using LZMA compression.
+ * @param {?object} query.csupp  Compression support information.
+ * @param {boolean} query.csupp.lzma  The response may be encoded using LZMA compression
+ * @param {boolean} query.csupp.s  The response may be encoded using split compression
  * @param {int} query.pv  The current remote protocol version.
  * @param {string} query.cs  A version string describing the client software.
  * @param {string} query.type  A string describing what kind of requests is to be handled.
@@ -409,10 +418,16 @@ ConnectionData.prototype.queryHandler = function(query) {
 		var recvTime = Date.now();
 		
 		self.queryCount++;
-		if (query.lzma) {
-			self.queryLZMACount++;
-			self.ctx.setProperty('lzmaSupport', true);
-		}
+		if (query.lzma && !query.csupp)
+			query.csupp = {lzma: 1};
+		
+		if (query.csupp)
+			self.ctx.setProperty('compressionSupport', query.csupp);
+		
+		query.csupp = query.csupp || {};
+		
+		for (var i in query.csupp)
+			self.queryCompressionInfo.supported[i] += 1;
 		
 		self.ctx.setProperty('remoteProtocolVersion', 
 			(query.pv ? parseInt(query.pv) ||
@@ -637,32 +652,74 @@ ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'glo
 ConnectionData.prototype.wrapForReply = function(obj) {
 	var self = this;
 	
-	var s;
-	try {
-		s = JSON.stringify(obj);
-	} catch (e) {
-		// Most likely, self was a circular data structure, so include that in the debug information
-		if (e.type == 'circular_structure')
-			return self.emitError(new Error('Circular JSON while wrapping for reply, cycle: ' + commonUtil.detectCycle(obj)));
-		else
-			return self.emitError(e);
-	}
-	
 	if (!self.socket) {
-		self.ctx.setProperty('lzmaSupport', false);
+		self.ctx.setProperty('compressionSupport', {});
 		self.ctx.setProperty('remoteProtocolVersion', null);
 		self.ctx.setProperty('remoteClientSoftware', null);
 	}
 	
+	var compressionThreshold = 20480;
+	var splitCompressable = null;
+	var csupp = self.ctx.getProperty('compressionSupport');
+	
+	var stringify = function(o) {
+		try {
+			return JSON.stringify(o);
+		} catch (e) {
+			// Most likely, obj was a circular data structure, so include that in the debug information
+			if (e.type == 'circular_structure')
+				throw new Error('Circular JSON while wrapping for reply, cycle: ' + commonUtil.detectCycle(o));
+			else
+				throw e;
+		}
+	}
+	
 	return Q().then(function() {
-		if (s.length < 20480 || !self.ctx.getProperty('lzmaSupport'))
+		var compressable, noncompressable = '';
+		var cc = null;
+		
+		if (csupp.s && obj.cc__) {
+			cc = obj.cc__;
+			
+			compressable    = _.pick(obj, cc.fields);
+			noncompressable = _.omit(obj, cc.fields);
+		} else {
+			compressable = obj;
+		}
+		
+		delete obj.cc__;
+		
+		var s  = stringify(compressable);
+		var sn = stringify(noncompressable);
+		
+		if (csupp.s && csupp.lzma && noncompressable) {
+			self.queryCompressionInfo.used.s += 1;
+			self.queryCompressionInfo.used.lzma += 1;
+			
+			return Q().then(function() {
+				if (cc.cache.has(cc.key))
+					return cc.cache.use(cc.key);
+				
+				self.queryCompressionInfo.used.si += 1;
+				return cc.cache.add(cc.key, cc.validity, lzma.LZMA().compress(s, 3));
+			}).then(function(result) {
+				return {
+					e: 'split',
+					s: [
+						{ e: 'lzma', s: result },
+						{ e: 'raw', s: sn }
+					]
+				};
+			});
+		} else if (csupp.lzma && s.length > compressionThreshold) {
+			self.queryCompressionInfo.used.lzma += 1;
+			
+			return lzma.LZMA().compress(s, 3).then(function(result) {
+				return { s: result, e: 'lzma' };
+			});
+		} else {
 			return { s: s, e: 'raw' }; // e for encoding
-		
-		self.queryLZMAUsedCount++;
-		
-		return lzma.LZMA().compress(s, 3).then(function(result) {
-			return { s: result, e: 'lzma' };
-		});
+		}
 	}).then(function(wrappedObject) {
 		wrappedObject.t = Date.now();
 		

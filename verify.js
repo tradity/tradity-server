@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 var SignedMessaging = require('./signedmsg.js').SignedMessaging;
 var cfg = require('./config.js').config;
 

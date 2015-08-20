@@ -31,8 +31,8 @@ var ConnectionData = require('./connectiondata.js').ConnectionData;
  * @property {boolean} isShuttingDown  Indicates whether the serve is in shut-down mode
  * @property {int} creationTime  Unix timestamp of the object creation
  * @property {int} deadQueryCount  Total number of queries of disconnected clients
- * @property {int} deadQueryLZMACount  Number of queries of disconnected clients supporting LZMA
- * @property {int} deadQueryLZMAUsedCount  Number of queries of disconnected clients employing LZMA
+ * @property {int} deadQueryCompressionInfo  Statistical compression support information 
+ *                                           of disconnected clients
  * @property {int} connectionCount  Total number of client connections
  * 
  * @public
@@ -49,8 +49,11 @@ function SoTradeServer () {
 	this.creationTime = Date.now() / 1000;
 	
 	this.deadQueryCount = 0;
-	this.deadQueryLZMACount = 0;
-	this.deadQueryLZMAUsedCount = 0;
+	this.deadQueryCompressionInfo = {
+		supported: {lzma: 0, s:0},
+		used: {lzma: 0, s:0,si:0}
+	};
+	
 	this.connectionCount = 0;
 }
 
@@ -82,8 +85,9 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 		msgLZMACount: self.msgLZMACount,
 		connectionCount: self.connectionCount,
 		deadQueryCount: self.deadQueryCount,
-		deadQueryLZMACount: self.deadQueryLZMACount,
-		deadQueryLZMAUsedCount: self.deadQueryLZMAUsedCount,
+		deadQueryCompressionInfo: self.deadQueryCompressionInfo,
+		deadQueryLZMACount: self.deadQueryCompressionInfo.supported.lzma, // backwards compatibility
+		deadQueryLZMAUsedCount: self.deadQueryCompressionInfo.used.lzma, // backwards compatibility
 		now: Date.now(),
 		qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
 	};
@@ -252,9 +256,12 @@ SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectio
 	
 	if (removeClient) {
 		this.clients = _.without(this.clients, removeClient);
-		this.deadQueryCount         += removeClient.queryCount;
-		this.deadQueryLZMACount     += removeClient.queryLZMACount;
-		this.deadQueryLZMAUsedCount += removeClient.queryLZMAUsedCount;
+		this.deadQueryCount          += removeClient.queryCount;
+		
+		for (var i in removeClient.queryCompressionInfo.supported)
+			this.deadQueryCompressionInfo.supported[i] += removeClient.queryCompressionInfo.supported[i];
+		for (var i in removeClient.queryCompressionInfo.used)
+			this.deadQueryCompressionInfo.used[i] += removeClient.queryCompressionInfo.used[i];
 	}
 	
 	if (this.isShuttingDown)

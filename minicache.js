@@ -54,7 +54,7 @@ Cache.prototype.use = function(key) {
  * 
  * @param {string} key  A cache key
  * @param {number} validity  A ms-bases unix timestamp for expiry
- * @param {object} promise  A value of promise for the cache entry
+ * @param {object} promise  A value or promise for the cache entry
  * 
  * @return {object}  A Q promise for the given key
  * 

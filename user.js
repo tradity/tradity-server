@@ -474,6 +474,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 	
 	var likestringWhere = '';
 	var likestringUnit = [];
+	var cacheKey;
 	
 	var join = 'FROM users AS u ' +
 		'JOIN users_data ON users_data.uid = u.uid ' +
@@ -514,7 +515,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 		query.upto = parseInt(query.upto) || 'now';
 		var now = Date.now();
 		
-		var cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
+		cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
 		if (self.cache.has(cacheKey))
 			return self.cache.use(cacheKey);
 		
@@ -540,7 +541,18 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 			likestringWhere,
 			[query.since, query.upto].concat(likestringUnit)));
 	}).then(function(ranking) {
-		return { code: 'get-ranking-success', 'result': ranking };
+		return {
+			code: 'get-ranking-success',
+			result: ranking,
+			cc__: {
+				fields: ['result'],
+				validity: 30000,
+				key: cacheKey,
+				cache: self.cache
+			}
+		};
+		
+		return result;
 	});
 });
 
@@ -606,6 +618,9 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 	var cfg, xuser;
 	
 	var cacheable = !(ctx.access.has('caching') && query.noCache);
+	var resultCacheKey = '';
+	
+	query.nohistory = !!query.nohistory;
 	
 	return self.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
@@ -644,6 +659,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			lookforColumn = 'name';
 		}
 		
+		resultCacheKey += 'get-user-info-result:' + columns.length;
 		var cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
 		if (self.cache.has(cacheKey) && cacheable)
 			return self.cache.use(cacheKey);
@@ -704,17 +720,21 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			schools[i].id = schools[i].schoolid;
 		
 		xuser.schools = schools;
-		if (query.nohistory) 
-			return { code: 'get-user-info-success', result: xuser };
-			
-		var viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
-	
-		var cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
 		
 		var result = {
 			code: 'get-user-info-success', 
 			result: xuser
 		};
+		
+		resultCacheKey += ':' + xuser.uid + ':' + query.nohistory;
+		
+		var viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
+		var cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
+		
+		if (query.nohistory)
+			return result;
+		
+		resultCacheKey += '/' + cacheKey3;
 		
 		return Q().then(function() {
 			if (self.cache.has(cacheKey3) && cacheable)
@@ -749,6 +769,15 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			
 			return result;
 		});
+	}).then(function(result) {
+		result.cc__ = {
+			fields: ['result', 'orders', 'achievements', 'values'],
+			validity: 60000,
+			key: resultCacheKey,
+			cache: self.cache
+		};
+		
+		return result;
 	});
 });
 

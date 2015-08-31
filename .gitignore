@@ -7,3 +7,4 @@ errors.*.log
 out
 doc
 buildstamp.js
+core

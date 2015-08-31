@@ -770,12 +770,14 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			return result;
 		});
 	}).then(function(result) {
-		result.cc__ = {
-			fields: ['result', 'orders', 'achievements', 'values'],
-			validity: 60000,
-			key: resultCacheKey,
-			cache: self.cache
-		};
+		if (cacheable) {
+			result.cc__ = {
+				fields: ['result', 'orders', 'achievements', 'values'],
+				validity: 60000,
+				key: resultCacheKey,
+				cache: self.cache
+			};
+		}
 		
 		return result;
 	});
@@ -807,7 +809,8 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 			'WHERE ' +
 			'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.schoolid) = 0 AND ' +
 			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0 AND ' +
-			'(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.schoolid) = 0').then(function(schools) {
+			'(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.schoolid) = 0 AND ' +
+			'(SELECT COUNT(*) FROM invitelink WHERE invitelink.schoolid = p.schoolid) = 0').then(function(schools) {
 			return Q.all(schools.filter(function(school) {
 				return !Access.fromJSON(school.access).has('schooldb') &&
 					(school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));

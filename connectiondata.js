@@ -697,13 +697,16 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 			self.queryCompressionInfo.used.s += 1;
 			self.queryCompressionInfo.used.lzma += 1;
 			
+			var ckey = cc.key + ':compressed';
 			return Q().then(function() {
-				if (cc.cache.has(cc.key))
-					return cc.cache.use(cc.key);
+				if (cc.cache.has(ckey))
+					return cc.cache.use(ckey);
 				
 				self.queryCompressionInfo.used.si += 1;
-				return cc.cache.add(cc.key, cc.validity, lzma.LZMA().compress(s, 3));
+				return cc.cache.add(ckey, cc.validity, lzma.LZMA().compress(s, 3));
 			}).then(function(result) {
+				assert.ok(Buffer.isBuffer(result));
+				
 				return {
 					e: 'split',
 					s: [

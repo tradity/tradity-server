@@ -361,11 +361,14 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
 				[parseInt(query.masterschool), parseInt(query.subschool)]),
 			ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
 				[parseInt(query.masterschool), parseInt(query.subschool)]),
-			ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)]),
-			ctx.query('DELETE FROM schools WHERE schoolid = ?', [parseInt(query.subschool)]),
+			ctx.query('UPDATE invitelink SET schoolid = ? WHERE schoolid = ?',
+				[parseInt(query.masterschool), parseInt(query.subschool)]),
 			ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ?',
-				[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%'])
+				[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%']),
+			ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)])
 		]);
+	}).then(function() {
+		return ctx.query('DELETE FROM schools WHERE schoolid = ?', [parseInt(query.subschool)]);
 	}).then(function() {
 		return { code: 'join-schools-success' };
 	});

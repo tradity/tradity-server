@@ -680,6 +680,7 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 		
 		if (csupp.s && obj.cc__) {
 			cc = obj.cc__;
+			delete obj.cc__;
 			
 			compressable    = _.pick(obj, cc.fields);
 			noncompressable = _.omit(obj, cc.fields);

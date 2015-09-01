@@ -9,8 +9,10 @@ function NodeSoTradeConnection (opt) {
 	var cfg = require('./config.js').config;
 	opt = opt || {};
 	
-	if (!opt.url)
-		opt.url = cfg.protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + (cfg.wsporte || cfg.wsports[0]);
+	if (!opt.url) {
+		var port = cfg.wsporte || cfg.wsports[parseInt(Math.random() * cfg.wsports.length)];
+		opt.url = cfg.protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + port;
+	}
 	
 	try {
 		if (!opt.messageSigner) {

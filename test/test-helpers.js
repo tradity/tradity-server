@@ -10,6 +10,8 @@ var _ = require('lodash');
 var Q = require('q');
 var assert = require('assert');
 
+var testPerformance = process.env.ST_PROFILE_PERFORMANCE;
+
 var getSocket = _.memoize(function() {
 	var socket = new sotradeClient.SoTradeConnection({
 		noSignByDefault: true,
@@ -107,6 +109,9 @@ var standardTeardown = function() {
 var standardReset = function() {
 	return getSocket().then(function(socket) {
 		return getTestUser().then(function(user) {
+			if (testPerformance)
+				return;
+			
 			return socket.emit('logout').then(function() {
 				return socket.emit('login', { // login to reset privileges
 					name: user.name,
@@ -137,5 +142,6 @@ exports.standardSetup = standardSetup;
 exports.standardTeardown = standardTeardown;
 exports.standardReset = standardReset;
 exports.bufferEqual = bufferEqual;
+exports.testPerformance = testPerformance;
 
 })();

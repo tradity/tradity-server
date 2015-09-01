@@ -68,6 +68,7 @@ describe('schools', function() {
 	});
 	
 	describe('school-change-description', function() {
+		if (!testHelpers.testPerformance)
 		it('Requires school admin privileges', function() {
 			var school;
 			
@@ -216,6 +217,7 @@ describe('schools', function() {
 		});
 	});
 	
+	if (!testHelpers.testPerformance)
 	describe('school-kick-user', function() {
 		it('Should remove the current user from their group', function() {
 			var school;

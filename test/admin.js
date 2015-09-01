@@ -20,6 +20,7 @@ after(testHelpers.standardTeardown);
 
 describe('admin', function() {
 	describe('list-all-users', function() {
+		if (!testHelpers.testPerformance)
 		it('Should fail for non-admin users', function() {
 			return socket.emit('list-all-users').then(function(result) {
 				assert.equal(result.code, 'permission-denied');
@@ -43,6 +44,7 @@ describe('admin', function() {
 		});
 	});
 	
+	if (!testHelpers.testPerformance)
 	describe('impersonate-user', function() {
 		it('Should fail for non-admin users', function() {
 			return socket.emit('impersonate-user').then(function(result) {
@@ -234,6 +236,7 @@ describe('admin', function() {
 		});
 	});
 	
+	if (!testHelpers.testPerformance)
 	describe('get-server-statistics', function() {
 		it('Should return a list of servers', function() {
 			return socket.emit('get-server-statistics', { __sign__: true }).then(function(res) {
@@ -243,6 +246,7 @@ describe('admin', function() {
 		});
 	});
 	
+	if (!testHelpers.testPerformance)
 	describe('get-ticks-statistics', function() {
 		it('Should return a timeline of tick statistics', function() {
 			return socket.emit('prod', { __sign__: true }).then(function() {
@@ -256,6 +260,7 @@ describe('admin', function() {
 		});
 	});
 	
+	if (!testHelpers.testPerformance)
 	describe('show-packet-log', function() {
 		it('Should return a list of bus packets', function() {
 			return socket.emit('show-packet-log', { __sign__: true }).then(function(res) {

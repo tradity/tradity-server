@@ -2,6 +2,7 @@
 
 var assert = require('assert');
 var _ = require('lodash');
+var Q = require('q');
 var testHelpers = require('./test-helpers.js');
 var socket, user;
 
@@ -17,6 +18,7 @@ after(testHelpers.standardTeardown);
 
 var standardISIN = 'CA7500801039';
 describe('stocks', function() {
+	if (!testHelpers.testPerformance)
 	describe('prod', function() {
 		it('Works', function() {
 			return socket.emit('prod').then(function(res) {
@@ -63,13 +65,30 @@ describe('stocks', function() {
 		it('Can buy and sell stocks via forceNow', function() {
 			var amount = 5;
 			
-			return socket.emit('stock-buy', {
-				__sign__: true,
-				amount: amount,
-				value: null,
-				stockid: standardISIN,
-				leader: null,
-				forceNow: true
+			/* clear depot first */
+			return socket.emit('list-own-depot').then(function(data) {
+				assert.equal(data.code, 'list-own-depot-success');
+				assert.ok(data.results);
+				
+				return Q.all(data.results.map(function(r) {
+					return socket.emit('stock-buy', {
+						__sign__: true,
+						amount: -r.amount,
+						value: null,
+						stockid: r.stockid,
+						leader: null,
+						forceNow: true
+					});
+				}));
+			}).then(function() {
+				return socket.emit('stock-buy', {
+					__sign__: true,
+					amount: amount,
+					value: null,
+					stockid: standardISIN,
+					leader: null,
+					forceNow: true
+				});
 			}).then(function(res) {
 				assert.equal(res.code, 'stock-buy-success');
 				

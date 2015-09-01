@@ -14,6 +14,7 @@ before(function() {
 beforeEach(testHelpers.standardReset);
 after(testHelpers.standardTeardown);
 
+if (!testHelpers.testPerformance)
 describe('emailsender', function() {
 	it('Should directly bounce all e-mails in test mode', function() {
 		return socket.emit('create-invite-link', {

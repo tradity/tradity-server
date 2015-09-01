@@ -18,6 +18,7 @@ before(function() {
 beforeEach(testHelpers.standardReset);
 after(testHelpers.standardTeardown);
 
+if (!testHelpers.testPerformance)
 describe('fsdb', function() {
 	describe('publish', function() {
 		it('Should publish files', function() {

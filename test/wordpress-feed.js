@@ -15,6 +15,7 @@ before(function() {
 beforeEach(testHelpers.standardReset);
 after(testHelpers.standardTeardown);
 
+if (!testHelpers.testPerformance)
 describe('wordpress-feed', function() {
 	describe('process-wordpress-feed', function() {
 		it('Should work', function() {

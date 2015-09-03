@@ -287,12 +287,30 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * @function module:qctx~QContext#feed
  */
 QContext.prototype.feed = function(data) {
-	var conn = data.conn || this.contextTransaction || null;
+	var self = this;
+	
+	var conn = data.conn || self.contextTransaction || null;
 	delete data.conn;
 	var onEventId = data.onEventId || function() {};
 	delete data.onEventId;
 	
-	return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn});
+	var release = null;
+	return Q().then(function() {
+		if (conn)
+			return conn;
+		
+		return self.startTransaction().then(function(conn_) {
+			return conn = release = conn_;
+		});
+	}).then(function() {
+		return this.request({name: 'feed', data: data, ctx: self, onEventId: onEventId, conn: conn});
+	}).then(function() {
+		if (release)
+			return release.commit();
+	}).catch(function() {
+		if (release)
+			return release.rollback();
+	});
 };
 
 QContext.prototype.txwrap = function(fn) {

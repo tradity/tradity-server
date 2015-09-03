@@ -41,9 +41,9 @@ var socket = new sotradeClient.SoTradeConnection({
 		(query.wsport || cfg.wsporte || cfg.wsports[0])),
 	socketopts: query.ssldefault ? { 
 		agent: new https.Agent(cfg.ssl)
-	}: null,
+	} : null,
 	logDevCheck: !query['q-quiet']
-	});
+});
 
 if (query['q-timeout']) {
 	setTimeout(function() {

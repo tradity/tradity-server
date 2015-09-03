@@ -300,23 +300,25 @@ ConnectionData.prototype.pushSelfInfo = function() {
 ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', function() {
 	var self = this;
 	
-	if (self.pushEventsTimer || !self.ctx.user || !self.ctx.user.uid)
+	if (self.pushEventsTimer)
+		return self.pushEventsTimer;
+	
+	if (!self.ctx.user || !self.ctx.user.uid)
 		return;
 	
-	var deferred = Q.defer();
-	self.pushEventsTimer = setTimeout(function() {
+	self.pushEventsTimer = Q.delay(1000).then(function() {
 		self.pushEventsTimer = null;
 		
 		if (self.socket === null)
 			return;
 		
-		deferred.resolve(self.fetchEvents({
+		return self.fetchEvents({
 			since: self.mostRecentEventTime === null ? Date.now() / 1000 - 10 : self.mostRecentEventTime,
 			count: null
-		}));
-	}, 1000);
+		});
+	});
 	
-	return deferred.promise;
+	return self.pushEventsTimer;
 });
 
 /**

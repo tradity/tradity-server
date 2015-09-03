@@ -1158,7 +1158,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		}
 		
 		return (query.school === null ? [] :
-			conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) LOCK IN SHARE MODE', [String(query.school)]));
+			conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) FOR UPDATE', [String(query.school)]));
 	}).then(function(res) {
 		if (res.length == 0 && query.school !== null) {
 			if (parseInt(query.school) == query.school || !query.school) {

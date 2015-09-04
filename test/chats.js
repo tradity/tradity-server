@@ -47,7 +47,6 @@ describe('chats', function() {
 				assert.ok(res.chat);
 				assert.ok(res.chat.chatstartevent);
 				
-				console.log(res.chat, chatMessageContent);
 				chatid = res.chat.chatid;
 				return socket.emit('comment', {
 					eventid: res.chat.chatstartevent,

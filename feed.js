@@ -168,7 +168,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
 		'LEFT JOIN blogposts ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
 		'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +
 		'LEFT JOIN schools ON schools.schoolid = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
-		'WHERE events_users.uid = ? AND events.time > ? ORDER BY events.time DESC LIMIT ?',
+		'WHERE events_users.uid = ? AND events.time >= ? ORDER BY events.time DESC LIMIT ?',
 		[ctx.user.uid, since, count]).then(function(r) {
 		return _.chain(r).map(function(ev) {
 			if (ev.json) {

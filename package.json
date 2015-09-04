@@ -37,7 +37,7 @@
 		"weak": "~0.4.0",
 		"wordpress-rest-api": "~0.4.0",
 		"xml2js": "~0.4.4",
-		"tradity-connection": ">=0.7.0",
+		"tradity-connection": ">=0.7.1",
 		"validator": "^4.0.0"
 	},
 	"preferGlobal": false,

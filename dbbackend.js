@@ -198,7 +198,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 			var startTime = Date.now();
 			conn.query(q, args, function(err, res) {
 				if (process.env.DEBUG_SQL)
-				console.log(id + '\t' + (q.length > 50 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
+				console.log(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
 					(res && typeof res.length != 'undefined' ? res.length + ' results' :
 					 res && typeof res.affectedRows != 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
 					 ' in ' + (Date.now() - startTime) + ' ms');

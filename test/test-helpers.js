@@ -8,9 +8,11 @@ var sotradeClient = require('../sotrade-client.js');
 var serverUtil = require('../server-util.js');
 var _ = require('lodash');
 var Q = require('q');
+var fs = require('fs');
 var assert = require('assert');
 
 var testPerformance = process.env.ST_PROFILE_PERFORMANCE;
+var timingFile = process.env.ST_TIMING_FILE; // thought about naming this proFile... haha
 
 var getSocket = _.memoize(function() {
 	var socket = new sotradeClient.SoTradeConnection({
@@ -18,11 +20,37 @@ var getSocket = _.memoize(function() {
 		logDevCheck: false
 	});
 	
+	if (testPerformance && timingFile) {
+		socket.on('*', function(data) {
+			var dt = data._dt;
+			
+			if (!dt)
+				return; // probably an event
+			
+			var fields = [
+				Date.now(),
+				dt.cdelta,
+				dt.sdelta,
+				dt.inqueue,
+				dt.outqueue,
+				dt.scomp,
+				dt.ccomp,
+				data._resp_decsize,
+				data._resp_encsize,
+				data._reqsize,
+				data.code,
+				data.type,
+			];
+			
+			fs.appendFile(timingFile, fields.join('\t') + '\n', { mode: '0660' }, function() {});
+		});
+	}
+	
 	return socket.once('server-config').then(_.constant(socket));
 });
 
 var getTestUser = _.memoize(function() {
-	var name = 'mm' + Date.now() * (process.id | 0x100);
+	var name = 'mm' + Date.now() * (process.id | 0x100) + String(parseInt(Math.random() * 1000));
 	var password = serverUtil.sha256(name).substr(0, 12);
 	var email = name + '@invalid.invalid';
 	var uid = null;

@@ -19,18 +19,16 @@ describe('dqueries', function() {
 	describe('dquery', function() {
 		it('Should let users delay queries', function() {
 			return socket.emit('dquery', {
-				condition: 'time > ' + parseInt(Date.now()/1000 + 5),
+				condition: 'time > ' + parseInt(Date.now()/1000 + 2),
 				query: { type: 'ping' }
 			}).then(function(res) {
 				assert.equal(res.code, 'dquery-success');
 				
-				return Q.delay(4000);
+				return Q.delay(2000);
 			}).then(function() {
 				return Q.all([
-					Q.delay(1000).then(function() {
-						return socket.emit('dquery-checkall', { __sign__: true });
-					}),
-					socket.once('dquery-exec')
+					socket.once('dquery-exec'),
+					socket.emit('dquery-checkall', { __sign__: true })
 				]);
 			});
 		});

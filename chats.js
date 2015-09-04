@@ -147,7 +147,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 					json: {endpoints: query.endpoints}
 				});
 			}).then(function(eventid) {
-				return Q({chatid: chatid, eventid: eventid});
+				return Q({chatid: chatid, chatstartevent: eventid});
 			});
 		});
 	}).then(function(chat_) {
@@ -160,8 +160,9 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		}
 		
 		assert.notStrictEqual(chat.chatid, null);
-		assert.notStrictEqual(chat.eventid, null);
+		assert.notStrictEqual(chat.chatstartevent, null);
 		
+		chat.eventid = chat.chatstartevent; // backwards compatibility
 		chat.endpoints = query.endpoints;
 		
 		if (query.noMessages)

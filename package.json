@@ -14,7 +14,6 @@
 		"nodemailer-sendmail-transport": "~1.0.0"
 	},
 	"dependencies": {
-		"csv": "~0.4.1",
 		"cytoscape": "~2.4.1",
 		"datejs": "1.0.0-rc3",
 		"iconv": "~2.1.4",

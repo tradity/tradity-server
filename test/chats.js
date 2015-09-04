@@ -45,10 +45,12 @@ describe('chats', function() {
 			}).then(function(res) {
 				assert.equal(res.code, 'chat-get-success');
 				assert.ok(res.chat);
+				assert.ok(res.chat.chatstartevent);
 				
+				console.log(res.chat, chatMessageContent);
 				chatid = res.chat.chatid;
 				return socket.emit('comment', {
-					eventid: res.chat.eventid,
+					eventid: res.chat.chatstartevent,
 					comment: chatMessageContent
 				});
 			}).then(function(res) {

@@ -303,13 +303,14 @@ QContext.prototype.feed = function(data) {
 			return conn = release = conn_;
 		});
 	}).then(function() {
-		return this.request({name: 'feed', data: data, ctx: self, onEventId: onEventId, conn: conn});
-	}).then(function() {
+		return self.request({name: 'feed', data: data, ctx: self, onEventId: onEventId, conn: conn});
+	}).then(function(retval) {
 		if (release)
-			return release.commit();
-	}).catch(function() {
+			return release.commit().then(_.constant(retval));
+	}).catch(function(e) {
 		if (release)
-			return release.rollback();
+			return release.rollback().then(function() { throw e; });
+		throw e;
 	});
 };
 

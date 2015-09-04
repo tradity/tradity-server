@@ -147,7 +147,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 					json: {endpoints: query.endpoints}
 				});
 			}).then(function(eventid) {
-				return Q({chatid: chatid, chatstartevent: eventid});
+				return {chatid: chatid, chatstartevent: eventid};
 			});
 		});
 	}).then(function(chat_) {
@@ -159,8 +159,8 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 				throw new self.SoTradeClientError('chat-get-notfound');
 		}
 		
-		assert.notStrictEqual(chat.chatid, null);
-		assert.notStrictEqual(chat.chatstartevent, null);
+		assert.equal(parseInt(chat.chatid), chat.chatid);
+		assert.equal(parseInt(chat.chatstartevent), chat.chatstartevent);
 		
 		chat.eventid = chat.chatstartevent; // backwards compatibility
 		chat.endpoints = query.endpoints;

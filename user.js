@@ -1095,6 +1095,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
 	var conn, res, uid, cfg;
+	var gainUIDCBs = [];
+	
 	return self.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
 		uid = ctx.user !== null ? ctx.user.uid : null;
@@ -1178,8 +1180,6 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			return [];
 		}
 	}).then(function(res) {
-		var gainUIDCBs = [];
-		
 		if (res && res.insertId) {
 			// in case school was created
 			
@@ -1198,83 +1198,72 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			});
 		}
 		
-		var updateCB = function(res) {
-			if (uid === null)
-				uid = res.insertId;
-			
-			assert.strictEqual(uid, parseInt(uid));
-			
-			return gainUIDCBs.reduce(Q.when, Q()).then(function() {
-				return conn.commit();
-			}).then(function() {
-				if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
-					return { code: 'reg-success', uid: uid, extra: 'repush' };
-				else
-					return self.sendRegisterEmail(query,
-						new qctx.QContext({user: {uid: uid}, access: ctx.access,
-							parentComponent: self}),
-						xdata);
-			});
-		};
-		
-		return Q().then(function() {
-			if (type == 'change') {
-				return Q.all([
-					conn.query('UPDATE users SET name = ?, email = ?, email_verif = ?, ' +
-						'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
-						[String(query.name),
-						String(query.email), query.email == ctx.user.email ? 1 : 0, 
-						query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
-					conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
-						'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-						'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE uid = ?',
-						[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
-						query.birthday, String(query.desc), String(query.street),
-						String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-						query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
-						String(query.lang), uid]),
-					conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
-						[query.wprovision, query.lprovision, uid]),
-					query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q()
-				]).then(function() {
-				if (query.school != ctx.user.school) {
+		if (type == 'change') {
+			return Q.all([
+				conn.query('UPDATE users SET name = ?, email = ?, email_verif = ?, ' +
+					'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
+					[String(query.name),
+					String(query.email), query.email == ctx.user.email ? 1 : 0, 
+					query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
+				conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
+					'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
+					'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE uid = ?',
+					[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
+					query.birthday, String(query.desc), String(query.street),
+					String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
+					query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
+					String(query.lang), uid]),
+				conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
+					[query.wprovision, query.lprovision, uid]),
+				query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q()
+			]).then(function() {
+				if (query.school == ctx.user.school)
+					return;
+				
+				return Q().then(function() {
+					if (ctx.user.school != null);
+						return conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
+				}).then(function() {
 					if (query.school == null)
 						return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
-					else
-						return conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
-							'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' :
-								'((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
-							[uid, String(query.school), String(query.school)]);
 					
-					if (ctx.user.school != null) 
-						return conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
-				}
+					return conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
+						'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' :
+							'((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
+						[uid, String(query.school), String(query.school)]);
+				});
+			}).then(function() {
+				if (query.name == ctx.user.name)
+					return;
+				
+				return ctx.feed({
+					'type': 'user-namechange',
+					'targetid': uid,
+					'srcuser': uid,
+					'json': {'oldname': ctx.user.name, 'newname': query.name},
+					'conn': conn
 				}).then(function() {
-				if (query.name != ctx.user.name) {
-					return ctx.feed({
-						'type': 'user-namechange',
-						'targetid': uid,
-						'srcuser': uid,
-						'json': {'oldname': ctx.user.name, 'newname': query.name},
-						'conn': conn
-					}).then(function() {
-						return conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
-					});
-				}
-				}).then(function() {
-				if (query.wprovision != ctx.user.wprovision || query.lprovision != ctx.user.lprovision)
-					return ctx.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
-						{'oldwprov': ctx.user.wprovision, 'newwprov': query.wprovision,
-						 'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}, 'conn': conn});
-				}).then(function() {
-				if (query.desc != ctx.user.desc)
-					return ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
-				}).then(updateCB);
-			} else {
-				var inv = {};
-				return (query.betakey ?
-					conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]) :
-					Q()).then(function() {
+					return conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
+				});
+			}).then(function() {
+				if (query.wprovision == ctx.user.wprovision && query.lprovision == ctx.user.lprovision)
+					return;
+				
+				return ctx.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
+					{'oldwprov': ctx.user.wprovision, 'newwprov': query.wprovision,
+					 'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}, 'conn': conn});
+			}).then(function() {
+				if (query.desc == ctx.user.desc)
+					return;
+				
+				return ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
+			});
+		} else {
+			var inv = {};
+			return Q().then(function() {
+				if (query.betakey)
+					return conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
+			}).then(function() {
 				if (!query.invitekey)
 					return;
 				
@@ -1294,42 +1283,55 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 						return conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.iid, uid]);
 					});
 				});
-				}).then(function() {
-					return conn.query('INSERT INTO users ' +
-						'(name, delayorderhist, email, email_verif, registertime) ' +
-						'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())',
-						[String(query.name), query.delayorderhist?1:0,
-						String(query.email), (inv.email && inv.email == query.email) ? 1 : 0]);
-				}).then(function(res) {
-					uid = res.insertId;
-					
-					return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q();
-				}).then(function() {
-					return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
-						'street, zipcode, town, schoolclass, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
-						'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
-						'VALUES (?, ?, ?, ?, ?)',
-						[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
-						query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
-						String(query.schoolclass || ''), String(query.lang),
-						uid, cfg.defaultWProvision, cfg.defaultLProvision,
-						cfg.defaultStartingMoney, cfg.defaultStartingMoney]);
-				}).then(function() {
-					return ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid, 'conn': conn});
-				}).then(function() {
-					return conn.query('INSERT INTO stocks (stocktextid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
-						['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity']);
-				}).then(function() {
-					if (query.school) {
-						return conn.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
-							'VALUES(?, ?, ' + 
-							(inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
-							', UNIX_TIMESTAMP())',
-							[uid, String(query.school), String(query.school)]);
-					}
-				}).then(_.bind(updateCB, self, res));
-			}
-		});
+			}).then(function() {
+				return conn.query('INSERT INTO users ' +
+					'(name, delayorderhist, email, email_verif, registertime) ' +
+					'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())',
+					[String(query.name), query.delayorderhist?1:0,
+					String(query.email), (inv.email && inv.email == query.email) ? 1 : 0]);
+			}).then(function(res) {
+				uid = res.insertId;
+				
+				return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q();
+			}).then(function() {
+				return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
+					'street, zipcode, town, schoolclass, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
+					'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
+					'VALUES (?, ?, ?, ?, ?)',
+					[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
+					query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
+					String(query.schoolclass || ''), String(query.lang),
+					uid, cfg.defaultWProvision, cfg.defaultLProvision,
+					cfg.defaultStartingMoney, cfg.defaultStartingMoney]);
+			}).then(function() {
+				return ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid, 'conn': conn});
+			}).then(function() {
+				return conn.query('INSERT INTO stocks (stocktextid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
+					['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity']);
+			}).then(function() {
+				if (query.school) {
+					return conn.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
+						'VALUES(?, ?, ' + 
+						(inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
+						', UNIX_TIMESTAMP())',
+						[uid, String(query.school), String(query.school)]);
+				}
+			});
+		}
+	}).then(function() {
+		assert.strictEqual(uid, parseInt(uid));
+		
+		return gainUIDCBs.reduce(Q.when, Q());
+	}).then(function() {
+		return conn.commit();
+	}).then(function() {
+		if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
+			return { code: 'reg-success', uid: uid, extra: 'repush' };
+		
+		return self.sendRegisterEmail(query,
+			new qctx.QContext({user: {uid: uid}, access: ctx.access,
+				parentComponent: self}),
+			xdata);
 	});
 };
 

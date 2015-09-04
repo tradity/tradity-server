@@ -41,6 +41,7 @@ function Database () {
 	this.queryCount= 0;
 	this.isShuttingDown = false;
 	this.writableNodes = [];
+	this.id = 0;
 }
 
 util.inherits(Database, buscomponent.BusComponent);
@@ -174,6 +175,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 		self.openConnections++;
 	
 		assert.ok(conn);
+		var id = self.id++;
 		
 		var release = function() {
 			self.openConnections--;
@@ -193,7 +195,14 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 			};
 			
 			var deferred = Q.defer();
+			var startTime = Date.now();
 			conn.query(q, args, function(err, res) {
+				if (process.env.DEBUG_SQL)
+				console.log(id + '\t' + (q.length > 50 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
+					(res && typeof res.length != 'undefined' ? res.length + ' results' :
+					 res && typeof res.affectedRows != 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
+					 ' in ' + (Date.now() - startTime) + ' ms');
+				
 				if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
 					self.deadlockCount++;
 					rollback();

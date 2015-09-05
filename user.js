@@ -1121,33 +1121,42 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			[betakey[0]]);
 	}).then(function(βkey) {
 		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
-			type == 'register' && !ctx.access.has('userdb')) {
-			return conn.rollback().then(function() {
+			type == 'register' && !ctx.access.has('userdb'))
 				throw new self.SoTradeClientError('reg-beta-necessary');
-			});
 		}
 		
 		if (res.length > 0 && res[0].uid !== uid) {
-			return conn.rollback().then(function() {
-				if (res[0].email.toLowerCase() == query.email.toLowerCase())
-					throw new self.SoTradeClientError('reg-email-already-present');
-				else
-					throw new self.SoTradeClientError('reg-name-already-present');
-			});
+			if (res[0].email.toLowerCase() == query.email.toLowerCase())
+				throw new self.SoTradeClientError('reg-email-already-present');
+			else
+				throw new self.SoTradeClientError('reg-name-already-present');
 		}
 		
-		return (query.school === null ? [] :
-			conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) FOR UPDATE', [String(query.school)]));
+		if (query.school === null)
+			return [];
+		
+		return conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) FOR UPDATE', [String(query.school)]);
 	}).then(function(res) {
 		if (res.length == 0 && query.school !== null) {
-			if (parseInt(query.school) == query.school || !query.school) {
-				return conn.rollback().then(function() {
-					throw new self.SoTradeClientError('reg-unknown-school');
-				});
-			}
+			if (parseInt(query.school) == query.school || !query.school)
+				throw new self.SoTradeClientError('reg-unknown-school');
 			
-			return conn.query('INSERT INTO schools (name, path) VALUES(?, CONCAT("/",LOWER(MD5(?))))',
-				[String(query.school), String(query.school)]);
+			var possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
+			
+			return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [possibleSchoolPath]).then(function(psRes) {
+				assert.equal(psRes.length, 1);
+				
+				if (psRes[0].c == 0) /* no collision, no additional identifier needed */
+					return null;
+				
+				return Q.nfcall(crypto.pseudoRandomBytes, 3);
+			}).then(function(rand) {
+				if (rand)
+					possibleSchoolPath += '-' rand.toString('base64') + String(Date.now()).substr(3, 4);
+				
+				return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
+					[String(query.school), possibleSchoolPath]);
+			});
 		} else {
 			if (query.school !== null) {
 				assert.ok(parseInt(query.school) != query.school || query.school == res[0].schoolid);

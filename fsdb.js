@@ -164,24 +164,22 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		throw new self.SoTradeClientError('server-readonly');
 	
 	var content = query.content;
-	var uniqrole, cfg, filehash, filename, url, content, conn;
+	var uniqrole, filehash, filename, url, content;
 	
 	return Q.all([
 		self.getServerConfig(),
 		ctx.startTransaction()
-	]).spread(function(cfg_, conn_) {
-		conn = conn_;
-		cfg = cfg_;
-		uniqrole = cfg.fsdb.uniqroles[query.role];
-		
-		query.proxy = query.proxy ? true : false;
-		query.mime = query.mime || 'application/octet-stream';
-		
-		if (query.base64)
-			content = new Buffer(query.content, 'base64');
-		
-		return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE', [ctx.user ? ctx.user.uid : null]);
-	}).then(function(res) {
+	]).spread(function(cfg, conn) {
+	uniqrole = cfg.fsdb.uniqroles[query.role];
+	
+	query.proxy = query.proxy ? true : false;
+	query.mime = query.mime || 'application/octet-stream';
+	
+	if (query.base64)
+		content = new Buffer(query.content, 'base64');
+	
+	return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
+		[ctx.user ? ctx.user.uid : null]).then(function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
 		if (!ctx.access.has('filesystem')) {
@@ -265,12 +263,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		}
 		
 		return Q();
-	}).catch(function(err) {
-		return (conn? conn.rollback() : Q()).then(function() {
-			throw err;
-		});
-	}).then(function() {
-		return conn.commit();
+	}).then(conn.commit, conn && conn.rollbackAndThrow);
 	}).then(function() {
 		return { code: 'publish-success', extra: 'repush' };
 	});

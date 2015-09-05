@@ -230,26 +230,12 @@ User.prototype.login = buscomponent.provide('client-login',
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
 			'ORDER BY email_verif DESC, users.uid DESC, changetime DESC FOR UPDATE';
 
-		if (ctx.getProperty('readonly'))
+		if (ctx.getProperty('readonly') || !useTransaction)
 			return ctx.query(query, [name, name]);
 		
-		var conn, res;
-		return Q().then(function() {
-			if (!useTransaction)
-				return ctx;
-			
-			return ctx.startTransaction();
-		}).then(function(conn_) {
-			conn = conn_;
+		return ctx.startTransaction().then(function(conn) {
 			return conn.query(query, [name, name]);
-		}).then(function(res_) {
-			res = res_;
-			
-			if (useTransaction)
-				return conn.commit();
-		}).then(function() {
-			return res;
-		});
+		}).then(conn.commit, conn.rollbackAndThrow);
 	}).then(function(res) {
 		if (res.length == 0) {
 			if (!useTransaction)
@@ -330,14 +316,11 @@ User.prototype.login = buscomponent.provide('client-login',
 				// use transaction with lock to make sure all server nodes have the same data
 				
 				return ctx.startTransaction();
-			}).then(function(conn_) {
-				conn = conn_;
-				
+			}).then(function(conn) {
 				return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 					'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-					[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime]);
-			}).then(function() {
-				return conn.commit();
+					[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime])
+					.then(conn.commit, conn.rollbackAndThrow);
 			}).then(function() {
 				return { code: 'login-success', key: key, uid: uid, extra: 'repush' };
 			});
@@ -843,38 +826,34 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 	if (uid != query.uid)
 		throw new self.FormatError();
 	
-	var conn;
-	return ctx.startTransaction().then(function(conn_) {
-		conn = conn_;
+	return ctx.startTransaction().then(function(conn) {
+		return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid])
+		.then(function(res) {
+			if (res.length !== 1)
+				throw new self.SoTradeClientError('email-verify-failure');
+			
+			email = res[0].email;
+			if (res[0].email_verif)
+				throw new self.SoTradeClientError('email-verify-already-verified');
+			
+			return conn.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ? FOR UPDATE', [uid, key]);
+		}).then(function(res) {
+			assert.equal(res.length, 1);
+			
+			if (res[0].c < 1 && !ctx.access.has('userdb'))
+				throw new self.SoTradeClientError('email-verify-failure');
+			
+			return conn.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ? LOCK IN SHARE MODE', [email, uid]);
+		}).then(function(res) {
+			if (res[0].c > 0)
+				throw new self.SoTradeClientError('email-verify-other-already-verified');
 		
-		return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid]);
-	}).then(function(res) {
-		if (res.length !== 1)
-			throw new self.SoTradeClientError('email-verify-failure');
-		
-		email = res[0].email;
-		if (res[0].email_verif)
-			throw new self.SoTradeClientError('email-verify-already-verified');
-		
-		return conn.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ? FOR UPDATE', [uid, key]);
-	}).then(function(res) {
-		assert.equal(res.length, 1);
-		
-		if (res[0].c < 1 && !ctx.access.has('userdb'))
-			throw new self.SoTradeClientError('email-verify-failure');
-		
-		return conn.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ? LOCK IN SHARE MODE', [email, uid]);
-	}).then(function(res) {
-		if (res[0].c > 0)
-			throw new self.SoTradeClientError('email-verify-other-already-verified');
-	
-		return conn.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
-	}).then(function() {
-		return conn.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
-	}).then(function() {
-		ctx.access.grant('email_verif');
-		
-		return conn.commit();
+			return conn.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
+		}).then(function() {
+			return conn.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
+		}).then(function() {
+			ctx.access.grant('email_verif');
+		}).then(conn.commit, conn.rollbackAndThrow);
 	}).then(function() {
 		return self.login({
 			name: email,
@@ -1094,7 +1073,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 	
 	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
-	var conn, res, uid, cfg;
+	var res, uid, cfg;
 	var gainUIDCBs = [];
 	
 	return self.getServerConfig().then(function(cfg_) {
@@ -1133,12 +1112,10 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			query.school = null;
 		
 		return ctx.startTransaction({}, {isolation: 'SERIALIZABLE'});
-	}).then(function(conn_) {
-		conn = conn_;
+	}).then(function(conn) {
 		return conn.query('SELECT email, name, uid FROM users ' +
 			'WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
-			[query.email, query.name, uid]);
-	}).then(function(res_) {
+			[query.email, query.name, uid]).then(function(res_) {
 		res = res_;
 		return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
 			[betakey[0]]);
@@ -1322,8 +1299,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		assert.strictEqual(uid, parseInt(uid));
 		
 		return gainUIDCBs.reduce(Q.when, Q());
-	}).then(function() {
-		return conn.commit();
+	}).then(conn.commit, conn.rollbackAndThrow);
 	}).then(function() {
 		if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
 			return { code: 'reg-success', uid: uid, extra: 'repush' };

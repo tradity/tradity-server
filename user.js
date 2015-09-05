@@ -224,7 +224,7 @@ User.prototype.login = buscomponent.provide('client-login',
 	var key, uid;
 	
 	return Q().then(function() {
-		var query = 'SELECT passwords.*, users.email_verif '+
+		var query = 'SELECT passwords.*, users.email_verif ' +
 			'FROM passwords ' +
 			'JOIN users ON users.uid = passwords.uid ' +
 			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
@@ -847,7 +847,7 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 	return ctx.startTransaction().then(function(conn_) {
 		conn = conn_;
 		
-		return conn.query('SELECT email_verif, email FROM users WHERE id = ? LOCK IN SHARE MODE', [uid]);
+		return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid]);
 	}).then(function(res) {
 		if (res.length !== 1)
 			throw new self.SoTradeClientError('email-verify-failure');

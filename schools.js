@@ -1,7 +1,7 @@
 (function () { "use strict";
 
 var commonUtil = require('tradity-connection');
-var serverUtil = require('./server-util.js');
+var deepupdate = require('./lib/deepupdate.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
@@ -238,7 +238,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 		assert.ok(typeof parentResult.code == 'undefined' || parentResult.code == 'get-school-info-success');
 		
 		s.parentSchool = parentResult;
-		s.config = serverUtil.deepupdate({}, cfg.schoolConfigDefaults,
+		s.config = deepupdate({}, cfg.schoolConfigDefaults,
 			s.parentSchool ? s.parentSchool.config : {}, s.config);
 		
 		return { code: 'get-school-info-success', schoolinfo: s };

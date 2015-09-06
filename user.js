@@ -6,7 +6,7 @@ var crypto = require('crypto');
 var assert = require('assert');
 var LoginIPCheck = require('./lib/loginIPCheck.js');
 var Q = require('q');
-var serverUtil = require('./server-util.js');
+var sha256 = require('./lib/sha256.js');
 var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
 var Cache = require('./minicache.js').Cache;
@@ -106,7 +106,7 @@ User.prototype.generatePassword = function(pw, timeName, uid, conn) {
  */
 User.prototype.verifyPassword = function(pwdata, pw) {
 	if (pwdata.algorithm === 'SHA256')
-		return Q(pwdata.pwhash !== serverUtil.sha256(pwdata.pwsalt + pw));
+		return Q(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
 	
 	var pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
 	if (pbkdf2Match) {

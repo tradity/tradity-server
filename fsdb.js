@@ -6,7 +6,8 @@ var http = require('http');
 var https = require('https');
 var assert = require('assert');
 var Q = require('q');
-var serverUtil = require('./server-util.js');
+var sha256 = require('./lib/sha256.js');
+var deepupdate = require('./lib/deepupdate.js');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
@@ -113,7 +114,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			finalize = finalize || function(res) { res.end(); };
 			
 			if (r.headers)
-				headers = serverUtil.deepupdate(headers, JSON.parse(r.headers));
+				headers = deepupdate(headers, JSON.parse(r.headers));
 			
 			res.writeHead(status, headers);
 			finalize(res);
@@ -222,7 +223,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			}
 		}
 		
-		filehash = serverUtil.sha256(content + String(Date.now())).substr(0, 32);
+		filehash = sha256(content + String(Date.now())).substr(0, 32);
 		query.name = query.name ? String(query.name) : filehash;
 		
 		filename = (ctx.user ? ctx.user.uid + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');

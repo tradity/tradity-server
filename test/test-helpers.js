@@ -5,7 +5,7 @@
 Error.stackTraceLimit = Infinity;
 
 var sotradeClient = require('../sotrade-client.js');
-var serverUtil = require('../server-util.js');
+var sha256 = require('../lib/sha256.js');
 var _ = require('lodash');
 var Q = require('q');
 var fs = require('fs');
@@ -51,7 +51,7 @@ var getSocket = _.memoize(function() {
 
 var getTestUser = _.memoize(function() {
 	var name = 'mm' + Date.now() * (process.id | 0x100) + String(parseInt(Math.random() * 1000));
-	var password = serverUtil.sha256(name).substr(0, 12);
+	var password = sha256(name).substr(0, 12);
 	var email = name + '@invalid.invalid';
 	var uid = null;
 	

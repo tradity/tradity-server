@@ -6,7 +6,7 @@ var Q = require('q');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
 var commonUtil = require('tradity-connection');
-var serverUtil = require('./server-util.js');
+var sha256 = require('./lib/sha256.js');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 
@@ -171,7 +171,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		if (cfg.mail.forceFrom)
 			opt.from = cfg.mail.forceFrom;
 		
-		shortId = serverUtil.sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
+		shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
 		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
 		
 		if (ctx && !ctx.getProperty('readonly'))

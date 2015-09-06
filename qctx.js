@@ -309,7 +309,7 @@ QContext.prototype.feed = function(data) {
 			return release.commit().then(_.constant(retval));
 	}).catch(function(e) {
 		if (release)
-			return release.rollback().then(function() { throw e; });
+			return release.rollbackAndThrow(e);
 		throw e;
 	});
 };
@@ -354,6 +354,12 @@ QContext.prototype.rollback = function() {
 	assert.ok(this.contextTransaction);
 	
 	return this.contextTransaction.rollback.apply(this, arguments);
+};
+
+QContext.prototype.rollbackAndThrow = function(e) {
+	return this.rollback().then(function() {
+		throw e;
+	});
 };
 
 /**
@@ -524,13 +530,25 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
 		conn = conn_;
 		
 		var oldCommit = conn.commit, oldRollback = conn.rollback;
-		conn.commit = function() {
+		conn.commit = function(v) {
 			cleanTLEntry();
-			return oldCommit.apply(this, arguments);
+			return Q(oldCommit.call(conn, true)).then(_.constant(v));
 		};
+		
+		conn.commitWithoutRelease = function(v) {
+			cleanTLEntry();
+			return Q(oldCommit.call(conn, false)).then(_.constant(v));
+		};
+		
 		conn.rollback = function() {
 			cleanTLEntry();
-			return oldRollback.apply(this, arguments);
+			return oldRollback.apply(conn, arguments);
+		};
+		
+		conn.rollbackAndThrow = function(e) {
+			return conn.rollback().then(function() {
+				throw e;
+			});
 		};
 		
 		var tables = _.keys(tablelocks);

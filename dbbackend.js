@@ -5,7 +5,7 @@ var util = require('util');
 var assert = require('assert');
 var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
-var serverUtil = require('./server-util.js');
+var deepupdate = require('./lib/deepupdate.js');
 
 /**
  * Provides access to a (MySQL) database for storing and fetching information
@@ -59,7 +59,7 @@ Database.prototype._init = function() {
 		for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
 			var id = cfg.db.clusterOptions.order[i];
 			assert.ok(cfg.db.cluster[id]);
-			var opt = serverUtil.deepupdate(cfg.db.cluster[id], cfg.db);
+			var opt = deepupdate(cfg.db.cluster[id], cfg.db);
 			
 			if (opt.ssl === 'default')
 				opt.ssl = cfg.ssl || {};

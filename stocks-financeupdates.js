@@ -65,16 +65,13 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
  * @function busreq~updateProvisions
  */
 StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updateProvisions', ['ctx'], function (ctx) {
-	var conn;
-	
 	return ctx.startTransaction([
 		{ name: 'depot_stocks', alias: 'ds', mode: 'w' },
 		{ name: 'users_finance', alias: 'l', mode: 'w' },
 		{ name: 'users_finance', alias: 'f', mode: 'w' },
 		{ name: 'stocks', alias: 's', mode: 'r' },
 		{ name: 'transactionlog', mode: 'w' }
-	]).then(function(conn_) {
-		conn = conn_;
+	]).then(function(conn) {
 		return conn.query('SELECT ' +
 			'ds.depotentryid AS dsid, s.stocktextid, ' +
 			wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
@@ -83,8 +80,8 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 			'f.uid AS fid, l.uid AS lid ' +
 			'FROM depot_stocks AS ds JOIN stocks AS s ON s.stockid = ds.stockid ' +
 			'JOIN users_finance AS f ON ds.uid = f.uid ' +
-			'JOIN users_finance AS l ON s.leader = l.uid AND f.uid != l.uid');
-	}).then(function(dsr) {
+			'JOIN users_finance AS l ON s.leader = l.uid AND f.uid != l.uid')
+		.then(function(dsr) {
 		return Q.all(dsr.map(function(entry) {
 			assert.ok(entry.wfees >= 0);
 			assert.ok(entry.lfees <= 0);
@@ -119,8 +116,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 				'WHERE uid = ?',
 				[totalfees, totalfees, entry.wfees, entry.lfees, entry.lid]);
 			});
-		})).then(function() {
-			return conn.commit();
+		})).then(conn.commit, conn.rollbackAndThrow);
 		});
 	});
 });
@@ -308,7 +304,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		var lmuComputationsComplete = Date.now();
 		var res;
 		return conn.query(updateQuery, updateParams).then(function() {
-			return conn.commit(false);
+			return conn.commitWithoutRelease();
 		}).then(function() {
 			return conn.query('SELECT stocktextid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
 				'FROM stocks JOIN users ON leader = users.uid WHERE leader IS NOT NULL',

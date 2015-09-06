@@ -3,7 +3,7 @@
 var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
-var serverUtil = require('../server-util.js');
+var sha256 = require('../lib/sha256.js');
 var commonUtil = require('tradity-connection');
 var testHelpers = require('./test-helpers.js');
 var user, socket;
@@ -186,7 +186,7 @@ describe('admin', function() {
 					__sign__: true,
 					schoolid: school.id,
 					schoolname: 'SCHOOL 42',
-					schoolpath: '/' + serverUtil.sha256(school.path)
+					schoolpath: '/' + sha256(school.path)
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'rename-school-success');

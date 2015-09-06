@@ -17,6 +17,7 @@
 		"cytoscape": "~2.4.1",
 		"datejs": "1.0.0-rc3",
 		"iconv": "~2.1.4",
+		"ipaddr.js": "~1.0.3",
 		"lapack": "~0.1.0",
 		"lodash": "~3.10.0",
 		"lzma-native": "~0.3.0",

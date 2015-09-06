@@ -6,7 +6,7 @@ var Q = require('q');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
 var commonUtil = require('tradity-connection');
-var serverUtil = require('./server-util.js');
+var sha256 = require('./lib/sha256.js');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 
@@ -109,35 +109,32 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 	if (!internal && !ctx.access.has('email-bounces'))
 		throw new self.PermissionDenied();
 	
-	var mail, conn;
-	return ctx.startTransaction().then(function(conn_) {
-		conn = conn_;
-		
-		return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE', [String(query.messageId)]);
-	}).then(function(r) {
-		if (r.length == 0)
-			throw new self.SoTradeClientError('email-bounced-notfound');
-		
-		assert.equal(r.length, 1);
-		mail = r[0];
-		
-		assert.ok(mail);
-		
-		return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
-			[String(query.diagnostic_code || ''), mail.mailid]);
-	}).then(function() {
-		if (!mail)
-			return;
-		
-		return ctx.feed({
-			'type': 'email-bounced',
-			'targetid': mail.mailid,
-			'srcuser': mail.uid,
-			'noFollowers': true,
-			conn: conn
-		});
-	}).then(function() {
-		return conn.commit();
+	var mail;
+	return ctx.startTransaction().then(function(conn) {
+		return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
+			[String(query.messageId)]).then(function(r) {
+			if (r.length == 0)
+				throw new self.SoTradeClientError('email-bounced-notfound');
+			
+			assert.equal(r.length, 1);
+			mail = r[0];
+			
+			assert.ok(mail);
+			
+			return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
+				[String(query.diagnostic_code || ''), mail.mailid]);
+		}).then(function() {
+			if (!mail)
+				return;
+			
+			return ctx.feed({
+				'type': 'email-bounced',
+				'targetid': mail.mailid,
+				'srcuser': mail.uid,
+				'noFollowers': true,
+				conn: conn
+			});
+		}).then(conn.commit, conn.rollbackAndThrow);
 	}).then(function() {
 		return { code: 'email-bounced-success' };
 	});
@@ -174,7 +171,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		if (cfg.mail.forceFrom)
 			opt.from = cfg.mail.forceFrom;
 		
-		shortId = serverUtil.sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
+		shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
 		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
 		
 		if (ctx && !ctx.getProperty('readonly'))

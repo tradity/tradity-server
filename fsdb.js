@@ -6,7 +6,8 @@ var http = require('http');
 var https = require('https');
 var assert = require('assert');
 var Q = require('q');
-var serverUtil = require('./server-util.js');
+var sha256 = require('./lib/sha256.js');
+var deepupdate = require('./lib/deepupdate.js');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 
@@ -113,7 +114,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 			finalize = finalize || function(res) { res.end(); };
 			
 			if (r.headers)
-				headers = serverUtil.deepupdate(headers, JSON.parse(r.headers));
+				headers = deepupdate(headers, JSON.parse(r.headers));
 			
 			res.writeHead(status, headers);
 			finalize(res);
@@ -164,24 +165,22 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		throw new self.SoTradeClientError('server-readonly');
 	
 	var content = query.content;
-	var uniqrole, cfg, filehash, filename, url, content, conn;
+	var uniqrole, filehash, filename, url, content;
 	
 	return Q.all([
 		self.getServerConfig(),
 		ctx.startTransaction()
-	]).spread(function(cfg_, conn_) {
-		conn = conn_;
-		cfg = cfg_;
-		uniqrole = cfg.fsdb.uniqroles[query.role];
-		
-		query.proxy = query.proxy ? true : false;
-		query.mime = query.mime || 'application/octet-stream';
-		
-		if (query.base64)
-			content = new Buffer(query.content, 'base64');
-		
-		return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE', [ctx.user ? ctx.user.uid : null]);
-	}).then(function(res) {
+	]).spread(function(cfg, conn) {
+	uniqrole = cfg.fsdb.uniqroles[query.role];
+	
+	query.proxy = query.proxy ? true : false;
+	query.mime = query.mime || 'application/octet-stream';
+	
+	if (query.base64)
+		content = new Buffer(query.content, 'base64');
+	
+	return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
+		[ctx.user ? ctx.user.uid : null]).then(function(res) {
 		var total = uniqrole ? 0 : res[0].total;
 		
 		if (!ctx.access.has('filesystem')) {
@@ -224,7 +223,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 			}
 		}
 		
-		filehash = serverUtil.sha256(content + String(Date.now())).substr(0, 32);
+		filehash = sha256(content + String(Date.now())).substr(0, 32);
 		query.name = query.name ? String(query.name) : filehash;
 		
 		filename = (ctx.user ? ctx.user.uid + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
@@ -265,12 +264,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 		}
 		
 		return Q();
-	}).catch(function(err) {
-		return (conn? conn.rollback() : Q()).then(function() {
-			throw err;
-		});
-	}).then(function() {
-		return conn.commit();
+	}).then(conn.commit, conn && conn.rollbackAndThrow);
 	}).then(function() {
 		return { code: 'publish-success', extra: 'repush' };
 	});

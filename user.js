@@ -4,6 +4,7 @@ var _ = require('lodash');
 var util = require('util');
 var crypto = require('crypto');
 var assert = require('assert');
+var LoginIPCheck = require('./lib/loginIPCheck.js');
 var Q = require('q');
 var serverUtil = require('./server-util.js');
 var buscomponent = require('./stbuscomponent.js');
@@ -29,6 +30,16 @@ function User () {
 	User.super_.apply(this, arguments);
 	
 	this.cache = new Cache();
+	
+	this.loginIPCheck = null;
+	this.getLoginIPCheck = function() {
+		if (this.loginIPCheck)
+			return Q(this.loginIPCheck);
+		
+		return this.loginIPCheck = this.getServerConfig().then(function(cfg) {
+			return new LoginIPCheck(cfg.login);
+		});
+	};
 }
 
 util.inherits(User, buscomponent.BusComponent);
@@ -223,7 +234,9 @@ User.prototype.login = buscomponent.provide('client-login',
 	var pw = String(query.pw);
 	var key, uid;
 	
-	return Q().then(function() {
+	return self.getLoginIPCheck().then(function(check) {
+		return check.check(xdata.remoteip);
+	}).then(function() {
 		var query = 'SELECT passwords.*, users.email_verif ' +
 			'FROM passwords ' +
 			'JOIN users ON users.uid = passwords.uid ' +
@@ -311,7 +324,6 @@ User.prototype.login = buscomponent.provide('client-login',
 				return ret;
 			});
 		} else {
-			var conn;
 			return self.regularCallback({}, ctx).then(function() {
 				// use transaction with lock to make sure all server nodes have the same data
 				
@@ -1087,7 +1099,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		
 		query.email = String(query.email);
 		query.name = String(query.name);
-		if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) || parseInt(query.name) == query.name)
+		if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
+		    parseInt(query.name) == query.name)
 			throw new self.SoTradeClientError('reg-name-invalid-char');
 		
 		query.giv_name = String(query.giv_name || '');
@@ -1122,8 +1135,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 	}).then(function(βkey) {
 		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
 			type == 'register' && !ctx.access.has('userdb'))
-				throw new self.SoTradeClientError('reg-beta-necessary');
-		}
+			throw new self.SoTradeClientError('reg-beta-necessary');
 		
 		if (res.length > 0 && res[0].uid !== uid) {
 			if (res[0].email.toLowerCase() == query.email.toLowerCase())
@@ -1152,7 +1164,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 				return Q.nfcall(crypto.pseudoRandomBytes, 3);
 			}).then(function(rand) {
 				if (rand)
-					possibleSchoolPath += '-' rand.toString('base64') + String(Date.now()).substr(3, 4);
+					possibleSchoolPath += '-' + rand.toString('base64') + String(Date.now()).substr(3, 4);
 				
 				return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
 					[String(query.school), possibleSchoolPath]);

@@ -194,7 +194,8 @@ Stocks.prototype.updateValueHistory = function(ctx) {
 	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
 	return ctx.query('INSERT INTO tickshistory (ticks, time) ' +
 		'SELECT value, UNIX_TIMESTAMP() FROM globalvars WHERE name="ticks"').then(function() {
-		return ctx.query('CREATE TEMPORARY TABLE users_dindex SELECT uid, deletiontime FROM users; ' +
+		return ctx.query('DROP TEMPORARY TABLE IF EXISTS users_dindex; ' +
+			'CREATE TEMPORARY TABLE users_dindex SELECT uid, deletiontime FROM users; ' +
 			'INSERT INTO valuehistory (uid, ' + copyFields + ', time) SELECT users_finance.uid, ' + copyFields + ', UNIX_TIMESTAMP() ' +
 			'FROM users_finance JOIN users_dindex ON users_dindex.uid = users_finance.uid WHERE users_dindex.deletiontime IS NULL; ' +
 			'DROP TABLE users_dindex');

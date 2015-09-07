@@ -247,8 +247,8 @@ User.prototype.login = buscomponent.provide('client-login',
 			return ctx.query(query, [name, name]);
 		
 		return ctx.startTransaction().then(function(conn) {
-			return conn.query(query, [name, name]);
-		}).then(conn.commit, conn.rollbackAndThrow);
+			return conn.query(query, [name, name]).then(conn.commit, conn.rollbackAndThrow);
+		});
 	}).then(function(res) {
 		if (res.length == 0) {
 			if (!useTransaction)

@@ -541,6 +541,7 @@ Bus.prototype.handleIncomingRequest = function(req) {
 	assert.ok(!req.data.reply);
 	assert.ok(req.requestId);
 	
+	req.data = _.clone(req.data);
 	req.data.reply = function() {
 		var args = Array.prototype.slice.call(arguments);
 		

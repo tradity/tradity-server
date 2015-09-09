@@ -59,7 +59,7 @@ Database.prototype._init = function() {
 		for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
 			var id = cfg.db.clusterOptions.order[i];
 			assert.ok(cfg.db.cluster[id]);
-			var opt = deepupdate(cfg.db.cluster[id], cfg.db);
+			var opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
 			
 			if (opt.ssl === 'default')
 				opt.ssl = cfg.ssl || {};

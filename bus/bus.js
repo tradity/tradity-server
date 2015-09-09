@@ -115,7 +115,7 @@ Bus.prototype.toJSON = function() {
 Bus.prototype.determineBusID = function() {
 	// return hostname and hash of network interfaces, process id, current time
 	return this.hostname + '-' + sha256(JSON.stringify(os.networkInterfaces()) + '|' +
-		this.pid + '|' + Date.now()).substr(0, 12);
+		this.pid + '|' + Date.now() + '|' + Math.random()).substr(0, 12);
 };
 
 Bus.prototype.emitBusNodeInfoSoon = function() {

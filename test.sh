@@ -8,6 +8,7 @@ export DEBUG=''
 export SOTRADE_CONFIG=test # indicates using config.test.js
 export SOTRADE_ERROR_LOG_FILE=/tmp/errors-$(date +%s).log
 export SOTRADE_DO_NOT_OUTPUT_ERRORS=1
+export SOTRADE_NO_CLUSTER=1
 
 if [ x"$SOTRADE_TEST_SKIP_DB_SETUP" = x"" ]; then
 echo "Setting up database..." >&2

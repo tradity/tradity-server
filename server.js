@@ -39,7 +39,7 @@ var ConnectionData = require('./connectiondata.js').ConnectionData;
  * @constructor module:server~SoTradeServer
  * @augments module:stbuscomponent~STBusComponent
  */
-function SoTradeServer () {
+function SoTradeServer (info) {
 	SoTradeServer.super_.apply(this, arguments);
 	
 	this.httpServer = null;
@@ -55,6 +55,7 @@ function SoTradeServer () {
 	};
 	
 	this.connectionCount = 0;
+	this.info = info || {};
 }
 
 util.inherits(SoTradeServer, buscomponent.BusComponent);
@@ -77,7 +78,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 	var ret = {
 		pid: process.pid,
 		hostname: os.hostname(),
-		isBackgroundWorker: process.isBackgroundWorker,
+		isBackgroundWorker: self.info.isBackgroundWorker,
 		creationTime: self.creationTime,
 		clients: _.map(self.clients, function(x) { return x.stats(); }),
 		bus: self.bus.stats(),
@@ -112,6 +113,8 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
  * @function module:server~SoTradeServer#start
  */
 SoTradeServer.prototype.start = function(port) {
+	assert.ok(port);
+	
 	var self = this;
 	var cfg;
 	
@@ -145,6 +148,8 @@ SoTradeServer.prototype.start = function(port) {
  * @function module:server~SoTradeServer#listen
  */
 SoTradeServer.prototype.listen = function(port, host) {
+	assert.ok(port);
+	
 	var self = this;
 	var deferred = Q.defer();
 	

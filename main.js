@@ -27,20 +27,27 @@ var achievementList = require('./achievement-list.js');
  * @module main
  */
 
-function Main() {
+function Main(opt) {
 	Main.init_();
 	
-	Main.super_.apply(this, arguments);
+	Main.super_.apply(this);
 	
+	opt = opt || {};
 	this.mainBus = new bus.Bus();
 	this.defaultStockLoaderDeferred = Q.defer();
 	this.defaultStockLoader = this.defaultStockLoaderDeferred.promise;
 	this.readonly = this.getServerConfig().readonly;
 	this.managerCTX = null;
+	this.useCluster = opt.useCluster == null ? !process.env.SOTRADE_NO_CLUSTER : opt.useCluster;
+	this.isWorker = opt.isWorker == null ? cluster.isWorker : opt.isWorker;
+	this.isBackgroundWorker = opt.isBackgroundWorker || null;
+	this.transportToMaster = opt.transportToMaster || null;
 	
 	this.bwpid = null;
 	this.workers = [];
 	this.assignedPorts = [];
+	this.hasReceivedStartCommand = false;
+	this.port = opt.port || null;
 	
 	this.superEssentialComponents = [
 		'./errorhandler.js', './emailsender.js', './signedmsg.js'
@@ -71,6 +78,8 @@ Main.init_ = function() {
 	Error.stackTraceLimit = cfg.stackTraceLimit || 20;
 	Q.longStackSupport = cfg.longStackTraces || false;
 	events.EventEmitter.defaultMaxListeners = 0;
+	process.setMaxListeners(0);
+	cluster.setMaxListeners(0);
 };
 
 Main.prototype.initBus = function() {
@@ -165,23 +174,54 @@ Main.prototype.start = function() {
 		
 		return self.setupStockLoaders();
 	}).then(function() {
-		if (cluster.isWorker)
-			return self.mainBus.addTransport(new pt.ProcessTransport(process), self.worker.bind(self));
+		if (!self.transportToMaster)
+			self.transportToMaster = new pt.ProcessTransport(process);
+		
+		if (self.isWorker)
+			return self.mainBus.addTransport(self.transportToMaster, self.worker.bind(self));
 		
 		assert.ok(cluster.isMaster);
 		return self.startMaster();
-	}).done();
+	});
 };
 
 Main.prototype.getFreePort = function(pid) {
-	// free all ports assigned to dead workers first
-	var pids = _.chain(this.workers).pluck('process').pluck('pid').value();
-	this.assignedPorts = _.filter(this.assignedPorts, function(p) { return pids.indexOf(p.pid) != -1; });
+	if (this.useCluster) {
+		// free all ports assigned to dead workers first
+		var pids = _.chain(this.workers).pluck('process').pluck('pid').value();
+		this.assignedPorts = _.filter(this.assignedPorts, function(p) { return pids.indexOf(p.pid) != -1; });
+	}
 	
 	var freePorts = _.difference(this.getServerConfig().wsports, _.pluck(this.assignedPorts, 'port'));
 	assert.ok(freePorts.length > 0);
 	this.assignedPorts.push({pid: pid, port: freePorts[0]});
 	return freePorts[0];
+};
+
+Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
+	var self = this;
+	var ev = new events.EventEmitter();
+	var toMaster = new dt.DirectTransport(ev);
+	var toWorker = new dt.DirectTransport(ev);
+	
+	assert.ok(isBackgroundWorker || port);
+	var m = new Main({
+		isBackgroundWorker: isBackgroundWorker,
+		isWorker: true,
+		transportToMaster: toMaster,
+		useCluster: false,
+		port: port
+	});
+	
+	return m.start().then(function() {
+		var deferred = Q.defer();
+		
+		self.mainBus.addTransport(toWorker, function() {
+			deferred.resolve();
+		});
+		
+		return deferred.promise;
+	});
 };
 
 Main.prototype.registerWorker = function(w, done) {
@@ -190,6 +230,10 @@ Main.prototype.registerWorker = function(w, done) {
 
 Main.prototype.forkBackgroundWorker = function() {
 	var self = this;
+	
+	if (!self.useCluster)
+		return self.newNonClusterWorker(true, null);
+	
 	var bw = cluster.fork();
 	var sentSBW = false;
 
@@ -214,6 +258,9 @@ Main.prototype.forkBackgroundWorker = function() {
 
 Main.prototype.forkStandardWorker = function() {
 	var self = this;
+	
+	if (!self.useCluster)
+		return self.newNonClusterWorker(false, self.getFreePort(process.pid));
 	
 	var w = cluster.fork();
 	var sentSSW = false;
@@ -282,57 +329,66 @@ Main.prototype.startMaster = function() {
 Main.prototype.worker = function() {
 	var self = this;
 	
-	var hasReceivedStartCommand = false;
+	if (!self.useCluster)
+		return self.startWorker();
+	
 	var startRequestInterval = setInterval(function() {
-		if (!hasReceivedStartCommand) {
+		if (!self.hasReceivedStartCommand) {
 			self.log('Requesting start commands', process.pid);
 			process.send({cmd: 'startRequest'});
 		}
 	}, 250);
 	
 	process.on('message', function(msg) {
-		if (hasReceivedStartCommand)
+		if (self.hasReceivedStartCommand)
 			return;
 		
 		if (msg.cmd == 'startBackgroundWorker') {
 			self.log(process.pid, 'received SBW');
 			
-			process.isBackgroundWorker = true;
+			self.isBackgroundWorker = true;
 		} else if (msg.cmd == 'startStandardWorker') {
 			assert.ok(msg.port);
 			
 			self.log(process.pid, 'received SSW[', msg.port, ']');
-			process.isBackgroundWorker = false;
+			self.port = msg.port;
+			self.isBackgroundWorker = false;
 		} else {
 			return;
 		}
 		
-		hasReceivedStartCommand = true;
+		self.hasReceivedStartCommand = true;
 		clearInterval(startRequestInterval);
 		
-		var componentsForLoading = self.basicComponents
-			.concat(process.isBackgroundWorker ? self.bwComponents : self.regularComponents);
-		
-		self.log(process.pid, 'loading');
-		var stserver;
-		return self.loadComponents(componentsForLoading).then(function() {
-			var server = require('./server.js');
-			stserver = new server.SoTradeServer();
-			
-			return stserver.setBus(self.mainBus, 'serverMaster');
-		}).then(function() {
-			self.log(process.pid, 'loaded');
-			
-			if (process.isBackgroundWorker) {
-				self.log('BW started at', process.pid, 'connecting to remotes...');
-				return self.connectToSocketIORemotes().then(function() {
-					self.log('BW connected to remotes', process.pid);
-				});
-			} else {
-				return stserver.start(msg.port);
-			}
-		}).done();
+		return self.startWorker();
 	});
+};
+
+Main.prototype.startWorker = function() {
+	var self = this;
+	
+	var componentsForLoading = self.basicComponents
+		.concat(self.isBackgroundWorker ? self.bwComponents : self.regularComponents);
+	
+	self.log(process.pid, 'loading');
+	var stserver;
+	return self.loadComponents(componentsForLoading).then(function() {
+		var server = require('./server.js');
+		stserver = new server.SoTradeServer({isBackgroundWorker: self.isBackgroundWorker});
+		
+		return stserver.setBus(self.mainBus, 'serverMaster');
+	}).then(function() {
+		self.log(process.pid, 'loaded');
+		
+		if (self.isBackgroundWorker) {
+			self.log('BW started at', process.pid, 'connecting to remotes...');
+			return self.connectToSocketIORemotes().then(function() {
+				self.log('BW connected to remotes', process.pid);
+			});
+		} else {
+			return stserver.start(self.port);
+		}
+	}).done();
 }
 
 Main.prototype.connectToSocketIORemotes = function() {
@@ -417,6 +473,6 @@ Main.prototype.loadComponents = function(componentsForLoading) {
 exports.Main = Main;
 
 if (require.main === module)
-	new Main().start();
+	new Main().start().done();
 
 })();

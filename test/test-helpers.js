@@ -11,8 +11,8 @@ var Q = require('q');
 var fs = require('fs');
 var assert = require('assert');
 
-var testPerformance = process.env.ST_PROFILE_PERFORMANCE;
-var timingFile = process.env.ST_TIMING_FILE; // thought about naming this proFile... haha
+var testPerformance = process.env.SOTRADE_PROFILE_PERFORMANCE;
+var timingFile = process.env.SOTRADE_TIMING_FILE; // thought about naming this proFile... haha
 
 var getSocket = _.memoize(function() {
 	var socket = new sotradeClient.SoTradeConnection({

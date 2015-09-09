@@ -35,7 +35,7 @@ util.inherits(Stocks, buscomponent.BusComponent);
 Stocks.prototype.onBusConnect = function() {
 	var self = this;
 	
-	return this.request({name: 'getStockQuoteLoader'}).then(function(ql) {
+	return self.request({name: 'getStockQuoteLoader'}).then(function(ql) {
 		assert.ok(ql);
 		
 		self.quoteLoader = ql;

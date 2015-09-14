@@ -10,13 +10,24 @@ var cytoscape = require('cytoscape');
 var zlib = require('zlib');
 var objectHash = require('object-hash');
 
+var debug = require('debug')('sotrade:bus');
+var debugEvents = require('debug')('sotrade:bus:events');
+var debugPackets = require('debug')('sotrade:bus:packets');
+var debugNetwork = require('debug')('sotrade:bus:network');
+var debugTransport = require('debug')('sotrade:bus:transport');
+var debugMisc = require('debug')('sotrade:bus:misc');
+
 function Bus () {
+	Bus.super_.apply(this, arguments);
+	
 	var self = this;
 	
 	self.hostname = os.hostname();
 	self.pid = process.pid;
 	self.id = self.determineBusID();
 	self.handledEvents = [];
+	
+	debug('Creating bus', self.id);
 	
 	self.curId = 0;
 	self.busGraph = cytoscape({
@@ -45,7 +56,7 @@ function Bus () {
 	self.packetLogLength = 1536;
 	
 	self.pingIntervalMs = 85000; // 85 seconds between transport pings
-	self.startupTimedBusInfos = [ 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ];
+	self.startupTimedBusInfos = [ 0.25, 0.5, 0.75, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ];
 	
 	self.transports = [];
 	self.removedTransports = [];
@@ -57,6 +68,7 @@ function Bus () {
 	self.nonLoggedPacketNames = ['bus::nodeInfo'];
 	
 	self.on('newListener', function(event) {
+		debugEvents('Add new listener', self.id, event);
 		if (self.handledEvents.indexOf(event) == -1) {
 			self.handledEvents.push(event);
 			
@@ -65,6 +77,7 @@ function Bus () {
 	});
 	
 	self.on('removeListener', function(event) {
+		debugEvents('Remove listener', self.id, event);
 		if (self.listeners(event).length == 0) {
 			self.handledEvents = _.without(self.handledEvents, event);
 			
@@ -75,6 +88,7 @@ function Bus () {
 	});
 	
 	self.on('bus::nodeInfo', function(data) {
+		debugNetwork('Received nodeInfo', self.id);
 		if (!Buffer.isBuffer(data))
 			data = new Buffer(data);
 		
@@ -90,6 +104,8 @@ function Bus () {
 			if (data.id == self.id)
 				return;
 			
+			debugNetwork('Parsed nodeInfo', self.id + ' <- ' + data.id);
+			
 			self.handleTransportNodeInfo(data);
 			
 			if (self.remotesWithOurBusNodeInfo.indexOf(data.id) == -1) {
@@ -104,6 +120,8 @@ function Bus () {
 	self.startupTimedBusInfos.map(function(delay) { // delay in seconds
 		setTimeout(self.emitBusNodeInfoSoon.bind(self), delay * 1000);
 	});
+	
+	debug('Created bus', self.id);
 }
 
 util.inherits(Bus, events.EventEmitter);
@@ -125,6 +143,8 @@ Bus.prototype.emitBusNodeInfoSoon = function() {
 		return;
 	self.busNodeInfoQueued = true;
 	
+	debugNetwork('emitBusNodeInfoSoon', self.id);
+	
 	process.nextTick(function() {
 		self.busNodeInfoQueued = false;
 		
@@ -140,6 +160,10 @@ Bus.prototype.emitBusNodeInfo = function(transports, initial) {
 		handledEvents: self.handledEvents,
 		graph: self.busGraph.json()
 	};
+	
+	debugNetwork('emitBusNodeInfo', self.id,
+		'with transports ' + (transports || []).map(function(t) { return t.id; }).join(' '),
+		initial ? 'initial' : 'non-initial');
 
 	zlib.deflateRaw(JSON.stringify(info), function(error, encodedInfo) {
 		if (error)
@@ -188,11 +212,15 @@ Bus.prototype.addTransport = function(transport, done) {
 	assert.equal(typeof transport.msgCount, 'undefined');
 	
 	var edgeId = sha256(Math.random() + '.' + Date.now()).substr(0, 8);
-
+	
+	debugTransport('Create transport/edge', self.id, edgeId);
+	
 	// Do a three-way handshake, similar to TCP
 	// This has the purpose of checking connectivity
 	// for both outgoing and incoming events
 	transport.on('bus::handshakeSYN', function(d) {
+		debugTransport('Transport SYN', self.id, edgeId, d.id, d.edgeId);
+		
 		if (d.id == self.id)
 			return;
 		
@@ -204,6 +232,8 @@ Bus.prototype.addTransport = function(transport, done) {
 	});
 	
 	transport.on('bus::handshakeSYNACK', function(d) {
+		debugTransport('Transport SYN/ACK', self.id, edgeId, d.id, d.edgeId);
+		
 		if (d.id == self.id)
 			return;
 		
@@ -227,6 +257,8 @@ Bus.prototype.addTransport = function(transport, done) {
 			data = JSON.parse(data);
 			if (data.id == self.id)
 				return;
+			
+			debugTransport('Received initial bus node info', self.id, edgeId, data.id);
 			
 			self.handleTransportNodeInfo(data, true); // modifies busGraph property!
 			
@@ -274,6 +306,8 @@ Bus.prototype.addTransport = function(transport, done) {
 				process.nextTick(emitInitialPing);
 			}
 			
+			debugTransport('Handled initial bus node info', self.id, edgeId);
+			
 			if (!doneCalled) {
 				doneCalled = true;
 				done();
@@ -282,6 +316,8 @@ Bus.prototype.addTransport = function(transport, done) {
 	});
 	
 	transport.on('bus::ping', function(data) {
+		debugTransport('Received ping', self.id, edgeId, data.stage);
+		
 		assert.strictEqual(parseInt(data.outTime), data.outTime);
 		assert.strictEqual(parseInt(data.stage), data.stage);
 		
@@ -304,7 +340,11 @@ Bus.prototype.addTransport = function(transport, done) {
 	});
 	
 	transport.on('bus::packet', function(p) {
-		if (p.seenBy.indexOf(self.id) != -1)
+		var hasAlreadySeen = p.seenBy.indexOf(self.id) != -1;
+		
+		debugTransport('Received bus packet', self.id, edgeId, hasAlreadySeen);
+		
+		if (hasAlreadySeen)
 			return;
 		
 		transport.msgCount++;
@@ -313,6 +353,8 @@ Bus.prototype.addTransport = function(transport, done) {
 	});
 	
 	transport.on('disconnect', function() {
+		debugTransport('Received transport disconnect', self.id, edgeId);
+		
 		if (pingInterval !== null) {
 			clearInterval(pingInterval);
 			pingInterval = null;
@@ -329,10 +371,14 @@ Bus.prototype.addTransport = function(transport, done) {
 		self.localizeBusGraph();
 		
 		self.busGraphUpdated();
+		
+		debugTransport('Handled transport disconnect', self.id, edgeId);
 	});
 };
 
 Bus.prototype.localizeBusGraph = function() {
+	var startTime = Date.now();
+	
 	// reload the graph, choosing only the current connected component
 	var ownNode = this.busGraph.getElementById(this.id);
 	assert.ok(ownNode && ownNode.isNode());
@@ -340,9 +386,13 @@ Bus.prototype.localizeBusGraph = function() {
 	var cc = this.busGraph.elements().connectedComponent(this.busGraph.getElementById(this.id));
 	this.busGraph.load(cc.map(function(e) { return e.json(); }));
 	assert.ok(this.busGraph.elements().length > 0);
+	
+	debugNetwork('Localized bus graph', this.id, (Date.now() - startTime) + ' ms');
 };
 
 Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
+	debugNetwork('Handling transport node info', this.id, busnode.id, doNotLocalize);
+	
 	var remoteBusGraph = cytoscape(busnode.graph);
 	if (remoteBusGraph.gHash() == this.busGraph.gHash())
 		return;
@@ -384,6 +434,8 @@ Bus.prototype.handleTransportNodeInfo = function(busnode, doNotLocalize) {
 	});
 	
 	this.busGraphUpdated();
+	
+	debugNetwork('Handled transport node info', this.id, busnode.id, doNotLocalize);
 };
 
 Bus.prototype.busGraphUpdated = function() {
@@ -405,6 +457,8 @@ Bus.prototype.busGraphUpdated = function() {
 	
 	assert.ok(this.localNodes && this.localNodes.length >= 1);
 	
+	debugNetwork('Checked for local nodes', this.id, this.localNodes.length);
+	
 	// inform response waiters that nodes may have been removed and are therefore not able to answer requests
 	for (var i in this.responseWaiters) {
 		var w = this.responseWaiters[i];
@@ -421,6 +475,8 @@ Bus.prototype.logPacket = function(packet) {
 	
 	if (this.packetLog.length > this.packetLogLength)
 		this.packetLog.shift();
+	
+	debugPackets('Logged packet', this.id, packet.name, this.packetLog.length);
 };
 
 Bus.prototype.handleBusPacket = function(packet) {
@@ -456,6 +512,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 			}
 			
 			var path = self.dijkstra.pathTo(targetNode);
+			debugPackets('Path to recipient', this.id, recpId, packet.name, path && path.length);
 			
 			// path.length >= 3: at least source node, edge, target node
 			if (!path || path.length < 3) {
@@ -467,6 +524,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 					packet_.recipients = [recpId];
 					packet_.seenBy = packet_.seenBy.slice(0, packet_.seenBy.length - 1);
 					
+					debugPackets('Re-queueing packet', this.id, recpId, packet.name);
 					assert.equal(packet_.seenBy.indexOf(self.id), -1);
 					setTimeout(function() {
 						self.handleBusPacket(packet_);
@@ -493,6 +551,7 @@ Bus.prototype.handleBusPacket = function(packet) {
 		var packet_ = _.clone(packet);
 		packet_.recipients = nextTransports[i].recipients;
 
+		debugPackets('Writing packet', this.id, packet_.name, transport.id);
 		transport.msgCount++;
 		transport.emit('bus::packet', packet_);
 	}
@@ -521,12 +580,14 @@ Bus.prototype.handleIncomingPacket = function(packet) {
 };
 
 Bus.prototype.handleIncomingEvent = function(packet) {
+	debugPackets('Handle incoming event', this.id, packet.name);
 	assert.ok(packet.name);
 	
 	return events.EventEmitter.prototype.emit.apply(this, [packet.name, packet.data]);
 };
 
 Bus.prototype.handleIncomingResponse = function(resp) {
+	debugPackets('Handle incoming response', this.id, resp.responseTo);
 	assert.ok(resp.responseTo);
 	assert.ok(this.responseWaiters[resp.responseTo]);
 	
@@ -536,6 +597,8 @@ Bus.prototype.handleIncomingResponse = function(resp) {
 Bus.prototype.handleIncomingRequest = function(req) {
 	var self = this;
 	
+	debugPackets('Handle incoming request', self.id, req.name, req.requestId);
+	
 	assert.ok(req.name);
 	assert.ok(req.data);
 	assert.ok(!req.data.reply);
@@ -543,6 +606,8 @@ Bus.prototype.handleIncomingRequest = function(req) {
 	
 	req.data = _.clone(req.data);
 	req.data.reply = function() {
+		debugPackets('Local reply', self.id, req.name, req.requestId);
+		
 		var args = Array.prototype.slice.call(arguments);
 		
 		self.handleBusPacket(self.filterOutput({
@@ -633,6 +698,8 @@ Bus.prototype.emitImmediate = function(name, data) {
 };
 
 Bus.prototype.emitScoped = function(name, data, scope) {
+	debugEvents('Emit scoped', this.id, name, scope);
+	
 	var recipients = this.expandScope(scope, name);
 	
 	var packet = this.filterOutput({
@@ -681,6 +748,8 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 	var requestId = self.id + '-' + (self.curId++);
 	var recipients = self.expandScope(scope, req.name);
 	
+	debugEvents('Request scoped', self.id, req.name, requestId, scope, recipients.length);
+	
 	// scope is now array of target ids
 	assert.ok(_.isArray(recipients));
 	assert.ok(_.difference(recipients, self.listAllIds()).length == 0);
@@ -713,10 +782,11 @@ Bus.prototype.requestScoped = function(req, onReply, scope) {
 				responsePackets.push(responsePacket);
 			}
 			
-			var availableRecipients = self.listAllIds();
+			var availableRecipients = _.intersection(self.listAllIds(), recipients);
 			
+			debugEvents('Response packet in', self.id, scope, requestId, responsePackets.length, availableRecipients.length, recipients.length);
 			// all responses in?
-			if (responsePackets.length != _.intersection(availableRecipients, recipients).length) 
+			if (responsePackets.length != availableRecipients.length) 
 				return; // wait until they are
 			
 			delete self.responseWaiters[requestId];
@@ -780,10 +850,12 @@ Bus.prototype.applyFilter = function(filterList, packet, type) {
 };
 
 Bus.prototype.addInputFilter = function(filter) {
+	debugMisc('Add input filter', this.id);
 	this.inputFilters.push(filter);
 };
 
 Bus.prototype.addOutputFilter = function(filter) {
+	debugMisc('Add output filter', this.id);
 	this.outputFilters.push(filter);
 };
 

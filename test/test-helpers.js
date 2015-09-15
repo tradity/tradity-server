@@ -1,11 +1,9 @@
 'use strict';
 
-(function () { "use strict";
-
-Error.stackTraceLimit = Infinity;
-
+var setup = require('./test-setup.js');
 var sotradeClient = require('../sotrade-client.js');
 var sha256 = require('../lib/sha256.js');
+var main = require('../main.js');
 var _ = require('lodash');
 var Q = require('q');
 var fs = require('fs');
@@ -14,39 +12,58 @@ var assert = require('assert');
 var testPerformance = process.env.SOTRADE_PROFILE_PERFORMANCE;
 var timingFile = process.env.SOTRADE_TIMING_FILE; // thought about naming this proFile... haha
 
-var getSocket = _.memoize(function() {
-	var socket = new sotradeClient.SoTradeConnection({
-		noSignByDefault: true,
-		logDevCheck: false
-	});
-	
-	if (testPerformance && timingFile) {
-		socket.on('*', function(data) {
-			var dt = data._dt;
-			
-			if (!dt)
-				return; // probably an event
-			
-			var fields = [
-				Date.now(),
-				dt.cdelta,
-				dt.sdelta,
-				dt.inqueue,
-				dt.outqueue,
-				dt.scomp,
-				dt.ccomp,
-				data._resp_decsize,
-				data._resp_encsize,
-				data._reqsize,
-				data.code,
-				data.type,
-			];
-			
-			fs.appendFile(timingFile, fields.join('\t') + '\n', { mode: '0660' }, function() {});
+var startServer = _.memoize(function() {
+	return setup.setupDatabase().then(function() {
+		return setup.generateKeys();
+	}).then(function() {
+		return new main.Main().start();
+	}).then(function() {
+		// test connectivity
+		
+		return new sotradeClient.SoTradeConnection();
+	}).then(function(socket) {
+		return socket.emit('ping').then(function() {
+			console.error('Server connectivity established');
+			return socket.raw().disconnect();
 		});
-	}
-	
-	return socket.once('server-config').then(_.constant(socket));
+	});
+});
+
+var getSocket = _.memoize(function() {
+	return startServer().then(function() {
+		var socket = new sotradeClient.SoTradeConnection({
+			noSignByDefault: true,
+			logDevCheck: false
+		});
+		
+		if (testPerformance && timingFile) {
+			socket.on('*', function(data) {
+				var dt = data._dt;
+				
+				if (!dt)
+					return; // probably an event
+				
+				var fields = [
+					Date.now(),
+					dt.cdelta,
+					dt.sdelta,
+					dt.inqueue,
+					dt.outqueue,
+					dt.scomp,
+					dt.ccomp,
+					data._resp_decsize,
+					data._resp_encsize,
+					data._reqsize,
+					data.code,
+					data.type,
+				];
+				
+				fs.appendFile(timingFile, fields.join('\t') + '\n', { mode: '0660' }, function() {});
+			});
+		}
+		
+		return socket.once('server-config').then(_.constant(socket));
+	});
 });
 
 var getTestUser = _.memoize(function() {
@@ -171,5 +188,3 @@ exports.standardTeardown = standardTeardown;
 exports.standardReset = standardReset;
 exports.bufferEqual = bufferEqual;
 exports.testPerformance = testPerformance;
-
-})();

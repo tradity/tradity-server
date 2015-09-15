@@ -1,7 +1,8 @@
 {
 	"scripts": {
 		"start": "service-sotrade-restart || true",
-		"test": "./test.sh"
+		"test": "./node_modules/.bin/mocha -s 15000 -t 80000",
+		"test-cov": "./node_modules/.bin/istanbul cover ./node_modules/.bin/_mocha --report lcovonly -- -R spec -s 15000 -t 80000 && ./node_modules/.bin/istanbul report html"
 	},
 	"name": "tradity-de-server",
 	"version": "0.0.1",
@@ -11,6 +12,7 @@
 	},
 	"devDependencies": {
 		"mocha": "*",
+		"istanbul": "*",
 		"nodemailer-sendmail-transport": "~1.0.0"
 	},
 	"dependencies": {

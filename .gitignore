@@ -8,3 +8,6 @@ out
 doc
 buildstamp.js
 core
+coverage
+npm-debug.log
+busdump.*

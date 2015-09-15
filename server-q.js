@@ -9,7 +9,7 @@ var assert = require('assert');
 var util = require('util');
 var _ = require('lodash');
 
-var cfg = require('./config.js').config;
+var cfg = require('./config.js').config();
 var sotradeClient = require('./sotrade-client.js');
 
 var options = process.argv.splice(2);

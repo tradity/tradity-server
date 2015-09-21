@@ -16,7 +16,7 @@ var bus = require('./bus/bus.js');
 var buscomponent = require('./stbuscomponent.js');
 var pt = require('./bus/processtransport.js');
 var dt = require('./bus/directtransport.js');
-var sio = require('socket.io-client');
+var sotradeClient = require('./sotrade-client.js');
 var debug = require('debug')('sotrade:main');
 
 var achievementList = require('./achievement-list.js');
@@ -297,41 +297,47 @@ Main.prototype.forkStandardWorker = function() {
 Main.prototype.startMaster = function() {
 	var self = this;
 	
-	if (self.getServerConfig().startBackgroundWorker)
-		self.forkBackgroundWorker();
-	
-	for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
-		self.forkStandardWorker();
-	
-	var shuttingDown = false;
-	self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
-	self.mainBus.on('localShutdown', function() { shuttingDown = true; });
-	
-	cluster.on('exit', function(worker, code, signal) {
-		self.workers = _.filter(self.workers, function(w) { w.process.pid != worker.process.pid; });
+	return Q().then(function() {
+		var workerStartedPromises = [];
 		
-		var shouldRestart = !shuttingDown;
+		if (self.getServerConfig().startBackgroundWorker)
+			workerStartedPromises.push(Q().then(self.forkBackgroundWorker.bind(self)));
 		
-		if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
-			shouldRestart = false;
+		for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
+			workerStartedPromises.push(Q().then(self.forkStandardWorker.bind(self)));
 		
-		debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
+		return Q.all(workerStartedPromises);
+	}).then(function() {
+		var shuttingDown = false;
+		self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
+		self.mainBus.on('localShutdown', function() { shuttingDown = true; });
 		
-		if (!shuttingDown) {
-			debug('respawning');
+		cluster.on('exit', function(worker, code, signal) {
+			self.workers = _.filter(self.workers, function(w) { w.process.pid != worker.process.pid; });
 			
-			if (worker.process.pid == self.bwpid)
-				self.forkBackgroundWorker();
-			else 
-				self.forkStandardWorker();
-		} else {
-			setTimeout(function() {
-				process.exit(0);
-			}, 2000);
-		}
+			var shouldRestart = !shuttingDown;
+			
+			if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
+				shouldRestart = false;
+			
+			debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
+			
+			if (!shuttingDown) {
+				debug('respawning');
+				
+				if (worker.process.pid == self.bwpid)
+					self.forkBackgroundWorker();
+				else 
+					self.forkStandardWorker();
+			} else {
+				setTimeout(function() {
+					process.exit(0);
+				}, 2000);
+			}
+		});
+		
+		return self.connectToSocketIORemotes();
 	});
-	
-	return self.connectToSocketIORemotes();
 };
 
 Main.prototype.worker = function() {
@@ -406,58 +412,35 @@ Main.prototype.connectToSocketIORemotes = function() {
 Main.prototype.connectToSocketIORemote = function(remote) {
 	var self = this;
 	
-	return self.request({
-		name: 'createSignedMessage',
-		msg: {
-			type: 'init-bus-transport',
-			id: 'init-bus-transport',
-			weight: remote.weight
+	var sslOpts = remote.ssl || self.getServerConfig().ssl;
+	var socket = new sotradeClient.SoTradeConnection({
+		url: remote.url,
+		socketopts: {
+			transports: ['websocket'],
+			agent: sslOpts ? new https.Agent(sslOpts) : null
+		},
+		serverConfig: self.getServerConfig()
+	});
+
+	self.mainBus.on('localShutdown', function() {
+		if (socket) {
+			socket.raw().io.reconnectionAttempts(0);
+			socket.raw().close();
 		}
-	}).then(function(signed) {
-		var sslOpts = remote.ssl || null;
-		if (sslOpts === 'default')
-			sslOpts = self.getServerConfig().ssl;
 		
-		var socketopts = { transports: ['websocket'] };
-		if (sslOpts)
-			socketopts.agent = new https.Agent(sslOpts);
-		
-		var socket = sio.connect(remote.url, socketopts);
-		
-		socket.on('error', function(e) {
-			self.emitError(e);
-		});
-		
-		socket.on('disconnect', function() {
-			// auto-reconnect
-			socket.close();
-			socket = null;
-			return self.connectToSocketIORemote(remote);
-		});
-		
-		self.mainBus.on('localShutdown', function() {
-			if (socket) {
-				socket.io.reconnectionAttempts(0);
-				socket.close();
-			}
+		socket = null;
+	});
+	
+	socket.once('server-config').then(function() {
+		socket.emit('init-bus-transport', {
+			weight: remote.weight
+		}).then(function(r) {
+			debug('init-bus-transport returned', r.code);
 			
-			socket = null;
-		});
-		
-		socket.on('connect', function() {
-			socket.on('response', function(response) {
-				assert.equal(response.e, 'raw');
-				
-				var r = JSON.parse(response.s);
-				if (r.code == 'init-bus-transport-success')
-					self.mainBus.addTransport(new dt.DirectTransport(socket, remote.weight || 10, false));
-				else
-					self.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
-			});
-			
-			return socket.emit('query', {
-				signedContent: signed
-			});
+			if (r.code == 'init-bus-transport-success')
+				self.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
+			else
+				self.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
 		});
 	});
 };
@@ -480,7 +463,7 @@ Main.prototype.loadComponents = function(componentsForLoading) {
 
 exports.Main = Main;
 
-//if (require.main === module)
-//	new Main().start().done();
+if (require.main === module)
+	new Main().start().done();
 
 })();

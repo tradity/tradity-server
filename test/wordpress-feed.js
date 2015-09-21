@@ -3,20 +3,21 @@
 var assert = require('assert');
 var _ = require('lodash');
 var testHelpers = require('./test-helpers.js');
-var socket, user;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-		user = data.user;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 if (!testHelpers.testPerformance)
 describe('wordpress-feed', function() {
+	var socket, user;
+	
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+			user = data.user;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('process-wordpress-feed', function() {
 		it('Should work', function() {
 			return socket.emit('process-wordpress-feed', {

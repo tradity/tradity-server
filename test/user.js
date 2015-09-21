@@ -4,19 +4,20 @@ var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var socket, user;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-		user = data.user;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 describe('user', function() {
+	var socket, user;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+			user = data.user;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('get-user-info', function() {
 		it('Should return no values with .nohistory', function() {
 			return socket.emit('get-user-info', {

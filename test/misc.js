@@ -5,19 +5,20 @@ var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
 var cfg = require('../config.js').config;
-var socket, user;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-		user = data.user;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 describe('misc', function() {
+	var socket, user;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+			user = data.user;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('get-own-options', function() {
 		it('Should return information about own options', function() {
 			return socket.emit('get-own-options').then(function(res) {

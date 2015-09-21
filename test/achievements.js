@@ -4,18 +4,19 @@ var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var socket;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 describe('achievements', function() {
+	var socket;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('list-all-achievements', function() {
 		it('Should be successful and return multiple achievement types', function() {
 			return socket.emit('list-all-achievements').then(function(result) {

@@ -4,18 +4,19 @@ var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var socket;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 describe('dqueries', function() {
+	var socket;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('dquery', function() {
 		it('Should let users delay queries', function() {
 			return socket.emit('dquery', {

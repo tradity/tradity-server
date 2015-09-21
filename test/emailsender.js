@@ -2,20 +2,21 @@
 
 var assert = require('assert');
 var testHelpers = require('./test-helpers.js');
-var socket, user;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-		user = data.user;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 if (!testHelpers.testPerformance)
 describe('emailsender', function() {
+	var socket, user;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+			user = data.user;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	it('Should directly bounce all e-mails in test mode', function() {
 		return socket.emit('create-invite-link', {
 			__sign__: true,

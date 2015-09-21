@@ -4,20 +4,22 @@ var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var socket, user;
 
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-		user = data.user;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
-
-var standardISIN = 'CA7500801039';
 describe('stocks', function() {
+	var socket, user;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+			user = data.user;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+	
+	var standardISIN = 'CA7500801039';
+
 	if (!testHelpers.testPerformance)
 	describe('prod', function() {
 		it('Works', function() {

@@ -3,18 +3,19 @@
 var assert = require('assert');
 var _ = require('lodash');
 var testHelpers = require('./test-helpers.js');
-var socket;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 describe('watchlist', function() {
+	var socket;
+	
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('watchlist-add', function() {
 		it('Can add stocks to the watchlist', function() {
 			var stock;

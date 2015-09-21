@@ -5,30 +5,31 @@ var fs = require('fs');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var socket, user;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-		user = data.user;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
-
-var getOwnSchool = function() {
-	return socket.emit('get-user-info', {
-		lookfor: '$self'
-	}).then(function(res) {
-		assert.equal(res.code, 'get-user-info-success');
-		assert.ok(res.result.schools);
-		assert.ok(res.result.schools.length > 0);
-		return res.result.schools[0];
-	});
-};
 
 describe('schools', function() {
+	var socket, user;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+			user = data.user;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
+	var getOwnSchool = function() {
+		return socket.emit('get-user-info', {
+			lookfor: '$self'
+		}).then(function(res) {
+			assert.equal(res.code, 'get-user-info-success');
+			assert.ok(res.result.schools);
+			assert.ok(res.result.schools.length > 0);
+			return res.result.schools[0];
+		});
+	};
+
 	describe('get-school-info', function() {
 		it('Should return information on a given school', function() {
 			var school;

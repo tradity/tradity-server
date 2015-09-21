@@ -20,7 +20,7 @@ var startServer = _.memoize(function() {
 	}).then(function() {
 		// test connectivity
 		
-		return new sotradeClient.SoTradeConnection();
+		return new sotradeClient.SoTradeConnection({logDevCheck: false});
 	}).then(function(socket) {
 		return socket.emit('ping').then(function() {
 			console.error('Server connectivity established');

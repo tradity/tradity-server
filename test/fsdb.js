@@ -5,21 +5,22 @@ var fs = require('fs');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var cfg = require('../config.js').config;
-var socket, user;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		socket = data.socket;
-		user = data.user;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
+var cfg = require('../config.js').config();
 
 if (!testHelpers.testPerformance)
 describe('fsdb', function() {
+	var socket, user;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			socket = data.socket;
+			user = data.user;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('publish', function() {
 		it('Should publish files', function() {
 			return Q.nfcall(fs.readFile, 'res/bob.jpg').then(function(data) {

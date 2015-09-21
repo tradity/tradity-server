@@ -6,19 +6,20 @@ var Q = require('q');
 var sha256 = require('../lib/sha256.js');
 var commonUtil = require('tradity-connection');
 var testHelpers = require('./test-helpers.js');
-var user, socket;
-
-before(function() {
-	return testHelpers.standardSetup().then(function(data) {
-		user = data.user;
-		socket = data.socket;
-	});
-});
-
-beforeEach(testHelpers.standardReset);
-after(testHelpers.standardTeardown);
 
 describe('admin', function() {
+	var user, socket;
+
+	before(function() {
+		return testHelpers.standardSetup().then(function(data) {
+			user = data.user;
+			socket = data.socket;
+		});
+	});
+
+	beforeEach(testHelpers.standardReset);
+	after(testHelpers.standardTeardown);
+
 	describe('list-all-users', function() {
 		if (!testHelpers.testPerformance)
 		it('Should fail for non-admin users', function() {

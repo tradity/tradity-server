@@ -6,6 +6,7 @@ var Q = require('q');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
 var commonUtil = require('tradity-connection');
+var debug = require('debug')('sotrade:emailsender');
 var sha256 = require('./lib/sha256.js');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
@@ -59,6 +60,8 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 	function(variables, template, ctx, lang, mailtype, uid) {
 	var self = this;
 	
+	debug('Send templated mail', template, lang, ctx.user && ctx.user.lang);
+	
 	return self.request({name: 'readEMailTemplate', 
 		template: template,
 		lang: lang || (ctx.user && ctx.user.lang),
@@ -108,6 +111,8 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
 	
 	if (!internal && !ctx.access.has('email-bounces'))
 		throw new self.PermissionDenied();
+	
+	debug('Email bounced', query.messageId);
 	
 	var mail;
 	return ctx.startTransaction().then(function(conn) {

@@ -6,6 +6,7 @@ var fs = require('fs');
 var crypto = require('crypto');
 var assert = require('assert');
 var Q = require('q');
+var debug = require('debug')('sotrade:signedmsg');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -55,6 +56,8 @@ SignedMessaging.prototype.useConfig = function(cfg) {
 		.replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
 	}).reduce(function(a, b) { return a.concat(b); });
 	this.algorithm = cfg.signatureAlgorithm || this.algorithm;
+	
+	debug('Loaded keys', this.publicKeys.length + ' public keys', this.algorithm);
 };
 
 /**
@@ -117,6 +120,8 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 		
 		return verify.end(string, null, function() {
 			if (verify.verify(pubkey, signature, 'base64')) {
+				debug('Could verify signed message using public key', i);
+				
 				// move current public key to first position (lru caching)
 				self.publicKeys.splice(0, 0, self.publicKeys.splice(i, 1)[0]);
 				
@@ -125,7 +130,9 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 				
 				if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
 					return deferred.resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
-			} 
+				else
+					debug('Message max age was exceeded');
+			}
 			
 			verifySingleKey(i+1); // try next key
 		});

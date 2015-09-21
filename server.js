@@ -9,6 +9,7 @@ var http = require('http');
 var https = require('https');
 var url = require('url');
 var sio = require('socket.io');
+var debug = require('debug')('sotrade:server');
 var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
@@ -50,8 +51,8 @@ function SoTradeServer (info) {
 	
 	this.deadQueryCount = 0;
 	this.deadQueryCompressionInfo = {
-		supported: {lzma: 0, s:0},
-		used: {lzma: 0, s:0,si:0}
+		supported: {lzma: 0, s: 0},
+		used: {lzma: 0, s: 0, si: 0}
 	};
 	
 	this.connectionCount = 0;
@@ -94,13 +95,12 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 	};
 	
 	return Q.all([
-		self.request({name: 'get-readability-mode'}).then(function(reply) {
-			ret.readonly = reply.readonly;
-		}),
-		self.request({name: 'dbUsageStatistics'}).then(function(dbstats) {
-			ret.dbstats = dbstats;
-		})
-	]).then(function() {
+		self.request({name: 'get-readability-mode'}),
+		self.request({name: 'dbUsageStatistics'})
+	]).then(function(readonlyReply, dbstats) {
+		ret.readonly = readonlyReply.readonly;
+		ret.dbstats = dbstats;
+		
 		return ret;
 	});
 });
@@ -114,6 +114,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
  */
 SoTradeServer.prototype.start = function(port) {
 	assert.ok(port);
+	debug('Start listening', port);
 	
 	var self = this;
 	var cfg;
@@ -188,7 +189,7 @@ SoTradeServer.prototype.listen = function(port, host) {
 	self.httpServer.addListener('listening', listenHandler);
 	
 	process.nextTick(function() {
-		console.log(process.pid, 'listening on', port, host);
+		debug(process.pid, 'listening on', port, host);
 		self.httpServer.listen(port, host);
 	});
 	
@@ -202,6 +203,8 @@ SoTradeServer.prototype.listen = function(port, host) {
  * @function module:server~SoTradeServer#handleHTTPRequest
  */
 SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
+	debug('HTTP Request', req.url);
+	
 	var loc = url.parse(req.url, true);
 	if (loc.pathname.match(/^(\/dynamic)?\/?ping/)) {
 		res.writeHead(200, {'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*'});
@@ -239,6 +242,8 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
  * @function module:server~SoTradeServer#handleConnection
  */
 SoTradeServer.prototype.handleConnection = function(socket) {
+	debug('Incoming connection');
+	
 	assert.ok(this.bus);
 	
 	this.connectionCount++;
@@ -257,6 +262,8 @@ SoTradeServer.prototype.handleConnection = function(socket) {
  * @function busreq~deleteConnectionData
  */
 SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id'], function(id) {
+	debug('Remove connection', id);
+	
 	var removeClient = _.find(this.clients, function(client) { return client.cdid == id; });
 	
 	if (removeClient) {
@@ -279,17 +286,16 @@ SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectio
  * @function module:server~SoTradeServer#shutdown
  */
 SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'globalShutdown'], function() {
+	debug('Server shutdown');
+	
 	this.isShuttingDown = true;
 	
 	if (this.clients.length == 0) {
 		this.emitImmediate('localMasterShutdown');
 		if (this.httpServer)
 			this.httpServer.close();
-		this.unplugBus();
 		
-		setTimeout(function() {
-			process.exit(0);
-		}, 2000);
+		this.unplugBus();
 	}
 });
 

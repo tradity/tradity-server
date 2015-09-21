@@ -6,6 +6,7 @@ var lapack = require('lapack');
 var UnionFind = require('unionfind');
 var assert = require('assert');
 var Q = require('q');
+var debug = require('debug')('sotrade:stocks-fu');
 
 var buscomponent = require('./stbuscomponent.js');
 
@@ -65,6 +66,8 @@ var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
  * @function busreq~updateProvisions
  */
 StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updateProvisions', ['ctx'], function (ctx) {
+	debug('Update provisions');
+	
 	return ctx.startTransaction([
 		{ name: 'depot_stocks', alias: 'ds', mode: 'w' },
 		{ name: 'users_finance', alias: 'l', mode: 'w' },
@@ -149,6 +152,8 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	var lmuStart = Date.now();
 	var conn, users, res_static, cfg;
 	
+	debug('Update leader matrix');
+	
 	return Q.all([
 		self.getServerConfig(),
 		ctx.startTransaction({
@@ -212,6 +217,8 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 			else
 				components[uf.find(i)].push(users[i]);
 		}
+		
+		debug('Found components', Object.keys(components).length, users.length + ' users');
 		
 		var sgesvTotalTime = 0, presgesvTotalTime = 0, postsgesvTotalTime = 0;
 		var updateQuery = '';

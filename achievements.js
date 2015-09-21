@@ -5,6 +5,7 @@ var Q = require('q');
 var util = require('util');
 var assert = require('assert');
 var qctx = require('./qctx.js');
+var debug = require('debug')('sotrade:achievements');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -58,6 +59,8 @@ Achievements.prototype.onBusConnect = function() {
  */
 Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx'], function(ctx) {
 	var self = this;
+	
+	debug('Checking achievements for current user');
 	
 	if (ctx.getProperty('readonly'))
 		return;
@@ -155,6 +158,8 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 				[uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version]).then(function(res) {
 				if (res.affectedRows != 1)
 					return;
+				
+				debug('Give achievement to user', uid, achievementEntry);
 				
 				// REPLACE INTO actually created a row
 				return ctx.feed({
@@ -285,6 +290,7 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
 		today = String(query.today);
 	}
 	
+	debug('Signing daily login certificate', ctx.user.uid, today);
 	return this.request({name: 'createSignedMessage', msg: {
 		uid: ctx.user.uid,
 		date: today,

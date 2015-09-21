@@ -5,6 +5,7 @@ var util = require('util');
 var assert = require('assert');
 var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
+var debug = require('debug')('sotrade:feed');
 
 /**
  * Provides interfaces to the user feeds and event tables
@@ -53,6 +54,8 @@ util.inherits(FeedController, buscomponent.BusComponent);
 FeedController.prototype.feed = buscomponent.provide('feed',
 	['data', 'ctx', 'conn', 'onEventId'], function(data, ctx, conn, onEventId) {
 	var self = this;
+	
+	debug('Feed event', data.type);
 	
 	assert.ok(data.type);
 	assert.ok(data.type.length);

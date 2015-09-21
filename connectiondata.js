@@ -6,6 +6,7 @@ var util = require('util');
 var assert = require('assert');
 var Q = require('q');
 var commonUtil = require('tradity-connection');
+var debug = require('debug')('sotrade:conn');
 var buscomponent = require('./stbuscomponent.js');
 var dt = require('./bus/directtransport.js');
 var qctx = require('./qctx.js');
@@ -92,6 +93,8 @@ function ConnectionData(socket) {
 	socket.on('error', _.bind(this.emitError, this));
 	socket.on('query', this.query_);
 	socket.on('disconnect', this.disconnected_);
+	
+	debug('Set up new connection');
 }
 
 util.inherits(ConnectionData, buscomponent.BusComponent);
@@ -241,6 +244,8 @@ ConnectionData.prototype.dbgHandler = function(args) {
 ConnectionData.prototype.push = function(data) {
 	var self = this;
 	
+	debug('Push event', data.type);
+	
 	return self.wrapForReply(data).then(function(r) {
 		debug('Writing single push', data.type);
 			
@@ -275,6 +280,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 			if (self.currentInfoPush)
 				return self.currentInfoPush;
 			
+			debug('Push self info');
 			return self.currentInfoPush = self.request({
 				name: 'client-get-user-info',
 				query: {
@@ -310,6 +316,7 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
 	if (!self.ctx.user || !self.ctx.user.uid)
 		return;
 	
+	debug('Push pending events');
 	self.pushEventsTimer = Q.delay(1000).then(function() {
 		self.pushEventsTimer = null;
 		
@@ -426,6 +433,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 		if (!query)
 			return;
 		
+		debug('Received query of type', query.type, query.id);
 		var recvTime = Date.now();
 		
 		self.queryCount++;
@@ -520,6 +528,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 					if (!masterAuthorization)
 						throw new self.PermissionDenied();
 					
+					debug('Setting up bus transport');
 					self.ctx.setProperty('isBusTransport', true);
 					self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false));
 					return { code: 'init-bus-transport-success' };
@@ -563,6 +572,8 @@ ConnectionData.prototype.queryHandler = function(query) {
 			}).then(function(result) {
 				assert.ok(result);
 				assert.ok(result.code);
+				
+				debug('Query returned', query.type, query.id, result.code);
 				
 				if (callbackHasBeenCalled)
 					return self.emitError('Callback for client request called multiple times!');
@@ -608,6 +619,8 @@ ConnectionData.prototype.queryHandler = function(query) {
  * @function module:connectiondata~ConnectionData#disconnectedHandler
  */
 ConnectionData.prototype.disconnectedHandler = function() {
+	debug('Disconnected');
+	
 	this.onLogout();
 	
 	if (this.socket) {

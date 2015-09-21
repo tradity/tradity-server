@@ -6,6 +6,7 @@ var util = require('util');
 var _ = require('lodash');
 var config = require('../config.js');
 var abstractloader = require('./abstractloader.js');
+var debug = require('debug')('sotrade:stockloader:loopback');
 
 function LoopbackQuoteLoader (opt) {
 	assert.ok(opt);
@@ -20,6 +21,7 @@ util.inherits(LoopbackQuoteLoader, abstractloader.AbstractLoader);
 LoopbackQuoteLoader.prototype._makeQuoteRequestFetch = function(stocklist) {
 	var self = this;
 	
+	debug('Fetching stocks from table', stocklist.length);
 	return self.ctx.query('SELECT * FROM stocks WHERE stocktextid IN (' +
 		_.map(stocklist, _.constant('?')).join(',') + ')', stocklist).then(function(results) {
 		

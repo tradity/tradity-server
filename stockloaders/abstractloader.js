@@ -4,6 +4,7 @@ var _ = require('lodash');
 var Q = require('q');
 var util = require('util');
 var events = require('events');
+var debug = require('debug')('sotrade:stockloader');
 
 var MAXLEN_DEFAULT = 196;
 var CACHE_TIME_DEFAULT = 25000;
@@ -58,6 +59,8 @@ AbstractLoader.prototype._makeQuoteRequest = function(stocklist) {
 	// split stocklist into groups of maximum length maxlen
 	// and flatten the resulting chunked array of records
 	var chunkedStocklist = _.chunk(stocklist, self.maxlen);
+	
+	debug('Fetching stock list', stocklist.length, chunkedStocklist.length + ' chunks');
 	
 	return Q.all(chunkedStocklist.map(function(chunk) {
 		return self._makeQuoteRequestFetch(chunk);

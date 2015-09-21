@@ -7,6 +7,7 @@ var Q = require('q');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 var buscomponent = require('./stbuscomponent.js');
+var debug = require('debug')('sotrade:dqueries');
 
 /**
  * Provides infrastructure for delaying queries until certain conditions are met.
@@ -95,6 +96,8 @@ DelayedQueries.prototype.checkAndExecute = function(ctx, query) {
 DelayedQueries.prototype.loadDelayedQueries = function() {
 	var self = this;
 	
+	debug('Load delayed queries');
+	
 	var ctx = new qctx.QContext({parentComponent: self});
 	
 	return ctx.query('SELECT * FROM dqueries').then(function(r) {
@@ -137,6 +140,9 @@ DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquer
  */
 DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx) {
 	var queryid = query.queryid;
+	
+	debug('Remove dquery', queryid);
+	
 	if (this.queries[queryid] && this.queries[queryid].userinfo.uid == ctx.user.uid) {
 		return this.removeQuery(this.queries[queryid], ctx).then(function() {
 			return { code: 'dquery-remove-success' };
@@ -163,6 +169,8 @@ DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquer
  */
 DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquery', function(query, ctx) {
 	var self = this;
+	
+	debug('Add dquery', query.condition);
 	
 	var qstr = null;
 	self.parseCondition(query.condition);
@@ -204,6 +212,8 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
  */
 DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dquery-checkall', function(query, ctx) {
 	var self = this;
+	
+	debug('Check all dqueries');
 	
 	if (!ctx.access.has('dqueries'))
 		throw new self.PermissionDenied();
@@ -377,6 +387,8 @@ DelayedQueries.prototype.parseCondition = function(str) {
  */
 DelayedQueries.prototype.executeQuery = function(query) {
 	var self = this;
+	
+	debug('Execute dquery', query.queryid);
 	
 	var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: self});
 	query.query._isDelayed = true;

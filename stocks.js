@@ -5,10 +5,10 @@ var util = require('util');
 var assert = require('assert');
 var validator = require('validator');
 var Q = require('q');
-require('datejs');
-
+var debug = require('debug')('sotrade:stocks');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
+require('datejs');
 
 /**
  * Provides client requests for small-scale finance updates and display.
@@ -43,7 +43,9 @@ Stocks.prototype.onBusConnect = function() {
 		var ctx = new qctx.QContext({parentComponent: self});
 		
 		self.quoteLoader.on('record', function(rec) {
-			Q(self.updateRecord(ctx, rec)).done();
+			Q().then(function() {
+				return self.updateRecord(ctx, rec);
+			}).done();
 		});
 		
 		return self.updateStockIDCache(ctx);
@@ -59,7 +61,8 @@ Stocks.prototype.updateStockIDCache = function(ctx) {
 	var self = this;
 	
 	return self.knownStockIDs = ctx.query('SELECT stockid, stocktextid FROM stocks').then(function(stockidlist) {
-		// generate ISIN |-> id map
+		debug('Generating ISIN |-> id map', stockidlist.length + ' entries');
+		
 		return self.knownStockIDs = _.chain(stockidlist).map(function(entry) {
 			assert.equal(typeof entry.stockid, 'number');
 			assert.ok(self.leaderStockTextIDFormat.test(entry.stocktextid) || validator.isISIN(entry.stocktextid));
@@ -174,6 +177,8 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
 Stocks.prototype.updateRankingInformation = function(ctx) {
 	var self = this;
 	
+	debug('Update ranking information');
+	
 	return ctx.query('UPDATE users_finance SET ' +
 		'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.stockid ' +
 			'WHERE uid = users_finance.uid AND leader IS NOT NULL), ' +
@@ -191,6 +196,8 @@ Stocks.prototype.updateRankingInformation = function(ctx) {
  * @function module:stocks~Stocks#updateValueHistory
  */
 Stocks.prototype.updateValueHistory = function(ctx) {
+	debug('Update value history');
+	
 	var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
 	return ctx.query('INSERT INTO tickshistory (ticks, time) ' +
 		'SELECT value, UNIX_TIMESTAMP() FROM globalvars WHERE name="ticks"').then(function() {
@@ -212,6 +219,8 @@ Stocks.prototype.updateValueHistory = function(ctx) {
  * @function module:stocks~Stocks#dailyCallback
  */
 Stocks.prototype.dailyCallback = function(ctx) {
+	debug('Daily callback');
+	
 	return ctx.query('UPDATE stocks SET daystartvalue = bid');
 };
 
@@ -225,6 +234,8 @@ Stocks.prototype.dailyCallback = function(ctx) {
  * @function module:stocks~Stocks#weeklyCallback
  */
 Stocks.prototype.weeklyCallback = function(ctx) {
+	debug('Weekly callback');
+	
 	return ctx.query('UPDATE stocks SET weekstartvalue = bid');
 };
 
@@ -239,6 +250,8 @@ Stocks.prototype.weeklyCallback = function(ctx) {
  * @function module:stocks~Stocks#cleanUpUnusedStocks
  */
 Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
+	debug('Clean up unused stocks');
+	
 	return this.getServerConfig().then(function(cfg) {
 		return ctx.query('DELETE FROM depot_stocks WHERE amount = 0');
 	}).then(function() {
@@ -260,6 +273,8 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
  */
 Stocks.prototype.updateStockValues = function(ctx) {
 	var self = this;
+	
+	debug('Update stock values');
 	
 	var stocklist = [];
 	var cfg;
@@ -364,6 +379,8 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 			}
 		});
 	}).then(function() {
+		debug('Updated record', rec.symbol);
+		
 		return self.emitGlobal('stock-update', {
 			'stockid': rec.symbol,
 			'lastvalue': rec.lastTradePrice * 10000,
@@ -445,6 +462,8 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 			};
 		}));
 		
+		debug('Search for stock', str, localResults.length + ' local', externalResults.length + ' external', results.length + ' unique');
+		
 		results = _.uniq(results, false, function(r) { return r.stocktextid; });
 		var symbols = _.pluck(results, 'stocktextid');
 		
@@ -502,6 +521,8 @@ Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen
  */
 Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ctx) {
 	var self = this;
+	
+	debug('Sell all stocks', ctx.user && ctx.user.uid);
 	
 	return ctx.query('SELECT s.*, ds.* ' +
 		'FROM stocks AS s ' +
@@ -615,10 +636,18 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	var conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
 	var fee, oh_res = null, tradeID = null, perffull = null, forceNow;
 	
+	/*
+	 * We try to check the conditions for performing the trade without using
+	 * a transaction first, since this takes a bit of time and we don’t want
+	 * parts of the table locked for the entire time.
+	 */
+	
 	opt = opt || {};
 	opt.forceNow = opt.forceNow || false;
 	opt.testOnly = opt.testOnly || false;
 	opt.skipTest = opt.skipTest || false;
+	
+	debug('Buy stock', query.leader, query.stocktextid, opt);
 	
 	return this.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
@@ -628,7 +657,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		
 		var mopt = _.clone(opt);
 		mopt.testOnly = true;
-		return self.buyStock(query, ctx, mopt);
+		return self.buyStock(query, ctx, mopt); // may throw exception!
 	}).then(function(result) {
 		assert.ok(ctx.user);
 		assert.ok(ctx.access);
@@ -859,11 +888,11 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
  * @function c2s~list-own-depot
  */
 Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot', function(query, ctx) {
-	return ctx.query('SELECT '+
-		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, '+
-		's.stocktextid AS stocktextid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, '+
+	return ctx.query('SELECT ' +
+		'amount, buytime, buymoney, ds.wprov_sum AS wprov_sum, ds.lprov_sum AS lprov_sum, ' +
+		's.stocktextid AS stocktextid, lastvalue, ask, bid, bid * amount AS total, weekstartvalue, daystartvalue, ' +
 		'users.uid AS leader, users.name AS leadername, exchange, s.name, ' +
-		'IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname '+
+		'IF(leader IS NULL, s.name, CONCAT("Leader: ", users.name)) AS stockname ' +
 		'FROM depot_stocks AS ds ' +
 		'JOIN stocks AS s ON s.stockid = ds.stockid ' +
 		'LEFT JOIN users ON s.leader = users.uid ' +

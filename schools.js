@@ -6,6 +6,7 @@ var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var Q = require('q');
+var debug = require('debug')('sotrade:schools');
 var buscomponent = require('./stbuscomponent.js');
 
 /**

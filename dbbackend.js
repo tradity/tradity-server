@@ -6,6 +6,8 @@ var assert = require('assert');
 var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var deepupdate = require('./lib/deepupdate.js');
+var debug = require('debug')('sotrade:db');
+var debugSQL = require('debug')('sotrade:db:SQL');
 
 /**
  * Provides access to a (MySQL) database for storing and fetching information
@@ -49,6 +51,8 @@ util.inherits(Database, buscomponent.BusComponent);
 Database.prototype._init = function() {
 	var self = this;
 	
+	debug('Initing database');
+	
 	return self.getServerConfig().then(function(cfg) {
 		self.dbmod = cfg.dbmod || require('mysql');
 		
@@ -64,6 +68,8 @@ Database.prototype._init = function() {
 			if (opt.ssl === 'default')
 				opt.ssl = cfg.ssl || {};
 			
+			debug('Create pool node', opt.writable, opt.readable, id);
+			
 			if (opt.writable) {
 				self.writableNodes.push(id);
 				self.wConnectionPool.add(id, opt);
@@ -74,6 +80,8 @@ Database.prototype._init = function() {
 		}
 		
 		self.wConnectionPool.on('remove', function(nodeId) {
+			debug('Connection removed from writing pool!');
+			
 			self.writableNodes = _.without(self.writableNodes, nodeId);
 			if (self.writableNodes.length == 0)
 				self.emitImmediate('change-readability-mode', { readonly: true });
@@ -96,6 +104,8 @@ Database.prototype._init = function() {
 
 Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', function() {
 	this.isShuttingDown = true;
+	
+	debug('Database shutdown');
 	
 	if (this.openConnections == 0) {
 		if (this.wConnectionPool) {
@@ -197,8 +207,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 			var deferred = Q.defer();
 			var startTime = Date.now();
 			conn.query(q, args, function(err, res) {
-				if (process.env.DEBUG_SQL)
-				console.log(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
+				debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
 					(res && typeof res.length != 'undefined' ? res.length + ' results' :
 					 res && typeof res.affectedRows != 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
 					 ' in ' + (Date.now() - startTime) + ' ms');

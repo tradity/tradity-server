@@ -10,6 +10,7 @@ var sha256 = require('./lib/sha256.js');
 var deepupdate = require('./lib/deepupdate.js');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
+var debug = require('debug')('sotrade:fsdb');
 
 /**
  * Provides an interface for publishing files and downloading them via HTTP.
@@ -51,6 +52,8 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
 		return false;
 	
 	var filename = fsmatch[fsmatch.length - 1];
+	
+	debug('Requested file', filename);
 	
 	return ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename]).then(function(rows) {
 		if (rows.length == 0) {
@@ -166,6 +169,8 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 	
 	var content = query.content;
 	var uniqrole, filehash, filename, url, content;
+	
+	debug('Upload file', query.mime, query.role);
 	
 	return Q.all([
 		self.getServerConfig(),

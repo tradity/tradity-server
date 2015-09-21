@@ -5,6 +5,7 @@ var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var Q = require('q');
+var debug = require('debug')('sotrade:admin');
 var buscomponent = require('./stbuscomponent.js');
 
 /**
@@ -112,6 +113,8 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
 Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(query, ctx) {
 	var self = this;
 	
+	debug('Administrative server shutdown');
+	
 	if (!ctx.access.has('server'))
 		throw new self.PermissionDenied();
 	
@@ -135,6 +138,8 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(qu
 Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
 	if (parseInt(query.uid) != query.uid)
 		throw new this.PermissionDenied();
+	
+	debug('Admin impersonation', ctx.user.uid, query.uid);
 	
 	return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [parseInt(query.uid)]).then(function(r) {
 		assert.equal(r.length, 1);
@@ -164,6 +169,8 @@ Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _req
 	
 	if (ctx.user.uid == uid)
 		throw new this.SoTradeClientError('delete-user-self-notallowed');
+	
+	debug('Deleting user', ctx.user.uid, uid);
 	
 	return Q.all([
 		ctx.query('DELETE FROM sessions WHERE uid = ?', [uid]),
@@ -416,6 +423,8 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
  * @function c2s~get-server-statistics
  */
 Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx) {
+	debug('Requesting server statistics');
+	
 	return this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}).then(function(replies) {
 		return { code: 'get-server-statistics-success', servers: replies };
 	});
@@ -432,6 +441,8 @@ Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-
  * @function c2s~show-packet-log
  */
 Admin.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log', _reqpriv('userdb', function(query, ctx) {
+	debug('Showing packet log');
+	
 	/* The package log is mostly informal and not expected to be used for anything but debugging.
 	 * This means that circular structures in it may exist and JSON is simply not the way to go here. */ 
 	return { code: 'show-packet-log-success', result: util.inspect(this.bus.packetLog, null) };
@@ -454,6 +465,8 @@ Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-st
 	var ndays = parseInt(query.ndays) || 365;
 	var timespanStart = todayStart - ndays * 86400;
 	var dt = 300;
+	
+	debug('Fetching ticks statistics');
 	
 	return ctx.query('SELECT FLOOR(time/?)*? AS timeindex, SUM(ticks) AS ticksum, COUNT(ticks) AS tickcount ' +
 		'FROM tickshistory ' +

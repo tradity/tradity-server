@@ -6,6 +6,7 @@ var assert = require('assert');
 var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
+var debug = require('debug')('sotrade:misc');
 
 /**
  * Provides handlers for client requests not fitting into any of
@@ -83,6 +84,7 @@ Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error
 	if (!ctx.access.has('server'))
 		throw new this.PermissionDenied();
 	
+	debug('Creating artificial error');
 	ctx.emitError(new Error('Client-induced non-failure'));
 	return { code: 'artificial-error-success' };
 });
@@ -99,6 +101,7 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
 	if (!ctx.access.has('server'))
 		throw new this.PermissionDenied();
 	
+	debug('Creating artificial deadlock');
 	var conn1, conn2, id;
 	var deferred = Q.defer();
 	
@@ -141,6 +144,8 @@ Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-
 	if (!ctx.access.has('server'))
 		throw new this.PermissionDenied();
 	
+	debug('Creating artificial stale lock');
+	
 	var conn;
 	return ctx.startTransaction({httpresources: 'w'}).then(function(conn_) {
 		conn = conn_;
@@ -160,6 +165,8 @@ Misc.prototype.forceReadonly = buscomponent.provideQT('client-force-readonly', f
 	if (!ctx.access.has('server'))
 		throw new this.PermissionDenied();
 	
+	debug('Force into readability mode', query.readonly);
+	
 	this.emitImmediate('change-readability-mode', { readonly: query.readonly ? true : false });
 	
 	return { code: 'force-readonly-success' };
@@ -175,6 +182,8 @@ Misc.prototype.forceReadonly = buscomponent.provideQT('client-force-readonly', f
 Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-dberror', function(query, ctx) {
 	if (!ctx.access.has('server'))
 		throw new this.PermissionDenied();
+	
+	debug('Query with invalid SQL');
 	
 	return ctx.query('INVALID SQL').catch(function(err) {
 		return { code: 'artificial-dberror-success', err: err };

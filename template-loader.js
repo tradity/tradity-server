@@ -6,6 +6,7 @@ var assert = require('assert');
 var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var templates = require('./templates-compiled.js');
+var debug = require('debug')('sotrade:template-loader');
 
 /**
  * Provides methods for reading in template files.
@@ -45,6 +46,8 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
 	function(template, lang, variables)
 {
 	var self = this;
+	
+	debug('Read template', template, lang, variables);
 	
 	return self.getServerConfig().then(function(cfg) {
 		variables = variables || {};

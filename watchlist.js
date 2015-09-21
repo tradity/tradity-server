@@ -4,6 +4,7 @@ var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
+var debug = require('debug')('sotrade:watchlist');
 
 /**
  * Provides methods for loading and changing user watchlists.
@@ -50,6 +51,8 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideTXQT('client-watchlist-ad
 	var self = this;
 	
 	var uid, res;
+	
+	debug('watchlist-add', query.stockid, ctx.user.uid);
 	
 	return ctx.query('SELECT stockid, stocktextid, users.uid AS uid, users.name, bid FROM stocks ' +
 		'LEFT JOIN users ON users.uid = stocks.leader WHERE stocks.stockid = ? OR stocks.stocktextid = ? LOCK IN SHARE MODE',
@@ -107,6 +110,8 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideTXQT('client-watchlist-ad
  * @function c2s~watchlist-remove
  */
 Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx) {
+	debug('watchlist-remove', query.stockid, ctx.user.uid);
+	
 	return ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.uid, String(query.stockid)]).then(function() {
 		return ctx.feed({
 			type: 'watch-remove',

@@ -7,6 +7,7 @@ var Q = require('q');
 var semaphore = require('q-semaphore');
 var ratelimit = require('q-ratelimit');
 var buscomponent = require('./stbuscomponent.js');
+var debug = require('debug')('sotrade:error');
 
 /**
  * Provides methods for handling, logging, and notifying about errors.
@@ -47,6 +48,8 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 	
 	if (!e)
 		return self.err(new Error('Error without Error object caught -- abort'), true);
+	
+	debug('Error', e);
 	
 	var cfg, longErrorText;
 	

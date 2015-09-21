@@ -7,10 +7,11 @@ var assert = require('assert');
 var LoginIPCheck = require('./lib/loginIPCheck.js');
 var Q = require('q');
 var sha256 = require('./lib/sha256.js');
+var Cache = require('./lib/minicache.js').Cache;
 var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
-var Cache = require('./minicache.js').Cache;
 var qctx = require('./qctx.js');
+var debug = require('debug')('sotrade:user');
 require('datejs');
 
 /**
@@ -88,6 +89,8 @@ User.prototype.generatePWKey = function(pw) {
 User.prototype.generatePassword = function(pw, timeName, uid, conn) {
 	assert.ok(['changetime', 'issuetime'].indexOf(timeName) >= 0);
 	
+	debug('Generate password', timeName, uid);
+	
 	return this.generatePWKey(pw).then(function(pwdata) {
 		return conn.query('INSERT INTO passwords (pwsalt, pwhash, algorithm, uid, ' + timeName + ') ' +
 			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())',
@@ -105,6 +108,8 @@ User.prototype.generatePassword = function(pw, timeName, uid, conn) {
  * @function module:user~User#verifyPassword
  */
 User.prototype.verifyPassword = function(pwdata, pw) {
+	debug('Verify password', pwdata.algorithm);
+	
 	if (pwdata.algorithm === 'SHA256')
 		return Q(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
 	
@@ -145,6 +150,7 @@ User.deprecatedPasswordAlgorithms = /^SHA256$/i;
 User.prototype.sendInviteEmail = function(data, ctx) {
 	var self = this;
 	
+	debug('Send invite email', data.email, data.url, ctx.user && ctx.user.uid);
 	return self.request({name: 'sendTemplateMail',
 		template: 'invite-email.eml',
 		ctx: ctx,
@@ -171,6 +177,8 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 	
 	ctx.access.drop('email_verif');
 	
+	debug('Prepare register email', data.email);
+	
 	var loginResp, key;
 	return self.login({
 		name: data.email,
@@ -192,6 +200,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
 			.replace(/\{\$key\}/g, key)
 			.replace(/\{\$uid\}/g, ctx.user.uid));
 		
+		debug('Send register email', data.email, data.lang, data.name, ctx.user.uid);
 		return self.request({name: 'sendTemplateMail', 
 			template: 'register-email.eml',
 			ctx: ctx,
@@ -233,6 +242,8 @@ User.prototype.login = buscomponent.provide('client-login',
 	var name = String(query.name);
 	var pw = String(query.pw);
 	var key, uid;
+	
+	debug('Login', xdata.remoteip, name, useTransaction, ignorePassword);
 	
 	return self.getLoginIPCheck().then(function(check) {
 		return check.check(xdata.remoteip);
@@ -292,6 +303,7 @@ User.prototype.login = buscomponent.provide('client-login',
 		if (ctx.getProperty('readonly'))
 			return;
 		
+		debug('Update passwords', xdata.remoteip, name, uid, r.pwid);
 		return Q.all([
 			ctx.query('DELETE FROM passwords WHERE pwid != ? AND uid = ?', [r.pwid, uid]),
 			r.issuetime !== null ? ctx.query('UPDATE passwords SET changetime = UNIX_TIMESTAMP() WHERE pwid = ?', [r.pwid]) : Q(),
@@ -306,6 +318,8 @@ User.prototype.login = buscomponent.provide('client-login',
 		if (ctx.getProperty('readonly')) {
 			key = key.substr(0, 6);
 			var today = parseInt(Date.now() / 86400);
+			
+			debug('Sign session key', xdata.remoteip, name, uid, today);
 			
 			var ret;
 			return self.request({
@@ -325,10 +339,10 @@ User.prototype.login = buscomponent.provide('client-login',
 			});
 		} else {
 			return self.regularCallback({}, ctx).then(function() {
-				// use transaction with lock to make sure all server nodes have the same data
-				
 				return ctx.startTransaction();
 			}).then(function(conn) {
+				debug('Add session to table', xdata.remoteip, name, uid, today);
+				
 				return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
 					'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
 					[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime])
@@ -348,6 +362,8 @@ User.prototype.login = buscomponent.provide('client-login',
  * @function c2s~logout
  */
 User.prototype.logout = buscomponent.provideWQT('client-logout', function(query, ctx) {
+	debug('Logout', query.key);
+	
 	return ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)]).then(function() {
 		return { code: 'logout-success' };
 	});
@@ -795,6 +811,8 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 	if (ctx.getProperty('readonly'))
 		return Q();
 	
+	debug('Regular callback');
+	
 	return Q.all([
 		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
 		ctx.query('DELETE FROM passwords WHERE changetime IS NULL AND issuetime < UNIX_TIMESTAMP() - 7*86400'),
@@ -837,6 +855,8 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 	
 	if (uid != query.uid)
 		throw new self.FormatError();
+	
+	debug('Verify email', uid);
 	
 	return ctx.startTransaction().then(function(conn) {
 		return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid])
@@ -907,6 +927,8 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 		ctx.setProperty('pendingTicks', 0);
 		ctx.setProperty('lastSessionUpdate', now);
 		
+		debug('Adding ticks', user.uid, ticks);
+		
 		return Q.all([
 			ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]),
 			ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ticks, user.uid])
@@ -944,6 +966,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 			if (!msg || msg.date <= today - 1) // message at least 24 hours old
 				return null;
 			
+			debug('Verified user in readonly mode', msg.uid);
 			return {uid: msg.uid, key: msg.sid};
 		});
 	}).then(function(loginInfo) {
@@ -963,9 +986,8 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 			(ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
 			'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
 		.then(function(res) {
-			if (res.length == 0) {
+			if (res.length == 0)
 				return null;
-			}
 			
 			assert.equal(res.length, 1);
 			var user = res[0];
@@ -986,6 +1008,8 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 			
 			if (signedLogin)
 				user.sid = loginInfo.key;
+			
+			debug('Loaded user', user.uid);
 			
 			return self.updateUserStatistics(user, ctx).then(function() {
 				return user;
@@ -1083,6 +1107,8 @@ User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', 
 User.prototype.updateUser = function(query, type, ctx, xdata) {
 	var self = this;
 	
+	debug('Update user', type, ctx.user && ctx.user.uid);
+	
 	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
 	
 	var res, uid, cfg;
@@ -1165,6 +1191,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			}).then(function(rand) {
 				if (rand)
 					possibleSchoolPath += '-' + rand.toString('base64') + String(Date.now()).substr(3, 4);
+				
+				debug('Create school for user update', possibleSchoolPath);
 				
 				return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
 					[String(query.school), possibleSchoolPath]);
@@ -1346,6 +1374,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx) {
 	var self = this;
 	
+	debug('Reset user', ctx.user.uid);
+	
 	return self.getServerConfig().then(function(cfg) {
 		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
 			throw new self.PermissionDenied();
@@ -1398,6 +1428,8 @@ User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset',
 		throw new self.SoTradeClientError('already-logged-in');
 	
 	var name = String(query.name), pw, u;
+	
+	debug('Reset password', name);
 	
 	return ctx.query('SELECT users.uid, email, lang ' +
 		'FROM users ' +
@@ -1466,6 +1498,8 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
 User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx) {
 	var self = this;
 	ctx = ctx.clone(); // so we can’t lose the user object during execution
+	
+	debug('Create invite link for', ctx.user.uid, query.email, query.schoolid);
 	
 	var sendKeyToCaller = ctx.access.has('userdb');
 	var key, url, cfg;

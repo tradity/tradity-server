@@ -4,6 +4,7 @@ var Q = require('q');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
+var debug = require('debug')('sotrade:chats');
 
 var buscomponent = require('./stbuscomponent.js');
 
@@ -124,6 +125,9 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 			[]).then(function(endpointUserCount) {
 			if (endpointUserCount[0].c != query.endpoints.length)
 				return Q(null);
+				
+			
+			debug('Creating new chat', query.endpoints.length, 'users');
 			
 			return ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.uid]).then(function(res) {
 				chatid = res.insertId;
@@ -223,6 +227,8 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
  */
 Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', function(query, ctx) {
 	var self = this;
+	
+	debug('Add user to chat', query.userid, query.chatid);
 	
 	/* backwards compatibility */
 	if (parseInt(query.userid) == query.userid && parseInt(query.uid) != query.userid)

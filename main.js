@@ -297,47 +297,41 @@ Main.prototype.forkStandardWorker = function() {
 Main.prototype.startMaster = function() {
 	var self = this;
 	
-	return Q().then(function() {
-		var workerStartedPromises = [];
+	if (self.getServerConfig().startBackgroundWorker)
+		self.forkBackgroundWorker();
+	
+	for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
+		self.forkStandardWorker();
+	
+	var shuttingDown = false;
+	self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
+	self.mainBus.on('localShutdown', function() { shuttingDown = true; });
+	
+	cluster.on('exit', function(worker, code, signal) {
+		self.workers = _.filter(self.workers, function(w) { w.process.pid != worker.process.pid; });
 		
-		if (self.getServerConfig().startBackgroundWorker)
-			workerStartedPromises.push(Q().then(self.forkBackgroundWorker.bind(self)));
+		var shouldRestart = !shuttingDown;
 		
-		for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
-			workerStartedPromises.push(Q().then(self.forkStandardWorker.bind(self)));
+		if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
+			shouldRestart = false;
 		
-		return Q.all(workerStartedPromises);
-	}).then(function() {
-		var shuttingDown = false;
-		self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
-		self.mainBus.on('localShutdown', function() { shuttingDown = true; });
+		debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
 		
-		cluster.on('exit', function(worker, code, signal) {
-			self.workers = _.filter(self.workers, function(w) { w.process.pid != worker.process.pid; });
+		if (!shuttingDown) {
+			debug('respawning');
 			
-			var shouldRestart = !shuttingDown;
-			
-			if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
-				shouldRestart = false;
-			
-			debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
-			
-			if (!shuttingDown) {
-				debug('respawning');
-				
-				if (worker.process.pid == self.bwpid)
-					self.forkBackgroundWorker();
-				else 
-					self.forkStandardWorker();
-			} else {
-				setTimeout(function() {
-					process.exit(0);
-				}, 2000);
-			}
-		});
-		
-		return self.connectToSocketIORemotes();
+			if (worker.process.pid == self.bwpid)
+				self.forkBackgroundWorker();
+			else 
+				self.forkStandardWorker();
+		} else {
+			setTimeout(function() {
+				process.exit(0);
+			}, 2000);
+		}
 	});
+	
+	return self.connectToSocketIORemotes();
 };
 
 Main.prototype.worker = function() {
@@ -436,9 +430,7 @@ Main.prototype.connectToSocketIORemote = function(remote) {
 		
 		socket.on('disconnect', function() {
 			// auto-reconnect
-			if (socket)
-				socket.close();
-			
+			socket.close();
 			socket = null;
 			return self.connectToSocketIORemote(remote);
 		});

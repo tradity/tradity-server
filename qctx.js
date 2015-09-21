@@ -7,6 +7,7 @@ var weak = require('weak');
 var buscomponent = require('./stbuscomponent.js');
 var _ = require('lodash');
 var Q = require('q');
+var debug = require('debug')('sotrade:qctx');
 
 /**
  * Provides the {@link module:qctx~QContext} object.
@@ -142,10 +143,10 @@ QContext.prototype.getChildContexts = function() {
 	var rv = [];
 	
 	for (var i = 0; i < this.childContexts.length; ++i) {
-		var r = weak.get(this.childContexts[i]);
 		if (weak.isDead(this.childContexts[i]))
 			delete this.childContexts[i];
-		rv.push(r);
+		else
+			rv.push(this.childContexts[i]);
 	}
 	
 	// remove deleted indices
@@ -499,7 +500,10 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
 	if (tablelocks)
 		tli = self.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
 	
+	debug('Starting transaction', tli);
 	var cleanTLEntry = function() {
+		debug('Ended transaction', tli);
+		
 		if (tli === null)
 			return;
 		

@@ -4,6 +4,7 @@
 
 Error.stackTraceLimit = Infinity;
 
+var debug = require('debug')('sotrade:mailbounce');
 var minimist = require('minimist');
 var MailParser = new require('mailparser').MailParser;
 var sotradeClient = require('./sotrade-client.js');
@@ -13,6 +14,8 @@ var mail = null, serverConfigReceived = false, notifying = false;
 var diagnostic_code = '', messageId = '';
 
 function notifyServer() {
+	debug('Notifying server', diagnostic_code, messageId);
+	
 	notifying = true;
 	socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(function() {
 		process.exit(0);
@@ -75,7 +78,9 @@ function handleMail(mail) {
 }
 
 mailparser.on('end', function(mail_) {
+	debug('Have parsed mail');
 	mail = mail_;
+
 	if (serverConfigReceived)
 		handleMail(mail);
 });
@@ -83,7 +88,9 @@ mailparser.on('end', function(mail_) {
 process.stdin.pipe(mailparser);
 
 socket.once('server-config').then(function() {
+	debug('Have server config');
 	serverConfigReceived = true;
+	
 	if (mail)
 		handleMail(mail);
 });

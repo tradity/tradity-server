@@ -6,6 +6,7 @@ var assert = require('assert');
 var Q = require('q');
 var WP = require('wordpress-rest-api');
 var buscomponent = require('./stbuscomponent.js');
+var debug = require('debug')('sotrade:wordpress-feed');
 
 /**
  * Provides methods for reading posts from a wordpress blog
@@ -41,6 +42,8 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
 	if (ctx.access.has('wordpress') == -1)
 		throw new this.PermissionDenied();
 	
+	debug('Received process-wordpress-feed');
+	
 	return ctx.query('SELECT feedblogs.blogid, endpoint, category, schoolid, bloguser, MAX(posttime) AS lastposttime ' +
 		'FROM feedblogs ' + 
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
@@ -49,6 +52,8 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
 		return Q.all(res.map(function(bloginfo) {
 			var wp = new WP({endpoint: bloginfo.endpoint});
 			var catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
+			
+			debug('Fetching blog posts', bloginfo.endpoint, bloginfo.category);
 			
 			return Q(wp.posts().filter(catFilter)).then(function(posts) {
 				return Q.all(posts.filter(function(post) {
@@ -63,6 +68,8 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
 						[bloginfo.blogid, post.date_unix, JSON.stringify(post)]).then(function(r) {
 						assert.ok(r.insertId);
 						
+						debug('Adding blog post', bloginfo.endpoint, bloginfo.category, post.title);
+						
 						return ctx.feed({
 							type: 'blogpost',
 							targetid: r.insertId,
@@ -76,6 +83,7 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
 			});
 		}));
 	}).then(function() {
+		debug('Done processing feeds');
 		return { code: 'process-wordpress-feed-success' };
 	});
 });
@@ -128,12 +136,14 @@ WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-w
 	
 	if (ctx.access.has('wordpress') == -1)
 		throw new self.PermissionDenied();
-	
+		
 	query.schoolid = query.schoolid ? parseInt(query.schoolid) : null;
 	query.category = query.category ? String(query.category) : null;
 	
 	if (query.schoolid != query.schoolid)
 		throw new self.FormatError();
+	
+	debug('Add feed', query.schoolid, query.category);
 	
 	return ctx.query('SELECT endpoint, bloguser FROM feedblogs WHERE schoolid IS NULL LIMIT 1').then(function(res) {
 		if (res.length > 0) {
@@ -149,6 +159,8 @@ WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-w
 		query.bloguser = query.bloguser != null ? parseInt(query.bloguser) : res[0].bloguser;
 		if (query.bloguser != query.bloguser)
 			throw new self.FormatError();
+		
+		debug('Insert feed', query.schoolid, query.category, query.endpoint, query.bloguser);
 		
 		return ctx.query('INSERT INTO feedblogs (endpoint, category, schoolid, bloguser, active) VALUES(?, ?, ?, ?, 1)',
 			[query.endpoint, query.category, query.schoolid, query.bloguser]);
@@ -176,6 +188,8 @@ WordpressFeed.prototype.removeWordpressFeed = buscomponent.provideWQT('client-re
 	
 	if (query.blogid != query.blogid)
 		throw new this.FormatError();
+
+	debug('Remove blog', query.blogid);
 
 	return ctx.query('UPDATE feedblogs SET active = 0 WHERE blogid = ?', [query.blogid]).then(function() {
 		return { code: 'remove-wordpress-feed-success' };

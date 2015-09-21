@@ -5,6 +5,7 @@ var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var semaphore = require('q-semaphore');
+var debug = require('debug')('sotrade:bw');
 
 /**
  * Provides an entry point for client-induced regular cleanup
@@ -38,6 +39,8 @@ util.inherits(BackgroundWorker, buscomponent.BusComponent);
  */
 BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx) {
 	var self = this;
+	
+	debug('Received prod');
 	
 	assert.ok(ctx.access);
 	

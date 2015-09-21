@@ -196,6 +196,8 @@ ConnectionData.prototype.fetchEvents = function(query) {
 		});
 
 		return self.wrapForReply({pushes: evlist}).then(function(r) {
+			debug('Writing push container');
+		
 			if (self.socket)
 				self.socket.emit('push-container', r);
 		}).catch(function(e) {
@@ -240,6 +242,8 @@ ConnectionData.prototype.push = function(data) {
 	var self = this;
 	
 	return self.wrapForReply(data).then(function(r) {
+		debug('Writing single push', data.type);
+			
 		if (self.socket)
 			self.socket.emit('push', r);
 	}).then(function() {
@@ -330,6 +334,11 @@ ConnectionData.prototype.response = function(data) {
 	var self = this;
 	
 	var res = self.wrapForReply(data).then(function(r) {
+		if (!self.socket)
+			debug('Lost socket while compiling response', self.cdid);
+		
+		debug('Writing response');
+		
 		if (self.socket)
 			self.socket.emit('response', r);
 	}).catch(function(e) {
@@ -590,7 +599,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 		});
 	}).catch(function(e) {
 		return self.emitError(e);
-	});
+	}).done();
 };
 
 /**
@@ -654,29 +663,29 @@ ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'glo
 ConnectionData.prototype.wrapForReply = function(obj) {
 	var self = this;
 	
-	if (!self.socket) {
-		self.ctx.setProperty('compressionSupport', {});
-		self.ctx.setProperty('remoteProtocolVersion', null);
-		self.ctx.setProperty('remoteClientSoftware', null);
-	}
-	
-	var compressionThreshold = 20480;
-	var splitCompressable = null;
-	var csupp = self.ctx.getProperty('compressionSupport');
-	
-	var stringify = function(o) {
-		try {
-			return JSON.stringify(o);
-		} catch (e) {
-			// Most likely, obj was a circular data structure, so include that in the debug information
-			if (e.type == 'circular_structure')
-				throw new Error('Circular JSON while wrapping for reply, cycle: ' + commonUtil.detectCycle(o));
-			else
-				throw e;
-		}
-	}
-	
 	return Q().then(function() {
+		if (!self.socket) {
+			self.ctx.setProperty('compressionSupport', {});
+			self.ctx.setProperty('remoteProtocolVersion', null);
+			self.ctx.setProperty('remoteClientSoftware', null);
+		}
+		
+		var compressionThreshold = 20480;
+		var splitCompressable = null;
+		var csupp = self.ctx.getProperty('compressionSupport');
+		
+		var stringify = function(o) {
+			try {
+				return JSON.stringify(o);
+			} catch (e) {
+				// Most likely, obj was a circular data structure, so include that in the debug information
+				if (e.type == 'circular_structure')
+					throw new Error('Circular JSON while wrapping for reply, cycle: ' + commonUtil.detectCycle(o));
+				else
+					throw e;
+			}
+		}
+		
 		var compressable, noncompressable = '';
 		var cc = null;
 		
@@ -709,6 +718,8 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 			}).then(function(result) {
 				assert.ok(Buffer.isBuffer(result));
 				
+				debug('Use split LZMA compression', s.length + ' uncompressed', result.length + ' compressed', sn.length + ' other');
+				
 				return {
 					e: 'split',
 					s: [
@@ -721,9 +732,13 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 			self.queryCompressionInfo.used.lzma += 1;
 			
 			return lzma.LZMA().compress(s, 3).then(function(result) {
+				debug('Use LZMA compression', s.length + ' uncompressed', result.length + ' compressed');
+				
 				return { s: result, e: 'lzma' };
 			});
 		} else {
+			debug('Do not use compression', s.length + ' uncompressed');
+			
 			return { s: s, e: 'raw' }; // e for encoding
 		}
 	}).then(function(wrappedObject) {

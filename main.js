@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 (function () { "use strict";
 
 var _ = require('lodash');
@@ -10,12 +11,13 @@ var util = require('util');
 var Q = require('q');
 
 var qctx = require('./qctx.js');
-var cfg = require('./config.js').config;
+var cfg = require('./config.js').config();
 var bus = require('./bus/bus.js');
 var buscomponent = require('./stbuscomponent.js');
 var pt = require('./bus/processtransport.js');
 var dt = require('./bus/directtransport.js');
 var sio = require('socket.io-client');
+var debug = require('debug')('sotrade:main');
 
 var achievementList = require('./achievement-list.js');
 
@@ -122,6 +124,7 @@ Main.prototype.getReadabilityMode = buscomponent.provide('get-readability-mode',
 });
 
 Main.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
+	debug('Change readability mode', event.readonly);
 	this.readonly = event.readonly;
 });
 
@@ -143,14 +146,14 @@ Main.prototype.setupStockLoaders = function() {
 
 	this.defaultStockLoader = stockLoaders[cfg.stockloaders._defaultStockLoader];
 	this.defaultStockLoaderDeferred.resolve(this.defaultStockLoader);
-};
-
-Main.prototype.log = function() {
-	console.log.apply(console, arguments);
+	
+	debug('Set up default stock loader');
 };
 
 Main.prototype.start = function() {
 	var self = this;
+	
+	debug('Starting');
 	
 	return self.setBus(self.mainBus, 'manager-' + process.pid).then(function() {
 		return self.loadComponents(self.superEssentialComponents);
@@ -167,8 +170,13 @@ Main.prototype.start = function() {
 
 		var cfg = self.getServerConfig();
 		assert.ok(cfg.busDumpFile);
+		
 		process.on('SIGUSR2', function() {
-			fs.writeFileSync(cfg.varReplace(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid)),
+			var targetFile = cfg.varReplace(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid + '-' + self.mainBus.id));
+			
+			debug('Dumping bus log', targetFile);
+			
+			fs.writeFileSync(targetFile,
 				'Log:\n\n' + JSON.stringify(self.mainBus.packetLog) + '\n\n\nUnanswered:\n\n' + JSON.stringify(self.mainBus.unansweredRequests()));
 		});
 		
@@ -201,8 +209,8 @@ Main.prototype.getFreePort = function(pid) {
 Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
 	var self = this;
 	var ev = new events.EventEmitter();
-	var toMaster = new dt.DirectTransport(ev);
-	var toWorker = new dt.DirectTransport(ev);
+	var toMaster = new dt.DirectTransport(ev, 1, true);
+	var toWorker = new dt.DirectTransport(ev, 1, true);
 	
 	assert.ok(isBackgroundWorker || port);
 	var m = new Main({
@@ -244,7 +252,7 @@ Main.prototype.forkBackgroundWorker = function() {
 			if (msg.cmd == 'startRequest' && !sentSBW) {
 				sentSBW = true;
 				
-				self.log('Sending SBW to', bw.process.pid);
+				debug('Sending SBW to', bw.process.pid);
 				bw.send({cmd: 'startBackgroundWorker'});
 			}
 		});
@@ -274,7 +282,7 @@ Main.prototype.forkStandardWorker = function() {
 					sentSSW = true;
 					var port = self.getFreePort(w.process.pid);
 					
-					self.log('Sending SSW[', port, '] to', w.process.pid);
+					debug('Sending SSW[', port, '] to', w.process.pid);
 					
 					w.send({
 						cmd: 'startStandardWorker',
@@ -289,41 +297,47 @@ Main.prototype.forkStandardWorker = function() {
 Main.prototype.startMaster = function() {
 	var self = this;
 	
-	if (self.getServerConfig().startBackgroundWorker)
-		self.forkBackgroundWorker();
-	
-	for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
-		self.forkStandardWorker();
-	
-	var shuttingDown = false;
-	self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
-	self.mainBus.on('localShutdown', function() { shuttingDown = true; });
-	
-	cluster.on('exit', function(worker, code, signal) {
-		self.workers = _.filter(self.workers, function(w) { w.process.pid != worker.process.pid; });
+	return Q().then(function() {
+		var workerStartedPromises = [];
 		
-		var shouldRestart = !shuttingDown;
+		if (self.getServerConfig().startBackgroundWorker)
+			workerStartedPromises.push(Q().then(self.forkBackgroundWorker.bind(self)));
 		
-		if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
-			shouldRestart = false;
+		for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
+			workerStartedPromises.push(Q().then(self.forkStandardWorker.bind(self)));
 		
-		self.log('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
+		return Q.all(workerStartedPromises);
+	}).then(function() {
+		var shuttingDown = false;
+		self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
+		self.mainBus.on('localShutdown', function() { shuttingDown = true; });
 		
-		if (!shuttingDown) {
-			self.log('respawning');
+		cluster.on('exit', function(worker, code, signal) {
+			self.workers = _.filter(self.workers, function(w) { w.process.pid != worker.process.pid; });
 			
-			if (worker.process.pid == self.bwpid)
-				self.forkBackgroundWorker();
-			else 
-				self.forkStandardWorker();
-		} else {
-			setTimeout(function() {
-				process.exit(0);
-			}, 2000);
-		}
+			var shouldRestart = !shuttingDown;
+			
+			if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
+				shouldRestart = false;
+			
+			debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
+			
+			if (!shuttingDown) {
+				debug('respawning');
+				
+				if (worker.process.pid == self.bwpid)
+					self.forkBackgroundWorker();
+				else 
+					self.forkStandardWorker();
+			} else {
+				setTimeout(function() {
+					process.exit(0);
+				}, 2000);
+			}
+		});
+		
+		return self.connectToSocketIORemotes();
 	});
-	
-	return self.connectToSocketIORemotes();
 };
 
 Main.prototype.worker = function() {
@@ -334,7 +348,7 @@ Main.prototype.worker = function() {
 	
 	var startRequestInterval = setInterval(function() {
 		if (!self.hasReceivedStartCommand) {
-			self.log('Requesting start commands', process.pid);
+			debug('Requesting start commands', process.pid);
 			process.send({cmd: 'startRequest'});
 		}
 	}, 250);
@@ -344,13 +358,13 @@ Main.prototype.worker = function() {
 			return;
 		
 		if (msg.cmd == 'startBackgroundWorker') {
-			self.log(process.pid, 'received SBW');
+			debug(process.pid, 'received SBW');
 			
 			self.isBackgroundWorker = true;
 		} else if (msg.cmd == 'startStandardWorker') {
 			assert.ok(msg.port);
 			
-			self.log(process.pid, 'received SSW[', msg.port, ']');
+			debug(process.pid, 'received SSW[', msg.port, ']');
 			self.port = msg.port;
 			self.isBackgroundWorker = false;
 		} else {
@@ -370,7 +384,7 @@ Main.prototype.startWorker = function() {
 	var componentsForLoading = self.basicComponents
 		.concat(self.isBackgroundWorker ? self.bwComponents : self.regularComponents);
 	
-	self.log(process.pid, 'loading');
+	debug(process.pid, 'loading');
 	var stserver;
 	return self.loadComponents(componentsForLoading).then(function() {
 		var server = require('./server.js');
@@ -378,12 +392,12 @@ Main.prototype.startWorker = function() {
 		
 		return stserver.setBus(self.mainBus, 'serverMaster');
 	}).then(function() {
-		self.log(process.pid, 'loaded');
+		debug(process.pid, 'loaded');
 		
 		if (self.isBackgroundWorker) {
-			self.log('BW started at', process.pid, 'connecting to remotes...');
+			debug('BW started at', process.pid, 'connecting to remotes...');
 			return self.connectToSocketIORemotes().then(function() {
-				self.log('BW connected to remotes', process.pid);
+				debug('BW connected to remotes', process.pid);
 			});
 		} else {
 			return stserver.start(self.port);
@@ -422,7 +436,9 @@ Main.prototype.connectToSocketIORemote = function(remote) {
 		
 		socket.on('disconnect', function() {
 			// auto-reconnect
-			socket.close();
+			if (socket)
+				socket.close();
+			
 			socket = null;
 			return self.connectToSocketIORemote(remote);
 		});
@@ -472,7 +488,7 @@ Main.prototype.loadComponents = function(componentsForLoading) {
 
 exports.Main = Main;
 
-if (require.main === module)
-	new Main().start().done();
+//if (require.main === module)
+//	new Main().start().done();
 
 })();

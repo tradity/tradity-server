@@ -24,6 +24,10 @@ function correlation(a, b) {
 	return cov(a, b) / (Math.sqrt(cov(a, a) * cov(b, b)));
 }
 
+function stddev(a) {
+	return Math.sqrt(cov(a, a));
+}
+
 describe('loginIPCheck', function() {
 	it('should increase waiting time with the number of login attempts', function() {
 		var check = new LoginIPCheck({
@@ -41,10 +45,10 @@ describe('loginIPCheck', function() {
 				deltas.push(Math.log(now - prev));
 				prev = now;
 				
-				return check.check('1.2.3.4');
+				return check.check('1:2:3::4');
 			};
 		}).reduce(Q.when, Q()).then(function() {
-			var r = correlation(deltas, _.range(N));
+			var r = correlation(deltas.slice(1), _.range(N-1));
 			assert.ok(r > 0.5, 'Correlation was only ' + r);
 		});
 	});
@@ -74,5 +78,38 @@ describe('loginIPCheck', function() {
 				return check.check('1.2.3.4');
 			};
 		}).reduce(Q.when, Q());
+	});
+	
+	it('should flush old infos', function() {
+		var check = new LoginIPCheck({
+			base: 2,
+			baseWait: 10,
+			flushTimeout: 5
+		});
+		
+		var deltas = [];
+		var N = 7;
+		
+		var prev = Date.now();
+		return _.range(N).map(function() {
+			return function() {
+				var now = Date.now();
+				deltas.push(Math.log(now - prev));
+				prev = now;
+				
+				return check.check('1:2:3::4');
+			};
+		}).reduce(Q.when, Q()).then(function() {
+			deltas.shift();
+			
+			var relStddev = stddev(deltas) / mean(deltas);
+			
+			assert.ok(relStddev < 0.1, 'Unexpected relative stddev was ' + relStddev);
+		});
+	});
+	
+	it('should return a string representation via .toString()', function() {
+		var check = new LoginIPCheck();
+		assert.ok(check.toString());
 	});
 });

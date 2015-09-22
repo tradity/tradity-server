@@ -145,11 +145,11 @@ Bus.prototype.emitBusNodeInfoSoon = function() {
 	
 	debugNetwork('emitBusNodeInfoSoon', self.id);
 	
-	process.nextTick(function() {
+	setTimeout(function() {
 		self.busNodeInfoQueued = false;
 		
 		self.emitBusNodeInfo();
-	});
+	}, 100);
 };
 
 Bus.prototype.emitBusNodeInfo = function(transports, initial) {

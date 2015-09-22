@@ -1470,6 +1470,9 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 	var sendKeyToCaller = ctx.access.has('userdb');
 	var key, url, cfg;
 	
+	if (query.schoolid && parseInt(query.schoolid) != query.schoolid)
+		throw new self.FormatError();
+	
 	return self.getServerConfig().then(function(cfg_) {
 		cfg = cfg_;
 		query.email = query.email ? String(query.email) : null;
@@ -1482,8 +1485,14 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				throw new self.SoTradeClientError('create-invite-link-not-verif');
 		}
 		
-		return Q.nfcall(crypto.randomBytes, 16);
-	}).then(function(buf) {
+		return Q.all([
+			Q.nfcall(crypto.randomBytes, 16),
+			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
+		]);
+	}).spread(function(buf, schoolcountres) {
+		if (query.schoolid && schoolcountres[0].c != 1)
+			throw new self.SoTradeClientError('create-invite-link-school-not-found');
+		
 		key = buf.toString('hex');
 		return ctx.query('INSERT INTO invitelink ' +
 			'(uid, `key`, email, ctime, schoolid) VALUES ' +

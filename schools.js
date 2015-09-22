@@ -571,7 +571,7 @@ Schools.prototype.publishBanner = buscomponent.provideQT('client-school-publish-
  * @return {object} Returns with <code>create-invite-link-success</code>,
  *                  <code>create-invite-link-not-verif</code> if the own e-mail address has not been verified,
  *                  <code>create-invite-link-invalid-email</code> if <code>query.email</code> is not valid,
- *                  or a common error code.
+ *                  <code>create-invite-link-school-not-found</code> or a common error code.
  * 
  * @noreadonly
  * @function c2s~create-invite-link

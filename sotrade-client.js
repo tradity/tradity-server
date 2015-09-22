@@ -6,8 +6,9 @@ var fs = require('fs');
 var _ = require('lodash');
 
 function NodeSoTradeConnection (opt) {
-	var cfg = require('./config.js').config;
 	opt = opt || {};
+	
+	var cfg = opt.serverConfig || require('./config.js').config();
 	
 	if (!opt.url) {
 		var port = cfg.wsporte || cfg.wsports[parseInt(Math.random() * cfg.wsports.length)];

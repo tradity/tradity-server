@@ -79,7 +79,7 @@ describe('admin', function() {
 				__sign__: true,
 				uid: user.uid,
 				emailverif: 1,
-				email: 'nonexistent42@invalid.invalid'
+				email: 'nonexistent' + parseInt(Math.random() * 100000) + '@invalid.invalid'
 			}).then(function(result) {
 				assert.equal(result.code, 'change-user-email-success');
 			});
@@ -176,7 +176,7 @@ describe('admin', function() {
 				
 				return socket.emit('rename-school', {
 					__sign__: true,
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					schoolname: 'SCHOOL 42',
 					schoolpath: '/nonexistent/invalidPath'
 				});
@@ -185,7 +185,7 @@ describe('admin', function() {
 				
 				return socket.emit('rename-school', {
 					__sign__: true,
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					schoolname: 'SCHOOL 42',
 					schoolpath: '/' + sha256(school.path)
 				});

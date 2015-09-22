@@ -44,7 +44,7 @@ describe('schools', function() {
 				assert.equal(res.code, 'get-school-info-success');
 				assert.ok(res.result);
 				assert.ok(res.result.name);
-				assert.equal(school.id, res.result.id);
+				assert.equal(school.schoolid, res.result.schoolid);
 				
 				return socket.emit('school-exists', {
 					lookfor: school.path
@@ -77,7 +77,7 @@ describe('schools', function() {
 				school = school_;
 				
 				return socket.emit('school-change-description', {
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					descpage: 'Bla bla bla'
 				});
 			}).then(function(res) {
@@ -94,7 +94,7 @@ describe('schools', function() {
 				
 				return socket.emit('school-change-description', {
 					__sign__: true,
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					descpage: descpage
 				});
 			}).then(function(res) {
@@ -119,7 +119,7 @@ describe('schools', function() {
 				
 				return socket.emit('school-change-member-status', {
 					__sign__: true,
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					status: 'admin',
 					uid: user.uid
 				});
@@ -136,7 +136,7 @@ describe('schools', function() {
 				assert.notEqual(_.pluck(res.result.admins, 'adminid').indexOf(user.uid), -1);
 				
 				return socket.emit('school-change-member-status', {
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					status: 'member',
 					uid: user.uid
 				});
@@ -195,7 +195,7 @@ describe('schools', function() {
 				
 				return socket.emit('school-delete-comment', {
 					__sign__: true,
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					commentid: comment.commentid
 				});
 			}).then(function(res) {
@@ -229,7 +229,7 @@ describe('schools', function() {
 				return socket.emit('school-kick-user', {
 					__sign__: true,
 					uid: user.uid,
-					schoolid: school.id
+					schoolid: school.schoolid
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'school-kick-user-success');
@@ -246,7 +246,7 @@ describe('schools', function() {
 				return socket.emit('get-own-options');
 			}).then(function(res) {
 				assert.equal(res.code, 'get-own-options-success');
-				res.result.school = school.id;
+				res.result.school = school.schoolid;
 				
 				return socket.emit('change-options', res.result);
 			}).then(function(res) {
@@ -324,7 +324,7 @@ describe('schools', function() {
 					__sign__: true,
 					base64: true,
 					content: data.toString('base64'),
-					schoolid: school.id,
+					schoolid: school.schoolid,
 					mime: 'image/jpeg',
 					name: 'bob.jpg'
 				});
@@ -351,7 +351,7 @@ describe('schools', function() {
 				return socket.emit('create-invite-link', {
 					__sign__: true,
 					email: null,
-					schoolid: school.id
+					schoolid: school.schoolid
 				});
 			}).then(function(res) {
 				assert.equal(res.code, 'create-invite-link-success');
@@ -363,7 +363,7 @@ describe('schools', function() {
 			}).then(function(res) {
 				assert.equal(res.code, 'get-invitekey-info-success');
 				assert.ok(res.result);
-				assert.equal(res.result.schoolid, school.id);
+				assert.equal(res.result.schoolid, school.schoolid);
 			});
 		});
 	});

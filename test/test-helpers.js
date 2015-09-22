@@ -67,7 +67,7 @@ var getSocket = _.memoize(function() {
 });
 
 var getTestUser = _.memoize(function() {
-	var name = 'mm' + Date.now() * (process.id | 0x100) + String(parseInt(Math.random() * 1000));
+	var name = 'mm' + Date.now() * (process.pid | 0x100) + String(parseInt(Math.random() * 1000));
 	var password = sha256(name).substr(0, 12);
 	var email = name + '@invalid.invalid';
 	var uid = null;

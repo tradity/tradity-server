@@ -45,7 +45,7 @@ describe('loginIPCheck', function() {
 			};
 		}).reduce(Q.when, Q()).then(function() {
 			var r = correlation(deltas, _.range(N));
-			assert.ok(r > 0.8, 'Correlation was only ' + r);
+			assert.ok(r > 0.5, 'Correlation was only ' + r);
 		});
 	});
 	

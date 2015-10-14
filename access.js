@@ -37,7 +37,7 @@ Access.prototype.clone = function() {
 	a.areas = this.areas.slice();
 	a.hasAnyAccess = this.hasAnyAccess;
 	return a;
-}
+};
 
 /**
  * Creates a new access object from a JSON specification.

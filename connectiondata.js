@@ -159,7 +159,9 @@ ConnectionData.prototype.toString = function() {
  */
 ConnectionData.loginIgnore = [
 	'list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod',
-	'ping', 'school-exists', 'process-wordpress-feed', 'get-invitekey-info'];
+	'ping', 'school-exists', 'process-wordpress-feed', 'get-invitekey-info',
+	'validate-username', 'validate-email', 'list-genders'
+];
 
 /**
  * Load all events that have not yet been sent to the client and send them.

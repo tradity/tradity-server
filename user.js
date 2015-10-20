@@ -4,6 +4,7 @@ var _ = require('lodash');
 var util = require('util');
 var crypto = require('crypto');
 var assert = require('assert');
+var validator = require('validator');
 var LoginIPCheck = require('./lib/loginIPCheck.js');
 var Q = require('q');
 var sha256 = require('./lib/sha256.js');
@@ -1030,6 +1031,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 User.prototype.register = buscomponent.provideWQT('client-register', function(query, ctx, xdata) {
 	if (ctx.user !== null)
 		throw new this.SoTradeClientError('already-logged-in');
+	
 	return this.updateUser(query, 'register', ctx, xdata);
 });
 
@@ -1043,6 +1045,71 @@ User.prototype.register = buscomponent.provideWQT('client-register', function(qu
  */
 User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', function(query, ctx, xdata) {
 	return this.updateUser(query, 'change', ctx, xdata);
+});
+
+/**
+ * Checks that a username is valid.
+ * 
+ * @param {string} query.name  The (possible) user name.
+ * @param {?int} query.uid     (Used internally).
+ * 
+ * @return {object} Returns with <code>reg-name-invalid-char</code>,
+ *                  <code>reg-name-already-present</code> or
+ *                  <code>validate-username-valid</code>.
+ * 
+ * @function c2s~validate-username
+ */
+User.prototype.validateUsername = buscomponent.provideQT('client-validate-username', function(query, ctx) {
+	query.name = String(query.name);
+	
+	if (parseInt(query.uid) != query.uid)
+		query.uid = null;
+	
+	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
+		parseInt(query.name) == query.name) {
+		throw new self.SoTradeClientError('reg-name-invalid-char');
+	}
+	
+	return ctx.query('SELECT name, uid FROM users ' +
+		'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
+		[query.uid]).then(function(res) {
+		
+		if (res.length > 0 && res[0].uid !== uid)
+			throw new self.SoTradeClientError('reg-name-already-present');
+		
+		return 'validate-username-valid';
+	});
+});
+
+/**
+ * Checks that an email address is valid.
+ * 
+ * @param {string} query.email  The (possible) email address.
+ * @param {?int} query.uid     (Used internally).
+ * 
+ * @return {object} Returns with <code>reg-invalid-email</code>,
+ *                  <code>reg-email-already-present</code> or
+ *                  <code>validate-email-valid</code>.
+ * 
+ * @function c2s~validate-email
+ */
+User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', function(query, ctx) {
+	query.email = String(query.email);
+	
+	if (parseInt(query.uid) != query.uid)
+		query.uid = null;
+	
+	if (!validator.isEmail(query.name))
+		throw new self.SoTradeClientError('reg-invalid-email');
+	
+	return ctx.query('SELECT email, uid FROM users ' +
+		'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
+		[query.uid]).then(function(res) {
+		if (res.length > 0 && res[0].uid !== uid && res[0].email.toLowerCase() == query.email.toLowerCase())
+			throw new self.SoTradeClientError('reg-name-already-present');
+		
+		return 'validate-email-valid';
+	});
 });
 
 /**
@@ -1090,6 +1157,7 @@ User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', 
  *                      <li><code>reg-name-invalid-char</code></li>
  *                      <li><code>invalid-provision</code></li>
  *                      <li><code>reg-beta-necessary</code></li>
+ *                      <li><code>reg-invalid-email</code></li>
  *                      <li><code>reg-email-already-present</code></li>
  *                      <li><code>reg-name-already-present</code></li>
  *                      <li><code>reg-success</code></li>
@@ -1152,24 +1220,16 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		
 		return ctx.startTransaction({}, {isolation: 'SERIALIZABLE'});
 	}).then(function(conn) {
-		return conn.query('SELECT email, name, uid FROM users ' +
-			'WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
-			[query.email, query.name, uid]);
-	}).then(function(res_) {
-		res = res_;
+		return Q.all([
+			self.validateEMail({ email: query.email, uid: uid }, conn),
+			self.validateUsername({ name: query.name, uid: uid }, conn)
+		]).then(function() {
 		return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
-			[betakey[0]]);
+			[betakey[0]])
 	}).then(function(βkey) {
 		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
 			type == 'register' && !ctx.access.has('userdb'))
 			throw new self.SoTradeClientError('reg-beta-necessary');
-		
-		if (res.length > 0 && res[0].uid !== uid) {
-			if (res[0].email.toLowerCase() == query.email.toLowerCase())
-				throw new self.SoTradeClientError('reg-email-already-present');
-			else
-				throw new self.SoTradeClientError('reg-name-already-present');
-		}
 		
 		if (query.school === null)
 			return [];

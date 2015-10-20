@@ -32,12 +32,8 @@ function NodeSoTradeConnection (opt) {
 		console.error(e);
 	}
 	
-	try {
-		opt.q = require('q');
-		opt.q.longStackSupport = true;
-	} catch (e) {
-		console.error(e);
-	}
+	opt.q = require('q');
+	opt.q.longStackSupport = true;
 	
 	var socketopts = opt.socketopts || {};
 	if (!socketopts.transports)

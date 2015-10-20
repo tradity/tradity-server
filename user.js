@@ -1154,7 +1154,8 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 	}).then(function(conn) {
 		return conn.query('SELECT email, name, uid FROM users ' +
 			'WHERE (email = ? AND email_verif) OR (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
-			[query.email, query.name, uid]).then(function(res_) {
+			[query.email, query.name, uid]);
+	}).then(function(res_) {
 		res = res_;
 		return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
 			[betakey[0]]);

@@ -39,9 +39,6 @@ var socket = new sotradeClient.SoTradeConnection({
 	url: query.wsurl || (protocol + '://' +
 		(query.wshost || cfg.wshoste || cfg.wshost) + ':' +
 		(query.wsport || cfg.wsporte || cfg.wsports[0])),
-	socketopts: query.ssldefault ? { 
-		agent: new https.Agent(cfg.ssl)
-	} : null,
 	logDevCheck: !query['q-quiet']
 });
 

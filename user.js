@@ -1104,7 +1104,7 @@ User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', f
 	if (parseInt(query.uid) != query.uid)
 		query.uid = null;
 	
-	if (!validator.isEmail(query.name))
+	if (!validator.isEmail(query.email))
 		throw new self.SoTradeClientError('reg-invalid-email');
 	
 	return ctx.query('SELECT email, uid FROM users ' +

@@ -5,6 +5,7 @@ var util = require('util');
 var crypto = require('crypto');
 var assert = require('assert');
 var validator = require('validator');
+var genders = require('genders');
 var LoginIPCheck = require('./lib/loginIPCheck.js');
 var Q = require('q');
 var sha256 = require('./lib/sha256.js');
@@ -1057,9 +1058,11 @@ User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', 
  *                  <code>reg-name-already-present</code> or
  *                  <code>validate-username-valid</code>.
  * 
+ * @loginignore
  * @function c2s~validate-username
  */
 User.prototype.validateUsername = buscomponent.provideQT('client-validate-username', function(query, ctx) {
+	var self = this;
 	query.name = String(query.name);
 	
 	if (parseInt(query.uid) != query.uid)
@@ -1091,9 +1094,11 @@ User.prototype.validateUsername = buscomponent.provideQT('client-validate-userna
  *                  <code>reg-email-already-present</code> or
  *                  <code>validate-email-valid</code>.
  * 
+ * @loginignore
  * @function c2s~validate-email
  */
 User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', function(query, ctx) {
+	var self = this;
 	query.email = String(query.email);
 	
 	if (parseInt(query.uid) != query.uid)
@@ -1467,6 +1472,23 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 			return { code: 'reset-user-success' };
 		});
 	});
+});
+
+/**
+ * Returns a list of genders for users to pick from.
+ * 
+ * @return Returns with <code>list-genders-success</code>. <code>.genders</code>
+ *         is set to a data structure in <a href="https://github.com/addaleax/genders">this</a>
+ *         format.
+ * 
+ * @loginignore
+ * @function c2s~list-genders
+ */
+User.prototype.listGenders = buscomponent.provideQT('client-list-genders', function() {
+	return {
+		code: 'list-genders-success',
+		genders: genders
+	};
 });
 
 /**

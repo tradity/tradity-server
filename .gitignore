@@ -11,3 +11,4 @@ core
 coverage
 npm-debug.log
 busdump.*
+output.*.log

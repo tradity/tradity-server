@@ -1160,6 +1160,7 @@ User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', f
  *                  <ul>
  *                      <li><code>reg-too-short-pw</code></li>
  *                      <li><code>reg-name-invalid-char</code></li>
+ *                      <li><code>reg-unknown-gender</code></li>
  *                      <li><code>invalid-provision</code></li>
  *                      <li><code>reg-beta-necessary</code></li>
  *                      <li><code>reg-invalid-email</code></li>
@@ -1198,9 +1199,10 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		
 		query.email = String(query.email);
 		query.name = String(query.name);
-		if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
-		    parseInt(query.name) == query.name)
-			throw new self.SoTradeClientError('reg-name-invalid-char');
+		query.gender = query.gender ? String(query.gender) : null;
+		
+		if (query.gender !== null && genders.genders.indexOf(query.gender) != -1)
+			throw new self.SoTradeClientError('reg-unknown-gender');
 		
 		query.giv_name = String(query.giv_name || '');
 		query.fam_name = String(query.fam_name || '');
@@ -1299,12 +1301,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 					query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
 				conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
 					'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-					'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ? WHERE uid = ?',
+					'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ?, gender = ? WHERE uid = ?',
 					[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 					query.birthday, String(query.desc), String(query.street),
 					String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
 					query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
-					String(query.lang), uid]),
+					String(query.lang), query.gender, uid]),
 				conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
 					[query.wprovision, query.lprovision, uid]),
 				query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q()
@@ -1387,12 +1389,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 				return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q();
 			}).then(function() {
 				return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
-					'street, zipcode, town, schoolclass, lang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
+					'street, zipcode, town, schoolclass, lang, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
 					'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
 					'VALUES (?, ?, ?, ?, ?)',
 					[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
 					query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
-					String(query.schoolclass || ''), String(query.lang),
+					String(query.schoolclass || ''), String(query.lang), query.gender,
 					uid, cfg.defaultWProvision, cfg.defaultLProvision,
 					cfg.defaultStartingMoney, cfg.defaultStartingMoney]);
 			}).then(function() {

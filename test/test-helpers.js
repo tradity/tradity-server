@@ -71,6 +71,7 @@ var getTestUser = _.memoize(function() {
 	var password = sha256(name).substr(0, 12);
 	var email = name + '@invalid.invalid';
 	var uid = null;
+	var gender;
 	
 	var schoolid = 'MegaMusterschule' + parseInt(Date.now() / 100000);
 	var schoolname = schoolid;
@@ -86,6 +87,12 @@ var getTestUser = _.memoize(function() {
 					break;
 				}
 			}
+			
+			return socket.emit('list-genders');
+		}).then(function(data) {
+			assert.equal(data.code, 'list-genders-success');
+			
+			gender = data.genders.genders[parseInt(Math.random() * data.genders.genders.length)];
 			
 			return socket.emit('register', {
 				__sign__: true,
@@ -103,7 +110,8 @@ var getTestUser = _.memoize(function() {
 				town: '',
 				zipcode: '',
 				traditye: 0,
-				dla_optin: 0
+				dla_optin: 0,
+				gender: genders
 			});
 		}).then(function(data) {
 			assert.equal(data.code, 'reg-success');

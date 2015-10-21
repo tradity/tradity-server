@@ -3,6 +3,7 @@
 var commonAPI = require('tradity-connection');
 var sio = require('socket.io-client');
 var fs = require('fs');
+var https = require('https');
 var _ = require('lodash');
 
 function NodeSoTradeConnection (opt) {

@@ -96,7 +96,12 @@ function Bus () {
 			if (error)
 				return self.emit('error', error);
 			
-			data = JSON.parse(data);
+			try {
+				data = JSON.parse(data);
+			} catch (e) {
+				return self.emit('error', new Error('Error parsing JSON data: ' + data + ', message = ' + e.message));
+			}
+			
 			assert.ok(data.id && _.isString(data.id));
 			assert.ok(data.graph);
 			assert.ok(data.handledEvents && _.isArray(data.handledEvents));

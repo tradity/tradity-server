@@ -1075,7 +1075,7 @@ User.prototype.validateUsername = buscomponent.provideQT('client-validate-userna
 	
 	return ctx.query('SELECT name, uid FROM users ' +
 		'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
-		[query.uid]).then(function(res) {
+		[query.name, query.uid]).then(function(res) {
 		
 		if (res.length > 0 && res[0].uid !== uid)
 			throw new self.SoTradeClientError('reg-name-already-present');
@@ -1109,7 +1109,7 @@ User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', f
 	
 	return ctx.query('SELECT email, uid FROM users ' +
 		'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
-		[query.uid]).then(function(res) {
+		[query.email, query.uid]).then(function(res) {
 		if (res.length > 0 && res[0].uid !== uid && res[0].email.toLowerCase() == query.email.toLowerCase())
 			throw new self.SoTradeClientError('reg-name-already-present');
 		

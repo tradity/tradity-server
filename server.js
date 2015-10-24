@@ -133,6 +133,7 @@ SoTradeServer.prototype.start = function(port) {
 	}).then(function() {
 		self.io = sio.listen(self.httpServer, _.bind(cfg.configureSocketIO, self)(sio, cfg));
 		self.io.adapter(busAdapter(self.bus));
+		debug(process.pid, 'has socket.io set up on', port);
 		
 		self.io.sockets.on('connection', _.bind(self.handleConnection, self));
 	});

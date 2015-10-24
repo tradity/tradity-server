@@ -165,6 +165,12 @@ Main.prototype.start = function() {
 			self.emitImmediate('localShutdown');
 		});
 		
+		self.mainBus.on('localShutdown', function() {
+			setTimeout(function() {
+				process.exit(0);
+			}, 250);
+		});
+		
 		for (var i = 0; i < self.shutdownSignals.length; ++i)
 			process.on(self.shutdownSignals[i], function() { self.emitLocal('globalShutdown'); });
 
@@ -332,7 +338,7 @@ Main.prototype.startMaster = function() {
 			} else {
 				setTimeout(function() {
 					process.exit(0);
-				}, 2000);
+				}, 1500);
 			}
 		});
 		

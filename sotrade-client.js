@@ -40,7 +40,8 @@ function NodeSoTradeConnection (opt) {
 	if (!socketopts.transports)
 		socketopts.transports = ['websocket'];
 	
-	socketopts.agent = new https.Agent(cfg.ssl);
+	if (/^(https|wss)/.test(opt.url))
+		socketopts.agent = new https.Agent(cfg.ssl);
 	
 	var url = opt.url;
 	if (url && !opt.connect)

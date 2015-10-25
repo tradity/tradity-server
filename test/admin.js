@@ -75,12 +75,15 @@ describe('admin', function() {
 	
 	describe('change-user-email', function() {
 		it('Should be able to change the active user’s mail address', function() {
+			var email = 'nonexistent' + parseInt(Math.random() * 100000) + '@invalid.invalid';
+			
 			return socket.emit('change-user-email', {
 				__sign__: true,
 				uid: user.uid,
 				emailverif: 1,
-				email: 'nonexistent' + parseInt(Math.random() * 100000) + '@invalid.invalid'
+				email: email
 			}).then(function(result) {
+				user.email = email;
 				assert.equal(result.code, 'change-user-email-success');
 			});
 		});

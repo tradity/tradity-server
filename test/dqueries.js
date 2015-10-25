@@ -25,7 +25,7 @@ describe('dqueries', function() {
 			}).then(function(res) {
 				assert.equal(res.code, 'dquery-success');
 				
-				return Q.delay(2000);
+				return Q.delay(3000);
 			}).then(function() {
 				return Q.all([
 					socket.once('dquery-exec'),

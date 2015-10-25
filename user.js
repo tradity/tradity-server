@@ -1073,14 +1073,14 @@ User.prototype.validateUsername = buscomponent.provideQT('client-validate-userna
 		throw new self.SoTradeClientError('reg-name-invalid-char');
 	}
 	
-	return ctx.query('SELECT name, uid FROM users ' +
+	return ctx.query('SELECT uid FROM users ' +
 		'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
 		[query.name, query.uid]).then(function(res) {
 		
-		if (res.length > 0 && res[0].uid !== uid)
+		if (res.length > 0 && res[0].uid !== query.uid)
 			throw new self.SoTradeClientError('reg-name-already-present');
 		
-		return 'validate-username-valid';
+		return { code: 'validate-username-valid' };
 	});
 });
 
@@ -1107,13 +1107,13 @@ User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', f
 	if (!validator.isEmail(query.email))
 		throw new self.SoTradeClientError('reg-invalid-email');
 	
-	return ctx.query('SELECT email, uid FROM users ' +
+	return ctx.query('SELECT uid FROM users ' +
 		'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
 		[query.email, query.uid]).then(function(res) {
-		if (res.length > 0 && res[0].uid !== uid && res[0].email.toLowerCase() == query.email.toLowerCase())
-			throw new self.SoTradeClientError('reg-name-already-present');
+		if (res.length > 0 && res[0].uid !== query.uid)
+			throw new self.SoTradeClientError('reg-email-already-present');
 		
-		return 'validate-email-valid';
+		return { code: 'validate-email-valid' };
 	});
 });
 

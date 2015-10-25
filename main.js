@@ -423,7 +423,7 @@ Main.prototype.connectToSocketIORemote = function(remote) {
 		url: remote.url,
 		socketopts: {
 			transports: ['websocket'],
-			agent: sslOpts ? new https.Agent(sslOpts) : null
+			agent: sslOpts && /^(https|wss)/.test(remote.url) ? new https.Agent(sslOpts) : null
 		},
 		serverConfig: self.getServerConfig()
 	});

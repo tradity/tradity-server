@@ -1201,7 +1201,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		query.name = String(query.name);
 		query.gender = query.gender ? String(query.gender) : null;
 		
-		if (query.gender !== null && genders.genders.indexOf(query.gender) != -1)
+		if (query.gender !== null && genders.genders.indexOf(query.gender) == -1)
 			throw new self.SoTradeClientError('reg-unknown-gender');
 		
 		query.giv_name = String(query.giv_name || '');

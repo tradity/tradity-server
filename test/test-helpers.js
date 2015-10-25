@@ -111,7 +111,7 @@ var getTestUser = _.memoize(function() {
 				zipcode: '',
 				traditye: 0,
 				dla_optin: 0,
-				gender: genders
+				gender: gender
 			});
 		}).then(function(data) {
 			assert.equal(data.code, 'reg-success');

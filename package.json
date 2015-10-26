@@ -10,6 +10,7 @@
 	"bugs": {
 		"email": "tech@tradity.de"
 	},
+	"main": "main.js",
 	"devDependencies": {
 		"mocha": "*",
 		"istanbul": "*",

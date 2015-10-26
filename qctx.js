@@ -346,13 +346,15 @@ QContext.prototype.enterTransactionOnQuery = function(tables, options) {
 };
 
 QContext.prototype.commit = function() {
-	assert.ok(this.contextTransaction);
+	if (!this.contextTransaction)
+		return Q();
 	
 	return this.contextTransaction.commit.apply(this, arguments);
 };
 
 QContext.prototype.rollback = function() {
-	assert.ok(this.contextTransaction);
+	if (!this.contextTransaction)
+		return Q();
 	
 	return this.contextTransaction.rollback.apply(this, arguments);
 };

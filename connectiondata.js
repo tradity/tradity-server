@@ -160,7 +160,7 @@ ConnectionData.prototype.toString = function() {
 ConnectionData.loginIgnore = [
 	'list-schools', 'password-reset', 'register', 'emailverif', 'login', 'prod',
 	'ping', 'school-exists', 'process-wordpress-feed', 'get-invitekey-info',
-	'validate-username', 'validate-email', 'list-genders'
+	'validate-username', 'validate-email', 'list-genders', 'list-questionnaires'
 ];
 
 /**

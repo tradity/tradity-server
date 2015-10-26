@@ -66,7 +66,7 @@ function Main(opt) {
 	
 	this.regularComponents = [
 		'./admin.js', './schools.js', './fsdb.js', './achievements.js', './chats.js',
-		'./watchlist.js', './wordpress-feed.js'
+		'./watchlist.js', './wordpress-feed.js', './questionnaires.js'
 	];
 	
 	this.shutdownSignals = ['SIGTERM', 'SIGINT'];
@@ -465,6 +465,10 @@ Main.prototype.loadComponents = function(componentsForLoading) {
 			return new componentClass().setBus(self.mainBus, componentID);
 		}));
 	}));
+};
+
+Main.prototype.ctx = function() {
+	return this.managerCTX;
 };
 
 exports.Main = Main;

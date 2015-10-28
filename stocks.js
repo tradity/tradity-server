@@ -369,7 +369,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 							return knownStockIDs[rec.symbol] = res.insertId;
 						
 						// no insert -> look the id up
-						return ctx.query('SELECT stockid FROM stocks WHERE stocktext = ?', [rec.symbol], function(res) {
+						return ctx.query('SELECT stockid FROM stocks WHERE stocktextid = ?', [rec.symbol], function(res) {
 							assert.ok(res[0]);
 							assert.ok(res[0].stockid);
 							

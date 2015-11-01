@@ -198,6 +198,67 @@ describe('admin', function() {
 		});
 	});
 	
+	describe('join-schools', function() {
+		it('Should merge two schools together', function() {
+			var prefix = 'S' + Date.now(), id1, id2;
+			
+			return Q.all([prefix + 'Aj', prefix + 'Bj'].map(function(name) {
+				socket.emit('create-school', {
+					__sign__: true,
+					schoolname: name,
+				}).then(function(res) {
+					assert.equal(res.code, 'create-school-success');
+					path = res.path;
+					
+					return socket.emit('school-exists', {
+						lookfor: path
+					});
+				}).then(function(res) {
+					assert.equal(res.code, 'school-exists-success');
+					assert.ok(res.exists);
+					assert.ok(res.path);
+					
+					return res.schoolid;
+				});
+			})).spread(function(id1_, id2_) {
+				id1 = id1_, id2 = id2_;
+				
+				return socket.emit('join-schools', {
+					__sign__: true,
+					masterschool: id1,
+					subschool: id2
+				});
+			}).then(function() {
+				assert.equal(res.code, 'join-schools-success');
+				
+				return socket.emit('list-schools');
+			}).then(function(res) {
+				assert.equal(res.code, 'list-schools-success');
+				assert.ok(res.result);
+				assert.notEqual(_.pluck(res.result, 'schoolid').indexOf(id1), -1);
+				assert.equal   (_.pluck(res.result, 'schoolid').indexOf(id2), -1);
+			});
+		});
+		
+		it('Should fail if one of the schools does not exist', function() {
+			return socket.emit('list-schools').then(function(res) {
+				assert.equal(res.code, 'list-schools-success');
+				assert.ok(res.result);
+				
+				var existentIDs = _.pluck(res.result, 'schoolid');
+				var nonexistentID = (Math.max.apply(Math, existentIDs) || 0) + 1;
+				
+				return socket.emit('join-schools', {
+					__sign__: true,
+					masterschool: nonexistentID,
+					subschool: nonexistentID + 1,
+				});
+			}).then(function(res) {
+				assert.equal(res.code, 'join-schools-notfound');
+			});
+		});
+	});
+	
 	describe('get-followers', function() {
 		it('Should provide a list of followers', function() {
 			var leader;

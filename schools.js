@@ -311,7 +311,12 @@ Schools.prototype.getSchoolInfo = buscomponent.provideQT('client-get-school-info
 Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', function(query, ctx) {
 	return ctx.query('SELECT path FROM schools WHERE ? IN (schoolid, path, name) OR LOWER(?) IN (schoolid, path, name)',
 		[String(query.lookfor), String(query.lookfor)]).then(function(res) {
-		return { code: 'school-exists-success', exists: res.length > 0, path: res.length > 0 ? res[0].path : null };
+		return {
+			code: 'school-exists-success',
+			exists: res.length > 0,
+			path: res.length > 0 ? res[0].path : null,
+			schoolid: res.length > 0 ? schoolid : null
+		};
 	});
 });
 

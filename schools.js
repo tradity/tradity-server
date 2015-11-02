@@ -315,7 +315,7 @@ Schools.prototype.schoolExists = buscomponent.provideQT('client-school-exists', 
 			code: 'school-exists-success',
 			exists: res.length > 0,
 			path: res.length > 0 ? res[0].path : null,
-			schoolid: res.length > 0 ? schoolid : null
+			schoolid: res.length > 0 ? res[0].schoolid : null
 		};
 	});
 });

@@ -691,7 +691,15 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 		
 		var stringify = function(o) {
 			try {
-				return JSON.stringify(o);
+				return JSON.stringify(o, function(key, value) {
+					// since Node v0.12, JSON.stringify does not convert
+					// Buffers to integer arrays anymore
+					if (Buffer.isBuffer(value))
+						return Array.prototype.slice.call(value);
+					if (value && value.type == 'Buffer' && value.data)
+						return value.data;
+					return value;
+				});
 			} catch (e) {
 				// Most likely, obj was a circular data structure, so include that in the debug information
 				if (e.type == 'circular_structure')

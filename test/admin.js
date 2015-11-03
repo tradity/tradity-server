@@ -203,20 +203,20 @@ describe('admin', function() {
 			var prefix = 'S' + Date.now(), id1, id2;
 			
 			return Q.all([prefix + 'Aj', prefix + 'Bj'].map(function(name) {
-				socket.emit('create-school', {
+				return socket.emit('create-school', {
 					__sign__: true,
 					schoolname: name,
 				}).then(function(res) {
 					assert.equal(res.code, 'create-school-success');
-					path = res.path;
 					
 					return socket.emit('school-exists', {
-						lookfor: path
+						lookfor: res.path
 					});
 				}).then(function(res) {
 					assert.equal(res.code, 'school-exists-success');
 					assert.ok(res.exists);
 					assert.ok(res.path);
+					assert.strictEqual(parseInt(res.schoolid), res.schoolid);
 					
 					return res.schoolid;
 				});
@@ -228,7 +228,7 @@ describe('admin', function() {
 					masterschool: id1,
 					subschool: id2
 				});
-			}).then(function() {
+			}).then(function(res) {
 				assert.equal(res.code, 'join-schools-success');
 				
 				return socket.emit('list-schools');

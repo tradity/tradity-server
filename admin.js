@@ -351,9 +351,18 @@ Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', 
 Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
 	var self = this;
 	
+	query.masterschool = parseInt(query.masterschool);
+	query.subschool    = parseInt(query.subschool);
+	
+	if (query.masterschool !== query.masterschool)
+		query.masterschool = null;
+	
+	if (query.subschool !== query.subschool)
+		query.subschool = null;
+	
 	return Q.all([
-		ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [parseInt(query.masterschool)]),
-		ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.subschool)])
+		ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [query.masterschool]),
+		ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [query.subschool])
 	]).spread(function(mr, sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);

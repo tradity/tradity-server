@@ -358,11 +358,11 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
 		query.masterschool = null;
 	
 	if (query.subschool !== query.subschool)
-		query.subschool = null;
+		throw new self.FormatError();
 	
 	return Q.all([
 		ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [query.masterschool]),
-		ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [query.subschool])
+		ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [query.subschool]),
 	]).spread(function(mr, sr) {
 		assert.ok(mr.length <= 1);
 		assert.ok(sr.length <= 1);
@@ -372,19 +372,35 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
 		if (mr.length > 0 && commonUtil.parentPath(mr[0].path) != commonUtil.parentPath(sr[0].path))
 			throw new self.SoTradeClientError('join-schools-diff-parent');
 		
-		return Q.all([
-			ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
-				[parseInt(query.masterschool), parseInt(query.subschool)]),
-			ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
-				[parseInt(query.masterschool), parseInt(query.subschool)]),
-			ctx.query('UPDATE invitelink SET schoolid = ? WHERE schoolid = ?',
-				[parseInt(query.masterschool), parseInt(query.subschool)]),
-			ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ?',
-				[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%']),
-			ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [parseInt(query.subschool)])
-		]);
+		if (query.masterschool === null) {
+			return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path LIKE ?', [sr[0].path + '/%']).then(function(ssr) {
+				assert.equal(ssr.length, 1);
+				
+				if (ssr[0].c > 0)
+					throw new self.SoTradeClientError('join-schools-delete-nosubschools');
+			}).then(function() {
+				return Q.all([
+					ctx.query('DELETE FROM schoolmembers WHERE schoolid = ?', [query.subschool]),
+					ctx.query('DELETE FROM feedblogs WHERE schoolid = ?', [query.subschool]),
+					ctx.query('DELETE FROM invitelink WHERE schoolid = ?', [query.subschool]),
+					ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [query.subschool])
+				]);
+			});
+		} else {
+			return Q.all([
+				ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
+					[query.masterschool, query.subschool]),
+				ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',
+					[query.masterschool, query.subschool]),
+				ctx.query('UPDATE invitelink SET schoolid = ? WHERE schoolid = ?',
+					[query.masterschool, query.subschool]),
+				ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ?',
+					[mr[0].path, sr[0].path.length + 1, sr[0].path + '/%']),
+				ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [query.subschool])
+			]);
+		}
 	}).then(function() {
-		return ctx.query('DELETE FROM schools WHERE schoolid = ?', [parseInt(query.subschool)]);
+		return ctx.query('DELETE FROM schools WHERE schoolid = ?', [query.subschool]);
 	}).then(function() {
 		return { code: 'join-schools-success' };
 	});

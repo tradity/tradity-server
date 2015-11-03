@@ -38,8 +38,8 @@ var debug = require('debug')('sotrade:qctx');
  * @property {?object} startTransactionOnQuery  Indicates whether to start a transaction when a query
  *                                              is encountered (<code>null</code> if not, otherwise
  *                                              <code>{tables: …, options: …}</code>)
- * @property {?object} contextTransaction  A transaction to which all queries within this context
- *                                         will be appended
+ * @property {?object} contextTransaction  A promise for a transaction to which all queries within
+ *                                         this context will be appended
  * 
  * @public
  * @constructor module:qctx~QContext
@@ -296,9 +296,13 @@ QContext.prototype.feed = function(data) {
 	delete data.onEventId;
 	
 	var release = null;
-	return Q().then(function() {
-		if (conn)
-			return conn;
+	
+	// keep in mind that self.contextTransaction may be a promise or null
+	// use Q(…).then to resolve it first
+	return Q(conn).then(function(conn_) {
+		// connection is there? -> set conn to the resolved promise
+		if (conn_)
+			return conn = conn_;
 		
 		return self.startTransaction().then(function(conn_) {
 			return conn = release = conn_;
@@ -306,6 +310,7 @@ QContext.prototype.feed = function(data) {
 	}).then(function() {
 		return self.request({name: 'feed', data: data, ctx: self, onEventId: onEventId, conn: conn});
 	}).then(function(retval) {
+		// release is never a promise
 		if (release)
 			return release.commit().then(_.constant(retval));
 	}).catch(function(e) {
@@ -346,17 +351,27 @@ QContext.prototype.enterTransactionOnQuery = function(tables, options) {
 };
 
 QContext.prototype.commit = function() {
+	var self = this;
+	var args = arguments;
+	
 	if (!this.contextTransaction)
 		return Q();
 	
-	return this.contextTransaction.commit.apply(this, arguments);
+	return Q(this.contextTransaction).then(function(conn) {
+		return conn.commit.apply(self, args);
+	});
 };
 
 QContext.prototype.rollback = function() {
+	var self = this;
+	var args = arguments;
+	
 	if (!this.contextTransaction)
 		return Q();
 	
-	return this.contextTransaction.rollback.apply(this, arguments);
+	return Q(this.contextTransaction).then(function(conn) {
+		return conn.rollback.apply(self, args);
+	});
 };
 
 QContext.prototype.rollbackAndThrow = function(e) {
@@ -380,16 +395,18 @@ QContext.prototype.query = function(query, args, readonly) {
 	if (self.contextTransaction) {
 		assert.ok(sToQ);
 		
-		return self.contextTransaction.query.apply(self, queryArgs);
+		return Q(self.contextTransaction).then(function(conn) {
+			return conn.query.apply(self, queryArgs);
+		});
 	}
 	
 	if (sToQ) {
 		assert.ok(!self.contextTransaction);
 		
-		return self.startTransaction(sToQ.tables, sToQ.options).then(function(conn) {
-			self.contextTransaction = conn;
-			return self.query.apply(self, queryArgs);
-		});
+		self.contextTransaction = self.startTransaction(sToQ.tables, sToQ.options);
+		
+		// equivalent to goto to the above case
+		return self.query.apply(self, queryArgs);
 	}
 	
 	self.debug('Executing query [unbound]', query, args);

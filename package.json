@@ -21,7 +21,6 @@
 		"datejs": "1.0.0-rc3",
 		"debug": "~2.2.0",
 		"genders": "^1.0.1",
-		"iconv": "~2.1.4",
 		"ipaddr.js": "~1.0.3",
 		"lapack": "~0.1.0",
 		"lodash": "~3.10.0",

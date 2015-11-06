@@ -19,6 +19,7 @@ describe('stocks', function() {
 	after(testHelpers.standardTeardown);
 	
 	var standardISIN = 'CA7500801039';
+	var umlautNameISIN = 'DE0005565204';
 
 	if (!testHelpers.testPerformance)
 	describe('prod', function() {
@@ -44,6 +45,22 @@ describe('stocks', function() {
 				assert.strictEqual(stockinfo.leadername, null);
 				assert.strictEqual(stockinfo.lprovision, 0);
 				assert.strictEqual(stockinfo.wprovision, 0);
+			});
+		});
+		
+		it('Should handle umlauts correctly', function() {
+			return socket.emit('stock-search', {
+				name: umlautNameISIN
+			}).then(function(res) {
+				assert.equal(res.code, 'stock-search-success');
+				assert.equal(res.results.length, 1);
+				var stockinfo = res.results[0];
+				
+				assert.ok(stockinfo);
+				assert.strictEqual(stockinfo.stockid, umlautNameISIN);
+				assert.strictEqual(stockinfo.leader, null);
+				assert.strictEqual(stockinfo.leadername, null);
+				assert.ok(/ü/.test(stockinfo.name));
 			});
 		});
 		

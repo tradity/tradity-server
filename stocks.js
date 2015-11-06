@@ -752,7 +752,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		
 		var tradedToday = ohr[0].amount || 0;
 		
-		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSinglePaperShare'] && price >= 0 &&
+		if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSingleStockShare'] && price >= 0 &&
 		    !ctx.access.has('stocks'))
 			throw new self.SoTradeClientError('stock-buy-single-paper-share-exceed');
 		

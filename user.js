@@ -1486,11 +1486,30 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  * @loginignore
  * @function c2s~list-genders
  */
-User.prototype.listGenders = buscomponent.provideQT('client-list-genders', function() {
-	return {
-		code: 'list-genders-success',
-		genders: genders
-	};
+User.prototype.listGenders = buscomponent.provideQT('client-list-genders', function(query, ctx) {
+	return Q().then(function() {
+		if (self.cache.has('gender-statistics'))
+			return self.cache.use('gender-statistics');
+		
+		return self.cache.add('gender-statistics', 60000,
+			ctx.query('SELECT gender, COUNT(gender) AS gc FROM users_data GROUP BY gender ORDER BY gc DESC'));
+	}).catch(function() {
+		/* if something went wrong, everything still is just fine */
+		return [];
+	}).then(function(stats) {
+		var genderRanking = _.pluck(stats, 'gender').slice(0, 4);
+		genders.genders = _.sortBy(genders.genders, function(gender) {
+			var rankingIndex = genderRanking.indexOf(gender);
+			if (rankingIndex == -1)
+				rankingIndex = Infinity;
+			return [rankingIndex, gender];
+		});
+		
+		return {
+			code: 'list-genders-success',
+			genders: genders
+		};
+	});
 });
 
 /**

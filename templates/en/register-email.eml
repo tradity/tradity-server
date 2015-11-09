@@ -5,19 +5,20 @@ X-Mailtype: register
 
 <p>
 Hello ${username}, <br />
-I’m glad that you joined season 3 of Tradity. Your account has been set up successfully. <br />
+We're glad that you joined Tradity. Your account has been set up successfully. <br />
 To finish your registration process, be eligible for prizes and usage of the “social trading” functionality,
 please click here to verify your email address: <a href="${url}">${url}</a>
 </p>
 
+<p>Also remember to join your uni or school if you're taking part in TradityU or a local school competition if you haven't done so already.
+
 <p>
-I and the entire Tradity team wish you a lot of success! If you encounter any problems or you have any questions or comments, you are invited to write us at <a href="mailto:tech@tradity.de">tech@tradity.de</a>.
+The entire Tradity team wishes you a lot of success! If you encounter any problems or have questions or comments, you are invited to write us at <a href="mailto:tech@tradity.de">tech@tradity.de</a>.
 We will take care as soon as possible.
 </p>
 
 <p>
-Ba Khai <br />
-for the Tradity team
+the Tradity Team
 </p>
 
 <p style="font-size: 80%; color:grey">Should you have received this email by accident, you can simply ignore it.</p>

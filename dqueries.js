@@ -43,8 +43,8 @@ DelayedQueries.prototype.onBusConnect = function() {
 	var ctx = new qctx.QContext({parentComponent: this});
 	
 	this.on('stock-update', function(ev) {
-		if (self.neededStocks['s-'+ev.stocktextid]) {
-			_.each(self.neededStocks['s-'+ev.stocktextid], function(entryid) {
+		if (self.neededStocks['s-'+ev.stockid]) {
+			_.each(self.neededStocks['s-'+ev.stockid], function(entryid) {
 				self.checkAndExecute(ctx, self.queries[entryid]);
 			});
 		}

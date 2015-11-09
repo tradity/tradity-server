@@ -126,6 +126,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
 		
 		return conn.query(query, params);
 	}).then(function() {
+		debug('Invoking push-events', data.type);
 		self.emitGlobal('feed-' + data.type, data);
 		self.emitGlobal('push-events');
 		return eventid;

@@ -20,12 +20,12 @@ describe('dqueries', function() {
 	describe('dquery', function() {
 		it('Should let users delay queries', function() {
 			return socket.emit('dquery', {
-				condition: 'time > ' + parseInt(Date.now()/1000 + 2),
+				condition: 'time > ' + parseInt(Date.now()/1000 + 5),
 				query: { type: 'ping' }
 			}).then(function(res) {
 				assert.equal(res.code, 'dquery-success');
 				
-				return Q.delay(3000);
+				return Q.delay(10000);
 			}).then(function() {
 				return Q.all([
 					socket.once('dquery-exec'),

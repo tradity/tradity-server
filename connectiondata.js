@@ -94,7 +94,7 @@ function ConnectionData(socket) {
 	socket.on('query', this.query_);
 	socket.on('disconnect', this.disconnected_);
 	
-	debug('Set up new connection');
+	debug('Set up new connection', this.cdid);
 }
 
 util.inherits(ConnectionData, buscomponent.BusComponent);
@@ -201,7 +201,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
 		});
 
 		return self.wrapForReply({pushes: evlist}).then(function(r) {
-			debug('Writing push container');
+			debug('Writing push container', self.cdid);
 		
 			if (self.socket)
 				self.socket.emit('push-container', r);
@@ -246,10 +246,10 @@ ConnectionData.prototype.dbgHandler = function(args) {
 ConnectionData.prototype.push = function(data) {
 	var self = this;
 	
-	debug('Push event', data.type);
+	debug('Push event', self.cdid, data.type);
 	
 	return self.wrapForReply(data).then(function(r) {
-		debug('Writing single push', data.type);
+		debug('Writing single push', self.cdid, data.type);
 			
 		if (self.socket)
 			self.socket.emit('push', r);
@@ -282,7 +282,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 			if (self.currentInfoPush)
 				return self.currentInfoPush;
 			
-			debug('Push self info');
+			debug('Push self info', self.cdid);
 			return self.currentInfoPush = self.request({
 				name: 'client-get-user-info',
 				query: {
@@ -312,13 +312,14 @@ ConnectionData.prototype.pushSelfInfo = function() {
 ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', function() {
 	var self = this;
 	
+	debug('Push pending events', self.cdid, !!self.pushEventsTimer, self.ctx.user && self.ctx.user.uid);
+	
 	if (self.pushEventsTimer)
 		return self.pushEventsTimer;
 	
 	if (!self.ctx.user || !self.ctx.user.uid)
 		return;
 	
-	debug('Push pending events');
 	self.pushEventsTimer = Q.delay(1000).then(function() {
 		self.pushEventsTimer = null;
 		
@@ -346,7 +347,7 @@ ConnectionData.prototype.response = function(data) {
 		if (!self.socket)
 			debug('Lost socket while compiling response', self.cdid);
 		
-		debug('Writing response');
+		debug('Writing response', self.cdid);
 		
 		if (self.socket)
 			self.socket.emit('response', r);
@@ -376,6 +377,8 @@ ConnectionData.prototype.onUserConnected = function() {
  */
 ConnectionData.prototype.onLogout = function() {
 	var self = this;
+	
+	debug('Logout handler invoked', self.cdid, self.ctx.user && self.ctx.user.uid);
 	
 	return self.request({name: 'updateUserStatistics', ctx: self.ctx.clone(), user: self.ctx.user, force: true}).then(function() {
 		self.ctx.user = null;
@@ -435,7 +438,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 		if (!query)
 			return;
 		
-		debug('Received query of type', query.type, query.id);
+		debug('Received query of type', self.cdid, query.type, query.id);
 		var recvTime = Date.now();
 		
 		self.queryCount++;
@@ -457,12 +460,13 @@ ConnectionData.prototype.queryHandler = function(query) {
 			(query.cs ? String(query.cs) ||
 			self.ctx.getProperty('remoteClientSoftware') : 'NULL0'));
 		
-		var hadUser = self.ctx.user ? true : false;
+		var hadUser = !!self.ctx.user;
 		
 		assert.ok(self.bus);
 		assert.ok(self.socket);
 		
 		return self.request({name: 'loadSessionUser', key: String(query.key), ctx: self.ctx}).then(function(user) {
+			debug('Session loading returned user', self.cdid, user && user.uid);
 			if (!self.bus) {
 				assert.ok(!self.socket);
 				return;
@@ -530,7 +534,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 					if (!masterAuthorization)
 						throw new self.PermissionDenied();
 					
-					debug('Setting up bus transport');
+					debug('Setting up bus transport', self.cdid);
 					self.ctx.setProperty('isBusTransport', true);
 					self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false));
 					return { code: 'init-bus-transport-success' };
@@ -575,7 +579,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				assert.ok(result);
 				assert.ok(result.code);
 				
-				debug('Query returned', query.type, query.id, result.code);
+				debug('Query returned', self.cdid, query.type, query.id, result.code);
 				
 				if (callbackHasBeenCalled)
 					return self.emitError('Callback for client request called multiple times!');
@@ -621,7 +625,7 @@ ConnectionData.prototype.queryHandler = function(query) {
  * @function module:connectiondata~ConnectionData#disconnectedHandler
  */
 ConnectionData.prototype.disconnectedHandler = function() {
-	debug('Disconnected');
+	debug('Disconnected', this.cdid);
 	
 	this.onLogout();
 	

@@ -97,7 +97,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 	return Q.all([
 		self.request({name: 'get-readability-mode'}),
 		self.request({name: 'dbUsageStatistics'})
-	]).then(function(readonlyReply, dbstats) {
+	]).spread(function(readonlyReply, dbstats) {
 		ret.readonly = readonlyReply.readonly;
 		ret.dbstats = dbstats;
 		

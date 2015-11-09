@@ -18,7 +18,7 @@ describe('stocks', function() {
 	beforeEach(testHelpers.standardReset);
 	after(testHelpers.standardTeardown);
 	
-	var standardISIN = 'CA7500801039';
+	var standardISIN = 'DE000BAY0017';
 	var umlautNameISIN = 'DE0005565204';
 
 	if (!testHelpers.testPerformance)

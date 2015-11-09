@@ -247,9 +247,9 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	debug('Login', xdata.remoteip, name, useTransaction, ignorePassword);
 	
-	return self.getLoginIPCheck().then(function(check) {
+	return Q()/*self.getLoginIPCheck().then(function(check) {
 		return check.check(xdata.remoteip);
-	}).then(function() {
+	})*/.then(function() {
 		var query = 'SELECT passwords.*, users.email_verif ' +
 			'FROM passwords ' +
 			'JOIN users ON users.uid = passwords.uid ' +

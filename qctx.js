@@ -614,7 +614,7 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
 				return;
 			
 			self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
-		}, 60000);
+		}, 90000);
 		
 		return conn;
 	});

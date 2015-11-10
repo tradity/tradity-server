@@ -1225,7 +1225,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		if (!query.school) // e. g., empty string
 			query.school = null;
 		
-		return ctx.startTransaction({}, {isolation: 'SERIALIZABLE'});
+		return ctx.startTransaction();
 	}).then(function(conn) {
 		return Q.all([
 			self.validateEMail({ email: query.email, uid: uid }, conn),

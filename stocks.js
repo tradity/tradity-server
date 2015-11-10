@@ -674,7 +674,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			};
 		}
 		
-		return ctx.startTransaction({}, {isolation: 'SERIALIZABLE'});
+		return ctx.startTransaction();
 	}).then(function(conn_) {
 		conn = conn_;
 		return conn.query('SELECT stocks.*, ' +

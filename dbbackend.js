@@ -218,10 +218,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					
 					release();
 					
-					return Q().then(restart).then(function(data) {
-						deferred.resolve(data);
-						return deferred.promise;
-					});
+					deferred.resolve(Q().then(restart));
 				}
 				
 				var exception = null;

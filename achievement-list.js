@@ -95,6 +95,30 @@ for (var i = 0; i < ftcaKeys.length; ++i) {
 	})();
 }
 
+var leaderTradeCountAchievements = {1: 200, 5: 400, 10: 750, 50: 1250};
+var ltcaKeys = _.keys(leaderTradeCountAchievements);
+
+for (var i = 0; i < ltcaKeys.length; ++i) {
+	(function() {
+		var count = ltcaKeys[i];
+		var prevCount = i == 0 ? null : ltcaKeys[i-1];
+		
+		AchievementList.push({
+			name: 'LEADER_TRADED_COUNT_' + count,
+			fireOn: { 'feed-trade': function (ev, ctx) { return ev.leader ? [ev.leader] : []; } },
+			xp: leaderTradeCountAchievements[count],
+			check: function(uid, userAchievements, cfg, ctx) {
+				return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE leader = ?', [uid])
+					.then(function(res) { return res[0].tradecount >= count; });
+			},
+			version: 0,
+			prereqAchievements: prevCount ? [ 'LEADER_TRADED_COUNT_' + prevCount ] : [],
+			category: 'LEADER'
+		});
+	})();
+}
+
+/*
 var referralCountAchievements = {1: 100, 3: 200, 5: 300, 10: 500, 20: 750, 30: 1000, 50: 1500, 75: 2000, 100: 2500, 222: 3333};
 var rcaKeys = _.keys(referralCountAchievements);
 
@@ -135,8 +159,9 @@ for (var i = 0; i < rcaKeys.length; ++i) {
 		});
 	})();
 }
+*/
 
-var commentCountAchievements = [[1, 1, 50], [5, 1, 50], [5, 2, 150], [15, 10, 250], [50, 25, 750], [100, 50, 1001]];
+var commentCountAchievements = [[1, 1, 50], [3, 1, 50], [5, 2, 150], [15, 10, 250], [50, 25, 750], [100, 50, 1001]];
 
 for (var i = 0; i < commentCountAchievements.length; ++i) {
 	(function() {

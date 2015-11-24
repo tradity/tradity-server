@@ -805,7 +805,11 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 			'type': 'trade',
 			'targetid': oh_res.insertId,
 			'srcuser': ctx.user.uid,
-			'json': {delay: !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0, dquerydata: query.dquerydata || null},
+			'json': {
+				delay: !!ures[0].delayorderhist ? cfg.delayOrderHistTime : 0,
+				dquerydata: query.dquerydata || null,
+				leader: r.leader
+			},
 			'feedusers': r.leader ? [r.leader] : [],
 			'conn': conn
 		});

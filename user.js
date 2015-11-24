@@ -1487,13 +1487,16 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  * @function c2s~list-genders
  */
 User.prototype.listGenders = buscomponent.provideQT('client-list-genders', function(query, ctx) {
+	var self = this;
+	
 	return Q().then(function() {
 		if (self.cache.has('gender-statistics'))
 			return self.cache.use('gender-statistics');
 		
 		return self.cache.add('gender-statistics', 60000,
 			ctx.query('SELECT gender, COUNT(gender) AS gc FROM users_data GROUP BY gender ORDER BY gc DESC'));
-	}).catch(function() {
+	}).catch(function(e) {
+		console.error('Error loading gender list', e);
 		/* if something went wrong, everything still is just fine */
 		return [];
 	}).then(function(stats) {

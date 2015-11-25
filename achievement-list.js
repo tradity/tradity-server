@@ -196,8 +196,13 @@ for (var i = 0; i < commentCountAchievements.length; ++i) {
 }
 
 var ClientAchievements = [
-	{ name: 'LEARNING_GREEN_INVESTMENTS',  xp: 100, requireVerified: false, category: 'LEARNING' },
+	{ name: 'LEARNING_GREEN_INVESTMENTS', xp: 100, requireVerified: false, category: 'LEARNING' },
 	{ name: 'LEARNING_LOW_INTEREST_RATES', xp: 100, requireVerified: false, category: 'LEARNING' },
+	{ name: 'LEARNING_WHAT_ARE_SHARES', xp: 100, requireVerified: false, category: 'LEARNING' },
+	{ name: 'LEARNING_TERMINOLOGY', xp: 100, requireVerified: false, category: 'LEARNING' },
+	{ name: 'LEARNING_OPPORTUNITIES_AND_RISKS', xp: 100, requireVerified: false, category: 'LEARNING' },
+	{ name: 'LEARNING_FUNDAMENTAL_ANALYSIS', xp: 100, requireVerified: false, category: 'LEARNING' },
+	{ name: 'LEARNING_TECHNICAL_ANALYSIS', xp: 100, requireVerified: false, category: 'LEARNING' },
 ];
 
 var dailyLoginAchievements = _.range(2,21);

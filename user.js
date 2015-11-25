@@ -1228,8 +1228,10 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		return ctx.startTransaction();
 	}).then(function(conn) {
 		return Q.all([
-			self.validateEMail({ email: query.email, uid: uid }, conn),
-			self.validateUsername({ name: query.name, uid: uid }, conn)
+			(ctx.user && query.email == ctx.user.email) ||
+				self.validateEMail({ email: query.email, uid: uid }, conn),
+			(ctx.user && query.name == ctx.user.name) ||
+				self.validateUsername({ name: query.name, uid: uid }, conn)
 		]).then(function() {
 		return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
 			[betakey[0]])

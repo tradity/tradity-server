@@ -46,7 +46,8 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
 	return Q.all([
 		questionnaires,
 		ctx.query('SELECT questionnaire_id FROM qn_questionnaires ' +
-			'WHERE (display_after IS NULL OR display_after <= UNIX_TIMESTAMP()) ' +
+			'WHERE (display_after  IS NULL OR display_after  <= UNIX_TIMESTAMP()) AND' +
+			'      (display_before IS NULL OR display_before >= UNIX_TIMESTAMP())',
 			(uid === null ? '' :
 				'AND (SELECT COUNT(*) FROM qn_result_sets ' + 
 				'WHERE uid = ? AND qn_result_sets.questionnaire_id = qn_questionnaires.questionnaire_id) = 0 '
@@ -54,7 +55,11 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
 		]).spread(function(questionnaires, res) {
 		var ids = _.pluck(res, 'questionnaire_id');
 		
-		return { code: 'list-questionnaires-success', questionnaires: _.pick(questionnaires, ids) };
+		return {
+			code: 'list-questionnaires-success',
+			questionnaires: _.pick(questionnaires, ids),
+			isPersonalized: uid !== null
+		};
 	});
 });
 

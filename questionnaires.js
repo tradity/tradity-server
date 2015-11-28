@@ -156,7 +156,7 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
 	
 	loadQuestionnaire = function(questionnaire) {
 		return Q.all([
-			ctx.query('SELECT language, qtext FROM qn_quesionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id]).then(groupByLanguage),
+			ctx.query('SELECT language, qtext FROM qn_questionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id]).then(groupByLanguage),
 			ctx.query('SELECT qn_questions.question_id, question_multiple_answers, `order` ' + 
 				'FROM qn_questions_questionnaires AS qlist ' +
 				'JOIN qn_questions ON qn_questions.question_id = qlist.question_id ' +

@@ -114,13 +114,18 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
 			assert.ok(question);
 			
 			if (!answers || (answers.length != 1 && !question.question_multiple_answers))
-				throw new self.SoTradeClientError('save-questionnaire-invalid');
+				throw new self.SoTradeClientError('save-questionnaire-invalid',
+					'Invalid number of answers for question ' + question.question_id +
+					' (' + JSON.stringify(question) + ')');
 			
 			var chosenAnswers = _.pluck(answers, 'answer');
 			var availableAnswers = _.pluck(question.answers, 'answer_id');
 			
 			if (_.difference(chosenAnswers, availableAnswers).length > 0)
-				throw new self.SoTradeClientError('save-questionnaire-invalid');
+				throw new self.SoTradeClientError('save-questionnaire-invalid',
+					'Invalid answer(s) for question ' + question.question_id + ': ' +
+					JSON.stringify(_.difference(chosenAnswers, availableAnswers)) +
+					' (' + JSON.stringify(question) + ')');
 			
 			for (var j = 0; j < answers.length; ++j) {
 				resultsQuery.push('(%resultSetID%,?,?,?)');

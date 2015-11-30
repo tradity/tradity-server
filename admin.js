@@ -177,7 +177,8 @@ Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _req
 		ctx.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
 		ctx.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]),
 		ctx.query('UPDATE users_data SET giv_name="__user_deleted__", fam_name="", birthday = NULL, ' +
-			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0 WHERE uid = ?', [uid]),
+			'street="", zipcode="", town="", traditye=0, `desc`="", realnamepublish = 0, gender = NULL, ' +
+			'schoolclass = "" WHERE uid = ?', [uid]),
 		ctx.query('UPDATE users_finance SET wprovision=0, lprovision=0 WHERE uid = ?', [uid]),
 		ctx.query('UPDATE users SET name = CONCAT("user_deleted", ?), email = CONCAT("deleted:", email), ' +
 			'deletiontime = UNIX_TIMESTAMP() WHERE uid = ?', [uid, uid]),

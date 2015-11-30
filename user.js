@@ -818,6 +818,8 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 	return Q.all([
 		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
 		ctx.query('DELETE FROM passwords WHERE changetime IS NULL AND issuetime < UNIX_TIMESTAMP() - 7*86400'),
+		ctx.query('UPDATE users SET email=CONCAT("deleted:erased:", uid), email_verif = 0 ' +
+			'WHERE deletiontime IS NOT NULL AND deletiontime < UNIX_TIMESTAMP() - 70*86400'),
 		ctx.query('SELECT p.schoolid, p.path, users.access FROM schools AS p ' +
 			'JOIN events ON events.type="school-create" AND events.targetid = p.schoolid ' +
 			'JOIN users ON users.uid = events.srcuser ' +

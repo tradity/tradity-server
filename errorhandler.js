@@ -52,6 +52,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 	debug('Error', e);
 	
 	var cfg, longErrorText;
+	var catchstack = new Error().stack; // current stack
 	
 	self.getServerConfig().catch(function(e2) {
 		console.error('Could not get server config due to', e2);
@@ -68,6 +69,9 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 			longErrorText += e.stack + '\n';
 		else // assume e is not actually an Error instance
 			longErrorText += util.inspect(e) + '\n';
+		
+		// indicating current stack may be helpful
+		longErrorText += catchstack + '\n';
 		
 		if (self.bus) {
 			longErrorText += 'Bus: ' + self.bus.id + '\n';

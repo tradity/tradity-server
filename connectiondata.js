@@ -569,8 +569,8 @@ ConnectionData.prototype.queryHandler = function(query) {
 					if (e.nonexistentType) {
 						throw new self.SoTradeClientError('unknown-query-type');
 					} else {
-						throw new self.SoTradeClientError('internal-server-error');
 						self.emitError(e);
+						throw new self.SoTradeClientError('internal-server-error');
 					}
 				});
 			}).catch(function (e) {

@@ -823,8 +823,8 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
 			'(?, "stockprice", ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?), ' +
 			'(?, "fee",        ?, ?, NULL, ?, UNIX_TIMESTAMP(), ?)',
-			[oh_res.insertId, r.stocktext, ctx.user.uid, price, JSON.stringify({reason: 'trade'}),
-			 oh_res.insertId, r.stocktext, ctx.user.uid, fee,   JSON.stringify({reason: 'trade'})]);
+			[oh_res.insertId, r.stocktextid, ctx.user.uid, price, JSON.stringify({reason: 'trade'}),
+			 oh_res.insertId, r.stocktextid, ctx.user.uid, fee,   JSON.stringify({reason: 'trade'})]);
 	}).then(function() {
 		return conn.query('UPDATE users AS fu SET tradecount = tradecount + 1 WHERE uid = ?', [ctx.user.uid]);
 	}).then(function() {

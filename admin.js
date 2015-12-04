@@ -457,24 +457,6 @@ Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-
 }));
 
 /**
- * Returns the local bus’ packet log.
- * 
- * @return {object} Returns with <code>show-packet-log-success</code> or
- *                  a common error code and, in case of success, sets
- *                  <code>.result</code> to a <code>util.inspect</code>
- *                  version of the bus’ packet log.
- * 
- * @function c2s~show-packet-log
- */
-Admin.prototype.showPacketLog = buscomponent.provideQT('client-show-packet-log', _reqpriv('userdb', function(query, ctx) {
-	debug('Showing packet log');
-	
-	/* The package log is mostly informal and not expected to be used for anything but debugging.
-	 * This means that circular structures in it may exist and JSON is simply not the way to go here. */ 
-	return { code: 'show-packet-log-success', result: util.inspect(this.bus.packetLog, null) };
-}));
-
-/**
  * Returns game usage statistics.
  * 
  * This is likely to be subjected to larger modifications due to #270.

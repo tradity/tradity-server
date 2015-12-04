@@ -175,16 +175,6 @@ Main.prototype.start = function() {
 			process.on(self.shutdownSignals[i], function() { self.emitLocal('globalShutdown'); });
 
 		var cfg = self.getServerConfig();
-		assert.ok(cfg.busDumpFile);
-		
-		process.on('SIGUSR2', function() {
-			var targetFile = cfg.varReplace(cfg.busDumpFile.replace(/\{\$pid\}/g, process.pid + '-' + self.mainBus.id));
-			
-			debug('Dumping bus log', targetFile);
-			
-			fs.writeFileSync(targetFile,
-				'Log:\n\n' + JSON.stringify(self.mainBus.packetLog) + '\n\n\nUnanswered:\n\n' + JSON.stringify(self.mainBus.unansweredRequests()));
-		});
 		
 		return self.setupStockLoaders();
 	}).then(function() {

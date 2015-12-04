@@ -75,7 +75,6 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 		
 		if (self.bus) {
 			longErrorText += 'Bus: ' + self.bus.id + '\n';
-			longErrorText += '\n' + util.inspect(self.bus.packetLog.reverse(), {depth: 2});
 		
 			if (e.nonexistentType || e.name.match(/^Assertion/i))
 				longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';

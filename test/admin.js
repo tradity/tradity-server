@@ -324,14 +324,4 @@ describe('admin', function() {
 			});
 		});
 	});
-	
-	if (!testHelpers.testPerformance)
-	describe('show-packet-log', function() {
-		it('Should return a list of bus packets', function() {
-			return socket.emit('show-packet-log', { __sign__: true }).then(function(res) {
-				assert.equal(res.code, 'show-packet-log-success');
-				assert.ok(res.result.length > 0);
-			});
-		});
-	});
 });

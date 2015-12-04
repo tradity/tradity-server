@@ -52,9 +52,6 @@ function Bus () {
 	self.lostPackets = 0;
 	self.busNodeInfoQueued = false;
 	
-	self.packetLog = [];
-	self.packetLogLength = 1536;
-	
 	self.pingIntervalMs = 85000; // 85 seconds between transport pings
 	self.startupTimedBusInfos = [ 0.25, 0.5, 0.75, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ];
 	
@@ -65,7 +62,6 @@ function Bus () {
 	
 	self.inputFilters = [];
 	self.outputFilters = [];
-	self.nonLoggedPacketNames = ['bus::nodeInfo'];
 	
 	self.on('newListener', function(event) {
 		debugEvents('Add new listener', self.id, event);
@@ -472,23 +468,10 @@ Bus.prototype.busGraphUpdated = function() {
 	}
 };
 
-Bus.prototype.logPacket = function(packet) {
-	if (this.nonLoggedPacketNames.indexOf(packet.name) != -1)
-		return;
-	
-	this.packetLog.push(packet);
-	
-	if (this.packetLog.length > this.packetLogLength)
-		this.packetLog.shift();
-	
-	debugPackets('Logged packet', this.id, packet.name, this.packetLog.length);
-};
-
 Bus.prototype.handleBusPacket = function(packet) {
 	var self = this;
 	
 	self.msgCount++;
-	self.logPacket(packet);
 	
 	assert.ok(self.id);
 	assert.equal(packet.seenBy.indexOf(self.id), -1);
@@ -718,8 +701,6 @@ Bus.prototype.emitScoped = function(name, data, scope) {
 	
 	if (recipients.length != 0)
 		this.handleBusPacket(packet);
-	else
-		this.logPacket(packet);
 };
 
 Bus.prototype.requestNearest =
@@ -827,9 +808,7 @@ Bus.prototype.stats = function() {
 		msgCount: this.msgCount,
 		lostPackets: this.lostPackets,
 		id: this.id,
-		busGraph: this.busGraph.json(),
-		packetLogCount: this.packetLog.length,
-		packetLogLength: this.packetLogLength
+		busGraph: this.busGraph.json()
 	};
 };
 

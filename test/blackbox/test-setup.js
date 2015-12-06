@@ -1,30 +1,19 @@
 'use strict';
 
-Error.stackTraceLimit = Infinity;
-process.env.SOTRADE_ERROR_LOG_FILE = '/tmp/errors-' + Date.now() + '.log';
-process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS = 1;
-process.env.SOTRADE_NO_CLUSTER = 1;
-process.env.DEBUG = 'sotrade:*,-sotrade:bus:*';
+require('../common.js');
+const cfg = require('../../config.js').config();
+const Q = require('q');
+const assert = require('assert');
+const fs = require('fs');
+const lzma = require('lzma-native');
+const stream = require('stream');
+const spawn = require('child_process').spawn;
 
-// use config.test.js
-process.env.SOTRADE_CONFIG = 'test';
-var config = require('../../config.js');
-config.reloadConfig();
-
-var cfg = config.config();
-
-var Q = require('q');
-var assert = require('assert');
-var fs = require('fs');
-var lzma = require('lzma-native');
-var stream = require('stream');
-var spawn = require('child_process').spawn;
-
-var streamMultiPipe = function(streams) {
-	var out = new stream.PassThrough();
-	var i = 0;
+const streamMultiPipe = function(streams) {
+	const out = new stream.PassThrough();
+	let i = 0;
 	
-	var pipeNextStream = function() {
+	const pipeNextStream = function() {
 		if (i >= streams.length)
 			return;
 		
@@ -38,36 +27,36 @@ var streamMultiPipe = function(streams) {
 	return out;
 };
 
-var setupDatabase = function() {
+const setupDatabase = function() {
 	if (process.env.SOTRADE_TEST_SKIP_DB_SETUP)
 		return Q();
 
 	console.error("Setting up database...");
 	
-	var decompressor = lzma.createDecompressor();
+	const decompressor = lzma.createDecompressor();
 	
-	var sqlSetupStream = streamMultiPipe([
+	const sqlSetupStream = streamMultiPipe([
 		fs.createReadStream('res/testdb-preamendments.sql'),
 		fs.createReadStream('res/testdb.sql.xz').pipe(decompressor),
 		fs.createReadStream('res/testdb-postamendments.sql')
 	]);
 	
-	var mysqlConfig = '[client]\n' +
+	const mysqlConfig = '[client]\n' +
 	'socket=' + cfg.db.cluster.MASTER.socketPath + '\n' +
 	'password=' + cfg.db.password + '\n' +
 	'user=' + cfg.db.user + '\n' +
 	'database=' + cfg.db.database + '\n';
-	var mysqlConfigFilename = 'res/test-mysql-config-' + Date.now();
+	const mysqlConfigFilename = 'res/test-mysql-config-' + Date.now();
 
 	fs.writeFileSync(mysqlConfigFilename, mysqlConfig, { mode: 384 /* 0600 */ });
 	
-	var mysqlRunner = spawn('mysql', ['--defaults-file=' + mysqlConfigFilename], {
+	const mysqlRunner = spawn('mysql', ['--defaults-file=' + mysqlConfigFilename], {
 		stdio: ['pipe', process.stdout, process.stderr]
 	});
 	
 	sqlSetupStream.pipe(mysqlRunner.stdin);
 	
-	var deferred = Q.defer();
+	const deferred = Q.defer();
 	
 	mysqlRunner.on('close', function(code) {
 		fs.unlinkSync(mysqlConfigFilename);
@@ -82,8 +71,8 @@ var setupDatabase = function() {
 	return deferred.promise;
 };
 
-var generateKeys = function() {
-	var deferred = Q.defer();
+const generateKeys = function() {
+	const deferred = Q.defer();
 	
 	console.error("Generating keys...");
 	
@@ -91,7 +80,7 @@ var generateKeys = function() {
 	assert.equal(cfg.privateKey, 'res/test-id_rsa');
 	assert.equal(cfg.publicKeys[0], 'res/test-id_rsa.pub');
 	
-	var privateKeyGen = spawn('openssl', ['genrsa', '1024'], {
+	const privateKeyGen = spawn('openssl', ['genrsa', '1024'], {
 		stdio: ['ignore', fs.openSync(cfg.privateKey, 'w'), process.stderr]
 	});
 	
@@ -99,7 +88,7 @@ var generateKeys = function() {
 		if (code !== 0)
 			return deferred.reject(new Error('openssl genrsa exited with error code ' + code));
 		
-		var publicKeyGen = spawn('openssl', ['rsa', '-in', cfg.privateKey, '-pubout'], {
+		const publicKeyGen = spawn('openssl', ['rsa', '-in', cfg.privateKey, '-pubout'], {
 			stdio: ['ignore', fs.openSync(cfg.publicKeys[0], 'w'), process.stderr]
 		});
 		

@@ -51,7 +51,7 @@ util.inherits(Database, buscomponent.BusComponent);
 Database.prototype._init = function() {
 	var self = this;
 	
-	debug('Initing database');
+	debug('Initializing database');
 	
 	return self.getServerConfig().then(function(cfg) {
 		self.dbmod = cfg.dbmod || require('mysql');

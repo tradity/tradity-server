@@ -1,5 +1,6 @@
 'use strict';
 
+require('../common.js');
 const bus = require('../../bus/bus.js');
 const buscomponent = require('../../stbuscomponent.js');
 const cfg = require('../../config.js').config();

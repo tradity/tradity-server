@@ -52,8 +52,7 @@ function Bus () {
 	self.lostPackets = 0;
 	self.busNodeInfoQueued = false;
 	
-	self.pingIntervalMs = 85000; // 85 seconds between transport pings
-	self.startupTimedBusInfos = [ 0.25, 0.5, 0.75, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 ];
+	self.pingIntervalMs = 45000; // 45 seconds between transport pings
 	
 	self.transports = [];
 	self.removedTransports = [];
@@ -117,10 +116,6 @@ function Bus () {
 	});
 	
 	assert.notEqual(self.handledEvents.indexOf('bus::nodeInfo'), -1);
-	
-	self.startupTimedBusInfos.map(function(delay) { // delay in seconds
-		setTimeout(self.emitBusNodeInfoSoon.bind(self), delay * 1000);
-	});
 	
 	debug('Created bus', self.id);
 }

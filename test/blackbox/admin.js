@@ -3,7 +3,7 @@
 var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
-var sha256 = require('../lib/sha256.js');
+var sha256 = require('../../lib/sha256.js');
 var commonUtil = require('tradity-connection');
 var testHelpers = require('./test-helpers.js');
 

@@ -4,7 +4,6 @@ var assert = require('assert');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var cfg = require('../config.js').config;
 
 describe('misc', function() {
 	var socket, user;

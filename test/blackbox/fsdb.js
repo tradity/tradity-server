@@ -5,7 +5,7 @@ var fs = require('fs');
 var _ = require('lodash');
 var Q = require('q');
 var testHelpers = require('./test-helpers.js');
-var cfg = require('../config.js').config();
+var cfg = require('../../config.js').config();
 
 if (!testHelpers.testPerformance)
 describe('fsdb', function() {

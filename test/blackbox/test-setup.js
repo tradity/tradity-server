@@ -8,7 +8,7 @@ process.env.DEBUG = 'sotrade:*,-sotrade:bus:*';
 
 // use config.test.js
 process.env.SOTRADE_CONFIG = 'test';
-var config = require('../config.js');
+var config = require('../../config.js');
 config.reloadConfig();
 
 var cfg = config.config();

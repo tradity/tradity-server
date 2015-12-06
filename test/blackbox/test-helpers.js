@@ -1,9 +1,9 @@
 'use strict';
 
 var setup = require('./test-setup.js');
-var sotradeClient = require('../sotrade-client.js');
-var sha256 = require('../lib/sha256.js');
-var main = require('../main.js');
+var sotradeClient = require('../../sotrade-client.js');
+var sha256 = require('../../lib/sha256.js');
+var main = require('../../main.js');
 var _ = require('lodash');
 var Q = require('q');
 var fs = require('fs');

@@ -3,7 +3,7 @@
 var assert = require('assert');
 var Q = require('q');
 var _ = require('lodash');
-var LoginIPCheck = require('../lib/loginIPCheck.js');
+var LoginIPCheck = require('../../lib/loginIPCheck.js');
 
 function mean(a) {
 	return _.sum(a) / a.length;

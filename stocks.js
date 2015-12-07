@@ -653,11 +653,11 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		cfg = cfg_;
 		
 		if (opt.skipTest || opt.testOnly)
-			return { code: 'stock-buy-success', skippedTest: true };
+			return { code: 'stock-buy-success', skippedTest: true }; // [sic]
 		
-		var mopt = _.clone(opt);
-		mopt.testOnly = true;
-		return self.buyStock(query, ctx, mopt); // may throw exception!
+		var modifiedOptions = _.clone(opt);
+		modifiedOptions.testOnly = true;
+		return self.buyStock(query, ctx, modifiedOptions); // may throw exception!
 	}).then(function(result) {
 		assert.ok(ctx.user);
 		assert.ok(ctx.access);

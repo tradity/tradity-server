@@ -4,6 +4,7 @@ var _ = require('lodash');
 var Q = require('q');
 var util = require('util');
 var events = require('events');
+var request = require('request');
 var debug = require('debug')('sotrade:stockloader');
 
 var MAXLEN_DEFAULT = 196;
@@ -17,6 +18,7 @@ function AbstractLoader(opt) {
 	this.setMaxListeners(0);
 	this.cacheTime = typeof opt.cacheTime == 'undefined' ? CACHE_TIME_DEFAULT : opt.cacheTime;
 	this.maxlen = typeof opt.maxlen == 'undefined' ? MAXLEN_DEFAULT : opt.maxlen;
+	this.requestRetries = typeof opt.requestRetries == 'undefined' ? 2 : opt.requestRetries;
 	this.cache = {};
 }
 
@@ -94,6 +96,34 @@ AbstractLoader.prototype.loadQuotesList = function(stocklist, filter) {
 	}).then(function(records) {
 		return _.filter(records, filter);
 	});
+};
+
+AbstractLoader.prototype.request = function(url, attemptsLeft) {
+	if (typeof attemptsLeft == 'undefined')
+		attemptsLeft = this.requestRetries;
+	
+	const requestDeferred = Q.defer();
+	request({
+		url: url,
+		headers: {
+			'User-Agent': this.userAgent
+		}
+	}, (err, res, body) => {
+		if (err)
+			return requestDeferred.reject(err);
+		
+		if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0)
+			return Q.delay(750).then(() => this.request(url, attemptsLeft - 1));
+		
+		if (res.statusCode != 200)
+			return requestDeferred.reject(new Error('Stock loader error: URL ' + url + ' returned status code ' + res.statusCode));
+		
+		debug('Loaded', url, res.statusCode);
+		
+		requestDeferred.resolve(body);
+	});
+	
+	return requestDeferred.promise;
 };
 
 exports.AbstractLoader = AbstractLoader;

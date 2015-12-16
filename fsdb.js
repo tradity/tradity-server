@@ -25,11 +25,11 @@ var debug = require('debug')('sotrade:fsdb');
  * @constructor module:msdb~FileStorage
  * @augments module:stbuscomponent~STBusComponent
  */
-function FileStorage () {
-	FileStorage.super_.apply(this, arguments);
+class FileStorage extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
 }
-
-util.inherits(FileStorage, buscomponent.BusComponent);
 
 /**
  * Handles an HTTP file request.

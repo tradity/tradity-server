@@ -40,26 +40,26 @@ var ConnectionData = require('./connectiondata.js').ConnectionData;
  * @constructor module:server~SoTradeServer
  * @augments module:stbuscomponent~STBusComponent
  */
-function SoTradeServer (info) {
-	SoTradeServer.super_.apply(this, arguments);
-	
-	this.httpServer = null;
-	this.io = null;
-	this.clients = [];
-	this.isShuttingDown = false;
-	this.creationTime = Date.now() / 1000;
-	
-	this.deadQueryCount = 0;
-	this.deadQueryCompressionInfo = {
-		supported: {lzma: 0, s: 0},
-		used: {lzma: 0, s: 0, si: 0}
-	};
-	
-	this.connectionCount = 0;
-	this.info = info || {};
+class SoTradeServer extends buscomponent.BusComponent {
+	constructor() {
+		super();
+		
+		this.httpServer = null;
+		this.io = null;
+		this.clients = [];
+		this.isShuttingDown = false;
+		this.creationTime = Date.now() / 1000;
+		
+		this.deadQueryCount = 0;
+		this.deadQueryCompressionInfo = {
+			supported: {lzma: 0, s: 0},
+			used: {lzma: 0, s: 0, si: 0}
+		};
+		
+		this.connectionCount = 0;
+		this.info = info || {};
+	}
 }
-
-util.inherits(SoTradeServer, buscomponent.BusComponent);
 
 /**
  * Return general and statistical information on this server instance

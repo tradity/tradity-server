@@ -25,7 +25,6 @@ var debug = require('debug')('sotrade:qctx');
  * @property {function[]} debugHandlers  Debug functions to be called when debugging is enabled
  * @property {function[]} errorHandlers  Handlers in case of failures during code execution
  *                                       under this context.
- * @property {function[]} callbackFilters  Filters that are applied to bus request callbacks
  * @property {module:qctx~QContext[]} childContexts  A list of weak references to child QContexts
  *                                                   (e.g. for debugging resource usage)
  * @property {object[]} openConnections  A list of open database connections.
@@ -45,63 +44,61 @@ var debug = require('debug')('sotrade:qctx');
  * @constructor module:qctx~QContext
  * @augments module:stbuscomponent~STBusComponent
  */
-function QContext(obj) {
-	var self = this;
-	
-	QContext.super_.apply(self);
-	
-	obj = obj || {};
-	self.user = obj.user || null;
-	self.access = obj.access || new Access();
-	self.properties = {};
-	self.debugHandlers = [];
-	self.errorHandlers = [];
-	
-	self.isQContext = true;
-	self.childContexts = [];
-	self.tableLocks = [];
-	self.openConnections = [];
-	self.queryCount = 0;
-	self.incompleteQueryCount = 0;
-	self.creationStack = getStack();
-	self.creationTime = Date.now();
-	self.startTransactionOnQuery = null;
-	self.contextTransaction = null;
-	
-	var parentQCtx = null;
-	
-	if (obj.parentComponent) {
-		if (obj.isQContext)
-			parentQCtx = obj.parentComponent;
+class QContext extends buscomponent.BusComponent {
+	constructor(obj) {
+		super();
 		
-		self.setBusFromParent(obj.parentComponent);
-	}
-	
-	if (!parentQCtx && !obj.isMasterQCTX)
-		parentQCtx = QContext.getMasterQueryContext();
-	
-	function ondestroy(_ctx) {
-		if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
-			console.warn('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
-			console.warn(JSON.stringify(_ctx));
+		obj = obj || {};
+		this.user = obj.user || null;
+		this.access = obj.access || new Access();
+		this.properties = {};
+		this.debugHandlers = [];
+		this.errorHandlers = [];
+		
+		this.isQContext = true;
+		this.childContexts = [];
+		this.tableLocks = [];
+		this.openConnections = [];
+		this.queryCount = 0;
+		this.incompleteQueryCount = 0;
+		this.creationStack = getStack();
+		this.creationTime = Date.now();
+		this.startTransactionOnQuery = null;
+		this.contextTransaction = null;
+		
+		var parentQCtx = null;
+		
+		if (obj.parentComponent) {
+			if (obj.isQContext)
+				parentQCtx = obj.parentComponent;
 			
-			try {
-				_ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
-			} catch (e) { console.log(e); }
-			
-			setTimeout(function() {
-				process.exit(122);
-			}, 1500);
+			this.setBusFromParent(obj.parentComponent);
 		}
+		
+		if (!parentQCtx && !obj.isMasterQCTX)
+			parentQCtx = QContext.getMasterQueryContext();
+		
+		const ondestroy = _ctx => {
+			if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
+				console.warn('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
+				console.warn(JSON.stringify(_ctx));
+				
+				try {
+					_ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
+				} catch (e) { console.log(e); }
+				
+				setTimeout(function() {
+					process.exit(122);
+				}, 1500);
+			}
+		};
+		
+		if (parentQCtx)
+			parentQCtx.childContexts.push(weak(this, ondestroy));
+		
+		this.addProperty({name: 'debugEnabled', value: false, access: 'server'});
 	}
-	
-	if (parentQCtx)
-		parentQCtx.childContexts.push(weak(this, ondestroy));
-	
-	self.addProperty({name: 'debugEnabled', value: false, access: 'server'});
-};
-
-util.inherits(QContext, buscomponent.BusComponent);
+}
 
 QContext.masterQueryContext = null;
 

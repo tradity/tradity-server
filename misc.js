@@ -15,12 +15,11 @@ var debug = require('debug')('sotrade:misc');
  * @public
  * @module misc
  */
-
-function Misc () {
-	Misc.super_.apply(this, arguments);
-};
-
-util.inherits(Misc, buscomponent.BusComponent);
+class Misc extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
+}
 
 /**
  * Return all information about the current user.

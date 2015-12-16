@@ -29,23 +29,23 @@ require('datejs');
  * @constructor module:user~User
  * @augments module:stbuscomponent~STBusComponent
  */
-function User () {
-	User.super_.apply(this, arguments);
-	
-	this.cache = new Cache();
-	
-	this.loginIPCheck = null;
-	this.getLoginIPCheck = function() {
-		if (this.loginIPCheck)
-			return Q(this.loginIPCheck);
+class User extends buscomponent.BusComponent {
+	constructor() {
+		super();
 		
-		return this.loginIPCheck = this.getServerConfig().then(function(cfg) {
-			return new LoginIPCheck(cfg.login);
-		});
-	};
+		this.cache = new Cache();
+		
+		this.loginIPCheck = null;
+		this.getLoginIPCheck = function() {
+			if (this.loginIPCheck)
+				return Q(this.loginIPCheck);
+			
+			return this.loginIPCheck = this.getServerConfig().then(function(cfg) {
+				return new LoginIPCheck(cfg.login);
+			});
+		};
+	}
 }
-
-util.inherits(User, buscomponent.BusComponent);
 
 /**
  * Generates a password hash and salt combination.

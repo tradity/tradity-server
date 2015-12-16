@@ -25,12 +25,12 @@ var qctx = require('./qctx.js');
  * @constructor module:emailsender~Mailer
  * @augments module:stbuscomponent~STBusComponent
  */
-function Mailer () {
-	Mailer.super_.apply(this, arguments);
-	this.mailer = null;
-};
-
-util.inherits(Mailer, buscomponent.BusComponent);
+class Mailer extends buscomponent.BusComponent {
+	constructor() {
+		super();
+		this.mailer = null;
+	}
+}
 
 Mailer.prototype._init = function() {
 	var self = this;
@@ -195,7 +195,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		self.emailBounced({messageId: shortId}, true, ctx);
 			
 		if (err)
-			self.emitError(err);
+			return self.emitError(err);
 	});
 }));
 

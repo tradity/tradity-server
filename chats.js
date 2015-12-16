@@ -22,11 +22,11 @@ var buscomponent = require('./stbuscomponent.js');
  * @constructor module:chats~Chats
  * @augments module:stbuscomponent~STBusComponent
  */
-function Chats () {
-	Chats.super_.apply(this, arguments);
+class Chats extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
 }
-
-util.inherits(Chats, buscomponent.BusComponent);
 
 /**
  * Represents an ingame chat session.

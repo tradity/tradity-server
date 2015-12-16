@@ -23,15 +23,14 @@ var debug = require('debug')('sotrade:error');
  * @constructor module:errorhandler~ErrorHandler
  * @augments module:stbuscomponent~STBusComponent
  */
-function ErrorHandler() {
-	ErrorHandler.super_.apply(this, arguments);
+class ErrorHandler extends buscomponent.BusComponent {
+	constructor() {
+		super();
 	
-	this.sem = semaphore(1);
-	this.throttle = ratelimit(10000);
+		this.sem = semaphore(1);
+		this.throttle = ratelimit(10000);
+	}
 }
-
-util.inherits(ErrorHandler, buscomponent.BusComponent);
-
 
 /**
  * Listener for <code>error</code> events.

@@ -22,11 +22,11 @@ var debug = require('debug')('sotrade:template-loader');
  * @constructor module:template-loader~TemplateLoader
  * @augments module:stbuscomponent~STBusComponent
  */
-function TemplateLoader () {
-	TemplateLoader.super_.apply(this, arguments);
-};
-
-util.inherits(TemplateLoader, buscomponent.BusComponent);
+class TemplateLoader extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
+}
 
 /**
  * Read a template and optionally substitute variables.

@@ -22,15 +22,15 @@ require('datejs');
  * @constructor module:stocks~Stocks
  * @augments module:stbuscomponent~STBusComponent
  */
-function Stocks () {
-	Stocks.super_.apply(this, arguments);
+class Stocks extends buscomponent.BusComponent {
+	constructor() {
+		super();
 	
-	this.knownStockIDs = null; // ISIN list for more efficient stock updating
-	this.quoteLoader = null;
-	this.leaderStockTextIDFormat = /^__LEADER_(\d+)__$/;
+		this.knownStockIDs = null; // ISIN list for more efficient stock updating
+		this.quoteLoader = null;
+		this.leaderStockTextIDFormat = /^__LEADER_(\d+)__$/;
+	}
 }
-
-util.inherits(Stocks, buscomponent.BusComponent);
 
 Stocks.prototype.onBusConnect = function() {
 	var self = this;

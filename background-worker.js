@@ -22,12 +22,13 @@ var debug = require('debug')('sotrade:bw');
  * @constructor module:background-worker~BackgroundWorker
  * @augments module:stbuscomponent~STBusComponent
  */
-function BackgroundWorker () {
-	this.sem = semaphore(1);
-	
-	BackgroundWorker.super_.apply(this, arguments);
+class BackgroundWorker extends buscomponent.BusComponent {
+	constructor() {
+		super();
+		
+		this.sem = semaphore(1);
+	}
 }
-util.inherits(BackgroundWorker, buscomponent.BusComponent);
 
 /**
  * Calls {@link busreq~regularCallbackUser} and {@link regularCallbackStocks}.

@@ -19,11 +19,11 @@ var debug = require('debug')('sotrade:watchlist');
  * @constructor module:watchlist~Watchlist
  * @augments module:stbuscomponent~STBusComponent
  */
-function Watchlist () {
-	Watchlist.super_.apply(this, arguments);
-};
-
-util.inherits(Watchlist, buscomponent.BusComponent);
+class Watchlist extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
+}
 
 /**
  * Indicates that one user added a stock or another user to their watchlist.

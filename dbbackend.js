@@ -32,21 +32,21 @@ var debugSQL = require('debug')('sotrade:db:SQL');
  * @public
  * @constructor module:dbbackend~Database
  */
-function Database () {
-	Database.super_.apply(this, arguments);
-	
-	this.dbmod = null;
-	this.wConnectionPool = null;
-	this.rConnectionPool = null;
-	this.openConnections = 0;
-	this.deadlockCount = 0;
-	this.queryCount= 0;
-	this.isShuttingDown = false;
-	this.writableNodes = [];
-	this.id = 0;
+class Database extends buscomponent.BusComponent {
+	constructor() {
+		super();
+		
+		this.dbmod = null;
+		this.wConnectionPool = null;
+		this.rConnectionPool = null;
+		this.openConnections = 0;
+		this.deadlockCount = 0;
+		this.queryCount= 0;
+		this.isShuttingDown = false;
+		this.writableNodes = [];
+		this.id = 0;
+	}
 }
-
-util.inherits(Database, buscomponent.BusComponent);
 
 Database.prototype._init = function() {
 	var self = this;
@@ -87,8 +87,8 @@ Database.prototype._init = function() {
 				self.emitImmediate('change-readability-mode', { readonly: true });
 		});
 		
-		self.wConnectionPool.on('remove', function() { self.emitError(new Error('DB lost write connection')); });
-		self.rConnectionPool.on('remove', function() { self.emitError(new Error('DB lost read connection')); });
+		self.wConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost write connection')); });
+		self.rConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost read connection')); });
 		
 		self.inited = true;
 		self.openConnections = 0;

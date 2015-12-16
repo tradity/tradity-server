@@ -26,14 +26,14 @@ var buscomponent = require('./stbuscomponent.js');
  * @constructor module:achievements~Achievements
  * @augments module:stbuscomponent~STBusComponent
  */
-function Achievements () {
-	Achievements.super_.apply(this, arguments);
-	
-	this.achievementList = [];
-	this.clientAchievements = [];
-};
-
-util.inherits(Achievements, buscomponent.BusComponent);
+class Achievements extends buscomponent.BusComponent {
+	constructor() {
+		super();
+		
+		this.achievementList = [];
+		this.clientAchievements = [];
+	}
+}
 
 Achievements.prototype.onBusConnect = function() {
 	var self = this;

@@ -25,15 +25,15 @@ var buscomponent = require('./stbuscomponent.js');
  * @constructor module:signedmsg~SignedMessaging
  * @augments module:stbuscomponent~STBusComponent
  */
-function SignedMessaging () {
-	SignedMessaging.super_.apply(this, arguments);
-	
-	this.privateKey = null;
-	this.publicKeys = [];
-	this.algorithm = 'RSA-SHA256';
+class SignedMessaging extends buscomponent.BusComponent {
+	constructor() {
+		super();
+		
+		this.privateKey = null;
+		this.publicKeys = [];
+		this.algorithm = 'RSA-SHA256';
+	}
 }
-
-util.inherits(SignedMessaging, buscomponent.BusComponent);
 
 SignedMessaging.prototype.onBusConnect = function() {
 	var self = this;
@@ -50,6 +50,7 @@ SignedMessaging.prototype.onBusConnect = function() {
  * @function module:signedmsg~SignedMessaging#useConfig
  */
 SignedMessaging.prototype.useConfig = function(cfg) {
+	assert.ok(cfg.privateKey);
 	this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
 	this.publicKeys = cfg.publicKeys.map(function(pkfile) {
 		return fs.readFileSync(pkfile, {encoding: 'utf-8'})

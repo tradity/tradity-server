@@ -21,11 +21,11 @@ var buscomponent = require('./stbuscomponent.js');
  * @constructor module:schools~Schools
  * @augments module:stbuscomponent~STBusComponent
  */
-function Schools () {
-	Schools.super_.apply(this, arguments);
+class Schools extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
 }
-
-util.inherits(Schools, buscomponent.BusComponent);
 
 /**
  * Helper function to indicate that a client request requires school admin privileges

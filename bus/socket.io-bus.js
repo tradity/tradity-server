@@ -1,8 +1,8 @@
 (function () { "use strict";
 
-var Adapter = require('socket.io-adapter');
-var _ = require('lodash');
-var util = require('util');
+const Adapter = require('socket.io-adapter');
+const _ = require('lodash');
+const util = require('util');
 
 /**
  * Returns a socket.io Adapter for use with a Bus

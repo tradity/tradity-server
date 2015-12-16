@@ -25,11 +25,11 @@ var buscomponent = require('./stbuscomponent.js');
  * @constructor module:stocks-financeupdate~StocksFinanceUpdate
  * @augments module:stbuscomponent~STBusComponent
  */
-function StocksFinanceUpdates () {
-	StocksFinanceUpdates.super_.apply(this, arguments);
+class StocksFinanceUpdates extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
 }
-
-util.inherits(StocksFinanceUpdates, buscomponent.BusComponent);
 
 var wprovMax = 'GREATEST(ds.provision_hwm, s.bid)';
 var wprovΔ = '(('+wprovMax+' - ds.provision_hwm) * ds.amount)';

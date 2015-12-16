@@ -21,11 +21,11 @@ var buscomponent = require('./stbuscomponent.js');
  * @constructor module:admin~Admin
  * @augments module:stbuscomponent~STBusComponent
  */
-function Admin () {
-	Admin.super_.apply(this, arguments);
+class Admin extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
 }
-
-util.inherits(Admin, buscomponent.BusComponent);
 
 /**
  * Helper function to indicate that a client request requires admin privileges.

@@ -48,56 +48,56 @@ var Access = require('./access.js').Access;
  * @constructor module:connectiondata~ConnectionData
  * @augments module:stbuscomponent~STBusComponent
  */
-function ConnectionData(socket) {
-	ConnectionData.super_.apply(this, arguments);
-	
-	var now = Date.now();
-	
-	this.ctx = new qctx.QContext();
-	this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
-	this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
-	this.cdid = now + '-' + this.remoteip + '-' + commonUtil.locallyUnique();
-	this.connectTime = now;
-	this.pushEventsTimer = null;
-	this.lastInfoPush = 0;
-	this.currentInfoPush = null;
-	this.currentFetchingEvents = null;
-	this.mostRecentEventTime = null;
-	this.socket = socket;
-	this.isShuttingDown = false;
-	this.unansweredCount = 0;
-	
-	this.ctx.addProperty({name: 'lastSessionUpdate', value: null});
-	this.ctx.addProperty({name: 'pendingTicks', value: 0});
-	this.ctx.addProperty({name: 'remoteProtocolVersion', value: null});
-	this.ctx.addProperty({name: 'remoteClientSoftware', value: null});
-	this.ctx.addProperty({name: 'compressionSupport', value: {}});
-	this.ctx.addProperty({name: 'isBusTransport', value: false});
-	this.ctx.debugHandlers.push(_.bind(this.dbgHandler, this));
-	this.ctx.errorHandlers.push(_.bind(this.ISEHandler, this));
-	
-	this.queryCount = 0;
-	this.queryCompressionInfo = {
-		supported: {lzma: 0, s:0},
-		used: {lzma: 0, s:0, si:0}
-	};
-	
-	this.versionInfo = {
-		minimum: 1,
-		current: 1
-	};
-	
-	this.query_ = _.bind(this.queryHandler, this);
-	this.disconnected_ = _.bind(this.disconnectedHandler, this);
-	
-	socket.on('error', _.bind(this.emitError, this));
-	socket.on('query', this.query_);
-	socket.on('disconnect', this.disconnected_);
-	
-	debug('Set up new connection', this.cdid);
+class ConnectionData extends buscomponent.BusComponent {
+	constructor(socket) {
+		super();
+		
+		var now = Date.now();
+		
+		this.ctx = new qctx.QContext();
+		this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
+		this.remoteip = this.hsheaders['x-forwarded-for'] || this.hsheaders['x-real-ip'] || '127.0.0.182';
+		this.cdid = now + '-' + this.remoteip + '-' + commonUtil.locallyUnique();
+		this.connectTime = now;
+		this.pushEventsTimer = null;
+		this.lastInfoPush = 0;
+		this.currentInfoPush = null;
+		this.currentFetchingEvents = null;
+		this.mostRecentEventTime = null;
+		this.socket = socket;
+		this.isShuttingDown = false;
+		this.unansweredCount = 0;
+		
+		this.ctx.addProperty({name: 'lastSessionUpdate', value: null});
+		this.ctx.addProperty({name: 'pendingTicks', value: 0});
+		this.ctx.addProperty({name: 'remoteProtocolVersion', value: null});
+		this.ctx.addProperty({name: 'remoteClientSoftware', value: null});
+		this.ctx.addProperty({name: 'compressionSupport', value: {}});
+		this.ctx.addProperty({name: 'isBusTransport', value: false});
+		this.ctx.debugHandlers.push(_.bind(this.dbgHandler, this));
+		this.ctx.errorHandlers.push(_.bind(this.ISEHandler, this));
+		
+		this.queryCount = 0;
+		this.queryCompressionInfo = {
+			supported: {lzma: 0, s:0},
+			used: {lzma: 0, s:0, si:0}
+		};
+		
+		this.versionInfo = {
+			minimum: 1,
+			current: 1
+		};
+		
+		this.query_ = _.bind(this.queryHandler, this);
+		this.disconnected_ = _.bind(this.disconnectedHandler, this);
+		
+		socket.on('error', _.bind(this.emitError, this));
+		socket.on('query', this.query_);
+		socket.on('disconnect', this.disconnected_);
+		
+		debug('Set up new connection', this.cdid);
+	}
 }
-
-util.inherits(ConnectionData, buscomponent.BusComponent);
 
 ConnectionData.prototype.onBusConnect = function() {
 	var self = this;
@@ -204,9 +204,9 @@ ConnectionData.prototype.fetchEvents = function(query) {
 			debug('Writing push container', self.cdid);
 		
 			if (self.socket)
-				self.socket.emit('push-container', r);
+				return self.socket.emit('push-container', r);
 		}).catch(function(e) {
-			self.emitError(e);
+			return self.emitError(e);
 		});
 	});
 };
@@ -582,7 +582,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				debug('Query returned', self.cdid, query.type, query.id, result.code);
 				
 				if (callbackHasBeenCalled)
-					return self.emitError('Callback for client request called multiple times!');
+					return self.emitError(new Error('Callback for client request called multiple times!'));
 				
 				callbackHasBeenCalled = true;
 				

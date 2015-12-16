@@ -21,13 +21,11 @@ var debug = require('debug')('sotrade:questionnaires');
  * @constructor module:questionnaires~Questionnaires
  * @augments module:stbuscomponent~STBusComponent
  */
-function Questionnaires () {
-	Questionnaires.super_.apply(this, arguments);
-	
-	this.questionnaires = null;
-};
-
-util.inherits(Questionnaires, buscomponent.BusComponent);
+class Questionnaires extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
+}
 
 /**
  * Return a list of all questionnaires which have not been answered by

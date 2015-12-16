@@ -27,16 +27,16 @@ var debug = require('debug')('sotrade:dqueries');
  * @constructor module:dqueries~DelayedQueries
  * @augments module:stbuscomponent~STBusComponent
  */
-function DelayedQueries () {
-	DelayedQueries.super_.apply(this, arguments);
-	
-	this.queries = {};
-	
-	this.neededStocks = {};
-	this.queryTypes = ['stock-buy', 'dquery-remove', 'ping'];
-};
-
-util.inherits(DelayedQueries, buscomponent.BusComponent);
+class DelayedQueries extends buscomponent.BusComponent {
+	constructor() {
+		super();
+		
+		this.queries = {};
+		
+		this.neededStocks = {};
+		this.queryTypes = ['stock-buy', 'dquery-remove', 'ping'];
+	}
+}
 
 DelayedQueries.prototype.onBusConnect = function() {
 	var self = this;

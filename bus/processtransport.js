@@ -1,45 +1,45 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var events = require('events');
-var assert = require('assert');
-var util = require('util');
+const _ = require('lodash');
+const events = require('events');
+const assert = require('assert');
+const util = require('util');
+const bus = require('./bus.js');
 
-function ProcessTransport(processObject, weight) {
-	var self = this;
-	
-	assert.ok(processObject);
-	
-	self.processObject = processObject;
-	self.isLocal = true;
-	self.weight = weight || 1;
-	
-	self.processObject.on('message', function(msg) {
-		if (msg.type != 'tmsg')
-			return;
-		
-		return events.EventEmitter.prototype.emit.apply(self, [msg.name, msg.data]);
-	});
-	
-	self.processObject.on('disconnect', function() {
-		return events.EventEmitter.prototype.emit.apply(self, ['disconnect']);
-	});
+class ProcessTransport extends bus.Transport {
+  constructor(processObject, weight) {
+    super();
+    assert.ok(processObject);
+    
+    this.processObject = processObject;
+    this.isLocal = true;
+    this.weight = weight || 1;
+  }
+  
+  init(bus) {
+    return super.init(bus).then(() => Promise.all([
+      this.processObject.on('message', msg => {
+        if (msg.type != 'tmsg')
+          return;
+        
+        return super.emit(msg.name, msg.data);
+      }),
+      
+      this.processObject.on('disconnect', () => {
+        return super.emit('disconnect');
+      })
+    ]));
+  }
+  
+  toJSON() {
+    return _.omit(this, 'processObject');
+  }
+
+  emit(name, data) {
+    this.processObject.send({type: 'tmsg', name: name, data: data});
+    
+    return super.emit(name, data);
+  }
 }
 
-util.inherits(ProcessTransport, events.EventEmitter);
-
-ProcessTransport.prototype.toJSON = function() {
-	return _.omit(this, 'processObject');
-};
-
-ProcessTransport.prototype.emit = function(name, data) {
-	this.processObject.send({type: 'tmsg', name: name, data: data});
-	
-	return events.EventEmitter.prototype.emit.apply(this, [name, data]);
-};
-
 exports.ProcessTransport = ProcessTransport;
-
-})();
-
-

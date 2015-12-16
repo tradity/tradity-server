@@ -29,52 +29,50 @@ var achievementList = require('./achievement-list.js');
  * @module main
  */
 
-function Main(opt) {
-	Main.init_();
-	
-	Main.super_.apply(this);
-	
-	opt = opt || {};
-	this.mainBus = new bus.Bus();
-	this.defaultStockLoaderDeferred = Q.defer();
-	this.defaultStockLoader = this.defaultStockLoaderDeferred.promise;
-	this.readonly = this.getServerConfig().readonly;
-	this.managerCTX = null;
-	this.useCluster = opt.useCluster == null ? !process.env.SOTRADE_NO_CLUSTER : opt.useCluster;
-	this.isWorker = opt.isWorker == null ? cluster.isWorker : opt.isWorker;
-	this.isBackgroundWorker = opt.isBackgroundWorker || null;
-	this.transportToMaster = opt.transportToMaster || null;
-	
-	this.bwpid = null;
-	this.workers = [];
-	this.assignedPorts = [];
-	this.hasReceivedStartCommand = false;
-	this.port = opt.port || null;
-	
-	this.superEssentialComponents = [
-		'./errorhandler.js', './emailsender.js', './signedmsg.js'
-	];
-	
-	this.basicComponents = [
-		'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js',
-		'./user.js', './misc.js'
-	];
-	
-	this.bwComponents = [
-		'./background-worker.js', './dqueries.js'
-	];
-	
-	this.regularComponents = [
-		'./admin.js', './schools.js', './fsdb.js', './achievements.js', './chats.js',
-		'./watchlist.js', './wordpress-feed.js', './questionnaires.js'
-	];
-	
-	this.shutdownSignals = ['SIGTERM', 'SIGINT'];
-	
-	this.initBus();
+class Main extends buscomponent.BusComponent {
+	constructor(opt) {
+		Main.init_();
+		
+		super();
+		
+		opt = opt || {};
+		this.mainBus = new bus.Bus();
+		this.defaultStockLoaderDeferred = Q.defer();
+		this.defaultStockLoader = this.defaultStockLoaderDeferred.promise;
+		this.readonly = this.getServerConfig().readonly;
+		this.managerCTX = null;
+		this.useCluster = opt.useCluster == null ? !process.env.SOTRADE_NO_CLUSTER : opt.useCluster;
+		this.isWorker = opt.isWorker == null ? cluster.isWorker : opt.isWorker;
+		this.isBackgroundWorker = opt.isBackgroundWorker || null;
+		this.transportToMaster = opt.transportToMaster || null;
+		
+		this.bwpid = null;
+		this.workers = [];
+		this.assignedPorts = [];
+		this.hasReceivedStartCommand = false;
+		this.port = opt.port || null;
+		
+		this.superEssentialComponents = [
+			'./errorhandler.js', './emailsender.js', './signedmsg.js'
+		];
+		
+		this.basicComponents = [
+			'./dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js',
+			'./user.js', './misc.js'
+		];
+		
+		this.bwComponents = [
+			'./background-worker.js', './dqueries.js'
+		];
+		
+		this.regularComponents = [
+			'./admin.js', './schools.js', './fsdb.js', './achievements.js', './chats.js',
+			'./watchlist.js', './wordpress-feed.js', './questionnaires.js'
+		];
+		
+		this.shutdownSignals = ['SIGTERM', 'SIGINT'];
+	}
 }
-
-util.inherits(Main, buscomponent.BusComponent);
 
 Main.init_ = function() {
 	Error.stackTraceLimit = cfg.stackTraceLimit || 20;
@@ -85,22 +83,22 @@ Main.init_ = function() {
 };
 
 Main.prototype.initBus = function() {
-	var self = this;
-	
-	self.mainBus.addInputFilter(function(packet) {
-		if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)
-			packet.data.ctx = qctx.fromJSON(packet.data.ctx, self);
-		
-		return packet;
-	});
+	return this.mainBus.init().then(() => Promise.all([
+		this.mainBus.addInputFilter(packet => {
+			if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)
+				packet.data.ctx = qctx.fromJSON(packet.data.ctx, self);
+			
+			return packet;
+		}),
 
-	self.mainBus.addOutputFilter(function(packet) {
-		if (packet.data && packet.data.ctx && packet.data.ctx.toJSON &&
-			!(packet.recipients.length == 1 && packet.recipients[0] == packet.sender)) // not local
-			packet.data.ctx = packet.data.ctx.toJSON();
-		
-		return packet;
-	});
+		this.mainBus.addOutputFilter(packet => {
+			if (packet.data && packet.data.ctx && packet.data.ctx.toJSON &&
+				!(packet.recipients.length == 1 && packet.recipients[0] == packet.sender)) // not local
+				packet.data.ctx = packet.data.ctx.toJSON();
+			
+			return packet;
+		})
+	]));
 };
 
 Main.prototype.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', [], function() {
@@ -151,41 +149,41 @@ Main.prototype.setupStockLoaders = function() {
 };
 
 Main.prototype.start = function() {
-	var self = this;
-	
 	debug('Starting');
 	
-	return self.setBus(self.mainBus, 'manager-' + process.pid).then(function() {
-		return self.loadComponents(self.superEssentialComponents);
-	}).then(function() {
-		self.managerCTX = new qctx.QContext({parentComponent: self});
+	return this.initBus().then(() => {
+		return this.setBus(this.mainBus, 'manager-' + process.pid);
+	}).then(() => {
+		return this.loadComponents(this.superEssentialComponents);
+	}).then(() => {
+		this.managerCTX = new qctx.QContext({parentComponent: this});
 		
-		process.on('uncaughtException', function(err) {
-			self.emitError(err);
-			self.emitImmediate('localShutdown');
+		process.on('uncaughtException', (err) => {
+			this.emitError(err);
+			this.emitImmediate('localShutdown');
 		});
 		
-		self.mainBus.on('localShutdown', function() {
-			setTimeout(function() {
+		this.mainBus.on('localShutdown', () => {
+			setTimeout(() => {
 				process.exit(0);
 			}, 250);
 		});
 		
-		for (var i = 0; i < self.shutdownSignals.length; ++i)
-			process.on(self.shutdownSignals[i], function() { self.emitLocal('globalShutdown'); });
+		for (var i = 0; i < this.shutdownSignals.length; ++i)
+			process.on(this.shutdownSignals[i], () => { this.emitLocal('globalShutdown'); });
 
-		var cfg = self.getServerConfig();
+		var cfg = this.getServerConfig();
 		
-		return self.setupStockLoaders();
-	}).then(function() {
-		if (!self.transportToMaster)
-			self.transportToMaster = new pt.ProcessTransport(process);
+		return this.setupStockLoaders();
+	}).then(() => {
+		if (!this.transportToMaster)
+			this.transportToMaster = new pt.ProcessTransport(process);
 		
-		if (self.isWorker)
-			return self.mainBus.addTransport(self.transportToMaster, self.worker.bind(self));
+		if (this.isWorker)
+			return this.mainBus.addTransport(this.transportToMaster, this.worker.bind(this));
 		
 		assert.ok(cluster.isMaster);
-		return self.startMaster();
+		return this.startMaster();
 	});
 };
 

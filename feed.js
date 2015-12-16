@@ -20,11 +20,11 @@ var debug = require('debug')('sotrade:feed');
  * @constructor module:feed~FeedController
  * @augments module:stbuscomponent~STBusComponent
  */
-function FeedController () {
-	FeedController.super_.apply(this, arguments);
-};
-
-util.inherits(FeedController, buscomponent.BusComponent);
+class FeedController extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
+}
 
 /**
  * Inserts an event into the event tables and user feeds.

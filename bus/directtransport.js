@@ -1,29 +1,27 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var events = require('events');
-var assert = require('assert');
-var util = require('util');
+const _ = require('lodash');
+const events = require('events');
+const assert = require('assert');
+const util = require('util');
+const bus = require('./bus.js');
 
-function DirectTransport(baseEmitter, weight, isLocal) {
-	var self = this;
-	
-	assert.ok(baseEmitter);
-	
-	self.baseEmitter = baseEmitter;
-	self.isLocal = isLocal || baseEmitter.isLocal || false;
-	self.weight = weight || baseEmitter.weight || 1;
-	
-	self.on = _.bind(self.baseEmitter.on, self.baseEmitter);
-	self.emit = _.bind(self.baseEmitter.emit, self.baseEmitter);
+class DirectTransport extends bus.Transport {
+  constructor(baseEmitter, weight, isLocal) {
+    super();
+    assert.ok(baseEmitter);
+    
+    this.baseEmitter = baseEmitter;
+    this.isLocal = isLocal || baseEmitter.isLocal || false;
+    this.weight = weight || baseEmitter.weight || 1;
+    
+    this.on = this.baseEmitter.on.bind(this.baseEmitter);
+    this.emit = this.baseEmitter.emit.bind(this.baseEmitter);
+  }
+  
+  toJSON() {
+    return _.omit(this, 'baseEmitter');
+  }
 }
 
-util.inherits(DirectTransport, events.EventEmitter);
-
-DirectTransport.prototype.toJSON = function() {
-	return _.omit(this, 'baseEmitter');
-};
-
 exports.DirectTransport = DirectTransport;
-
-})();

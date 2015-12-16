@@ -22,11 +22,11 @@ var debug = require('debug')('sotrade:wordpress-feed');
  * @constructor module:wordpress-feed~WordpressFeed
  * @augments module:stbuscomponent~STBusComponent
  */
-function WordpressFeed () {
-	WordpressFeed.super_.apply(this, arguments);
-};
-
-util.inherits(WordpressFeed, buscomponent.BusComponent);
+class WordpressFeed extends buscomponent.BusComponent {
+	constructor() {
+		super();
+	}
+}
 
 /**
  * Fetches all blog feeds and inserts corresponding feed entries.

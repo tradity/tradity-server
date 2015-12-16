@@ -5,7 +5,6 @@ var util = require('util');
 var lapack = require('lapack');
 var UnionFind = require('unionfind');
 var assert = require('assert');
-var Q = require('q');
 var debug = require('debug')('sotrade:stocks-fu');
 
 var buscomponent = require('./stbuscomponent.js');
@@ -85,7 +84,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 			'JOIN users_finance AS f ON ds.uid = f.uid ' +
 			'JOIN users_finance AS l ON s.leader = l.uid AND f.uid != l.uid')
 		.then(function(dsr) {
-		return Q.all(dsr.map(function(entry) {
+		return Promise.all(dsr.map(function(entry) {
 			assert.ok(entry.wfees >= 0);
 			assert.ok(entry.lfees <= 0);
 			entry.wfees = parseInt(entry.wfees);
@@ -94,7 +93,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 			var dsid = entry.dsid;
 			var totalfees = entry.wfees + entry.lfees;
 			
-			return (Math.abs(totalfees) < 1 ? Q() : 
+			return (Math.abs(totalfees) < 1 ? Promise.resolve() : 
 			conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
 				'(NULL, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)', 
 				[entry.stocktextid, entry.fid, entry.lid, totalfees, JSON.stringify({
@@ -154,7 +153,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 	
 	debug('Update leader matrix');
 	
-	return Q.all([
+	return Promise.all([
 		self.getServerConfig(),
 		ctx.startTransaction({
 			depot_stocks: { alias: 'ds', mode: 'r' },
@@ -165,7 +164,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 		cfg = cfg_;
 		conn = conn_;
 		
-		return Q.all([
+		return Promise.all([
 			conn.query('SELECT DISTINCT ds.uid AS uid FROM depot_stocks AS ds ' +
 				'UNION SELECT s.leader AS uid FROM stocks AS s WHERE s.leader IS NOT NULL'),
 			conn.query('SELECT ds.uid AS uid, SUM(ds.amount * s.bid) AS valsum, SUM(ds.amount * s.ask) AS askvalsum, ' +

@@ -3,7 +3,6 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
 var buscomponent = require('./stbuscomponent.js');
@@ -101,7 +100,7 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
 	var ctx = new qctx.QContext({parentComponent: self});
 	
 	return ctx.query('SELECT * FROM dqueries').then(function(r) {
-		return Q.all(r.map(function(res) {
+		return Promise.all(r.map(function(res) {
 			res.query = JSON.parse(res.query);
 			res.userinfo = JSON.parse(res.userinfo);
 			res.accessinfo = Access.fromJSON(res.accessinfo);
@@ -218,7 +217,7 @@ DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dque
 	if (!ctx.access.has('dqueries'))
 		throw new self.PermissionDenied();
 	
-	return Q.all(_.chain(self.queries).values().map(function(q) {
+	return Promise.all(_.chain(self.queries).values().map(function(q) {
 		return self.checkAndExecute(ctx, q);
 	}).value()).then(function() {
 		return { code: 'dquery-checkall-success' };
@@ -358,7 +357,7 @@ DelayedQueries.prototype.parseCondition = function(str) {
 		check: function(ctx) {
 			var count = 0;
 			
-			return Q.all(cchecks.map(function(check) {
+			return Promise.all(cchecks.map(function(check) {
 				return check(ctx);
 			})).then(function(allCheckResults) {
 				return allCheckResults.reduce(function(a, b) { return a && b; });

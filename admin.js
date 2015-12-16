@@ -4,7 +4,6 @@ var commonUtil = require('tradity-connection');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var debug = require('debug')('sotrade:admin');
 var buscomponent = require('./stbuscomponent.js');
 
@@ -172,7 +171,7 @@ Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _req
 	
 	debug('Deleting user', ctx.user.uid, uid);
 	
-	return Q.all([
+	return Promise.all([
 		ctx.query('DELETE FROM sessions WHERE uid = ?', [uid]),
 		ctx.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]),
 		ctx.query('UPDATE stocks SET name = CONCAT("leader:deleted", ?) WHERE leader = ?', [uid, uid]),
@@ -361,7 +360,7 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
 	if (query.subschool !== query.subschool)
 		throw new self.FormatError();
 	
-	return Q.all([
+	return Promise.all([
 		ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [query.masterschool]),
 		ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [query.subschool]),
 	]).spread(function(mr, sr) {
@@ -380,7 +379,7 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
 				if (ssr[0].c > 0)
 					throw new self.SoTradeClientError('join-schools-delete-nosubschools');
 			}).then(function() {
-				return Q.all([
+				return Promise.all([
 					ctx.query('DELETE FROM schoolmembers WHERE schoolid = ?', [query.subschool]),
 					ctx.query('DELETE FROM feedblogs WHERE schoolid = ?', [query.subschool]),
 					ctx.query('DELETE FROM invitelink WHERE schoolid = ?', [query.subschool]),
@@ -388,7 +387,7 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
 				]);
 			});
 		} else {
-			return Q.all([
+			return Promise.all([
 				ctx.query('UPDATE schoolmembers SET schoolid = ? WHERE schoolid = ?',
 					[query.masterschool, query.subschool]),
 				ctx.query('UPDATE feedblogs SET schoolid = ? WHERE schoolid = ?',

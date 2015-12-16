@@ -5,7 +5,6 @@ var util = require('util');
 var fs = require('fs');
 var crypto = require('crypto');
 var assert = require('assert');
-var Q = require('q');
 var debug = require('debug')('sotrade:signedmsg');
 var buscomponent = require('./stbuscomponent.js');
 
@@ -77,7 +76,7 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
 	var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
 	var sign = crypto.createSign('RSA-SHA256');
 	
-	var deferred = Q.defer();
+	var deferred = Promise.defer();
 	assert.ok(self.privateKey);
 	sign.end(string, null, function() {
 		var signed = string + '~' + sign.sign(self.privateKey, 'base64');
@@ -110,7 +109,7 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
 		return null;
 	
 	var string = msg_[0], signature = msg_[1];
-	var deferred = Q.defer();
+	var deferred = Promise.defer();
 	
 	function verifySingleKey (i) {
 		if (i == self.publicKeys.length)

@@ -3,7 +3,6 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 var debug = require('debug')('sotrade:misc');
@@ -102,7 +101,7 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
 	
 	debug('Creating artificial deadlock');
 	var conn1, conn2, id;
-	var deferred = Q.defer();
+	var deferred = Promise.defer();
 	
 	return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))').then(function() {
 		return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)');
@@ -200,7 +199,7 @@ Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-db
 Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatistics', [], function() {
 	var ctx = new qctx.QContext({parentComponent: this});
 
-	return Q.all([
+	return Promise.all([
 		ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL'),
 		ctx.query('SELECT COUNT(*) AS c FROM orderhistory'),
 		ctx.query('SELECT COUNT(*) AS c FROM schools')

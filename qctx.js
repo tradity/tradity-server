@@ -6,7 +6,6 @@ var assert = require('assert');
 var weak = require('weak');
 var buscomponent = require('./stbuscomponent.js');
 var _ = require('lodash');
-var Q = require('q');
 var debug = require('debug')('sotrade:qctx');
 
 /**
@@ -281,7 +280,7 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * Shorthand method for pushing feed entries.
  * See {@link busreq~feed}.
  * 
- * @return {object}  A Q promise corresponding to successful completion
+ * @return {object}  A Promise corresponding to successful completion
  * @function module:qctx~QContext#feed
  */
 QContext.prototype.feed = function(data) {
@@ -295,8 +294,8 @@ QContext.prototype.feed = function(data) {
 	var release = null;
 	
 	// keep in mind that self.contextTransaction may be a promise or null
-	// use Q(…).then to resolve it first
-	return Q(conn).then(function(conn_) {
+	// use Promise.resolve(…) to clarify that before all else
+	return Promise.resolve(conn).then(function(conn_) {
 		// connection is there? -> set conn to the resolved promise
 		if (conn_)
 			return conn = conn_;
@@ -324,7 +323,7 @@ QContext.prototype.txwrap = function(fn) {
 	assert.ok(!self.contextTransaction);
 	
 	return function() {
-		return Q(fn.apply(this, arguments)).then(function(v) {
+		return Promise.resolve(fn.apply(this, arguments)).then(function(v) {
 			return self.commit().then(function() {
 				self.contextTransaction = null;
 				return v;
@@ -352,9 +351,9 @@ QContext.prototype.commit = function() {
 	var args = arguments;
 	
 	if (!this.contextTransaction)
-		return Q();
+		return Promise.resolve();
 	
-	return Q(this.contextTransaction).then(function(conn) {
+	return Promise.resolve(this.contextTransaction).then(function(conn) {
 		return conn.commit.apply(self, args);
 	});
 };
@@ -364,9 +363,9 @@ QContext.prototype.rollback = function() {
 	var args = arguments;
 	
 	if (!this.contextTransaction)
-		return Q();
+		return Promise.resolve();
 	
-	return Q(this.contextTransaction).then(function(conn) {
+	return Promise.resolve(this.contextTransaction).then(function(conn) {
 		return conn.rollback.apply(self, args);
 	});
 };
@@ -381,7 +380,7 @@ QContext.prototype.rollbackAndThrow = function(e) {
  * Shorthand method for executing database queries.
  * See {@link busreq~dbQuery}.
  * 
- * @return {object}  A Q promise corresponding to successful completion
+ * @return {object}  A Promise corresponding to successful completion
  * @function module:qctx~QContext#query
  */
 QContext.prototype.query = function(query, args, readonly) {
@@ -392,7 +391,7 @@ QContext.prototype.query = function(query, args, readonly) {
 	if (self.contextTransaction) {
 		assert.ok(sToQ);
 		
-		return Q(self.contextTransaction).then(function(conn) {
+		return Promise.resolve(self.contextTransaction).then(function(conn) {
 			return conn.query.apply(self, queryArgs);
 		});
 	}
@@ -425,7 +424,7 @@ QContext.prototype.query = function(query, args, readonly) {
  * @param {function} restart  Callback that will be invoked when the current transaction
  *                            needs restarting.
  * 
- * @return {object}  A Q promise corresponding to successful completion
+ * @return {object}  A Promise corresponding to successful completion
  *          (with an Object with `conn`, `commit` and `rollback` entries)
  * @function module:qctx~QContext#getConnection
  */
@@ -449,7 +448,7 @@ QContext.prototype.getConnection = function(readonly, restart) {
 	
 	var oldrestart = restart;
 	restart = function() {
-		return Q(postTransaction()).then(oldrestart);
+		return Promise.resolve(postTransaction()).then(oldrestart);
 	};
 	
 	return self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(function(conn_) {
@@ -498,7 +497,7 @@ QContext.prototype.getConnection = function(readonly, restart) {
  * @param {string} [options.isolationLevel='READ COMMITTED']  The transaction isolation level for
  *                                                            this transaction.
  * 
- * @return {object}  A Q promise corresponding to successful completion, including
+ * @return {object}  A Promise corresponding to successful completion, including
  *          .commit() and .rollback() shortcuts (both releasing the connection).
  * @function module:qctx~QContext#startTransaction
  */
@@ -536,7 +535,7 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
 	
 	var conn;
 	var oldrestart = options.restart || function() {
-		(conn ? conn.rollback() : Q()).then(function() {
+		(conn ? conn.rollback() : Promise.resolve()).then(function() {
 			self.startTransaction.apply(self, args);
 		});
 	};
@@ -552,12 +551,12 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
 		var oldCommit = conn.commit, oldRollback = conn.rollback;
 		conn.commit = function(v) {
 			cleanTLEntry();
-			return Q(oldCommit.call(conn, true)).then(_.constant(v));
+			return Promise.resolve(oldCommit.call(conn, true)).then(_.constant(v));
 		};
 		
 		conn.commitWithoutRelease = function(v) {
 			cleanTLEntry();
-			return Q(oldCommit.call(conn, false)).then(_.constant(v));
+			return Promise.resolve(oldCommit.call(conn, false)).then(_.constant(v));
 		};
 		
 		conn.rollback = function() {

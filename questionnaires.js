@@ -3,7 +3,6 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var debug = require('debug')('sotrade:questionnaires');
 
@@ -41,7 +40,7 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
 	var questionnaires = this.loadQuestionnaires(ctx);
 	var uid = (ctx.user && ctx.user.uid) || null;
 	
-	return Q.all([
+	return Promise.all([
 		questionnaires,
 		ctx.query('SELECT questionnaire_id FROM qn_questionnaires ' +
 			'WHERE (display_after  IS NULL OR display_after  <= UNIX_TIMESTAMP()) AND' +
@@ -147,7 +146,7 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
 /**
  * Perform the initial load of all questionnaires.
  * 
- * @return {object} A Q promise for a list of questionnaires.
+ * @return {object} A Promise for a list of questionnaires.
  * @function module:questionnaires~Questionnaires#loadQuestionnaires
  */
 Questionnaires.prototype.loadQuestionnaires = function(ctx) {
@@ -163,14 +162,14 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
 	};
 	
 	loadQuestionnaire = function(questionnaire) {
-		return Q.all([
+		return Promise.all([
 			ctx.query('SELECT language, qtext FROM qn_questionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id]).then(groupByLanguage),
 			ctx.query('SELECT qn_questions.question_id, question_multiple_answers, `order` ' + 
 				'FROM qn_questions_questionnaires AS qlist ' +
 				'JOIN qn_questions ON qn_questions.question_id = qlist.question_id ' +
 				'WHERE qlist.questionnaire_id = ? ORDER BY `order` ASC', [questionnaire.questionnaire_id])
 				.then(function(res) {
-				return Q.all(res.map(loadQuestion));
+				return Promise.all(res.map(loadQuestion));
 			})
 		]).spread(function(texts, questions) {
 			return _.mapValues(texts, function(entry, lang) {
@@ -185,13 +184,13 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
 	};
 	
 	loadQuestion = function(question) {
-		return Q.all([
+		return Promise.all([
 			ctx.query('SELECT language, qtext  FROM qn_questions_texts WHERE question_id = ?', [question.question_id]).then(groupByLanguage),
 			ctx.query('SELECT qn_answers.answer_id, answer_freetext, `order` ' +
 				'FROM qn_questions_answers AS alist ' +
 				'JOIN qn_answers ON qn_answers.answer_id = alist.answer_id ' +
 				'WHERE alist.question_id = ? ORDER BY `order` ASC', [question.question_id]).then(function(res) {
-				return Q.all(res.map(loadAnswer));
+				return Promise.all(res.map(loadAnswer));
 			})
 		]).spread(function(texts, answers) {
 			return _.mapValues(texts, function(entry, lang) {
@@ -212,7 +211,7 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
 	};
 	
 	return this.questionnaires = ctx.query('SELECT * FROM qn_questionnaires').then(function(res) {
-		return Q.all(res.map(loadQuestionnaire));
+		return Promise.all(res.map(loadQuestionnaire));
 	}).then(function(questionnaires) {
 		debug('Loaded questionnaires', questionnaires.length);
 		

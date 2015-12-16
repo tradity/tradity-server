@@ -5,7 +5,6 @@ var util = require('util');
 var http = require('http');
 var https = require('https');
 var assert = require('assert');
-var Q = require('q');
 var sha256 = require('./lib/sha256.js');
 var deepupdate = require('./lib/deepupdate.js');
 var qctx = require('./qctx.js');
@@ -172,7 +171,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 	
 	debug('Upload file', query.mime, query.role);
 	
-	return Q.all([
+	return Promise.all([
 		self.getServerConfig(),
 		ctx.startTransaction()
 	]).spread(function(cfg, conn) {
@@ -267,8 +266,6 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 				'conn': conn
 			});
 		}
-		
-		return Q();
 	}).then(conn.commit, conn && conn.rollbackAndThrow);
 	}).then(function() {
 		return { code: 'publish-success', extra: 'repush' };

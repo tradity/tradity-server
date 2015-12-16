@@ -2,7 +2,6 @@
 
 var _ = require('lodash');
 var util = require('util');
-var Q = require('q');
 var assert = require('assert');
 var nodemailer = require('nodemailer');
 var commonUtil = require('tradity-connection');
@@ -179,13 +178,12 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 		shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
 		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
 		
-		if (ctx && !ctx.getProperty('readonly'))
+		if (ctx && !ctx.getProperty('readonly')) {
 			return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
 				'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
 				[uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,
 				String(mailtype), String(origTo)]);
-		
-		return Q();
+		}
 	}).then(function() {
 		return Q.ninvoke(self.mailer, 'sendMail', opt);
 	}).then(function(status) {

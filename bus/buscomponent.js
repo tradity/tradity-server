@@ -188,7 +188,7 @@ function provide(name, args, fn, prefilter) {
     for (let i = 0; i < args.length; ++i)
       passArgs.push(data[args[i]]);
     
-    return Q().then(() => {
+    return Promise.resolve().then(() => {
       return fn.apply(this, passArgs);
     });
   };

@@ -1,7 +1,6 @@
 (function () { "use strict";
 
 var _ = require('lodash');
-var Q = require('q');
 var util = require('util');
 var assert = require('assert');
 var qctx = require('./qctx.js');
@@ -66,7 +65,7 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
 		return;
 	
 	return ctx.query('SELECT * FROM achievements WHERE uid = ?', [ctx.user.uid]).then(function(userAchievements) {
-		return Q.all(self.achievementList.map(function(achievementEntry) {
+		return Promise.all(self.achievementList.map(function(achievementEntry) {
 			return self.checkAchievement(achievementEntry, ctx, userAchievements);
 		}));
 	});
@@ -145,7 +144,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 		if (_.difference(achievementEntry.prereqAchievements, _.keys(userAchievements)).length > 0)
 			return; // not all prereqs fulfilled
 		
-		return Q(
+		return Promise.resolve(
 			(_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
 				true : 
 				achievementEntry.check(uid, userAchievements, cfg, ctx)
@@ -168,7 +167,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
 					targetid: res.insertId
 				});
 			}).then(function()  {
-				return Q.all(self.achievementList.map(function(ae) {
+				return Promise.all(self.achievementList.map(function(ae) {
 					// look for achievements of which we have changed the prereq/implicating achievements list
 					if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
 						return -1;
@@ -195,11 +194,11 @@ Achievements.prototype.registerObservers = function(achievementEntry) {
 
 	return _.each(achievementEntry.fireOn, function(checkCallback, eventName) {
 		self.on(eventName, function(data) {
-			return Q(_.bind(checkCallback, achievementEntry)(data, ctx)).then(function(userIDs) {
+			return Promise.resolve(_.bind(checkCallback, achievementEntry)(data, ctx)).then(function(userIDs) {
 				assert.ok(userIDs);
 				assert.notEqual(typeof userIDs.length, 'undefined');
 				
-				return Q.all(_.map(userIDs, function(uid) {
+				return Promise.all(_.map(userIDs, function(uid) {
 					return self.checkAchievement(achievementEntry, new qctx.QContext({user: {uid: uid}, parentComponent: self}));
 				}));
 			});
@@ -351,7 +350,7 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 		throw new self.FormatError();
 		
 	return self.getServerConfig().then(function(cfg) {
-		return Q.all(query.certs.map(function(cert) {
+		return Promise.all(query.certs.map(function(cert) {
 			return self.request({
 				name: 'verifySignedMessage',
 				maxAge: cfg.DLAValidityDays * 24 * 60 * 60,
@@ -380,7 +379,7 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 			return function() {
 				return self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
 			};
-		}).reduce(Q.when, Q()).then(function() {
+		}).reduce(Q.when, Promise.resolve()).then(function() {
 			return { code: 'dl-achievement-success', streak: longestStreak };
 		});
 	});

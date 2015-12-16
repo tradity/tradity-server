@@ -7,7 +7,6 @@ var assert = require('assert');
 var validator = require('validator');
 var genders = require('genders');
 var LoginIPCheck = require('./lib/loginIPCheck.js');
-var Q = require('q');
 var sha256 = require('./lib/sha256.js');
 var Cache = require('./lib/minicache.js').Cache;
 var buscomponent = require('./stbuscomponent.js');
@@ -38,7 +37,7 @@ class User extends buscomponent.BusComponent {
 		this.loginIPCheck = null;
 		this.getLoginIPCheck = function() {
 			if (this.loginIPCheck)
-				return Q(this.loginIPCheck);
+				return Promise.resolve(this.loginIPCheck);
 			
 			return this.loginIPCheck = this.getServerConfig().then(function(cfg) {
 				return new LoginIPCheck(cfg.login);
@@ -52,7 +51,7 @@ class User extends buscomponent.BusComponent {
  * 
  * @param {string} pw  The password string to generate a salt+hash for.
  * 
- * @return {object}  A Q promise for an object of the form { salt: …, hash: …, algorithm: … }
+ * @return {object}  A Promise for an object of the form { salt: …, hash: …, algorithm: … }
  * @function module:user~User#generatePWKey
  */
 User.prototype.generatePWKey = function(pw) {
@@ -85,7 +84,7 @@ User.prototype.generatePWKey = function(pw) {
  * @param {int} uid  The numerical user id for this password.
  * @param {object} conn  A connection to access the database with.
  * 
- * @return {object}  A Q promise for having saved the password.
+ * @return {object}  A Promise for having saved the password.
  * @function module:user~User#generatePassword
  */
 User.prototype.generatePassword = function(pw, timeName, uid, conn) {
@@ -106,14 +105,14 @@ User.prototype.generatePassword = function(pw, timeName, uid, conn) {
  * @param {object} pwdata  The pwsalt, pwhash, algorithm tuple to be checked against
  * @param {string} pw  The password to be checked
  * 
- * @return {object}  A Q promise for a boolean indicating success
+ * @return {object}  A Promise for a boolean indicating success
  * @function module:user~User#verifyPassword
  */
 User.prototype.verifyPassword = function(pwdata, pw) {
 	debug('Verify password', pwdata.algorithm);
 	
 	if (pwdata.algorithm === 'SHA256')
-		return Q(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
+		return Promise.resolve(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
 	
 	var pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
 	if (pbkdf2Match) {
@@ -121,7 +120,7 @@ User.prototype.verifyPassword = function(pwdata, pw) {
 		
 		return this.getServerConfig().then(function(cfg) {
 			if (iterations < cfg.passwords.pbkdf2MinIterations)
-				return Q(false);
+				return false;
 			
 			return Q.nfcall(crypto.pbkdf2, String(pw), pwdata.pwsalt, 1 << iterations, 64).then(function(pwhash) {
 				return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
@@ -130,7 +129,7 @@ User.prototype.verifyPassword = function(pwdata, pw) {
 	}
 	
 	console.warn('Unknown password hashing algorithm:', pwdata.algorithm);
-	return Q(false);
+	return Promise.resolve(false);
 };
 
 User.deprecatedPasswordAlgorithms = /^SHA256$/i;
@@ -247,7 +246,7 @@ User.prototype.login = buscomponent.provide('client-login',
 	
 	debug('Login', xdata.remoteip, name, useTransaction, ignorePassword);
 	
-	return Q()/*self.getLoginIPCheck().then(function(check) {
+	return Promise.resolve()/*self.getLoginIPCheck().then(function(check) {
 		return check.check(xdata.remoteip);
 	})*/.then(function() {
 		var query = 'SELECT passwords.*, users.email_verif ' +
@@ -306,10 +305,10 @@ User.prototype.login = buscomponent.provide('client-login',
 			return;
 		
 		debug('Update passwords', xdata.remoteip, name, uid, r.pwid);
-		return Q.all([
+		return Promise.all([
 			ctx.query('DELETE FROM passwords WHERE pwid != ? AND uid = ?', [r.pwid, uid]),
-			r.issuetime !== null ? ctx.query('UPDATE passwords SET changetime = UNIX_TIMESTAMP() WHERE pwid = ?', [r.pwid]) : Q(),
-			User.deprecatedPasswordAlgorithms.test(r.algorithm) ? self.generatePassword(pw, 'changetime', uid, ctx) : Q()
+			r.issuetime !== null ? ctx.query('UPDATE passwords SET changetime = UNIX_TIMESTAMP() WHERE pwid = ?', [r.pwid]) : Promise.resolve(),
+			User.deprecatedPasswordAlgorithms.test(r.algorithm) ? self.generatePassword(pw, 'changetime', uid, ctx) : Promise.resolve()
 		]);
 	}).then(function() {
 		return Q.nfcall(crypto.randomBytes, 16);
@@ -507,7 +506,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
 		likestringUnit.push(likestring, likestring, likestring);
 	}
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		if (!query.schoolid)
 			return ctx.access.has('userdb');
 		
@@ -710,7 +709,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 			return self.cache.use(cacheKey2);
 		
 		return self.cache.add(cacheKey2, 60000, 
-			Q.all([
+			Promise.all([
 				ctx.query('SELECT SUM(amount) AS samount, SUM(1) AS sone ' +
 					'FROM depot_stocks AS ds WHERE ds.stockid = ?', [xuser.lstockid]), 
 				ctx.query('SELECT p.name, p.path, p.schoolid FROM schools AS c ' +
@@ -749,11 +748,11 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
 		
 		resultCacheKey += '/' + cacheKey3;
 		
-		return Q().then(function() {
+		return Promise.resolve().then(function() {
 			if (self.cache.has(cacheKey3) && cacheable)
 				return self.cache.use(cacheKey3);
 			
-			return self.cache.add(cacheKey3, 120000, Q.all([
+			return self.cache.add(cacheKey3, 120000, Promise.all([
 				// orders
 				ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
 					'LEFT JOIN users AS l ON oh.leader = l.uid ' + 
@@ -811,11 +810,11 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
  */
 User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx'], function(query, ctx) {
 	if (ctx.getProperty('readonly'))
-		return Q();
+		return Promise.resolve();
 	
 	debug('Regular callback');
 	
-	return Q.all([
+	return Promise.all([
 		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
 		ctx.query('DELETE FROM passwords WHERE changetime IS NULL AND issuetime < UNIX_TIMESTAMP() - 7*86400'),
 		ctx.query('UPDATE users SET email=CONCAT("deleted:erased:", uid), email_verif = 0 ' +
@@ -828,7 +827,7 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
 			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0 AND ' +
 			'(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.schoolid) = 0 AND ' +
 			'(SELECT COUNT(*) FROM invitelink WHERE invitelink.schoolid = p.schoolid) = 0').then(function(schools) {
-			return Q.all(schools.filter(function(school) {
+			return Promise.all(schools.filter(function(school) {
 				return !Access.fromJSON(school.access).has('schooldb') &&
 					(school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));
 			}).map(function(school) {
@@ -916,7 +915,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 	['user', 'ctx', 'force'], function(user, ctx, force)
 {
 	if (!user)
-		return Q();
+		return Promise.resolve();
 	
 	var now = Date.now();
 	var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
@@ -925,7 +924,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 		// don't update things yet
 		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
 		
-		return Q();
+		return Promise.resolve();
 	} else {
 		var ticks = ctx.getProperty('pendingTicks');
 		ctx.setProperty('pendingTicks', 0);
@@ -933,7 +932,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
 		
 		debug('Adding ticks', user.uid, ticks);
 		
-		return Q.all([
+		return Promise.all([
 			ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]),
 			ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ticks, user.uid])
 		]);
@@ -957,7 +956,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
 	
 	var signedLogin = (key[0] == ':');
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		if (!signedLogin)
 			return {uid: null, key: key};
 		
@@ -1229,7 +1228,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		
 		return ctx.startTransaction();
 	}).then(function(conn) {
-		return Q.all([
+		return Promise.all([
 			(ctx.user && query.email == ctx.user.email) ||
 				self.validateEMail({ email: query.email, uid: uid }, conn),
 			(ctx.user && query.name == ctx.user.name) ||
@@ -1297,7 +1296,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 		}
 		
 		if (type == 'change') {
-			return Q.all([
+			return Promise.all([
 				conn.query('UPDATE users SET name = ?, email = ?, email_verif = ?, ' +
 					'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
 					[String(query.name),
@@ -1313,12 +1312,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 					String(query.lang), query.gender, uid]),
 				conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
 					[query.wprovision, query.lprovision, uid]),
-				query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q()
+				query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve()
 			]).then(function() {
 				if (query.school == ctx.user.school)
 					return;
 				
-				return Q().then(function() {
+				return Promise.resolve().then(function() {
 					if (ctx.user.school != null);
 						return conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
 				}).then(function() {
@@ -1358,7 +1357,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			});
 		} else {
 			var inv = {};
-			return Q().then(function() {
+			return Promise.resolve().then(function() {
 				if (query.betakey)
 					return conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
 			}).then(function() {
@@ -1390,7 +1389,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 			}).then(function(res) {
 				uid = res.insertId;
 				
-				return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Q();
+				return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve();
 			}).then(function() {
 				return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
 					'street, zipcode, town, schoolclass, lang, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
@@ -1419,7 +1418,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
 	}).then(function() {
 		assert.strictEqual(uid, parseInt(uid));
 		
-		return gainUIDCBs.reduce(Q.when, Q());
+		return gainUIDCBs.reduce(Q.when, Promise.resolve());
 	}).then(conn.commit, conn.rollbackAndThrow);
 	}).then(function() {
 		if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
@@ -1466,7 +1465,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 		}).then(function() {
 			var val = cfg.defaultStartingMoney / 1000;
 			
-			return Q.all([
+			return Promise.all([
 				ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
 					'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
 					[val, val, val, val, val, ctx.user.uid]),
@@ -1493,7 +1492,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
 User.prototype.listGenders = buscomponent.provideQT('client-list-genders', function(query, ctx) {
 	var self = this;
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		if (self.cache.has('gender-statistics'))
 			return self.cache.use('gender-statistics');
 		
@@ -1585,7 +1584,7 @@ User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset',
 User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-info', function(query, ctx) {
 	var self = this;
 	
-	return Q.all([
+	return Promise.all([
 		ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]),
 		self.getServerConfig()
 	]).spread(function(res, cfg) {
@@ -1630,7 +1629,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 				throw new self.SoTradeClientError('create-invite-link-not-verif');
 		}
 		
-		return Q.all([
+		return Promise.all([
 			Q.nfcall(crypto.randomBytes, 16),
 			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
 		]);

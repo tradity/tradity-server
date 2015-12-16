@@ -3,7 +3,6 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var deepupdate = require('./lib/deepupdate.js');
 var debug = require('debug')('sotrade:db');
@@ -204,7 +203,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
 			};
 			
-			var deferred = Q.defer();
+			var deferred = Promise.defer();
 			var startTime = Date.now();
 			conn.query(q, args, function(err, res) {
 				debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
@@ -218,7 +217,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					
 					release();
 					
-					deferred.resolve(Q().then(restart));
+					deferred.resolve(Promise.resolve().then(restart));
 				}
 				
 				var exception = null;
@@ -235,7 +234,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
 					rollback();
 					
 					// make sure that the error event is emitted -> release() will be called in next tick
-					Q().then(release).done();
+					Promise.resolve().then(release).catch(e => { throw e; });
 					
 					deferred.reject(err || exception);
 					

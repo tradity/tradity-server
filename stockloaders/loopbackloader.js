@@ -1,6 +1,5 @@
 (function () { "use strict";
 
-var Q = require('q');
 var assert = require('assert');
 var util = require('util');
 var _ = require('lodash');

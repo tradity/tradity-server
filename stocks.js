@@ -4,7 +4,6 @@ var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var validator = require('validator');
-var Q = require('q');
 var debug = require('debug')('sotrade:stocks');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
@@ -43,7 +42,7 @@ Stocks.prototype.onBusConnect = function() {
 		var ctx = new qctx.QContext({parentComponent: self});
 		
 		self.quoteLoader.on('record', function(rec) {
-			Q().then(function() {
+			Promise.resolve().then(function() {
 				return self.updateRecord(ctx, rec);
 			}).done();
 		});
@@ -171,7 +170,7 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return {object}  A Q promise indicating task completion
+ * @return {object}  A Promise indicating task completion
  * @function module:stocks~Stocks#updateRankingInformation
  */
 Stocks.prototype.updateRankingInformation = function(ctx) {
@@ -192,7 +191,7 @@ Stocks.prototype.updateRankingInformation = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return {object}  A Q promise indicating task completion
+ * @return {object}  A Promise indicating task completion
  * @function module:stocks~Stocks#updateValueHistory
  */
 Stocks.prototype.updateValueHistory = function(ctx) {
@@ -215,7 +214,7 @@ Stocks.prototype.updateValueHistory = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return {object}  A Q promise indicating task completion
+ * @return {object}  A Promise indicating task completion
  * @function module:stocks~Stocks#dailyCallback
  */
 Stocks.prototype.dailyCallback = function(ctx) {
@@ -230,7 +229,7 @@ Stocks.prototype.dailyCallback = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return {object}  A Q promise indicating task completion
+ * @return {object}  A Promise indicating task completion
  * @function module:stocks~Stocks#weeklyCallback
  */
 Stocks.prototype.weeklyCallback = function(ctx) {
@@ -246,7 +245,7 @@ Stocks.prototype.weeklyCallback = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  *
- * @return {object}  A Q promise indicating task completion
+ * @return {object}  A Promise indicating task completion
  * @function module:stocks~Stocks#cleanUpUnusedStocks
  */
 Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
@@ -268,7 +267,7 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
  * 
  * @param {module:qctx~QContext} ctx  A QContext to provide database access.
  * 
- * @return {object}  A Q promise indicating task completion 
+ * @return {object}  A Promise indicating task completion 
  * @function module:stocks~Stocks#updateStockValues
  */
 Stocks.prototype.updateStockValues = function(ctx) {
@@ -336,7 +335,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 	
 	assert.notStrictEqual(rec.pieces, null);
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		if (ctx.getProperty('readonly'))
 			return;
 		
@@ -344,7 +343,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
 		
 		// on duplicate key is likely to be somewhat slower than other options
 		// -> check whether we already know the primary key
-		return Q(self.knownStockIDs).then(function(knownStockIDs_) {
+		return Promise.resolve(self.knownStockIDs).then(function(knownStockIDs_) {
 			knownStockIDs = knownStockIDs_;
 			return knownStockIDs[rec.symbol]; // might be a promise from INSERT INTO
 		}).then(function(ksid) {
@@ -423,7 +422,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
 	var xstr = '%' + str.replace(/%/g, '\\%') + '%';
 	
 	var localResults;
-	return Q.all([
+	return Promise.all([
 		self.getServerConfig(),
 		ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
 			'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
@@ -529,7 +528,7 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
 		'JOIN depot_stocks AS ds ON ds.stockid = s.stockid ' +
 		'WHERE s.leader = ?', [ctx.user.uid]).then(function(depotEntries) {
 		
-		return Q.all(depotEntries.map(function(depotentry) {
+		return Promise.all(depotEntries.map(function(depotentry) {
 			var newCtx = new qctx.QContext({
 				parentComponent: this,
 				user: {uid: depotentry.uid},
@@ -670,7 +669,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		if (opt.testOnly) {
 			return {
 				query: _.bind(ctx.query, ctx),
-				commit: Q, rollback: Q
+				commit: Promise.resolve, rollback: Promise.resolve
 			};
 		}
 		
@@ -733,7 +732,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 		assert.ok(r.stocktextid);
 		
 		// re-fetch freemoney because the 'user' object might come from dquery
-		return Q.all([
+		return Promise.all([
 			conn.query('SELECT freemoney, totalvalue FROM users_finance AS f WHERE uid = ? FOR UPDATE', [ctx.user.uid]),
 			conn.query('SELECT ABS(SUM(amount)) AS amount FROM orderhistory ' +
 				'WHERE stocktextid = ? AND uid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
@@ -851,7 +850,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
 	}).then(function() {
 		return { code: 'stock-buy-success', fee: fee, tradeid: tradeID, extra: 'repush' };
 	}).catch(function(err) {
-		return (conn ? conn.rollback() : Q()).then(function() {
+		return (conn ? conn.rollback() : Promise.resolve()).then(function() {
 			if (err.code == 'stock-buy-success')
 				return err; // for testOnly runs
 			else
@@ -971,7 +970,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
 		throw new this.FormatError();
 	
 	var r;
-	return Q.all([
+	return Promise.all([
 		this.getServerConfig(),
 		ctx.query('SELECT oh.* ,s.*, u.name, events.eventid AS eventid, trader.delayorderhist FROM orderhistory AS oh ' +
 			'LEFT JOIN stocks AS s ON s.leader = oh.leader ' +

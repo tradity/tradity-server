@@ -1,7 +1,6 @@
 (function () { "use strict";
 
 var _ = require('lodash');
-var Q = require('q');
 var util = require('util');
 var events = require('events');
 var request = require('request');
@@ -56,7 +55,7 @@ AbstractLoader.prototype._makeQuoteRequest = function(stocklist) {
 	});
 	
 	if (stocklist.length == 0) // everything was cached
-		return Q(cachedResults);
+		return Promise.resolve(cachedResults);
 	
 	// split stocklist into groups of maximum length maxlen
 	// and flatten the resulting chunked array of records
@@ -64,7 +63,7 @@ AbstractLoader.prototype._makeQuoteRequest = function(stocklist) {
 	
 	debug('Fetching stock list', stocklist.length, chunkedStocklist.length + ' chunks');
 	
-	return Q.all(chunkedStocklist.map(function(chunk) {
+	return Promise.all(chunkedStocklist.map(function(chunk) {
 		return self._makeQuoteRequestFetch(chunk);
 	})).then(function(recordListChunks) {
 		var fetchedRecordList = _.flatten(recordListChunks);
@@ -91,7 +90,7 @@ AbstractLoader.prototype.loadQuotesList = function(stocklist, filter) {
 	
 	filter = filter || _.constant(true);
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		return self._makeQuoteRequest(stocklist);
 	}).then(function(records) {
 		return _.filter(records, filter);
@@ -102,7 +101,7 @@ AbstractLoader.prototype.request = function(url, attemptsLeft) {
 	if (typeof attemptsLeft == 'undefined')
 		attemptsLeft = this.requestRetries;
 	
-	const requestDeferred = Q.defer();
+	const requestDeferred = Promise.defer();
 	request({
 		url: url,
 		headers: {

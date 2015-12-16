@@ -1,6 +1,5 @@
 (function () { "use strict";
 
-var Q = require('q');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
@@ -115,17 +114,16 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 		'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC ' +
 		'LIMIT 1', params).then(function(chatlist) {
 		if (chatlist.length != 0)
-			return Q(chatlist[0]);
+			return chatlist[0];
 		
 		if (query.failOnMissing || !query.endpoints || ctx.getProperty('readonly'))
-			return Q(null);
+			return null;
 		
 		// query.endpoints has undergone validation and can be assumed to be all integers
 		return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid IN (' + query.endpoints.join(',') + ')',
 			[]).then(function(endpointUserCount) {
 			if (endpointUserCount[0].c != query.endpoints.length)
-				return Q(null);
-				
+				return null;
 			
 			debug('Creating new chat', query.endpoints.length, 'users');
 			

@@ -4,7 +4,6 @@ var _ = require('lodash');
 var lzma = require('lzma-native');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var commonUtil = require('tradity-connection');
 var debug = require('debug')('sotrade:conn');
 var buscomponent = require('./stbuscomponent.js');
@@ -416,7 +415,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 	if (!query)
 		return;
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		if (!query.signedContent)
 			return {query: query, masterAuthorization: false};
 		
@@ -492,7 +491,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 			
 			var callbackHasBeenCalled = false;
 			
-			return Q().then(function() {
+			return Promise.resolve().then(function() {
 				self.unansweredCount++;
 				if (self.isShuttingDown)
 					throw new self.SoTradeClientError('server-shutting-down');
@@ -558,7 +557,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 					// fall-through
 				}
 				
-				return Q().then(function() {
+				return Promise.resolve().then(function() {
 					return self.request({
 						name: 'client-' + query.type,
 						query: query,
@@ -611,7 +610,7 @@ ConnectionData.prototype.queryHandler = function(query) {
 				
 				finalizingPromises.push(self.response(result));
 				
-				return Q.all(finalizingPromises);
+				return Promise.all(finalizingPromises);
 			});
 		});
 	}).catch(function(e) {
@@ -675,14 +674,14 @@ ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'glo
  * 
  * @param {object} obj  Any kind of object to be sent.
  * 
- * @return {object}  A Q promise for the encoded object.
+ * @return {object}  A Promise for the encoded object.
  * 
  * @function module:connectiondata~ConnectionData#wrapForReply
  */
 ConnectionData.prototype.wrapForReply = function(obj) {
 	var self = this;
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		if (!self.socket) {
 			self.ctx.setProperty('compressionSupport', {});
 			self.ctx.setProperty('remoteProtocolVersion', null);
@@ -736,7 +735,7 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 			self.queryCompressionInfo.used.lzma += 1;
 			
 			var ckey = cc.key + ':compressed';
-			return Q().then(function() {
+			return Promise.resolve().then(function() {
 				if (cc.cache.has(ckey))
 					return cc.cache.use(ckey);
 				

@@ -8,7 +8,6 @@ var https = require('https');
 var cluster = require('cluster');
 var events = require('events');
 var util = require('util');
-var Q = require('q');
 
 var qctx = require('./qctx.js');
 var cfg = require('./config.js').config();
@@ -37,7 +36,7 @@ class Main extends buscomponent.BusComponent {
 		
 		opt = opt || {};
 		this.mainBus = new bus.Bus();
-		this.defaultStockLoaderDeferred = Q.defer();
+		this.defaultStockLoaderDeferred = Promise.defer();
 		this.defaultStockLoader = this.defaultStockLoaderDeferred.promise;
 		this.readonly = this.getServerConfig().readonly;
 		this.managerCTX = null;
@@ -158,8 +157,15 @@ Main.prototype.start = function() {
 	}).then(() => {
 		this.managerCTX = new qctx.QContext({parentComponent: this});
 		
-		process.on('uncaughtException', (err) => {
+		process.on('uncaughtException', err => {
+			debug('Uncaught exception', err);
 			this.emitError(err);
+			this.emitImmediate('localShutdown');
+		});
+		
+		process.on('unhandledRejection', (reason, p) => {
+			debug('Unhandled rejection', reason, p);
+			this.emitError(reason);
 			this.emitImmediate('localShutdown');
 		});
 		
@@ -216,7 +222,7 @@ Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
 	});
 	
 	return m.start().then(function() {
-		var deferred = Q.defer();
+		var deferred = Promise.defer();
 		
 		self.mainBus.addTransport(toWorker, function() {
 			deferred.resolve();
@@ -291,16 +297,16 @@ Main.prototype.forkStandardWorker = function() {
 Main.prototype.startMaster = function() {
 	var self = this;
 	
-	return Q().then(function() {
+	return Promise.resolve().then(function() {
 		var workerStartedPromises = [];
 		
 		if (self.getServerConfig().startBackgroundWorker)
-			workerStartedPromises.push(Q().then(self.forkBackgroundWorker.bind(self)));
+			workerStartedPromises.push(Promise.resolve().then(self.forkBackgroundWorker.bind(self)));
 		
 		for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
-			workerStartedPromises.push(Q().then(self.forkStandardWorker.bind(self)));
+			workerStartedPromises.push(Promise.resolve().then(self.forkStandardWorker.bind(self)));
 		
-		return Q.all(workerStartedPromises);
+		return Promise.all(workerStartedPromises);
 	}).then(function() {
 		var shuttingDown = false;
 		self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
@@ -400,7 +406,7 @@ Main.prototype.startWorker = function() {
 }
 
 Main.prototype.connectToSocketIORemotes = function() {
-	return Q.all(this.getServerConfig().socketIORemotes.map(this.connectToSocketIORemote.bind(this)));
+	return Promise.all(this.getServerConfig().socketIORemotes.map(this.connectToSocketIORemote.bind(this)));
 };
 
 Main.prototype.connectToSocketIORemote = function(remote) {
@@ -442,12 +448,12 @@ Main.prototype.connectToSocketIORemote = function(remote) {
 Main.prototype.loadComponents = function(componentsForLoading) {
 	var self = this;
 	
-	return Q.all(componentsForLoading.map(function(componentName) {
+	return Promise.all(componentsForLoading.map(function(componentName) {
 		var component = require(componentName);
 		
-		return Q.all(_.map(component, function(componentClass) {
+		return Promise.all(_.map(component, function(componentClass) {
 			if (!componentClass || !componentClass.prototype.setBus)
-				return Q();
+				return Promise.resolve();
 			
 			var componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
 			return new componentClass().setBus(self.mainBus, componentID);

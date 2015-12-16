@@ -3,7 +3,6 @@
 var _ = require('lodash');
 var fs = require('fs');
 var util = require('util');
-var Q = require('q');
 var semaphore = require('q-semaphore');
 var ratelimit = require('q-ratelimit');
 var buscomponent = require('./stbuscomponent.js');
@@ -59,7 +58,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
 	}).then(function(cfg_) {
 		cfg = cfg_;
 		
-		return Q.all([self.sem.take(), self.throttle()]);
+		return Promise.all([self.sem.take(), self.throttle()]);
 	}).then(function() {
 		noemail = noemail || false;
 		

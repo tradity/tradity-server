@@ -3,7 +3,6 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var WP = require('wordpress-rest-api');
 var buscomponent = require('./stbuscomponent.js');
 var debug = require('debug')('sotrade:wordpress-feed');
@@ -49,14 +48,14 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
 		'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
 		'WHERE feedblogs.active ' +
 		'GROUP BY blogid FOR UPDATE').then(function(res) {
-		return Q.all(res.map(function(bloginfo) {
+		return Promise.all(res.map(function(bloginfo) {
 			var wp = new WP({endpoint: bloginfo.endpoint});
 			var catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
 			
 			debug('Fetching blog posts', bloginfo.endpoint, bloginfo.category);
 			
-			return Q(wp.posts().filter(catFilter)).then(function(posts) {
-				return Q.all(posts.filter(function(post) {
+			return Promise.resolve(wp.posts().filter(catFilter)).then(function(posts) {
+				return Promise.all(posts.filter(function(post) {
 					post.date_unix = new Date(post.date_gmt).getTime() / 1000;
 					
 					if (bloginfo.lastposttime === null)

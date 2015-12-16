@@ -5,7 +5,6 @@ var deepupdate = require('./lib/deepupdate.js');
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var debug = require('debug')('sotrade:schools');
 var buscomponent = require('./stbuscomponent.js');
 
@@ -84,7 +83,7 @@ function _reqschooladm (f, soft, scdb, status) {
  * @param {?Array} status   A list of acceptable user status to be considered “admin”-Like.
  * @param {int} schoolid    The id of the schools whose admin tables are to be checked.
  *
- * @return {object}  Returns a Q promise returning <code>{ ok: true, schoolid: … }</code> when successful,
+ * @return {object}  Returns a Promise returning <code>{ ok: true, schoolid: … }</code> when successful,
  *                          otherwise with <code>{ ok: false, schoolid: null }</code>.
  * 
  * @function module:schools~Schools#isSchoolAdmin
@@ -94,7 +93,7 @@ Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 
 {
 	var self = this;
 	
-	return (parseInt(schoolid) == schoolid ? Q([{schoolid: schoolid}]) :
+	return (parseInt(schoolid) == schoolid ? Promise.resolve([{schoolid: schoolid}]) :
 		ctx.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path)', [schoolid]))
 	.then(function(res) {
 		if (res.length == 0)
@@ -123,7 +122,7 @@ Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 
  * 
  * @param {int} schoolid  The numerical id for the school.
  * @param {module:qctx~QContext} ctx  A QContext to provide database access
- * @return {object}  A Q promise for a complete list of school admins and associated metadata.
+ * @return {object}  A Promise for a complete list of school admins and associated metadata.
  * 
  * @function module:schools~Schools#loadSchoolAdmins
  */
@@ -143,7 +142,7 @@ Schools.prototype.loadSchoolAdmins = function(schoolid, ctx) {
  * @param {module:qctx~QContext} ctx  A context to provide database access.
  * @param {object} cfg  The server base config.
  * 
- * @return {object} A Q promise for a { code: …, schoolinfo: … / null } object
+ * @return {object}  A Promise for a { code: …, schoolinfo: … / null } object
  * 
  * @function module:schools~Schools#loadSchoolInfo
  */
@@ -173,7 +172,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 			
 		assert.ok(s.config);
 		
-		return Q.all([
+		return Promise.all([
 			self.loadSchoolAdmins(s.schoolid, ctx), // admins
 			ctx.query('SELECT * FROM schools AS c WHERE c.path LIKE ?', [s.path + '/%']), // subschools
 			ctx.query('SELECT COUNT(uid) AS usercount ' +
@@ -215,12 +214,12 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
 					'LEFT JOIN schools ON feedblogs.schoolid = schools.schoolid ' +
 					'WHERE schools.schoolid = ? ' +
 					'GROUP BY blogid', [s.schoolid]), // feedblogs
-			Q().then(function() {
+			Promise.resolve().then(function() {
 				if (s.path.replace(/[^\/]/g, '').length != 1) // need higher-level 
 					s.parentPath = commonUtil.parentPath(s.path);
 				
 				return s.parentPath ? self.loadSchoolInfo(s.parentPath, ctx, cfg) :
-					Q({schoolinfo: null});
+					Promise.resolve({schoolinfo: null});
 			}) // parentResult
 		]);
 	}).spread(function(admins, subschools, usercount, comments, blogposts, popularStocks, feedblogs, parentResult) {

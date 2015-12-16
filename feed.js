@@ -3,7 +3,6 @@
 var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var buscomponent = require('./stbuscomponent.js');
 var debug = require('debug')('sotrade:feed');
 

@@ -4,7 +4,6 @@ var _ = require('lodash');
 var os = require('os');
 var util = require('util');
 var assert = require('assert');
-var Q = require('q');
 var http = require('http');
 var https = require('https');
 var url = require('url');
@@ -94,7 +93,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
 		qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
 	};
 	
-	return Q.all([
+	return Promise.all([
 		self.request({name: 'get-readability-mode'}),
 		self.request({name: 'dbUsageStatistics'})
 	]).spread(function(readonlyReply, dbstats) {
@@ -145,7 +144,7 @@ SoTradeServer.prototype.start = function(port) {
  * @param {int} port  The port for this server to listen on
  * @param {string} host  The host to listen on
  * 
- * @return {object}  A Q promise fulfilled when the server is fully available
+ * @return {object}  A Promise fulfilled when the server is fully available
  * 
  * @function module:server~SoTradeServer#listen
  */
@@ -153,7 +152,7 @@ SoTradeServer.prototype.listen = function(port, host) {
 	assert.ok(port);
 	
 	var self = this;
-	var deferred = Q.defer();
+	var deferred = Promise.defer();
 	
 	var listenSuccess = false;
 	

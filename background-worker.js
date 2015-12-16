@@ -23,11 +23,11 @@ var debug = require('debug')('sotrade:bw');
  * @augments module:stbuscomponent~STBusComponent
  */
 class BackgroundWorker extends buscomponent.BusComponent {
-	constructor() {
-		super();
-		
-		this.sem = semaphore(1);
-	}
+  constructor() {
+    super();
+    
+    this.sem = semaphore(1);
+  }
 }
 
 /**
@@ -39,29 +39,29 @@ class BackgroundWorker extends buscomponent.BusComponent {
  * @function c2s~prod
  */
 BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx) {
-	var self = this;
-	
-	debug('Received prod');
-	
-	assert.ok(ctx.access);
-	
-	if (ctx.access.has('server') == -1)
-		throw new self.SoTradeClientError('prod-not-allowed');
-	
-	var starttime, userdbtime;
-	
-	return self.sem.take().then(function() {
-		starttime = Date.now();
-	
-		return self.request({name: 'regularCallbackUser', query: query, ctx: ctx});
-	}).then(function() {
-		userdbtime = Date.now();
-		return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
-	}).then(function() {
-		return self.sem.leave();
-	}).then(function() {
-		return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
-	});
+  var self = this;
+  
+  debug('Received prod');
+  
+  assert.ok(ctx.access);
+  
+  if (ctx.access.has('server') == -1)
+    throw new self.SoTradeClientError('prod-not-allowed');
+  
+  var starttime, userdbtime;
+  
+  return self.sem.take().then(function() {
+    starttime = Date.now();
+  
+    return self.request({name: 'regularCallbackUser', query: query, ctx: ctx});
+  }).then(function() {
+    userdbtime = Date.now();
+    return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
+  }).then(function() {
+    return self.sem.leave();
+  }).then(function() {
+    return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
+  });
 });
 
 exports.BackgroundWorker = BackgroundWorker;

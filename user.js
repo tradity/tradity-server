@@ -29,21 +29,21 @@ require('datejs');
  * @augments module:stbuscomponent~STBusComponent
  */
 class User extends buscomponent.BusComponent {
-	constructor() {
-		super();
-		
-		this.cache = new Cache();
-		
-		this.loginIPCheck = null;
-		this.getLoginIPCheck = function() {
-			if (this.loginIPCheck)
-				return Promise.resolve(this.loginIPCheck);
-			
-			return this.loginIPCheck = this.getServerConfig().then(function(cfg) {
-				return new LoginIPCheck(cfg.login);
-			});
-		};
-	}
+  constructor() {
+    super();
+    
+    this.cache = new Cache();
+    
+    this.loginIPCheck = null;
+    this.getLoginIPCheck = function() {
+      if (this.loginIPCheck)
+        return Promise.resolve(this.loginIPCheck);
+      
+      return this.loginIPCheck = this.getServerConfig().then(function(cfg) {
+        return new LoginIPCheck(cfg.login);
+      });
+    };
+  }
 }
 
 /**
@@ -55,24 +55,24 @@ class User extends buscomponent.BusComponent {
  * @function module:user~User#generatePWKey
  */
 User.prototype.generatePWKey = function(pw) {
-	var self = this;
-	
-	var pwsalt;
-	var iterations;
-	
-	return Q.nfcall(crypto.randomBytes, 32).then(function(pwsalt_) {
-		pwsalt = pwsalt_;
-		
-		return self.getServerConfig();
-	}).then(function(cfg) {
-		iterations = cfg.passwords.pbkdf2Iterations;
-		assert.strictEqual(iterations, parseInt(iterations));
-		assert.ok(iterations >= cfg.passwords.pbkdf2MinIterations);
-		
-		return Q.nfcall(crypto.pbkdf2, String(pw), pwsalt, 1 << iterations, 64);
-	}).then(function(pwhash) {
-		return {salt: pwsalt, hash: pwhash, algorithm: 'PBKDF2|' + iterations};
-	});
+  var self = this;
+  
+  var pwsalt;
+  var iterations;
+  
+  return Q.nfcall(crypto.randomBytes, 32).then(function(pwsalt_) {
+    pwsalt = pwsalt_;
+    
+    return self.getServerConfig();
+  }).then(function(cfg) {
+    iterations = cfg.passwords.pbkdf2Iterations;
+    assert.strictEqual(iterations, parseInt(iterations));
+    assert.ok(iterations >= cfg.passwords.pbkdf2MinIterations);
+    
+    return Q.nfcall(crypto.pbkdf2, String(pw), pwsalt, 1 << iterations, 64);
+  }).then(function(pwhash) {
+    return {salt: pwsalt, hash: pwhash, algorithm: 'PBKDF2|' + iterations};
+  });
 };
 
 /**
@@ -88,15 +88,15 @@ User.prototype.generatePWKey = function(pw) {
  * @function module:user~User#generatePassword
  */
 User.prototype.generatePassword = function(pw, timeName, uid, conn) {
-	assert.ok(['changetime', 'issuetime'].indexOf(timeName) >= 0);
-	
-	debug('Generate password', timeName, uid);
-	
-	return this.generatePWKey(pw).then(function(pwdata) {
-		return conn.query('INSERT INTO passwords (pwsalt, pwhash, algorithm, uid, ' + timeName + ') ' +
-			'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())',
-			[pwdata.salt, pwdata.hash, pwdata.algorithm, uid]);
-	});
+  assert.ok(['changetime', 'issuetime'].indexOf(timeName) >= 0);
+  
+  debug('Generate password', timeName, uid);
+  
+  return this.generatePWKey(pw).then(function(pwdata) {
+    return conn.query('INSERT INTO passwords (pwsalt, pwhash, algorithm, uid, ' + timeName + ') ' +
+      'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())',
+      [pwdata.salt, pwdata.hash, pwdata.algorithm, uid]);
+  });
 };
 
 /**
@@ -109,27 +109,27 @@ User.prototype.generatePassword = function(pw, timeName, uid, conn) {
  * @function module:user~User#verifyPassword
  */
 User.prototype.verifyPassword = function(pwdata, pw) {
-	debug('Verify password', pwdata.algorithm);
-	
-	if (pwdata.algorithm === 'SHA256')
-		return Promise.resolve(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
-	
-	var pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
-	if (pbkdf2Match) {
-		var iterations = parseInt(pbkdf2Match[1]);
-		
-		return this.getServerConfig().then(function(cfg) {
-			if (iterations < cfg.passwords.pbkdf2MinIterations)
-				return false;
-			
-			return Q.nfcall(crypto.pbkdf2, String(pw), pwdata.pwsalt, 1 << iterations, 64).then(function(pwhash) {
-				return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
-			});
-		});
-	}
-	
-	console.warn('Unknown password hashing algorithm:', pwdata.algorithm);
-	return Promise.resolve(false);
+  debug('Verify password', pwdata.algorithm);
+  
+  if (pwdata.algorithm === 'SHA256')
+    return Promise.resolve(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
+  
+  var pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
+  if (pbkdf2Match) {
+    var iterations = parseInt(pbkdf2Match[1]);
+    
+    return this.getServerConfig().then(function(cfg) {
+      if (iterations < cfg.passwords.pbkdf2MinIterations)
+        return false;
+      
+      return Q.nfcall(crypto.pbkdf2, String(pw), pwdata.pwsalt, 1 << iterations, 64).then(function(pwhash) {
+        return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
+      });
+    });
+  }
+  
+  console.warn('Unknown password hashing algorithm:', pwdata.algorithm);
+  return Promise.resolve(false);
 };
 
 User.deprecatedPasswordAlgorithms = /^SHA256$/i;
@@ -149,16 +149,16 @@ User.deprecatedPasswordAlgorithms = /^SHA256$/i;
  * @function module:user~User#sendInviteEmail
  */
 User.prototype.sendInviteEmail = function(data, ctx) {
-	var self = this;
-	
-	debug('Send invite email', data.email, data.url, ctx.user && ctx.user.uid);
-	return self.request({name: 'sendTemplateMail',
-		template: 'invite-email.eml',
-		ctx: ctx,
-		variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
-	}).then(function() {
-		return { code: 'create-invite-link-success' };
-	});
+  var self = this;
+  
+  debug('Send invite email', data.email, data.url, ctx.user && ctx.user.uid);
+  return self.request({name: 'sendTemplateMail',
+    template: 'invite-email.eml',
+    ctx: ctx,
+    variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
+  }).then(function() {
+    return { code: 'create-invite-link-success' };
+  });
 };
 
 /**
@@ -174,44 +174,44 @@ User.prototype.sendInviteEmail = function(data, ctx) {
  * @function module:user~User#sendRegisterEmail
  */
 User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
-	var self = this;
-	
-	ctx.access.drop('email_verif');
-	
-	debug('Prepare register email', data.email);
-	
-	var loginResp, key;
-	return self.login({
-		name: data.email,
-		stayloggedin: true,
-	}, ctx, xdata, true, true).then(function(loginResp_) {
-		loginResp = loginResp_;
-		assert.equal(loginResp.code, 'login-success');
-		
-		return Q.nfcall(crypto.randomBytes, 16);
-	}).then(function(buf) {
-		key = buf.toString('hex');
-		
-		return ctx.query('INSERT INTO email_verifcodes (`uid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
-			[ctx.user.uid, key]);
-	}).then(function(res) {
-		return self.getServerConfig();
-	}).then(function(cfg) {
-		var url = cfg.varReplace(cfg.regurl
-			.replace(/\{\$key\}/g, key)
-			.replace(/\{\$uid\}/g, ctx.user.uid));
-		
-		debug('Send register email', data.email, data.lang, data.name, ctx.user.uid);
-		return self.request({name: 'sendTemplateMail', 
-			template: 'register-email.eml',
-			ctx: ctx,
-			lang: data.lang,
-			variables: {'url': url, 'username': data.name, 'email': data.email}
-		});
-	}).then(function() {
-		loginResp.code = 'reg-success';
-		return loginResp;
-	});
+  var self = this;
+  
+  ctx.access.drop('email_verif');
+  
+  debug('Prepare register email', data.email);
+  
+  var loginResp, key;
+  return self.login({
+    name: data.email,
+    stayloggedin: true,
+  }, ctx, xdata, true, true).then(function(loginResp_) {
+    loginResp = loginResp_;
+    assert.equal(loginResp.code, 'login-success');
+    
+    return Q.nfcall(crypto.randomBytes, 16);
+  }).then(function(buf) {
+    key = buf.toString('hex');
+    
+    return ctx.query('INSERT INTO email_verifcodes (`uid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
+      [ctx.user.uid, key]);
+  }).then(function(res) {
+    return self.getServerConfig();
+  }).then(function(cfg) {
+    var url = cfg.varReplace(cfg.regurl
+      .replace(/\{\$key\}/g, key)
+      .replace(/\{\$uid\}/g, ctx.user.uid));
+    
+    debug('Send register email', data.email, data.lang, data.name, ctx.user.uid);
+    return self.request({name: 'sendTemplateMail', 
+      template: 'register-email.eml',
+      ctx: ctx,
+      lang: data.lang,
+      variables: {'url': url, 'username': data.name, 'email': data.email}
+    });
+  }).then(function() {
+    loginResp.code = 'reg-success';
+    return loginResp;
+  });
 };
 
 /**
@@ -237,122 +237,122 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
  * @function c2s~login
  */
 User.prototype.login = buscomponent.provide('client-login', 
-	['query', 'ctx', 'xdata', 'useTransaction', 'ignorePassword'], function(query, ctx, xdata, useTransaction, ignorePassword) {
-	var self = this;
-	
-	var name = String(query.name);
-	var pw = String(query.pw);
-	var key, uid;
-	
-	debug('Login', xdata.remoteip, name, useTransaction, ignorePassword);
-	
-	return Promise.resolve()/*self.getLoginIPCheck().then(function(check) {
-		return check.check(xdata.remoteip);
-	})*/.then(function() {
-		var query = 'SELECT passwords.*, users.email_verif ' +
-			'FROM passwords ' +
-			'JOIN users ON users.uid = passwords.uid ' +
-			'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
-			'ORDER BY email_verif DESC, users.uid DESC, changetime DESC FOR UPDATE';
+  ['query', 'ctx', 'xdata', 'useTransaction', 'ignorePassword'], function(query, ctx, xdata, useTransaction, ignorePassword) {
+  var self = this;
+  
+  var name = String(query.name);
+  var pw = String(query.pw);
+  var key, uid;
+  
+  debug('Login', xdata.remoteip, name, useTransaction, ignorePassword);
+  
+  return Promise.resolve()/*self.getLoginIPCheck().then(function(check) {
+    return check.check(xdata.remoteip);
+  })*/.then(function() {
+    var query = 'SELECT passwords.*, users.email_verif ' +
+      'FROM passwords ' +
+      'JOIN users ON users.uid = passwords.uid ' +
+      'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
+      'ORDER BY email_verif DESC, users.uid DESC, changetime DESC FOR UPDATE';
 
-		if (ctx.getProperty('readonly') || !useTransaction)
-			return ctx.query(query, [name, name]);
-		
-		return ctx.startTransaction().then(function(conn) {
-			return conn.query(query, [name, name]).then(conn.commit, conn.rollbackAndThrow);
-		});
-	}).then(function(res) {
-		if (res.length == 0) {
-			if (!useTransaction)
-				return self.login(query, ctx, xdata, true, ignorePassword);
-			
-			throw new self.SoTradeClientError('login-badname');
-		}
-		
-		/* if there is an user with a verified e-mail address
-		 * do not allow other users with the same e-mail address to log in */
-		var haveVerifiedEMail = _.any(_.pluck(res, 'email_verif'));
-		
-		return res.map(function(r) {
-			return function(foundUser) {
-				if (foundUser !== null)
-					return foundUser; // already found user id -> ok!
-				
-				if (haveVerifiedEMail && !r.email_verif)
-					return null;
-				
-				if (ignorePassword)
-					return r;
-				
-				return self.verifyPassword(r, pw).then(function(passwordOkay) {
-					return passwordOkay ? r : null;
-				});
-			};
-		}).reduce(Q.when, null);
-	}).then(function(r) {
-		if (r === null) {
-			if (!useTransaction)
-				return self.login(query, ctx, xdata, true, ignorePassword);
-			
-			throw new self.SoTradeClientError('login-wrongpw');
-		}
-		
-		uid = r.uid;
-		assert.ok(parseInt(r.pwid) == r.pwid);
-		assert.ok(parseInt(uid) == uid);
-		
-		if (ctx.getProperty('readonly'))
-			return;
-		
-		debug('Update passwords', xdata.remoteip, name, uid, r.pwid);
-		return Promise.all([
-			ctx.query('DELETE FROM passwords WHERE pwid != ? AND uid = ?', [r.pwid, uid]),
-			r.issuetime !== null ? ctx.query('UPDATE passwords SET changetime = UNIX_TIMESTAMP() WHERE pwid = ?', [r.pwid]) : Promise.resolve(),
-			User.deprecatedPasswordAlgorithms.test(r.algorithm) ? self.generatePassword(pw, 'changetime', uid, ctx) : Promise.resolve()
-		]);
-	}).then(function() {
-		return Q.nfcall(crypto.randomBytes, 16);
-	}).then(function(buf) {
-		key = buf.toString('hex');
-		return self.getServerConfig();
-	}).then(function(cfg) {
-		if (ctx.getProperty('readonly')) {
-			key = key.substr(0, 6);
-			var today = parseInt(Date.now() / 86400);
-			
-			debug('Sign session key', xdata.remoteip, name, uid, today);
-			
-			var ret;
-			return self.request({
-				name: 'createSignedMessage',
-				msg: {
-					uid: uid,
-					sid: key,
-					date: today
-				}
-			}).then(function(sid) {
-				ret = { code: 'login-success',
-					key: ':' + sid,
-					uid: uid,
-					extra: 'repush' };
-				
-				return ret;
-			});
-		} else {
-			return self.regularCallback({}, ctx).then(function() {
-				return ctx.startTransaction();
-			}).then(function(conn) {
-				debug('Add session to table', xdata.remoteip, name, uid, today);
-				
-				return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
-					'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
-					[uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime])
-					.then(conn.commit, conn.rollbackAndThrow);
-			}).then(function() {
-				return { code: 'login-success', key: key, uid: uid, extra: 'repush' };
-			});
-		}
-	});
+    if (ctx.getProperty('readonly') || !useTransaction)
+      return ctx.query(query, [name, name]);
+    
+    return ctx.startTransaction().then(function(conn) {
+      return conn.query(query, [name, name]).then(conn.commit, conn.rollbackAndThrow);
+    });
+  }).then(function(res) {
+    if (res.length == 0) {
+      if (!useTransaction)
+        return self.login(query, ctx, xdata, true, ignorePassword);
+      
+      throw new self.SoTradeClientError('login-badname');
+    }
+    
+    /* if there is an user with a verified e-mail address
+     * do not allow other users with the same e-mail address to log in */
+    var haveVerifiedEMail = _.any(_.pluck(res, 'email_verif'));
+    
+    return res.map(function(r) {
+      return function(foundUser) {
+        if (foundUser !== null)
+          return foundUser; // already found user id -> ok!
+        
+        if (haveVerifiedEMail && !r.email_verif)
+          return null;
+        
+        if (ignorePassword)
+          return r;
+        
+        return self.verifyPassword(r, pw).then(function(passwordOkay) {
+          return passwordOkay ? r : null;
+        });
+      };
+    }).reduce(Q.when, null);
+  }).then(function(r) {
+    if (r === null) {
+      if (!useTransaction)
+        return self.login(query, ctx, xdata, true, ignorePassword);
+      
+      throw new self.SoTradeClientError('login-wrongpw');
+    }
+    
+    uid = r.uid;
+    assert.ok(parseInt(r.pwid) == r.pwid);
+    assert.ok(parseInt(uid) == uid);
+    
+    if (ctx.getProperty('readonly'))
+      return;
+    
+    debug('Update passwords', xdata.remoteip, name, uid, r.pwid);
+    return Promise.all([
+      ctx.query('DELETE FROM passwords WHERE pwid != ? AND uid = ?', [r.pwid, uid]),
+      r.issuetime !== null ? ctx.query('UPDATE passwords SET changetime = UNIX_TIMESTAMP() WHERE pwid = ?', [r.pwid]) : Promise.resolve(),
+      User.deprecatedPasswordAlgorithms.test(r.algorithm) ? self.generatePassword(pw, 'changetime', uid, ctx) : Promise.resolve()
+    ]);
+  }).then(function() {
+    return Q.nfcall(crypto.randomBytes, 16);
+  }).then(function(buf) {
+    key = buf.toString('hex');
+    return self.getServerConfig();
+  }).then(function(cfg) {
+    if (ctx.getProperty('readonly')) {
+      key = key.substr(0, 6);
+      var today = parseInt(Date.now() / 86400);
+      
+      debug('Sign session key', xdata.remoteip, name, uid, today);
+      
+      var ret;
+      return self.request({
+        name: 'createSignedMessage',
+        msg: {
+          uid: uid,
+          sid: key,
+          date: today
+        }
+      }).then(function(sid) {
+        ret = { code: 'login-success',
+          key: ':' + sid,
+          uid: uid,
+          extra: 'repush' };
+        
+        return ret;
+      });
+    } else {
+      return self.regularCallback({}, ctx).then(function() {
+        return ctx.startTransaction();
+      }).then(function(conn) {
+        debug('Add session to table', xdata.remoteip, name, uid, today);
+        
+        return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
+          'VALUES(?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), ?)',
+          [uid, key, query.stayloggedin ? cfg.stayloggedinTime : cfg.normalLoginTime])
+          .then(conn.commit, conn.rollbackAndThrow);
+      }).then(function() {
+        return { code: 'login-success', key: key, uid: uid, extra: 'repush' };
+      });
+    }
+  });
 });
 
 /**
@@ -363,11 +363,11 @@ User.prototype.login = buscomponent.provide('client-login',
  * @function c2s~logout
  */
 User.prototype.logout = buscomponent.provideWQT('client-logout', function(query, ctx) {
-	debug('Logout', query.key);
-	
-	return ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)]).then(function() {
-		return { code: 'logout-success' };
-	});
+  debug('Logout', query.key);
+  
+  return ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)]).then(function() {
+    return { code: 'logout-success' };
+  });
 });
 
 /**
@@ -482,90 +482,90 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  * @function c2s~get-ranking
  */
 User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx) {
-	var self = this;
-	
-	var likestringWhere = '';
-	var likestringUnit = [];
-	var cacheKey;
-	
-	var join = 'FROM users AS u ' +
-		'JOIN users_data ON users_data.uid = u.uid ' +
-		'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
-		'LEFT JOIN schools AS c ON sm.schoolid = c.schoolid ' +
-		'JOIN (SELECT uid, MIN(time) AS min_t, MAX(time) AS max_t FROM valuehistory ' +
-			'WHERE time > ? AND time < ? GROUP BY uid) AS locator_va ON u.uid = locator_va.uid ' +
-		'JOIN valuehistory AS past_va ON past_va.uid = u.uid AND past_va.time = locator_va.min_t ' +
-		'JOIN valuehistory AS now_va  ON  now_va.uid = u.uid AND  now_va.time = locator_va.max_t ';
-	
-	if (!query.includeAll)
-		likestringWhere += ' AND email_verif != 0 ';
+  var self = this;
+  
+  var likestringWhere = '';
+  var likestringUnit = [];
+  var cacheKey;
+  
+  var join = 'FROM users AS u ' +
+    'JOIN users_data ON users_data.uid = u.uid ' +
+    'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
+    'LEFT JOIN schools AS c ON sm.schoolid = c.schoolid ' +
+    'JOIN (SELECT uid, MIN(time) AS min_t, MAX(time) AS max_t FROM valuehistory ' +
+      'WHERE time > ? AND time < ? GROUP BY uid) AS locator_va ON u.uid = locator_va.uid ' +
+    'JOIN valuehistory AS past_va ON past_va.uid = u.uid AND past_va.time = locator_va.min_t ' +
+    'JOIN valuehistory AS now_va  ON  now_va.uid = u.uid AND  now_va.time = locator_va.max_t ';
+  
+  if (!query.includeAll)
+    likestringWhere += ' AND email_verif != 0 ';
 
-	if (query.search) {
-		var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
-		likestringWhere += 'AND ((u.name LIKE ?) OR (realnamepublish != 0 AND (giv_name LIKE ? OR fam_name LIKE ?))) ';
-		likestringUnit.push(likestring, likestring, likestring);
-	}
-	
-	return Promise.resolve().then(function() {
-		if (!query.schoolid)
-			return ctx.access.has('userdb');
-		
-		join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ';
-		likestringWhere += 'AND (p.schoolid = ? OR p.path = ?) ';
-		likestringUnit.push(String(query.schoolid), String(query.schoolid).toLowerCase());
-		
-		return self.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid})
-			.then(function(ISAResult) {
-			assert.equal(typeof ISAResult.ok, 'boolean');
-			
-			return ISAResult.ok;
-		});
-	}).then(function(schoolAdminResult) {
-		var fullData = schoolAdminResult.ok;
-		
-		query.since = parseInt(query.since) || 0;
-		query.upto = parseInt(query.upto) || 'now';
-		var now = Date.now();
-		
-		cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
-		if (self.cache.has(cacheKey))
-			return self.cache.use(cacheKey);
-		
-		if (query.upto == 'now') {
-			// upto is rounded so that the SQL query cache will be used more effectively
-			query.upto = parseInt(now / 20000) * 20;
-		}
-		
-		return self.cache.add(cacheKey, 30000, ctx.query('SELECT u.uid AS uid, u.name AS name, ' +
-			'c.path AS schoolpath, c.schoolid AS school, c.name AS schoolname, jointime, pending, ' +
-			'tradecount != 0 as hastraded, ' + 
-			'now_va.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
-			'now_va.wprov_sum + now_va.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
-			'((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) / ' +
-				'(now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
-			'((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) - ' +
-				'(now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
-			(fullData ? '' : 'IF(realnamepublish != 0,giv_name,NULL) AS ') + ' giv_name, ' +
-			(fullData ? '' : 'IF(realnamepublish != 0,fam_name,NULL) AS ') + ' fam_name, ' +
-			'(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.uid = u.uid) AS xp ' +
-			join + /* needs query.since and query.upto parameters */
-			'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
-			likestringWhere,
-			[query.since, query.upto].concat(likestringUnit)));
-	}).then(function(ranking) {
-		return {
-			code: 'get-ranking-success',
-			result: ranking,
-			cc__: {
-				fields: ['result'],
-				validity: 30000,
-				key: cacheKey,
-				cache: self.cache
-			}
-		};
-		
-		return result;
-	});
+  if (query.search) {
+    var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
+    likestringWhere += 'AND ((u.name LIKE ?) OR (realnamepublish != 0 AND (giv_name LIKE ? OR fam_name LIKE ?))) ';
+    likestringUnit.push(likestring, likestring, likestring);
+  }
+  
+  return Promise.resolve().then(function() {
+    if (!query.schoolid)
+      return ctx.access.has('userdb');
+    
+    join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ';
+    likestringWhere += 'AND (p.schoolid = ? OR p.path = ?) ';
+    likestringUnit.push(String(query.schoolid), String(query.schoolid).toLowerCase());
+    
+    return self.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid})
+      .then(function(ISAResult) {
+      assert.equal(typeof ISAResult.ok, 'boolean');
+      
+      return ISAResult.ok;
+    });
+  }).then(function(schoolAdminResult) {
+    var fullData = schoolAdminResult.ok;
+    
+    query.since = parseInt(query.since) || 0;
+    query.upto = parseInt(query.upto) || 'now';
+    var now = Date.now();
+    
+    cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
+    if (self.cache.has(cacheKey))
+      return self.cache.use(cacheKey);
+    
+    if (query.upto == 'now') {
+      // upto is rounded so that the SQL query cache will be used more effectively
+      query.upto = parseInt(now / 20000) * 20;
+    }
+    
+    return self.cache.add(cacheKey, 30000, ctx.query('SELECT u.uid AS uid, u.name AS name, ' +
+      'c.path AS schoolpath, c.schoolid AS school, c.name AS schoolname, jointime, pending, ' +
+      'tradecount != 0 as hastraded, ' + 
+      'now_va.totalvalue AS totalvalue, past_va.totalvalue AS past_totalvalue, ' +
+      'now_va.wprov_sum + now_va.lprov_sum AS prov_sum, past_va.wprov_sum + past_va.lprov_sum AS past_prov_sum, ' +
+      '((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) / ' +
+        '(now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur)) AS fperf, ' +
+      '((now_va.fperf_cur + now_va.fperf_sold - past_va.fperf_sold) - ' +
+        '(now_va.fperf_bought - past_va.fperf_bought + past_va.fperf_cur))/GREATEST(700000000, past_va.totalvalue) AS fperfval, ' +
+      (fullData ? '' : 'IF(realnamepublish != 0,giv_name,NULL) AS ') + ' giv_name, ' +
+      (fullData ? '' : 'IF(realnamepublish != 0,fam_name,NULL) AS ') + ' fam_name, ' +
+      '(SELECT COALESCE(SUM(xp), 0) FROM achievements WHERE achievements.uid = u.uid) AS xp ' +
+      join + /* needs query.since and query.upto parameters */
+      'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
+      likestringWhere,
+      [query.since, query.upto].concat(likestringUnit)));
+  }).then(function(ranking) {
+    return {
+      code: 'get-ranking-success',
+      result: ranking,
+      cc__: {
+        fields: ['result'],
+        validity: 30000,
+        key: cacheKey,
+        cache: self.cache
+      }
+    };
+    
+    return result;
+  });
 });
 
 /**
@@ -626,173 +626,173 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
  * @function c2s~get-user-info
  */
 User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx) {
-	var self = this;
-	var cfg, xuser;
-	
-	var cacheable = !(ctx.access.has('caching') && query.noCache);
-	var resultCacheKey = '';
-	
-	query.nohistory = !!query.nohistory;
-	
-	return self.getServerConfig().then(function(cfg_) {
-		cfg = cfg_;
-	
-		if (query.lookfor == '$self' && ctx.user)
-			query.lookfor = ctx.user.uid;
-		
-		var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.uid ? [
-			'u.*', 'ud.*', 'uf.*',
-		] : [
-			'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
-			'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
-		]).concat([
-			'u.uid AS uid', 'u.name AS name', 'birthday',
-			'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
-			'`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
-			'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.stockid AS lstockid',
-			'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
-			'((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
-			'((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
-			'((uf.fperf_cur + uf.fperf_sold - week_va.fperf_sold) / (uf.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
-			'((uf.operf_cur + uf.operf_sold - week_va.operf_sold) / (uf.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
-			'(uf.fperf_cur + uf.fperf_sold) / uf.fperf_bought AS totalfperf',
-			'(uf.operf_cur + uf.operf_sold) / uf.operf_bought AS totaloperf',
-			'freemoney', 'uf.wprov_sum + uf.lprov_sum AS prov_sum',
-			'week_va.totalvalue AS weekstarttotalvalue',
-			'day_va.totalvalue  AS daystarttotalvalue'
-		]).join(', ');
-		
-		var lookfor, lookforColumn;
-		if (parseInt(query.lookfor) == query.lookfor) {
-			lookfor = parseInt(query.lookfor);
-			lookforColumn = 'uid';
-		} else {
-			lookfor = String(query.lookfor);
-			lookforColumn = 'name';
-		}
-		
-		resultCacheKey += 'get-user-info-result:' + columns.length;
-		var cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
-		if (self.cache.has(cacheKey) && cacheable)
-			return self.cache.use(cacheKey);
-		
-		return self.cache.add(cacheKey, 60000, ctx.query('SELECT ' + columns + ' FROM users AS u ' +
-			'JOIN users_finance AS uf ON u.uid = uf.uid ' +
-			'JOIN users_data AS ud ON u.uid = ud.uid ' +
-			'LEFT JOIN valuehistory AS week_va ON week_va.uid = u.uid AND week_va.time = ' +
-				'(SELECT MIN(time) FROM valuehistory WHERE uid = u.uid AND time > ?) ' +
-			'LEFT JOIN valuehistory AS day_va  ON day_va.uid  = u.uid AND day_va.time =  ' +
-				'(SELECT MIN(time) FROM valuehistory WHERE uid = u.uid AND time > ?) ' +
-			'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
-			'LEFT JOIN stocks ON u.uid = stocks.leader ' +
-			'LEFT JOIN httpresources ON httpresources.uid = u.uid AND httpresources.role = "profile.image" ' +
-			'LEFT JOIN events ON events.targetid = u.uid AND events.type = "user-register" ' +
-			'WHERE u.' + lookforColumn + ' = ?',
-			[Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
-	}).then(function(users) {
-		if (users.length == 0)
-			throw new self.SoTradeClientError('get-user-info-notfound');
-		
-		xuser = users[0];
-		xuser.isSelf = (ctx.user && xuser.uid == ctx.user.uid);
-		if (xuser.isSelf) 
-			xuser.access = ctx.access.toArray();
-		xuser.id = xuser.uid; // backwards compatibility
-		
-		assert.ok(xuser.registerevent);
-		
-		delete xuser.pwhash;
-		delete xuser.pwsalt;
-	}).then(function() {
-		var cacheKey2 = 'get-user-info2:' + xuser.lstockid + ':' + xuser.dschoolid;
-		if (self.cache.has(cacheKey2) && cacheable)
-			return self.cache.use(cacheKey2);
-		
-		return self.cache.add(cacheKey2, 60000, 
-			Promise.all([
-				ctx.query('SELECT SUM(amount) AS samount, SUM(1) AS sone ' +
-					'FROM depot_stocks AS ds WHERE ds.stockid = ?', [xuser.lstockid]), 
-				ctx.query('SELECT p.name, p.path, p.schoolid FROM schools AS c ' +
-					'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ' + 
-					'WHERE c.schoolid = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid])
-			]));
-	}).spread(function(followers, schools) {
-		xuser.f_amount = followers[0].samount || 0;
-		xuser.f_count = followers[0].sone || 0;
-		
-		/* do some validation on the schools array.
-		 * this is not necessary; however, it may help catch bugs long 
-		 * before they actually do a lot of harm. */
-		var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
-		if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
-			return self.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
-		
-		/* backwards compatibility */
-		for (var i = 0; i < schools.length; ++i)
-			schools[i].id = schools[i].schoolid;
-		
-		xuser.schools = schools;
-		
-		var result = {
-			code: 'get-user-info-success', 
-			result: xuser
-		};
-		
-		resultCacheKey += ':' + xuser.uid + ':' + query.nohistory;
-		
-		var viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
-		var cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
-		
-		if (query.nohistory)
-			return result;
-		
-		resultCacheKey += '/' + cacheKey3;
-		
-		return Promise.resolve().then(function() {
-			if (self.cache.has(cacheKey3) && cacheable)
-				return self.cache.use(cacheKey3);
-			
-			return self.cache.add(cacheKey3, 120000, Promise.all([
-				// orders
-				ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
-					'LEFT JOIN users AS l ON oh.leader = l.uid ' + 
-					'WHERE oh.uid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
-					'ORDER BY buytime DESC',
-					[xuser.uid, viewDOHPermission ? 0 : cfg.delayOrderHistTime]),
-				// achievements
-				ctx.query('SELECT * FROM achievements ' + 
-					'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
-					'WHERE uid = ?', [xuser.uid]),
-				// values
-				ctx.query('SELECT time, totalvalue FROM valuehistory WHERE uid = ?', [xuser.uid]),
-			]));
-		}).spread(function(orders, achievements, values) {
-			result.orders = orders;
-			result.achievements = achievements;
-			result.values = values;
-			
-			return ctx.query('SELECT c.*, u.name AS username,u.uid AS uid, url AS profilepic, trustedhtml ' + 
-				'FROM ecomments AS c ' + 
-				'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
-				'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' + 
-				'WHERE c.eventid = ?', [xuser.registerevent]);
-		}).then(function(comments) {
-			result.pinboard = comments;
-			
-			return result;
-		});
-	}).then(function(result) {
-		if (cacheable) {
-			result.cc__ = {
-				fields: ['result', 'orders', 'achievements', 'values'],
-				validity: 60000,
-				key: resultCacheKey,
-				cache: self.cache
-			};
-		}
-		
-		return result;
-	});
+  var self = this;
+  var cfg, xuser;
+  
+  var cacheable = !(ctx.access.has('caching') && query.noCache);
+  var resultCacheKey = '';
+  
+  query.nohistory = !!query.nohistory;
+  
+  return self.getServerConfig().then(function(cfg_) {
+    cfg = cfg_;
+  
+    if (query.lookfor == '$self' && ctx.user)
+      query.lookfor = ctx.user.uid;
+    
+    var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.uid ? [
+      'u.*', 'ud.*', 'uf.*',
+    ] : [
+      'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
+      'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
+    ]).concat([
+      'u.uid AS uid', 'u.name AS name', 'birthday',
+      'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
+      '`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
+      'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.stockid AS lstockid',
+      'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
+      '((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
+      '((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
+      '((uf.fperf_cur + uf.fperf_sold - week_va.fperf_sold) / (uf.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
+      '((uf.operf_cur + uf.operf_sold - week_va.operf_sold) / (uf.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
+      '(uf.fperf_cur + uf.fperf_sold) / uf.fperf_bought AS totalfperf',
+      '(uf.operf_cur + uf.operf_sold) / uf.operf_bought AS totaloperf',
+      'freemoney', 'uf.wprov_sum + uf.lprov_sum AS prov_sum',
+      'week_va.totalvalue AS weekstarttotalvalue',
+      'day_va.totalvalue  AS daystarttotalvalue'
+    ]).join(', ');
+    
+    var lookfor, lookforColumn;
+    if (parseInt(query.lookfor) == query.lookfor) {
+      lookfor = parseInt(query.lookfor);
+      lookforColumn = 'uid';
+    } else {
+      lookfor = String(query.lookfor);
+      lookforColumn = 'name';
+    }
+    
+    resultCacheKey += 'get-user-info-result:' + columns.length;
+    var cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
+    if (self.cache.has(cacheKey) && cacheable)
+      return self.cache.use(cacheKey);
+    
+    return self.cache.add(cacheKey, 60000, ctx.query('SELECT ' + columns + ' FROM users AS u ' +
+      'JOIN users_finance AS uf ON u.uid = uf.uid ' +
+      'JOIN users_data AS ud ON u.uid = ud.uid ' +
+      'LEFT JOIN valuehistory AS week_va ON week_va.uid = u.uid AND week_va.time = ' +
+        '(SELECT MIN(time) FROM valuehistory WHERE uid = u.uid AND time > ?) ' +
+      'LEFT JOIN valuehistory AS day_va  ON day_va.uid  = u.uid AND day_va.time =  ' +
+        '(SELECT MIN(time) FROM valuehistory WHERE uid = u.uid AND time > ?) ' +
+      'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
+      'LEFT JOIN stocks ON u.uid = stocks.leader ' +
+      'LEFT JOIN httpresources ON httpresources.uid = u.uid AND httpresources.role = "profile.image" ' +
+      'LEFT JOIN events ON events.targetid = u.uid AND events.type = "user-register" ' +
+      'WHERE u.' + lookforColumn + ' = ?',
+      [Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
+  }).then(function(users) {
+    if (users.length == 0)
+      throw new self.SoTradeClientError('get-user-info-notfound');
+    
+    xuser = users[0];
+    xuser.isSelf = (ctx.user && xuser.uid == ctx.user.uid);
+    if (xuser.isSelf) 
+      xuser.access = ctx.access.toArray();
+    xuser.id = xuser.uid; // backwards compatibility
+    
+    assert.ok(xuser.registerevent);
+    
+    delete xuser.pwhash;
+    delete xuser.pwsalt;
+  }).then(function() {
+    var cacheKey2 = 'get-user-info2:' + xuser.lstockid + ':' + xuser.dschoolid;
+    if (self.cache.has(cacheKey2) && cacheable)
+      return self.cache.use(cacheKey2);
+    
+    return self.cache.add(cacheKey2, 60000, 
+      Promise.all([
+        ctx.query('SELECT SUM(amount) AS samount, SUM(1) AS sone ' +
+          'FROM depot_stocks AS ds WHERE ds.stockid = ?', [xuser.lstockid]), 
+        ctx.query('SELECT p.name, p.path, p.schoolid FROM schools AS c ' +
+          'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ' + 
+          'WHERE c.schoolid = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid])
+      ]));
+  }).spread(function(followers, schools) {
+    xuser.f_amount = followers[0].samount || 0;
+    xuser.f_count = followers[0].sone || 0;
+    
+    /* do some validation on the schools array.
+     * this is not necessary; however, it may help catch bugs long 
+     * before they actually do a lot of harm. */
+    var levelArray = _.map(schools, function(s) { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
+    if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
+      return self.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
+    
+    /* backwards compatibility */
+    for (var i = 0; i < schools.length; ++i)
+      schools[i].id = schools[i].schoolid;
+    
+    xuser.schools = schools;
+    
+    var result = {
+      code: 'get-user-info-success', 
+      result: xuser
+    };
+    
+    resultCacheKey += ':' + xuser.uid + ':' + query.nohistory;
+    
+    var viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
+    var cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
+    
+    if (query.nohistory)
+      return result;
+    
+    resultCacheKey += '/' + cacheKey3;
+    
+    return Promise.resolve().then(function() {
+      if (self.cache.has(cacheKey3) && cacheable)
+        return self.cache.use(cacheKey3);
+      
+      return self.cache.add(cacheKey3, 120000, Promise.all([
+        // orders
+        ctx.query('SELECT oh.*, l.name AS leadername FROM orderhistory AS oh ' +
+          'LEFT JOIN users AS l ON oh.leader = l.uid ' + 
+          'WHERE oh.uid = ? AND buytime <= (UNIX_TIMESTAMP() - ?) ' + 
+          'ORDER BY buytime DESC',
+          [xuser.uid, viewDOHPermission ? 0 : cfg.delayOrderHistTime]),
+        // achievements
+        ctx.query('SELECT * FROM achievements ' + 
+          'LEFT JOIN events ON events.type="achievement" AND events.targetid = achid ' +
+          'WHERE uid = ?', [xuser.uid]),
+        // values
+        ctx.query('SELECT time, totalvalue FROM valuehistory WHERE uid = ?', [xuser.uid]),
+      ]));
+    }).spread(function(orders, achievements, values) {
+      result.orders = orders;
+      result.achievements = achievements;
+      result.values = values;
+      
+      return ctx.query('SELECT c.*, u.name AS username,u.uid AS uid, url AS profilepic, trustedhtml ' + 
+        'FROM ecomments AS c ' + 
+        'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
+        'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' + 
+        'WHERE c.eventid = ?', [xuser.registerevent]);
+    }).then(function(comments) {
+      result.pinboard = comments;
+      
+      return result;
+    });
+  }).then(function(result) {
+    if (cacheable) {
+      result.cc__ = {
+        fields: ['result', 'orders', 'achievements', 'values'],
+        validity: 60000,
+        key: resultCacheKey,
+        cache: self.cache
+      };
+    }
+    
+    return result;
+  });
 });
 
 /**
@@ -809,32 +809,32 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
  * @function busreq~regularCallbackUser
  */
 User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx'], function(query, ctx) {
-	if (ctx.getProperty('readonly'))
-		return Promise.resolve();
-	
-	debug('Regular callback');
-	
-	return Promise.all([
-		ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
-		ctx.query('DELETE FROM passwords WHERE changetime IS NULL AND issuetime < UNIX_TIMESTAMP() - 7*86400'),
-		ctx.query('UPDATE users SET email=CONCAT("deleted:erased:", uid), email_verif = 0 ' +
-			'WHERE deletiontime IS NOT NULL AND deletiontime < UNIX_TIMESTAMP() - 70*86400'),
-		ctx.query('SELECT p.schoolid, p.path, users.access FROM schools AS p ' +
-			'JOIN events ON events.type="school-create" AND events.targetid = p.schoolid ' +
-			'JOIN users ON users.uid = events.srcuser ' +
-			'WHERE ' +
-			'(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.schoolid) = 0 AND ' +
-			'(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0 AND ' +
-			'(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.schoolid) = 0 AND ' +
-			'(SELECT COUNT(*) FROM invitelink WHERE invitelink.schoolid = p.schoolid) = 0').then(function(schools) {
-			return Promise.all(schools.filter(function(school) {
-				return !Access.fromJSON(school.access).has('schooldb') &&
-					(school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));
-			}).map(function(school) {
-				return ctx.query('DELETE FROM schools WHERE schoolid = ?', [school.schoolid]);
-			}));
-		})
-	]);
+  if (ctx.getProperty('readonly'))
+    return Promise.resolve();
+  
+  debug('Regular callback');
+  
+  return Promise.all([
+    ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
+    ctx.query('DELETE FROM passwords WHERE changetime IS NULL AND issuetime < UNIX_TIMESTAMP() - 7*86400'),
+    ctx.query('UPDATE users SET email=CONCAT("deleted:erased:", uid), email_verif = 0 ' +
+      'WHERE deletiontime IS NOT NULL AND deletiontime < UNIX_TIMESTAMP() - 70*86400'),
+    ctx.query('SELECT p.schoolid, p.path, users.access FROM schools AS p ' +
+      'JOIN events ON events.type="school-create" AND events.targetid = p.schoolid ' +
+      'JOIN users ON users.uid = events.srcuser ' +
+      'WHERE ' +
+      '(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.schoolid) = 0 AND ' +
+      '(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0 AND ' +
+      '(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.schoolid) = 0 AND ' +
+      '(SELECT COUNT(*) FROM invitelink WHERE invitelink.schoolid = p.schoolid) = 0').then(function(schools) {
+      return Promise.all(schools.filter(function(school) {
+        return !Access.fromJSON(school.access).has('schooldb') &&
+          (school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));
+      }).map(function(school) {
+        return ctx.query('DELETE FROM schools WHERE schoolid = ?', [school.schoolid]);
+      }));
+    })
+  ]);
 });
 
 /**
@@ -851,50 +851,50 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
  * @function c2s~emailverif
  */
 User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', function(query, ctx, xdata) {
-	var self = this;
-	
-	var uid = parseInt(query.uid), email;
-	var key = String(query.key);
-	
-	if (uid != query.uid)
-		throw new self.FormatError();
-	
-	debug('Verify email', uid);
-	
-	return ctx.startTransaction().then(function(conn) {
-		return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid])
-		.then(function(res) {
-			if (res.length !== 1)
-				throw new self.SoTradeClientError('email-verify-failure');
-			
-			email = res[0].email;
-			if (res[0].email_verif)
-				throw new self.SoTradeClientError('email-verify-already-verified');
-			
-			return conn.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ? FOR UPDATE', [uid, key]);
-		}).then(function(res) {
-			assert.equal(res.length, 1);
-			
-			if (res[0].c < 1 && !ctx.access.has('userdb'))
-				throw new self.SoTradeClientError('email-verify-failure');
-			
-			return conn.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ? LOCK IN SHARE MODE', [email, uid]);
-		}).then(function(res) {
-			if (res[0].c > 0)
-				throw new self.SoTradeClientError('email-verify-other-already-verified');
-		
-			return conn.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
-		}).then(function() {
-			return conn.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
-		}).then(function() {
-			ctx.access.grant('email_verif');
-		}).then(conn.commit, conn.rollbackAndThrow);
-	}).then(function() {
-		return self.login({
-			name: email,
-			stayloggedin: true,
-		}, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, true, true);
-	});
+  var self = this;
+  
+  var uid = parseInt(query.uid), email;
+  var key = String(query.key);
+  
+  if (uid != query.uid)
+    throw new self.FormatError();
+  
+  debug('Verify email', uid);
+  
+  return ctx.startTransaction().then(function(conn) {
+    return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid])
+    .then(function(res) {
+      if (res.length !== 1)
+        throw new self.SoTradeClientError('email-verify-failure');
+      
+      email = res[0].email;
+      if (res[0].email_verif)
+        throw new self.SoTradeClientError('email-verify-already-verified');
+      
+      return conn.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ? FOR UPDATE', [uid, key]);
+    }).then(function(res) {
+      assert.equal(res.length, 1);
+      
+      if (res[0].c < 1 && !ctx.access.has('userdb'))
+        throw new self.SoTradeClientError('email-verify-failure');
+      
+      return conn.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ? LOCK IN SHARE MODE', [email, uid]);
+    }).then(function(res) {
+      if (res[0].c > 0)
+        throw new self.SoTradeClientError('email-verify-other-already-verified');
+    
+      return conn.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
+    }).then(function() {
+      return conn.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
+    }).then(function() {
+      ctx.access.grant('email_verif');
+    }).then(conn.commit, conn.rollbackAndThrow);
+  }).then(function() {
+    return self.login({
+      name: email,
+      stayloggedin: true,
+    }, new qctx.QContext({access: ctx.access, parentComponent: self}), xdata, true, true);
+  });
 });
 
 /**
@@ -912,31 +912,31 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
  * @function busreq~updateUserStatistics
  */
 User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
-	['user', 'ctx', 'force'], function(user, ctx, force)
+  ['user', 'ctx', 'force'], function(user, ctx, force)
 {
-	if (!user)
-		return Promise.resolve();
-	
-	var now = Date.now();
-	var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
-	
-	if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly') || !user) {
-		// don't update things yet
-		ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
-		
-		return Promise.resolve();
-	} else {
-		var ticks = ctx.getProperty('pendingTicks');
-		ctx.setProperty('pendingTicks', 0);
-		ctx.setProperty('lastSessionUpdate', now);
-		
-		debug('Adding ticks', user.uid, ticks);
-		
-		return Promise.all([
-			ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]),
-			ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ticks, user.uid])
-		]);
-	}
+  if (!user)
+    return Promise.resolve();
+  
+  var now = Date.now();
+  var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
+  
+  if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly') || !user) {
+    // don't update things yet
+    ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
+    
+    return Promise.resolve();
+  } else {
+    var ticks = ctx.getProperty('pendingTicks');
+    ctx.setProperty('pendingTicks', 0);
+    ctx.setProperty('lastSessionUpdate', now);
+    
+    debug('Adding ticks', user.uid, ticks);
+    
+    return Promise.all([
+      ctx.query('UPDATE sessions SET lastusetime = UNIX_TIMESTAMP() WHERE id = ?', [user.sid]),
+      ctx.query('UPDATE globalvars SET value = ? + value WHERE name="ticks"', [ticks, user.uid])
+    ]);
+  }
 });
 
 /**
@@ -952,73 +952,73 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
  * @function busreq~loadSessionUser
  */
 User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx'], function(key, ctx) {
-	var self = this;
-	
-	var signedLogin = (key[0] == ':');
-	
-	return Promise.resolve().then(function() {
-		if (!signedLogin)
-			return {uid: null, key: key};
-		
-		// was signed login, e. g. during read-only period
-		return self.request({
-			name: 'verifySignedMessage',
-			msg: key.substr(1),
-		}).then(function(msg) {
-			var today = parseInt(Date.now() / 86400);
-			if (!msg || msg.date <= today - 1) // message at least 24 hours old
-				return null;
-			
-			debug('Verified user in readonly mode', msg.uid);
-			return {uid: msg.uid, key: msg.sid};
-		});
-	}).then(function(loginInfo) {
-		if (!loginInfo)
-			return null;
-		
-		return ctx.query('SELECT users.*, users_finance.*, users_data.*, users.uid AS uid, ' +
-			(signedLogin ? '' : 'sessions.id AS sid, ') +
-			'schools.path AS schoolpath, schools.schoolid AS schoolid, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
-			'FROM users ' +
-			'JOIN users_finance ON users_finance.uid = users.uid ' +
-			'JOIN users_data ON users_data.uid = users.uid ' +
-			(signedLogin ? '' : 'JOIN sessions ON sessions.uid = users.uid ') +
-			'LEFT JOIN schoolmembers AS sm ON sm.uid = users.uid ' +
-			'LEFT JOIN schools ON schools.schoolid = sm.schoolid ' +
-			'WHERE ' + (signedLogin ? 'users.uid = ? ' : '`key` = ? ' +
-			(ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
-			'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
-		.then(function(res) {
-			if (res.length == 0)
-				return null;
-			
-			assert.equal(res.length, 1);
-			var user = res[0];
-			/* backwards compatibility */
-			user.id = user.uid;
-			user.school = user.schoolid;
-			
-			assert.ok(user.uid == loginInfo.uid || loginInfo.uid === null);
-			
-			user.realnamepublish = !!user.realnamepublish;
-			user.delayorderhist = !!user.delayorderhist;
-			
-			try {
-				user.clientopt = JSON.parse(user.clientopt);
-			} catch (e) {
-				user.clientopt = {};
-			}
-			
-			if (signedLogin)
-				user.sid = loginInfo.key;
-			
-			debug('Loaded user', user.uid);
-			
-			return self.updateUserStatistics(user, ctx).then(function() {
-				return user;
-			});
-		});
-	});
+  var self = this;
+  
+  var signedLogin = (key[0] == ':');
+  
+  return Promise.resolve().then(function() {
+    if (!signedLogin)
+      return {uid: null, key: key};
+    
+    // was signed login, e. g. during read-only period
+    return self.request({
+      name: 'verifySignedMessage',
+      msg: key.substr(1),
+    }).then(function(msg) {
+      var today = parseInt(Date.now() / 86400);
+      if (!msg || msg.date <= today - 1) // message at least 24 hours old
+        return null;
+      
+      debug('Verified user in readonly mode', msg.uid);
+      return {uid: msg.uid, key: msg.sid};
+    });
+  }).then(function(loginInfo) {
+    if (!loginInfo)
+      return null;
+    
+    return ctx.query('SELECT users.*, users_finance.*, users_data.*, users.uid AS uid, ' +
+      (signedLogin ? '' : 'sessions.id AS sid, ') +
+      'schools.path AS schoolpath, schools.schoolid AS schoolid, schools.name AS schoolname, jointime, sm.pending AS schoolpending ' +
+      'FROM users ' +
+      'JOIN users_finance ON users_finance.uid = users.uid ' +
+      'JOIN users_data ON users_data.uid = users.uid ' +
+      (signedLogin ? '' : 'JOIN sessions ON sessions.uid = users.uid ') +
+      'LEFT JOIN schoolmembers AS sm ON sm.uid = users.uid ' +
+      'LEFT JOIN schools ON schools.schoolid = sm.schoolid ' +
+      'WHERE ' + (signedLogin ? 'users.uid = ? ' : '`key` = ? ' +
+      (ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
+      'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
+    .then(function(res) {
+      if (res.length == 0)
+        return null;
+      
+      assert.equal(res.length, 1);
+      var user = res[0];
+      /* backwards compatibility */
+      user.id = user.uid;
+      user.school = user.schoolid;
+      
+      assert.ok(user.uid == loginInfo.uid || loginInfo.uid === null);
+      
+      user.realnamepublish = !!user.realnamepublish;
+      user.delayorderhist = !!user.delayorderhist;
+      
+      try {
+        user.clientopt = JSON.parse(user.clientopt);
+      } catch (e) {
+        user.clientopt = {};
+      }
+      
+      if (signedLogin)
+        user.sid = loginInfo.key;
+      
+      debug('Loaded user', user.uid);
+      
+      return self.updateUserStatistics(user, ctx).then(function() {
+        return user;
+      });
+    });
+  });
 });
 
 /**
@@ -1031,10 +1031,10 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
  * @function c2s~register
  */
 User.prototype.register = buscomponent.provideWQT('client-register', function(query, ctx, xdata) {
-	if (ctx.user !== null)
-		throw new this.SoTradeClientError('already-logged-in');
-	
-	return this.updateUser(query, 'register', ctx, xdata);
+  if (ctx.user !== null)
+    throw new this.SoTradeClientError('already-logged-in');
+  
+  return this.updateUser(query, 'register', ctx, xdata);
 });
 
 /**
@@ -1046,7 +1046,7 @@ User.prototype.register = buscomponent.provideWQT('client-register', function(qu
  * @function c2s~change-options
  */
 User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', function(query, ctx, xdata) {
-	return this.updateUser(query, 'change', ctx, xdata);
+  return this.updateUser(query, 'change', ctx, xdata);
 });
 
 /**
@@ -1063,26 +1063,26 @@ User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', 
  * @function c2s~validate-username
  */
 User.prototype.validateUsername = buscomponent.provideQT('client-validate-username', function(query, ctx) {
-	var self = this;
-	query.name = String(query.name);
-	
-	if (parseInt(query.uid) != query.uid)
-		query.uid = null;
-	
-	if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
-		parseInt(query.name) == query.name) {
-		throw new self.SoTradeClientError('reg-name-invalid-char');
-	}
-	
-	return ctx.query('SELECT uid FROM users ' +
-		'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
-		[query.name, query.uid]).then(function(res) {
-		
-		if (res.length > 0 && res[0].uid !== query.uid)
-			throw new self.SoTradeClientError('reg-name-already-present');
-		
-		return { code: 'validate-username-valid' };
-	});
+  var self = this;
+  query.name = String(query.name);
+  
+  if (parseInt(query.uid) != query.uid)
+    query.uid = null;
+  
+  if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
+    parseInt(query.name) == query.name) {
+    throw new self.SoTradeClientError('reg-name-invalid-char');
+  }
+  
+  return ctx.query('SELECT uid FROM users ' +
+    'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
+    [query.name, query.uid]).then(function(res) {
+    
+    if (res.length > 0 && res[0].uid !== query.uid)
+      throw new self.SoTradeClientError('reg-name-already-present');
+    
+    return { code: 'validate-username-valid' };
+  });
 });
 
 /**
@@ -1099,23 +1099,23 @@ User.prototype.validateUsername = buscomponent.provideQT('client-validate-userna
  * @function c2s~validate-email
  */
 User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', function(query, ctx) {
-	var self = this;
-	query.email = String(query.email);
-	
-	if (parseInt(query.uid) != query.uid)
-		query.uid = null;
-	
-	if (!validator.isEmail(query.email))
-		throw new self.SoTradeClientError('reg-invalid-email');
-	
-	return ctx.query('SELECT uid FROM users ' +
-		'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
-		[query.email, query.uid]).then(function(res) {
-		if (res.length > 0 && res[0].uid !== query.uid)
-			throw new self.SoTradeClientError('reg-email-already-present');
-		
-		return { code: 'validate-email-valid' };
-	});
+  var self = this;
+  query.email = String(query.email);
+  
+  if (parseInt(query.uid) != query.uid)
+    query.uid = null;
+  
+  if (!validator.isEmail(query.email))
+    throw new self.SoTradeClientError('reg-invalid-email');
+  
+  return ctx.query('SELECT uid FROM users ' +
+    'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
+    [query.email, query.uid]).then(function(res) {
+    if (res.length > 0 && res[0].uid !== query.uid)
+      throw new self.SoTradeClientError('reg-email-already-present');
+    
+    return { code: 'validate-email-valid' };
+  });
 });
 
 /**
@@ -1180,255 +1180,255 @@ User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', f
  * @function module:user~User#updateUser
  */
 User.prototype.updateUser = function(query, type, ctx, xdata) {
-	var self = this;
-	
-	debug('Update user', type, ctx.user && ctx.user.uid);
-	
-	var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
-	
-	var res, uid, cfg;
-	var gainUIDCBs = [];
-	
-	return self.getServerConfig().then(function(cfg_) {
-		cfg = cfg_;
-		uid = ctx.user !== null ? ctx.user.uid : null;
-		if (!query.name || !query.email)
-			throw new self.FormatError();
-		
-		if ((query.password || type != 'change') && (!query.password || query.password.length < 5))
-			throw new self.SoTradeClientError('reg-too-short-pw');
-		
-		query.email = String(query.email);
-		query.name = String(query.name);
-		query.gender = query.gender ? String(query.gender) : null;
-		
-		if (query.gender !== null && genders.genders.indexOf(query.gender) == -1)
-			throw new self.SoTradeClientError('reg-unknown-gender');
-		
-		query.giv_name = String(query.giv_name || '');
-		query.fam_name = String(query.fam_name || '');
-		query.wprovision = parseInt(query.wprovision) || cfg.defaultWProvision;
-		query.lprovision = parseInt(query.lprovision) || cfg.defaultLProvision;
-		query.birthday = query.birthday ? parseInt(query.birthday) : null;
-		query.desc = String(query.desc);
-		query.street = query.street ? String(query.street) : null;
-		query.town = query.town ? String(query.town) : null;
-		query.zipcode = query.zipcode ? String(query.zipcode) : null;
-		
-		if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
-			query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
-			throw new self.SoTradeClientError('invalid-provision');
-		
-		query.lang = String(query.lang || cfg.languages[0].id);
-		if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() == -1)
-			throw new self.SoTradeClientError('reg-invalid-language');
-		
-		if (!query.school) // e. g., empty string
-			query.school = null;
-		
-		return ctx.startTransaction();
-	}).then(function(conn) {
-		return Promise.all([
-			(ctx.user && query.email == ctx.user.email) ||
-				self.validateEMail({ email: query.email, uid: uid }, conn),
-			(ctx.user && query.name == ctx.user.name) ||
-				self.validateUsername({ name: query.name, uid: uid }, conn)
-		]).then(function() {
-		return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
-			[betakey[0]])
-	}).then(function(βkey) {
-		if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
-			type == 'register' && !ctx.access.has('userdb'))
-			throw new self.SoTradeClientError('reg-beta-necessary');
-		
-		if (query.school === null)
-			return [];
-		
-		return conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) FOR UPDATE', [String(query.school)]);
-	}).then(function(res) {
-		if (res.length == 0 && query.school !== null) {
-			if (parseInt(query.school) == query.school || !query.school)
-				throw new self.SoTradeClientError('reg-unknown-school');
-			
-			var possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
-			
-			return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [possibleSchoolPath]).then(function(psRes) {
-				assert.equal(psRes.length, 1);
-				
-				if (psRes[0].c == 0) /* no collision, no additional identifier needed */
-					return null;
-				
-				return Q.nfcall(crypto.pseudoRandomBytes, 3);
-			}).then(function(rand) {
-				if (rand)
-					possibleSchoolPath += '-' + rand.toString('base64') + String(Date.now()).substr(3, 4);
-				
-				debug('Create school for user update', possibleSchoolPath);
-				
-				return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
-					[String(query.school), possibleSchoolPath]);
-			});
-		} else {
-			if (query.school !== null) {
-				assert.ok(parseInt(query.school) != query.school || query.school == res[0].schoolid);
-				query.school = res[0].schoolid;
-			}
-			
-			return [];
-		}
-	}).then(function(res) {
-		if (res && res.insertId) {
-			// in case school was created
-			
-			var schoolid = res.insertId;
-			query.school = schoolid;
-			
-			gainUIDCBs.push(function() {
-				assert.equal(uid, parseInt(uid));
-				
-				return ctx.feed({
-					'type': 'school-create',
-					'targetid': schoolid,
-					'srcuser': uid,
-					'conn': conn
-				});
-			});
-		}
-		
-		if (type == 'change') {
-			return Promise.all([
-				conn.query('UPDATE users SET name = ?, email = ?, email_verif = ?, ' +
-					'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
-					[String(query.name),
-					String(query.email), query.email == ctx.user.email ? 1 : 0, 
-					query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
-				conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
-					'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-					'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ?, gender = ? WHERE uid = ?',
-					[String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
-					query.birthday, String(query.desc), String(query.street),
-					String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
-					query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
-					String(query.lang), query.gender, uid]),
-				conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
-					[query.wprovision, query.lprovision, uid]),
-				query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve()
-			]).then(function() {
-				if (query.school == ctx.user.school)
-					return;
-				
-				return Promise.resolve().then(function() {
-					if (ctx.user.school != null);
-						return conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
-				}).then(function() {
-					if (query.school == null)
-						return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
-					
-					return conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
-						'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' :
-							'((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
-						[uid, String(query.school), String(query.school)]);
-				});
-			}).then(function() {
-				if (query.name == ctx.user.name)
-					return;
-				
-				return ctx.feed({
-					'type': 'user-namechange',
-					'targetid': uid,
-					'srcuser': uid,
-					'json': {'oldname': ctx.user.name, 'newname': query.name},
-					'conn': conn
-				}).then(function() {
-					return conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
-				});
-			}).then(function() {
-				if (query.wprovision == ctx.user.wprovision && query.lprovision == ctx.user.lprovision)
-					return;
-				
-				return ctx.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
-					{'oldwprov': ctx.user.wprovision, 'newwprov': query.wprovision,
-					 'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}, 'conn': conn});
-			}).then(function() {
-				if (query.desc == ctx.user.desc)
-					return;
-				
-				return ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
-			});
-		} else {
-			var inv = {};
-			return Promise.resolve().then(function() {
-				if (query.betakey)
-					return conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
-			}).then(function() {
-				if (!query.invitekey)
-					return;
-				
-				return conn.query('SELECT * FROM invitelink WHERE `key` = ?', [String(query.invitekey)]).then(function() {
-					if (invres.length == 0)
-						return;
-					
-					assert.equal(invres.length, 1);
-					
-					inv = invres[0];
-					if (inv.schoolid && !query.school || parseInt(query.school) == parseInt(inv.schoolid)) {
-						query.school = inv.schoolid;
-						inv.__schoolverif__ = 1;
-					}
-					
-					gainUIDCBs.push(function() {
-						return conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.iid, uid]);
-					});
-				});
-			}).then(function() {
-				return conn.query('INSERT INTO users ' +
-					'(name, delayorderhist, email, email_verif, registertime) ' +
-					'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())',
-					[String(query.name), query.delayorderhist?1:0,
-					String(query.email), (inv.email && inv.email == query.email) ? 1 : 0]);
-			}).then(function(res) {
-				uid = res.insertId;
-				
-				return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve();
-			}).then(function() {
-				return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
-					'street, zipcode, town, schoolclass, lang, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
-					'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
-					'VALUES (?, ?, ?, ?, ?)',
-					[uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
-					query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
-					String(query.schoolclass || ''), String(query.lang), query.gender,
-					uid, cfg.defaultWProvision, cfg.defaultLProvision,
-					cfg.defaultStartingMoney, cfg.defaultStartingMoney]);
-			}).then(function() {
-				return ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid, 'conn': conn});
-			}).then(function() {
-				return conn.query('INSERT INTO stocks (stocktextid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
-					['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity']);
-			}).then(function() {
-				if (query.school) {
-					return conn.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
-						'VALUES(?, ?, ' + 
-						(inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
-						', UNIX_TIMESTAMP())',
-						[uid, String(query.school), String(query.school)]);
-				}
-			});
-		}
-	}).then(function() {
-		assert.strictEqual(uid, parseInt(uid));
-		
-		return gainUIDCBs.reduce(Q.when, Promise.resolve());
-	}).then(conn.commit, conn.rollbackAndThrow);
-	}).then(function() {
-		if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
-			return { code: 'reg-success', uid: uid, extra: 'repush' };
-		
-		return self.sendRegisterEmail(query,
-			new qctx.QContext({user: {uid: uid}, access: ctx.access,
-				parentComponent: self}),
-			xdata);
-	});
+  var self = this;
+  
+  debug('Update user', type, ctx.user && ctx.user.uid);
+  
+  var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
+  
+  var res, uid, cfg;
+  var gainUIDCBs = [];
+  
+  return self.getServerConfig().then(function(cfg_) {
+    cfg = cfg_;
+    uid = ctx.user !== null ? ctx.user.uid : null;
+    if (!query.name || !query.email)
+      throw new self.FormatError();
+    
+    if ((query.password || type != 'change') && (!query.password || query.password.length < 5))
+      throw new self.SoTradeClientError('reg-too-short-pw');
+    
+    query.email = String(query.email);
+    query.name = String(query.name);
+    query.gender = query.gender ? String(query.gender) : null;
+    
+    if (query.gender !== null && genders.genders.indexOf(query.gender) == -1)
+      throw new self.SoTradeClientError('reg-unknown-gender');
+    
+    query.giv_name = String(query.giv_name || '');
+    query.fam_name = String(query.fam_name || '');
+    query.wprovision = parseInt(query.wprovision) || cfg.defaultWProvision;
+    query.lprovision = parseInt(query.lprovision) || cfg.defaultLProvision;
+    query.birthday = query.birthday ? parseInt(query.birthday) : null;
+    query.desc = String(query.desc);
+    query.street = query.street ? String(query.street) : null;
+    query.town = query.town ? String(query.town) : null;
+    query.zipcode = query.zipcode ? String(query.zipcode) : null;
+    
+    if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
+      query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
+      throw new self.SoTradeClientError('invalid-provision');
+    
+    query.lang = String(query.lang || cfg.languages[0].id);
+    if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() == -1)
+      throw new self.SoTradeClientError('reg-invalid-language');
+    
+    if (!query.school) // e. g., empty string
+      query.school = null;
+    
+    return ctx.startTransaction();
+  }).then(function(conn) {
+    return Promise.all([
+      (ctx.user && query.email == ctx.user.email) ||
+        self.validateEMail({ email: query.email, uid: uid }, conn),
+      (ctx.user && query.name == ctx.user.name) ||
+        self.validateUsername({ name: query.name, uid: uid }, conn)
+    ]).then(function() {
+    return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
+      [betakey[0]])
+  }).then(function(βkey) {
+    if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
+      type == 'register' && !ctx.access.has('userdb'))
+      throw new self.SoTradeClientError('reg-beta-necessary');
+    
+    if (query.school === null)
+      return [];
+    
+    return conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) FOR UPDATE', [String(query.school)]);
+  }).then(function(res) {
+    if (res.length == 0 && query.school !== null) {
+      if (parseInt(query.school) == query.school || !query.school)
+        throw new self.SoTradeClientError('reg-unknown-school');
+      
+      var possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
+      
+      return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [possibleSchoolPath]).then(function(psRes) {
+        assert.equal(psRes.length, 1);
+        
+        if (psRes[0].c == 0) /* no collision, no additional identifier needed */
+          return null;
+        
+        return Q.nfcall(crypto.pseudoRandomBytes, 3);
+      }).then(function(rand) {
+        if (rand)
+          possibleSchoolPath += '-' + rand.toString('base64') + String(Date.now()).substr(3, 4);
+        
+        debug('Create school for user update', possibleSchoolPath);
+        
+        return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
+          [String(query.school), possibleSchoolPath]);
+      });
+    } else {
+      if (query.school !== null) {
+        assert.ok(parseInt(query.school) != query.school || query.school == res[0].schoolid);
+        query.school = res[0].schoolid;
+      }
+      
+      return [];
+    }
+  }).then(function(res) {
+    if (res && res.insertId) {
+      // in case school was created
+      
+      var schoolid = res.insertId;
+      query.school = schoolid;
+      
+      gainUIDCBs.push(function() {
+        assert.equal(uid, parseInt(uid));
+        
+        return ctx.feed({
+          'type': 'school-create',
+          'targetid': schoolid,
+          'srcuser': uid,
+          'conn': conn
+        });
+      });
+    }
+    
+    if (type == 'change') {
+      return Promise.all([
+        conn.query('UPDATE users SET name = ?, email = ?, email_verif = ?, ' +
+          'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
+          [String(query.name),
+          String(query.email), query.email == ctx.user.email ? 1 : 0, 
+          query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
+        conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
+          'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
+          'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ?, gender = ? WHERE uid = ?',
+          [String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
+          query.birthday, String(query.desc), String(query.street),
+          String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
+          query.traditye?1:0, query.dla_optin?1:0, String(query.schoolclass || ''),
+          String(query.lang), query.gender, uid]),
+        conn.query('UPDATE users_finance SET wprovision = ?, lprovision = ? WHERE uid = ?',
+          [query.wprovision, query.lprovision, uid]),
+        query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve()
+      ]).then(function() {
+        if (query.school == ctx.user.school)
+          return;
+        
+        return Promise.resolve().then(function() {
+          if (ctx.user.school != null);
+            return conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
+        }).then(function() {
+          if (query.school == null)
+            return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
+          
+          return conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
+            'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' :
+              '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0)') + ', UNIX_TIMESTAMP())',
+            [uid, String(query.school), String(query.school)]);
+        });
+      }).then(function() {
+        if (query.name == ctx.user.name)
+          return;
+        
+        return ctx.feed({
+          'type': 'user-namechange',
+          'targetid': uid,
+          'srcuser': uid,
+          'json': {'oldname': ctx.user.name, 'newname': query.name},
+          'conn': conn
+        }).then(function() {
+          return conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
+        });
+      }).then(function() {
+        if (query.wprovision == ctx.user.wprovision && query.lprovision == ctx.user.lprovision)
+          return;
+        
+        return ctx.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
+          {'oldwprov': ctx.user.wprovision, 'newwprov': query.wprovision,
+           'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}, 'conn': conn});
+      }).then(function() {
+        if (query.desc == ctx.user.desc)
+          return;
+        
+        return ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
+      });
+    } else {
+      var inv = {};
+      return Promise.resolve().then(function() {
+        if (query.betakey)
+          return conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
+      }).then(function() {
+        if (!query.invitekey)
+          return;
+        
+        return conn.query('SELECT * FROM invitelink WHERE `key` = ?', [String(query.invitekey)]).then(function() {
+          if (invres.length == 0)
+            return;
+          
+          assert.equal(invres.length, 1);
+          
+          inv = invres[0];
+          if (inv.schoolid && !query.school || parseInt(query.school) == parseInt(inv.schoolid)) {
+            query.school = inv.schoolid;
+            inv.__schoolverif__ = 1;
+          }
+          
+          gainUIDCBs.push(function() {
+            return conn.query('INSERT INTO inviteaccept (iid, uid, accepttime) VALUES(?, ?, UNIX_TIMESTAMP())', [inv.iid, uid]);
+          });
+        });
+      }).then(function() {
+        return conn.query('INSERT INTO users ' +
+          '(name, delayorderhist, email, email_verif, registertime) ' +
+          'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())',
+          [String(query.name), query.delayorderhist?1:0,
+          String(query.email), (inv.email && inv.email == query.email) ? 1 : 0]);
+      }).then(function(res) {
+        uid = res.insertId;
+        
+        return query.password ? self.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve();
+      }).then(function() {
+        return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
+          'street, zipcode, town, schoolclass, lang, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
+          'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
+          'VALUES (?, ?, ?, ?, ?)',
+          [uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
+          query.traditye?1:0, String(query.street), String(query.zipcode), String(query.town),
+          String(query.schoolclass || ''), String(query.lang), query.gender,
+          uid, cfg.defaultWProvision, cfg.defaultLProvision,
+          cfg.defaultStartingMoney, cfg.defaultStartingMoney]);
+      }).then(function() {
+        return ctx.feed({'type': 'user-register', 'targetid': uid, 'srcuser': uid, 'conn': conn});
+      }).then(function() {
+        return conn.query('INSERT INTO stocks (stocktextid, leader, name, exchange, pieces) VALUES(?, ?, ?, ?, 100000000)',
+          ['__LEADER_' + uid + '__', uid, 'Leader: ' + query.name, 'tradity']);
+      }).then(function() {
+        if (query.school) {
+          return conn.query('INSERT INTO schoolmembers (uid, schoolid, pending, jointime) ' +
+            'VALUES(?, ?, ' + 
+            (inv.__schoolverif__ ? '1' : '((SELECT COUNT(*) FROM schooladmins WHERE schoolid = ? AND status="admin") > 0) ') +
+            ', UNIX_TIMESTAMP())',
+            [uid, String(query.school), String(query.school)]);
+        }
+      });
+    }
+  }).then(function() {
+    assert.strictEqual(uid, parseInt(uid));
+    
+    return gainUIDCBs.reduce(Q.when, Promise.resolve());
+  }).then(conn.commit, conn.rollbackAndThrow);
+  }).then(function() {
+    if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
+      return { code: 'reg-success', uid: uid, extra: 'repush' };
+    
+    return self.sendRegisterEmail(query,
+      new qctx.QContext({user: {uid: uid}, access: ctx.access,
+        parentComponent: self}),
+      xdata);
+  });
 };
 
 /**
@@ -1443,40 +1443,40 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
  * @function c2s~reset-user
  */
 User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function(query, ctx) {
-	var self = this;
-	
-	debug('Reset user', ctx.user.uid);
-	
-	return self.getServerConfig().then(function(cfg) {
-		if (!cfg.resetAllowed && !ctx.access.has('userdb'))
-			throw new self.PermissionDenied();
-		
-		assert.ok(ctx.user);
-		assert.ok(ctx.access);
-		
-		return ctx.query('DELETE FROM depot_stocks WHERE uid = ?', [ctx.user.uid]).then(function() {
-			return ctx.query('UPDATE users_finance SET freemoney = ?, totalvalue = ?, ' +
-				'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
-				'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
-				'wprov_sum = 0, lprov_sum = 0 ' + 
-				'WHERE uid = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid]);
-		}).then(function() {
-			return self.request({name: 'sellAll', query: query, ctx: ctx});
-		}).then(function() {
-			var val = cfg.defaultStartingMoney / 1000;
-			
-			return Promise.all([
-				ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
-					'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
-					[val, val, val, val, val, ctx.user.uid]),
-				ctx.query('DELETE FROM valuehistory WHERE uid = ?', [ctx.user.uid]),
-				ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid}),
-				self.request({name: 'dqueriesResetUser', ctx: ctx})
-			]);
-		}).then(function() {
-			return { code: 'reset-user-success' };
-		});
-	});
+  var self = this;
+  
+  debug('Reset user', ctx.user.uid);
+  
+  return self.getServerConfig().then(function(cfg) {
+    if (!cfg.resetAllowed && !ctx.access.has('userdb'))
+      throw new self.PermissionDenied();
+    
+    assert.ok(ctx.user);
+    assert.ok(ctx.access);
+    
+    return ctx.query('DELETE FROM depot_stocks WHERE uid = ?', [ctx.user.uid]).then(function() {
+      return ctx.query('UPDATE users_finance SET freemoney = ?, totalvalue = ?, ' +
+        'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
+        'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
+        'wprov_sum = 0, lprov_sum = 0 ' + 
+        'WHERE uid = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid]);
+    }).then(function() {
+      return self.request({name: 'sellAll', query: query, ctx: ctx});
+    }).then(function() {
+      var val = cfg.defaultStartingMoney / 1000;
+      
+      return Promise.all([
+        ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
+          'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
+          [val, val, val, val, val, ctx.user.uid]),
+        ctx.query('DELETE FROM valuehistory WHERE uid = ?', [ctx.user.uid]),
+        ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid}),
+        self.request({name: 'dqueriesResetUser', ctx: ctx})
+      ]);
+    }).then(function() {
+      return { code: 'reset-user-success' };
+    });
+  });
 });
 
 /**
@@ -1490,32 +1490,32 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  * @function c2s~list-genders
  */
 User.prototype.listGenders = buscomponent.provideQT('client-list-genders', function(query, ctx) {
-	var self = this;
-	
-	return Promise.resolve().then(function() {
-		if (self.cache.has('gender-statistics'))
-			return self.cache.use('gender-statistics');
-		
-		return self.cache.add('gender-statistics', 60000,
-			ctx.query('SELECT gender, COUNT(gender) AS gc FROM users_data GROUP BY gender ORDER BY gc DESC'));
-	}).catch(function(e) {
-		console.error('Error loading gender list', e);
-		/* if something went wrong, everything still is just fine */
-		return [];
-	}).then(function(stats) {
-		var genderRanking = _.pluck(stats, 'gender').slice(0, 4);
-		genders.genders = _.sortBy(genders.genders, function(gender) {
-			var rankingIndex = genderRanking.indexOf(gender);
-			if (rankingIndex == -1)
-				rankingIndex = Infinity;
-			return [rankingIndex, gender];
-		});
-		
-		return {
-			code: 'list-genders-success',
-			genders: genders
-		};
-	});
+  var self = this;
+  
+  return Promise.resolve().then(function() {
+    if (self.cache.has('gender-statistics'))
+      return self.cache.use('gender-statistics');
+    
+    return self.cache.add('gender-statistics', 60000,
+      ctx.query('SELECT gender, COUNT(gender) AS gc FROM users_data GROUP BY gender ORDER BY gc DESC'));
+  }).catch(function(e) {
+    console.error('Error loading gender list', e);
+    /* if something went wrong, everything still is just fine */
+    return [];
+  }).then(function(stats) {
+    var genderRanking = _.pluck(stats, 'gender').slice(0, 4);
+    genders.genders = _.sortBy(genders.genders, function(gender) {
+      var rankingIndex = genderRanking.indexOf(gender);
+      if (rankingIndex == -1)
+        rankingIndex = Infinity;
+      return [rankingIndex, gender];
+    });
+    
+    return {
+      code: 'list-genders-success',
+      genders: genders
+    };
+  });
 });
 
 /**
@@ -1532,42 +1532,42 @@ User.prototype.listGenders = buscomponent.provideQT('client-list-genders', funct
  * @function c2s~password-reset
  */
 User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset', function(query, ctx) {
-	var self = this;
-	
-	if (ctx.user)
-		throw new self.SoTradeClientError('already-logged-in');
-	
-	var name = String(query.name), pw, u;
-	
-	debug('Reset password', name);
-	
-	return ctx.query('SELECT users.uid, email, lang ' +
-		'FROM users ' +
-		'JOIN users_data ON users.uid = users_data.uid ' +
-		'WHERE name = ? OR email = ? AND deletiontime IS NULL ' +
-		'LIMIT 1 FOR UPDATE',
-		[name, name]).then(function(res) {
-		if (res.length == 0)
-			throw new self.SoTradeClientError('password-reset-notfound');
-		
-		u = res[0];
-		assert.ok(u);
-		
-		return Q.nfcall(crypto.randomBytes, 8);
-	}).then(function(buf) {
-		pw = buf.toString('hex');
-		return self.generatePassword(pw, 'issuetime', u.uid, ctx);
-	}).then(function() {
-		return self.request({name: 'sendTemplateMail', 
-			template: 'password-reset-email.eml',
-			ctx: ctx,
-			uid: u.uid,
-			lang: u.lang,
-			variables: {'password': pw, 'username': query.name, 'email': u.email},
-		});
-	}).then(function() {
-		return { code: 'password-reset-success' };
-	});
+  var self = this;
+  
+  if (ctx.user)
+    throw new self.SoTradeClientError('already-logged-in');
+  
+  var name = String(query.name), pw, u;
+  
+  debug('Reset password', name);
+  
+  return ctx.query('SELECT users.uid, email, lang ' +
+    'FROM users ' +
+    'JOIN users_data ON users.uid = users_data.uid ' +
+    'WHERE name = ? OR email = ? AND deletiontime IS NULL ' +
+    'LIMIT 1 FOR UPDATE',
+    [name, name]).then(function(res) {
+    if (res.length == 0)
+      throw new self.SoTradeClientError('password-reset-notfound');
+    
+    u = res[0];
+    assert.ok(u);
+    
+    return Q.nfcall(crypto.randomBytes, 8);
+  }).then(function(buf) {
+    pw = buf.toString('hex');
+    return self.generatePassword(pw, 'issuetime', u.uid, ctx);
+  }).then(function() {
+    return self.request({name: 'sendTemplateMail', 
+      template: 'password-reset-email.eml',
+      ctx: ctx,
+      uid: u.uid,
+      lang: u.lang,
+      variables: {'password': pw, 'username': query.name, 'email': u.email},
+    });
+  }).then(function() {
+    return { code: 'password-reset-success' };
+  });
 });
 
 /**
@@ -1582,21 +1582,21 @@ User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset',
  * @function c2s~get-invitekey-info
  */
 User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-info', function(query, ctx) {
-	var self = this;
-	
-	return Promise.all([
-		ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]),
-		self.getServerConfig()
-	]).spread(function(res, cfg) {
-		if (res.length == 0)
-			throw new self.SoTradeClientError('get-invitekey-info-notfound');
-	
-		assert.equal(res.length, 1);
-		
-		res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, String(query.invitekey)));
-		
-		return { code: 'get-invitekey-info-success', result: res[0] };
-	});
+  var self = this;
+  
+  return Promise.all([
+    ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]),
+    self.getServerConfig()
+  ]).spread(function(res, cfg) {
+    if (res.length == 0)
+      throw new self.SoTradeClientError('get-invitekey-info-notfound');
+  
+    assert.equal(res.length, 1);
+    
+    res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, String(query.invitekey)));
+    
+    return { code: 'get-invitekey-info-success', result: res[0] };
+  });
 });
 
 /**
@@ -1606,63 +1606,63 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
  * @function busreq~createInviteLink
  */
 User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', function(query, ctx) {
-	var self = this;
-	ctx = ctx.clone(); // so we can’t lose the user object during execution
-	
-	debug('Create invite link for', ctx.user.uid, query.email, query.schoolid);
-	
-	var sendKeyToCaller = ctx.access.has('userdb');
-	var key, url, cfg;
-	
-	if (query.schoolid && parseInt(query.schoolid) != query.schoolid)
-		throw new self.FormatError();
-	
-	return self.getServerConfig().then(function(cfg_) {
-		cfg = cfg_;
-		query.email = query.email ? String(query.email) : null;
-		
-		if (!ctx.access.has('userdb')) {
-			if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
-				throw new self.SoTradeClientError('create-invite-link-invalid-email');
-			
-			if (!ctx.access.has('email_verif'))
-				throw new self.SoTradeClientError('create-invite-link-not-verif');
-		}
-		
-		return Promise.all([
-			Q.nfcall(crypto.randomBytes, 16),
-			ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
-		]);
-	}).spread(function(buf, schoolcountres) {
-		if (query.schoolid && schoolcountres[0].c != 1)
-			throw new self.SoTradeClientError('create-invite-link-school-not-found');
-		
-		key = buf.toString('hex');
-		return ctx.query('INSERT INTO invitelink ' +
-			'(uid, `key`, email, ctime, schoolid) VALUES ' +
-			'(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-			[ctx.user.uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
-	}).then(function() {
-		url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
-	
-		if (query.email) {
-			return self.sendInviteEmail({
-				sender: ctx.user,
-				email: query.email,
-				url: url
-			}, ctx);
-		} else {
-			sendKeyToCaller = true;
-			return { code: 'create-invite-link-success' };
-		}
-	}).then(function(ret) {
-		if (sendKeyToCaller) {
-			ret.url = url;
-			ret.key = key; 
-		}
-		
-		return ret;
-	});
+  var self = this;
+  ctx = ctx.clone(); // so we can’t lose the user object during execution
+  
+  debug('Create invite link for', ctx.user.uid, query.email, query.schoolid);
+  
+  var sendKeyToCaller = ctx.access.has('userdb');
+  var key, url, cfg;
+  
+  if (query.schoolid && parseInt(query.schoolid) != query.schoolid)
+    throw new self.FormatError();
+  
+  return self.getServerConfig().then(function(cfg_) {
+    cfg = cfg_;
+    query.email = query.email ? String(query.email) : null;
+    
+    if (!ctx.access.has('userdb')) {
+      if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
+        throw new self.SoTradeClientError('create-invite-link-invalid-email');
+      
+      if (!ctx.access.has('email_verif'))
+        throw new self.SoTradeClientError('create-invite-link-not-verif');
+    }
+    
+    return Promise.all([
+      Q.nfcall(crypto.randomBytes, 16),
+      ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
+    ]);
+  }).spread(function(buf, schoolcountres) {
+    if (query.schoolid && schoolcountres[0].c != 1)
+      throw new self.SoTradeClientError('create-invite-link-school-not-found');
+    
+    key = buf.toString('hex');
+    return ctx.query('INSERT INTO invitelink ' +
+      '(uid, `key`, email, ctime, schoolid) VALUES ' +
+      '(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
+      [ctx.user.uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
+  }).then(function() {
+    url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
+  
+    if (query.email) {
+      return self.sendInviteEmail({
+        sender: ctx.user,
+        email: query.email,
+        url: url
+      }, ctx);
+    } else {
+      sendKeyToCaller = true;
+      return { code: 'create-invite-link-success' };
+    }
+  }).then(function(ret) {
+    if (sendKeyToCaller) {
+      ret.url = url;
+      ret.key = key; 
+    }
+    
+    return ret;
+  });
 });
 
 exports.User = User;

@@ -1,51 +1,50 @@
 {
-	"scripts": {
-		"start": "service-sotrade-restart || true",
-		"test": "./node_modules/.bin/mocha --recursive -s 15000 -t 240000",
-		"test-cov": "./node_modules/.bin/istanbul cover ./node_modules/.bin/_mocha --recursive --report lcovonly -- -R spec -s 15000 -t 80000 && ./node_modules/.bin/istanbul report html"
-	},
-	"name": "tradity-de-server",
-	"version": "0.0.1",
-	"homepage": "https://tradity.de",
-	"bugs": {
-		"email": "tech@tradity.de"
-	},
-	"main": "main.js",
-	"devDependencies": {
-		"mocha": "*",
-		"istanbul": "*",
-		"nodemailer-sendmail-transport": "~1.0.0"
-	},
-	"dependencies": {
-		"cytoscape": "~2.5.0",
-		"datejs": "1.0.0-rc3",
-		"debug": "~2.2.0",
-		"genders": "^1.0.1",
-		"ipaddr.js": "~1.0.3",
-		"lapack": "~0.1.0",
-		"lodash": "~3.10.0",
-		"lzma-native": "~0.5.0",
-		"mailparser": "~0.5.0",
-		"minimist": "~1.2.0",
-		"mysql": "~2.9.0",
-		"nodemailer": "~1.10.0",
-		"nodemailer-smtp-pool": "~1.1.1",
-		"object-hash": ">=0.9.1",
-		"promise-events": "~0.0.8",
-		"q": "~1.4.1",
-		"q-semaphore": "~1.0.3",
-		"q-ratelimit": "~0.0.2",
-		"socket.io": ">=1.2.1",
-		"socket.io-adapter": "~0.4.0",
-		"socket.io-client": ">=1.2.1",
-		"request": "^2.55.0",
-		"unionfind": "~0.0.3",
-		"weak": "~1.0.0",
-		"wordpress-rest-api": "~0.5.0",
-		"xml2js": "~0.4.4",
-		"tradity-connection": ">=0.8.0",
-		"validator": "^4.0.0"
-	},
-	"preferGlobal": false,
-	"private": true
+  "scripts": {
+    "start": "service-sotrade-restart || true",
+    "test": "./node_modules/.bin/mocha --recursive -s 15000 -t 240000",
+    "test-cov": "./node_modules/.bin/istanbul cover ./node_modules/.bin/_mocha --recursive --report lcovonly -- -R spec -s 15000 -t 80000 && ./node_modules/.bin/istanbul report html"
+  },
+  "name": "tradity-de-server",
+  "version": "0.0.1",
+  "homepage": "https://tradity.de",
+  "bugs": {
+    "email": "tech@tradity.de"
+  },
+  "main": "main.js",
+  "devDependencies": {
+    "mocha": "*",
+    "istanbul": "*",
+    "nodemailer-sendmail-transport": "~1.0.0"
+  },
+  "dependencies": {
+    "cytoscape": "~2.5.0",
+    "datejs": "1.0.0-rc3",
+    "debug": "~2.2.0",
+    "genders": "^1.0.1",
+    "ipaddr.js": "~1.0.3",
+    "lapack": "~0.1.0",
+    "lodash": "~3.10.0",
+    "lzma-native": "~0.5.0",
+    "mailparser": "~0.5.0",
+    "minimist": "~1.2.0",
+    "mysql": "~2.9.0",
+    "nodemailer": "~1.10.0",
+    "nodemailer-smtp-pool": "~1.1.1",
+    "object-hash": ">=0.9.1",
+    "promise-events": "~0.0.8",
+    "q-semaphore": "~1.0.3",
+    "q-ratelimit": "~0.0.2",
+    "socket.io": ">=1.2.1",
+    "socket.io-adapter": "~0.4.0",
+    "socket.io-client": ">=1.2.1",
+    "request": "^2.55.0",
+    "unionfind": "~0.0.3",
+    "weak": "~1.0.0",
+    "wordpress-rest-api": "~0.5.0",
+    "xml2js": "~0.4.4",
+    "tradity-connection": ">=0.8.0",
+    "validator": "^4.0.0"
+  },
+  "preferGlobal": false,
+  "private": true
 }

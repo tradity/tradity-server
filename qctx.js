@@ -44,68 +44,68 @@ var debug = require('debug')('sotrade:qctx');
  * @augments module:stbuscomponent~STBusComponent
  */
 class QContext extends buscomponent.BusComponent {
-	constructor(obj) {
-		super();
-		
-		obj = obj || {};
-		this.user = obj.user || null;
-		this.access = obj.access || new Access();
-		this.properties = {};
-		this.debugHandlers = [];
-		this.errorHandlers = [];
-		
-		this.isQContext = true;
-		this.childContexts = [];
-		this.tableLocks = [];
-		this.openConnections = [];
-		this.queryCount = 0;
-		this.incompleteQueryCount = 0;
-		this.creationStack = getStack();
-		this.creationTime = Date.now();
-		this.startTransactionOnQuery = null;
-		this.contextTransaction = null;
-		
-		var parentQCtx = null;
-		
-		if (obj.parentComponent) {
-			if (obj.isQContext)
-				parentQCtx = obj.parentComponent;
-			
-			this.setBusFromParent(obj.parentComponent);
-		}
-		
-		if (!parentQCtx && !obj.isMasterQCTX)
-			parentQCtx = QContext.getMasterQueryContext();
-		
-		const ondestroy = _ctx => {
-			if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
-				console.warn('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
-				console.warn(JSON.stringify(_ctx));
-				
-				try {
-					_ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
-				} catch (e) { console.log(e); }
-				
-				setTimeout(function() {
-					process.exit(122);
-				}, 1500);
-			}
-		};
-		
-		if (parentQCtx)
-			parentQCtx.childContexts.push(weak(this, ondestroy));
-		
-		this.addProperty({name: 'debugEnabled', value: false, access: 'server'});
-	}
+  constructor(obj) {
+    super();
+    
+    obj = obj || {};
+    this.user = obj.user || null;
+    this.access = obj.access || new Access();
+    this.properties = {};
+    this.debugHandlers = [];
+    this.errorHandlers = [];
+    
+    this.isQContext = true;
+    this.childContexts = [];
+    this.tableLocks = [];
+    this.openConnections = [];
+    this.queryCount = 0;
+    this.incompleteQueryCount = 0;
+    this.creationStack = getStack();
+    this.creationTime = Date.now();
+    this.startTransactionOnQuery = null;
+    this.contextTransaction = null;
+    
+    var parentQCtx = null;
+    
+    if (obj.parentComponent) {
+      if (obj.isQContext)
+        parentQCtx = obj.parentComponent;
+      
+      this.setBusFromParent(obj.parentComponent);
+    }
+    
+    if (!parentQCtx && !obj.isMasterQCTX)
+      parentQCtx = QContext.getMasterQueryContext();
+    
+    const ondestroy = _ctx => {
+      if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
+        console.warn('QUERY CONTEXT DESTROYED WITH OPEN CONNECTIONS/TABLE LOCKS');
+        console.warn(JSON.stringify(_ctx));
+        
+        try {
+          _ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
+        } catch (e) { console.log(e); }
+        
+        setTimeout(function() {
+          process.exit(122);
+        }, 1500);
+      }
+    };
+    
+    if (parentQCtx)
+      parentQCtx.childContexts.push(weak(this, ondestroy));
+    
+    this.addProperty({name: 'debugEnabled', value: false, access: 'server'});
+  }
 }
 
 QContext.masterQueryContext = null;
 
 QContext.getMasterQueryContext = function() {
-	if (QContext.masterQueryContext)
-		return QContext.masterQueryContext;
-	
-	QContext.masterQueryContext = new QContext({isMasterQCTX: true});
+  if (QContext.masterQueryContext)
+    return QContext.masterQueryContext;
+  
+  QContext.masterQueryContext = new QContext({isMasterQCTX: true});
 };
 
 /**
@@ -115,17 +115,17 @@ QContext.getMasterQueryContext = function() {
  * @function module:qctx~QContext#clone
  */
 QContext.prototype.clone = function() {
-	var c = new QContext({
-		user: this.user,
-		access: this.access.clone(),
-		parentComponent: this
-	});
-	
-	c.properties = _.clone(this.properties);
-	c.debugHandlers = this.debugHandlers.slice();
-	c.errorHandlers = this.errorHandlers.slice();
-	
-	return c;
+  var c = new QContext({
+    user: this.user,
+    access: this.access.clone(),
+    parentComponent: this
+  });
+  
+  c.properties = _.clone(this.properties);
+  c.debugHandlers = this.debugHandlers.slice();
+  c.errorHandlers = this.errorHandlers.slice();
+  
+  return c;
 };
 
 /**
@@ -136,39 +136,39 @@ QContext.prototype.clone = function() {
  * @function module:qctx~QContext#getChildContexts
  */
 QContext.prototype.getChildContexts = function() {
-	var rv = [];
-	
-	for (var i = 0; i < this.childContexts.length; ++i) {
-		if (weak.isDead(this.childContexts[i]))
-			delete this.childContexts[i];
-		else
-			rv.push(this.childContexts[i]);
-	}
-	
-	// remove deleted indices
-	this.childContexts = _.compact(this.childContexts);
-	
-	return rv;
+  var rv = [];
+  
+  for (var i = 0; i < this.childContexts.length; ++i) {
+    if (weak.isDead(this.childContexts[i]))
+      delete this.childContexts[i];
+    else
+      rv.push(this.childContexts[i]);
+  }
+  
+  // remove deleted indices
+  this.childContexts = _.compact(this.childContexts);
+  
+  return rv;
 };
 
 QContext.prototype.onBusConnect = function() {
-	var self = this;
-	
-	return self.request({name: 'get-readability-mode'}).then(function(reply) {
-		assert.ok(reply.readonly === true || reply.readonly === false);
-		
-		if (!self.hasProperty('readonly')) {
-			self.addProperty({
-				name: 'readonly',
-				value: reply.readonly
-			});
-		}
-	});
+  var self = this;
+  
+  return self.request({name: 'get-readability-mode'}).then(function(reply) {
+    assert.ok(reply.readonly === true || reply.readonly === false);
+    
+    if (!self.hasProperty('readonly')) {
+      self.addProperty({
+        name: 'readonly',
+        value: reply.readonly
+      });
+    }
+  });
 };
 
 QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
-	if (this.hasProperty('readonly'))
-		this.setProperty('readonly', event.readonly);
+  if (this.hasProperty('readonly'))
+    this.setProperty('readonly', event.readonly);
 });
 
 /**
@@ -178,7 +178,7 @@ QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readabi
  * @function module:qctx~QContext#toJSON
  */
 QContext.prototype.toJSON = function() {
-	return { user: this.user, access: this.access.toJSON(), properties: this.properties };
+  return { user: this.user, access: this.access.toJSON(), properties: this.properties };
 };
 
 /**
@@ -193,15 +193,15 @@ QContext.prototype.toJSON = function() {
  */
 exports.fromJSON =
 QContext.fromJSON = function(j, parentComponent) {
-	var ctx = new QContext({parentComponent: parentComponent});
-	if (!j)
-		return ctx;
-	
-	ctx.user = j.user || null;
-	ctx.access = Access.fromJSON(j.access);
-	ctx.properties = j.properties || {};
-	
-	return ctx;
+  var ctx = new QContext({parentComponent: parentComponent});
+  if (!j)
+    return ctx;
+  
+  ctx.user = j.user || null;
+  ctx.access = Access.fromJSON(j.access);
+  ctx.properties = j.properties || {};
+  
+  return ctx;
 };
 
 /**
@@ -216,7 +216,7 @@ QContext.fromJSON = function(j, parentComponent) {
  * @function module:qctx~QContext#addProperty
  */
 QContext.prototype.addProperty = function(propInfo) {
-	this.properties[propInfo.name] = propInfo;
+  this.properties[propInfo.name] = propInfo;
 };
 
 /**
@@ -228,10 +228,10 @@ QContext.prototype.addProperty = function(propInfo) {
  * @function module:qctx~QContext#getProperty
  */
 QContext.prototype.getProperty = function(name) {
-	if (!this.hasProperty(name))
-		return undefined;
-	
-	return this.properties[name].value;
+  if (!this.hasProperty(name))
+    return undefined;
+  
+  return this.properties[name].value;
 };
 
 /**
@@ -243,7 +243,7 @@ QContext.prototype.getProperty = function(name) {
  * @function module:qctx~QContext#hasProperty
  */
 QContext.prototype.hasProperty = function(name) {
-	return this.properties[name] ? true : false;
+  return this.properties[name] ? true : false;
 };
 
 /**
@@ -256,24 +256,24 @@ QContext.prototype.hasProperty = function(name) {
  * @function module:qctx~QContext#setProperty
  */
 QContext.prototype.setProperty = function(name, value, hasAccess) {
-	if (!this.hasProperty(name))
-		throw new Error('Property ' + name + ' not defined yet');
-	
-	var requiredAccess = this.properties[name].access;
-	if (!requiredAccess) {
-		hasAccess = true;
-	} else if (typeof requiredAccess == 'string') {
-		hasAccess = hasAccess || this.access.has(requiredAccess);
-	} else if (typeof requiredAccess == 'function') {
-		hasAccess = hasAccess || requiredAccess(this);
-	} else {
-		throw new Error('Unknown access restriction ' + JSON.stringify(requiredAccess));
-	}
-	
-	if (hasAccess)
-		this.properties[name].value = value;
-	else
-		throw new Error('Access for changing property ' + name + ' not granted ' + requiredAccess);
+  if (!this.hasProperty(name))
+    throw new Error('Property ' + name + ' not defined yet');
+  
+  var requiredAccess = this.properties[name].access;
+  if (!requiredAccess) {
+    hasAccess = true;
+  } else if (typeof requiredAccess == 'string') {
+    hasAccess = hasAccess || this.access.has(requiredAccess);
+  } else if (typeof requiredAccess == 'function') {
+    hasAccess = hasAccess || requiredAccess(this);
+  } else {
+    throw new Error('Unknown access restriction ' + JSON.stringify(requiredAccess));
+  }
+  
+  if (hasAccess)
+    this.properties[name].value = value;
+  else
+    throw new Error('Access for changing property ' + name + ' not granted ' + requiredAccess);
 };
 
 /**
@@ -284,96 +284,96 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * @function module:qctx~QContext#feed
  */
 QContext.prototype.feed = function(data) {
-	var self = this;
-	
-	var conn = data.conn || self.contextTransaction || null;
-	delete data.conn;
-	var onEventId = data.onEventId || function() {};
-	delete data.onEventId;
-	
-	var release = null;
-	
-	// keep in mind that self.contextTransaction may be a promise or null
-	// use Promise.resolve(…) to clarify that before all else
-	return Promise.resolve(conn).then(function(conn_) {
-		// connection is there? -> set conn to the resolved promise
-		if (conn_)
-			return conn = conn_;
-		
-		return self.startTransaction().then(function(conn_) {
-			return conn = release = conn_;
-		});
-	}).then(function() {
-		return self.request({name: 'feed', data: data, ctx: self, onEventId: onEventId, conn: conn});
-	}).then(function(retval) {
-		// release is never a promise
-		if (release)
-			return release.commit().then(_.constant(retval));
-	}).catch(function(e) {
-		if (release)
-			return release.rollbackAndThrow(e);
-		throw e;
-	});
+  var self = this;
+  
+  var conn = data.conn || self.contextTransaction || null;
+  delete data.conn;
+  var onEventId = data.onEventId || function() {};
+  delete data.onEventId;
+  
+  var release = null;
+  
+  // keep in mind that self.contextTransaction may be a promise or null
+  // use Promise.resolve(…) to clarify that before all else
+  return Promise.resolve(conn).then(function(conn_) {
+    // connection is there? -> set conn to the resolved promise
+    if (conn_)
+      return conn = conn_;
+    
+    return self.startTransaction().then(function(conn_) {
+      return conn = release = conn_;
+    });
+  }).then(function() {
+    return self.request({name: 'feed', data: data, ctx: self, onEventId: onEventId, conn: conn});
+  }).then(function(retval) {
+    // release is never a promise
+    if (release)
+      return release.commit().then(_.constant(retval));
+  }).catch(function(e) {
+    if (release)
+      return release.rollbackAndThrow(e);
+    throw e;
+  });
 };
 
 QContext.prototype.txwrap = function(fn) {
-	var self = this;
-	
-	assert.ok(self.startTransactionOnQuery);
-	assert.ok(!self.contextTransaction);
-	
-	return function() {
-		return Promise.resolve(fn.apply(this, arguments)).then(function(v) {
-			return self.commit().then(function() {
-				self.contextTransaction = null;
-				return v;
-			});
-		}).catch(function(err) {
-			return self.rollback().then(function() {
-				self.contextTransaction = null;
-				throw err;
-			});
-		});
-	};
+  var self = this;
+  
+  assert.ok(self.startTransactionOnQuery);
+  assert.ok(!self.contextTransaction);
+  
+  return function() {
+    return Promise.resolve(fn.apply(this, arguments)).then(function(v) {
+      return self.commit().then(function() {
+        self.contextTransaction = null;
+        return v;
+      });
+    }).catch(function(err) {
+      return self.rollback().then(function() {
+        self.contextTransaction = null;
+        throw err;
+      });
+    });
+  };
 };
 
 QContext.prototype.enterTransactionOnQuery = function(tables, options) {
-	assert.ok(!this.startTransactionOnQuery);
-	assert.ok(!this.contextTransaction);
-	
-	this.startTransactionOnQuery = {tables: tables, options: options};
-	
-	return this;
+  assert.ok(!this.startTransactionOnQuery);
+  assert.ok(!this.contextTransaction);
+  
+  this.startTransactionOnQuery = {tables: tables, options: options};
+  
+  return this;
 };
 
 QContext.prototype.commit = function() {
-	var self = this;
-	var args = arguments;
-	
-	if (!this.contextTransaction)
-		return Promise.resolve();
-	
-	return Promise.resolve(this.contextTransaction).then(function(conn) {
-		return conn.commit.apply(self, args);
-	});
+  var self = this;
+  var args = arguments;
+  
+  if (!this.contextTransaction)
+    return Promise.resolve();
+  
+  return Promise.resolve(this.contextTransaction).then(function(conn) {
+    return conn.commit.apply(self, args);
+  });
 };
 
 QContext.prototype.rollback = function() {
-	var self = this;
-	var args = arguments;
-	
-	if (!this.contextTransaction)
-		return Promise.resolve();
-	
-	return Promise.resolve(this.contextTransaction).then(function(conn) {
-		return conn.rollback.apply(self, args);
-	});
+  var self = this;
+  var args = arguments;
+  
+  if (!this.contextTransaction)
+    return Promise.resolve();
+  
+  return Promise.resolve(this.contextTransaction).then(function(conn) {
+    return conn.rollback.apply(self, args);
+  });
 };
 
 QContext.prototype.rollbackAndThrow = function(e) {
-	return this.rollback().then(function() {
-		throw e;
-	});
+  return this.rollback().then(function() {
+    throw e;
+  });
 };
 
 /**
@@ -384,36 +384,36 @@ QContext.prototype.rollbackAndThrow = function(e) {
  * @function module:qctx~QContext#query
  */
 QContext.prototype.query = function(query, args, readonly) {
-	var self = this;
-	var queryArgs = arguments;
-	var sToQ = self.startTransactionOnQuery;
-	
-	if (self.contextTransaction) {
-		assert.ok(sToQ);
-		
-		return Promise.resolve(self.contextTransaction).then(function(conn) {
-			return conn.query.apply(self, queryArgs);
-		});
-	}
-	
-	if (sToQ) {
-		assert.ok(!self.contextTransaction);
-		
-		self.contextTransaction = self.startTransaction(sToQ.tables, sToQ.options);
-		
-		// equivalent to goto to the above case
-		return self.query.apply(self, queryArgs);
-	}
-	
-	self.debug('Executing query [unbound]', query, args);
-	self.incompleteQueryCount++;
-	
-	return self.request({name: 'dbQuery', query: query, args: args, readonly: readonly}).then(function(data) {
-		self.incompleteQueryCount--;
-		self.queryCount++;
-		
-		return data;
-	});
+  var self = this;
+  var queryArgs = arguments;
+  var sToQ = self.startTransactionOnQuery;
+  
+  if (self.contextTransaction) {
+    assert.ok(sToQ);
+    
+    return Promise.resolve(self.contextTransaction).then(function(conn) {
+      return conn.query.apply(self, queryArgs);
+    });
+  }
+  
+  if (sToQ) {
+    assert.ok(!self.contextTransaction);
+    
+    self.contextTransaction = self.startTransaction(sToQ.tables, sToQ.options);
+    
+    // equivalent to goto to the above case
+    return self.query.apply(self, queryArgs);
+  }
+  
+  self.debug('Executing query [unbound]', query, args);
+  self.incompleteQueryCount++;
+  
+  return self.request({name: 'dbQuery', query: query, args: args, readonly: readonly}).then(function(data) {
+    self.incompleteQueryCount--;
+    self.queryCount++;
+    
+    return data;
+  });
 };
 
 /**
@@ -429,55 +429,55 @@ QContext.prototype.query = function(query, args, readonly) {
  * @function module:qctx~QContext#getConnection
  */
 QContext.prototype.getConnection = function(readonly, restart) {
-	var self = this;
-	
-	var oci = self.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
-	var conn;
-	
-	var postTransaction = function(doRelease) {
-		delete self.openConnections[oci];
-		if (_.compact(self.openConnections) == [])
-			self.openConnections = [];
-		
-		if (typeof doRelease == 'undefined')
-			doRelease = true;
-		
-		if (doRelease)
-			return conn.release();
-	};
-	
-	var oldrestart = restart;
-	restart = function() {
-		return Promise.resolve(postTransaction()).then(oldrestart);
-	};
-	
-	return self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(function(conn_) {
-		conn = conn_;
-		assert.ok(conn);
-		
-		/* return wrapper object for better debugging, no semantic change */
-		var conn_ = {
-			release: _.bind(conn.release, conn),
-			query: function(query, args) {
-				self.debug('Executing query [bound]', query, args);
-				return conn.query(query, args);
-			},
-			
-			/* convenience functions for rollback and commit with implicit release */
-			commit: function(doRelease) {
-				return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;').then(function() {
-					return postTransaction(doRelease);
-				});
-			},
-			rollback: function(doRelease) {
-				return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;').then(function() {
-					return postTransaction(doRelease);
-				});
-			}
-		};
-		
-		return conn_;
-	}); 
+  var self = this;
+  
+  var oci = self.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
+  var conn;
+  
+  var postTransaction = function(doRelease) {
+    delete self.openConnections[oci];
+    if (_.compact(self.openConnections) == [])
+      self.openConnections = [];
+    
+    if (typeof doRelease == 'undefined')
+      doRelease = true;
+    
+    if (doRelease)
+      return conn.release();
+  };
+  
+  var oldrestart = restart;
+  restart = function() {
+    return Promise.resolve(postTransaction()).then(oldrestart);
+  };
+  
+  return self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(function(conn_) {
+    conn = conn_;
+    assert.ok(conn);
+    
+    /* return wrapper object for better debugging, no semantic change */
+    var conn_ = {
+      release: _.bind(conn.release, conn),
+      query: function(query, args) {
+        self.debug('Executing query [bound]', query, args);
+        return conn.query(query, args);
+      },
+      
+      /* convenience functions for rollback and commit with implicit release */
+      commit: function(doRelease) {
+        return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;').then(function() {
+          return postTransaction(doRelease);
+        });
+      },
+      rollback: function(doRelease) {
+        return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;').then(function() {
+          return postTransaction(doRelease);
+        });
+      }
+    };
+    
+    return conn_;
+  }); 
 };
 
 /**
@@ -502,118 +502,118 @@ QContext.prototype.getConnection = function(readonly, restart) {
  * @function module:qctx~QContext#startTransaction
  */
 QContext.prototype.startTransaction = function(tablelocks, options) {
-	var self = this, args = arguments;
-	
-	options = options || {};
-	tablelocks = tablelocks || {};
-	
-	var readonly = !!options.readonly;
-	
-	var tli = null;
-	var notifyTimer = null;
-	
-	if (tablelocks)
-		tli = self.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
-	
-	debug('Starting transaction', tli);
-	var cleanTLEntry = function() {
-		debug('Ended transaction', tli);
-		
-		if (tli === null)
-			return;
-		
-		if (notifyTimer)
-			clearTimeout(notifyTimer);
-		
-		notifyTimer = null;
-		delete self.tableLocks[tli];
-		if (_.compact(self.tableLocks) == [])
-			self.tableLocks = [];
-		
-		tli = null;
-	};
-	
-	var conn;
-	var oldrestart = options.restart || function() {
-		(conn ? conn.rollback() : Promise.resolve()).then(function() {
-			self.startTransaction.apply(self, args);
-		});
-	};
-	
-	var restart = function() {
-		cleanTLEntry();
-		return oldrestart.apply(this, arguments);
-	};
-	
-	return self.getConnection(readonly, restart).then(function(conn_) {
-		conn = conn_;
-		
-		var oldCommit = conn.commit, oldRollback = conn.rollback;
-		conn.commit = function(v) {
-			cleanTLEntry();
-			return Promise.resolve(oldCommit.call(conn, true)).then(_.constant(v));
-		};
-		
-		conn.commitWithoutRelease = function(v) {
-			cleanTLEntry();
-			return Promise.resolve(oldCommit.call(conn, false)).then(_.constant(v));
-		};
-		
-		conn.rollback = function() {
-			cleanTLEntry();
-			return oldRollback.apply(conn, arguments);
-		};
-		
-		conn.rollbackAndThrow = function(e) {
-			return conn.rollback().then(function() {
-				throw e;
-			});
-		};
-		
-		var tables = _.keys(tablelocks);
-		var init = 'SET autocommit = 0; ';
-		
-		init += 'SET TRANSACTION ISOLATION LEVEL ' + ({
-			'RU': 'READ UNCOMMITTED',
-			'RC': 'READ COMMITTED',
-			'RR': 'REPEATABLE READ',
-			'S': 'SERIALIZABLE'
-		}[(options.isolationLevel || 'RC').toUpperCase()] || options.isolationLevel).toUpperCase() + '; ';
-		
-		if (tables.length == 0)
-			init += 'START TRANSACTION ';
-		else
-			init += 'LOCK TABLES ';
-		
-		for (var i = 0; i < tables.length; ++i) {
-			var name = tables[i];
-			var mode = tablelocks[name].mode || tablelocks[name];
-			var alias = tablelocks[name].alias;
-			var tablename = tablelocks[name].name || name;
-			
-			mode = {'r': 'READ', 'w': 'WRITE'}[mode];
-			assert.ok(mode);
-			
-			init += tablename + (alias ? ' AS ' + alias : '') + ' ' + mode;
-			
-			if (i < tables.length - 1)
-				init +=  ', ';
-		}
-		
-		init += ';';
-		
-		return conn.query(init);
-	}).then(function() {
-		// install timer to notify in case that the transaction gets 'lost'
-		notifyTimer = setTimeout(function() {
-			if (tli === null)
-				return;
-			
-			self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
-		}, 90000);
-		
-		return conn;
-	});
+  var self = this, args = arguments;
+  
+  options = options || {};
+  tablelocks = tablelocks || {};
+  
+  var readonly = !!options.readonly;
+  
+  var tli = null;
+  var notifyTimer = null;
+  
+  if (tablelocks)
+    tli = self.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
+  
+  debug('Starting transaction', tli);
+  var cleanTLEntry = function() {
+    debug('Ended transaction', tli);
+    
+    if (tli === null)
+      return;
+    
+    if (notifyTimer)
+      clearTimeout(notifyTimer);
+    
+    notifyTimer = null;
+    delete self.tableLocks[tli];
+    if (_.compact(self.tableLocks) == [])
+      self.tableLocks = [];
+    
+    tli = null;
+  };
+  
+  var conn;
+  var oldrestart = options.restart || function() {
+    (conn ? conn.rollback() : Promise.resolve()).then(function() {
+      self.startTransaction.apply(self, args);
+    });
+  };
+  
+  var restart = function() {
+    cleanTLEntry();
+    return oldrestart.apply(this, arguments);
+  };
+  
+  return self.getConnection(readonly, restart).then(function(conn_) {
+    conn = conn_;
+    
+    var oldCommit = conn.commit, oldRollback = conn.rollback;
+    conn.commit = function(v) {
+      cleanTLEntry();
+      return Promise.resolve(oldCommit.call(conn, true)).then(_.constant(v));
+    };
+    
+    conn.commitWithoutRelease = function(v) {
+      cleanTLEntry();
+      return Promise.resolve(oldCommit.call(conn, false)).then(_.constant(v));
+    };
+    
+    conn.rollback = function() {
+      cleanTLEntry();
+      return oldRollback.apply(conn, arguments);
+    };
+    
+    conn.rollbackAndThrow = function(e) {
+      return conn.rollback().then(function() {
+        throw e;
+      });
+    };
+    
+    var tables = _.keys(tablelocks);
+    var init = 'SET autocommit = 0; ';
+    
+    init += 'SET TRANSACTION ISOLATION LEVEL ' + ({
+      'RU': 'READ UNCOMMITTED',
+      'RC': 'READ COMMITTED',
+      'RR': 'REPEATABLE READ',
+      'S': 'SERIALIZABLE'
+    }[(options.isolationLevel || 'RC').toUpperCase()] || options.isolationLevel).toUpperCase() + '; ';
+    
+    if (tables.length == 0)
+      init += 'START TRANSACTION ';
+    else
+      init += 'LOCK TABLES ';
+    
+    for (var i = 0; i < tables.length; ++i) {
+      var name = tables[i];
+      var mode = tablelocks[name].mode || tablelocks[name];
+      var alias = tablelocks[name].alias;
+      var tablename = tablelocks[name].name || name;
+      
+      mode = {'r': 'READ', 'w': 'WRITE'}[mode];
+      assert.ok(mode);
+      
+      init += tablename + (alias ? ' AS ' + alias : '') + ' ' + mode;
+      
+      if (i < tables.length - 1)
+        init +=  ', ';
+    }
+    
+    init += ';';
+    
+    return conn.query(init);
+  }).then(function() {
+    // install timer to notify in case that the transaction gets 'lost'
+    notifyTimer = setTimeout(function() {
+      if (tli === null)
+        return;
+      
+      self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
+    }, 90000);
+    
+    return conn;
+  });
 };
 
 /**
@@ -622,11 +622,11 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
  * @function module:qctx~QContext#debug
  */
 QContext.prototype.debug = function() {
-	if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled'))
-		return;
-	
-	for (var i = 0; i < this.debugHandlers.length; ++i)
-		this.debugHandlers[i](Array.prototype.slice.call(arguments));
+  if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled'))
+    return;
+  
+  for (var i = 0; i < this.debugHandlers.length; ++i)
+    this.debugHandlers[i](Array.prototype.slice.call(arguments));
 };
 
 /**
@@ -636,12 +636,12 @@ QContext.prototype.debug = function() {
  * @function module:qctx~QContext#emitError
  */
 QContext.prototype.emitError = function(e) {
-	this.debug('Caught error', e);
-	
-	for (var i = 0; i < this.errorHandlers.length; ++i)
-		this.errorHandlers[i](e);
-	
-	QContext.super_.prototype.emitError.call(this, e);
+  this.debug('Caught error', e);
+  
+  for (var i = 0; i < this.errorHandlers.length; ++i)
+    this.errorHandlers[i](e);
+  
+  QContext.super_.prototype.emitError.call(this, e);
 };
 
 /**
@@ -653,38 +653,38 @@ QContext.prototype.emitError = function(e) {
  * @function module:qctx~QContext#getStatistics
  */
 QContext.prototype.getStatistics = function(recurse) {
-	assert.ok(recurse === true || recurse === false);
-	
-	var rv = {};
-	
-	for (var i in this.properties)
-		rv[i] = this.properties[i].value;
-	
-	rv.tableLocks = _.compact(this.tableLocks);
-	rv.openConnections = _.compact(this.openConnections);
-	rv.queryCount = this.queryCount;
-	rv.incompleteQueryCount = this.incompleteQueryCount;
-	
-	rv.creationTime = this.creationTime;
-	rv.creationStack = this.creationStack;
-	
-	if (recurse)
-		rv.childContexts = _.map(this.childContexts, function(c) { return c.getStatistics(true); });
-	
-	return rv;
+  assert.ok(recurse === true || recurse === false);
+  
+  var rv = {};
+  
+  for (var i in this.properties)
+    rv[i] = this.properties[i].value;
+  
+  rv.tableLocks = _.compact(this.tableLocks);
+  rv.openConnections = _.compact(this.openConnections);
+  rv.queryCount = this.queryCount;
+  rv.incompleteQueryCount = this.incompleteQueryCount;
+  
+  rv.creationTime = this.creationTime;
+  rv.creationStack = this.creationStack;
+  
+  if (recurse)
+    rv.childContexts = _.map(this.childContexts, function(c) { return c.getStatistics(true); });
+  
+  return rv;
 };
 
 exports.QContext = QContext;
 
 function getStack() {
-	var oldSTL, stack;
-	
-	oldSTL = Error.stackTraceLimit;
-	Error.stackTraceLimit = Math.max(40, oldSTL); // at least 40
-	stack = new Error().stack;
-	Error.stackTraceLimit = oldSTL;
-	
-	return stack;
+  var oldSTL, stack;
+  
+  oldSTL = Error.stackTraceLimit;
+  Error.stackTraceLimit = Math.max(40, oldSTL); // at least 40
+  stack = new Error().stack;
+  Error.stackTraceLimit = oldSTL;
+  
+  return stack;
 }
 
 })();

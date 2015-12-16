@@ -14,85 +14,85 @@ var mail = null, serverConfigReceived = false, notifying = false;
 var diagnostic_code = '', messageId = '';
 
 function notifyServer() {
-	debug('Notifying server', diagnostic_code, messageId);
-	
-	notifying = true;
-	socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(function() {
-		process.exit(0);
-	}).done();
+  debug('Notifying server', diagnostic_code, messageId);
+  
+  notifying = true;
+  socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(function() {
+    process.exit(0);
+  }).done();
 }
 
 var mailparser = new MailParser();
 var options = minimist(process.argv.slice(2), {
-	boolean: ['raw']
+  boolean: ['raw']
 });
 
 function handleMail(mail) {
-	var attachments = mail.attachments;
-	
-	if (options.raw) {
-		messageId = mail.headers['message-id'].replace(/^<|@.+$/g, '');
-		diagnostic_code = 'Raw return to mail bounce handler script';
-		
-		if (!messageId)
-			return process.exit(0);
-		
-		return notifyServer();
-	}
-	
-	if (!attachments || !attachments.length)
-		return process.exit(0);
-	
-	for (var i = 0; i < attachments.length; ++i) (function() {
-		var attachment = attachments[i];
-		
-		var attachmentParser = new MailParser();
-		
-		attachmentParser.on('end', function(attachmentContent) {
-			if (attachment.contentType == 'message/delivery-status') {
-				var dsParser = new MailParser();
-				
-				dsParser.on('end', function(dsContent) {
-					diagnostic_code = dsContent.headers['diagnostic-code'] || '[Unknown failure]';
-					
-					if (messageId)
-						notifyServer();
-				});
-				
-				dsParser.end(attachmentContent.text);
-			} else if (attachment.contentType == 'message/rfc822') {
-				messageId = attachmentContent.headers['message-id'].replace(/^<|@.+$/g, '');
-				
-				if (diagnostic_code)
-					notifyServer();
-			}
-		});
-		
-		attachmentParser.end(attachment.content);
-	})();
-	
-	setTimeout(function() {
-		if (!notifying)
-			process.exit(0);
-	}, 5000);
+  var attachments = mail.attachments;
+  
+  if (options.raw) {
+    messageId = mail.headers['message-id'].replace(/^<|@.+$/g, '');
+    diagnostic_code = 'Raw return to mail bounce handler script';
+    
+    if (!messageId)
+      return process.exit(0);
+    
+    return notifyServer();
+  }
+  
+  if (!attachments || !attachments.length)
+    return process.exit(0);
+  
+  for (var i = 0; i < attachments.length; ++i) (function() {
+    var attachment = attachments[i];
+    
+    var attachmentParser = new MailParser();
+    
+    attachmentParser.on('end', function(attachmentContent) {
+      if (attachment.contentType == 'message/delivery-status') {
+        var dsParser = new MailParser();
+        
+        dsParser.on('end', function(dsContent) {
+          diagnostic_code = dsContent.headers['diagnostic-code'] || '[Unknown failure]';
+          
+          if (messageId)
+            notifyServer();
+        });
+        
+        dsParser.end(attachmentContent.text);
+      } else if (attachment.contentType == 'message/rfc822') {
+        messageId = attachmentContent.headers['message-id'].replace(/^<|@.+$/g, '');
+        
+        if (diagnostic_code)
+          notifyServer();
+      }
+    });
+    
+    attachmentParser.end(attachment.content);
+  })();
+  
+  setTimeout(function() {
+    if (!notifying)
+      process.exit(0);
+  }, 5000);
 }
 
 mailparser.on('end', function(mail_) {
-	debug('Have parsed mail');
-	mail = mail_;
+  debug('Have parsed mail');
+  mail = mail_;
 
-	if (serverConfigReceived)
-		handleMail(mail);
+  if (serverConfigReceived)
+    handleMail(mail);
 });
 
 process.stdin.pipe(mailparser);
 
 socket.once('server-config').then(function() {
-	debug('Have server config');
-	serverConfigReceived = true;
-	
-	if (mail)
-		handleMail(mail);
+  debug('Have server config');
+  serverConfigReceived = true;
+  
+  if (mail)
+    handleMail(mail);
 });
 
 })();

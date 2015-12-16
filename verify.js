@@ -7,10 +7,10 @@ var smdb = new SignedMessaging();
 smdb.useConfig(cfg);
 
 if (process.argv.length < 2) {
-	console.log('verifying requires a verifiable message as a parameter');
-	process.exit(0);
+  console.log('verifying requires a verifiable message as a parameter');
+  process.exit(0);
 }
 
 smdb.verifySignedMessage(process.argv[2], null).then(function(msg) {
-	console.log(JSON.stringify(msg));
+  console.log(JSON.stringify(msg));
 }).done();

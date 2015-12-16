@@ -23,12 +23,12 @@ var debug = require('debug')('sotrade:error');
  * @augments module:stbuscomponent~STBusComponent
  */
 class ErrorHandler extends buscomponent.BusComponent {
-	constructor() {
-		super();
-	
-		this.sem = semaphore(1);
-		this.throttle = ratelimit(10000);
-	}
+  constructor() {
+    super();
+  
+    this.sem = semaphore(1);
+    this.throttle = ratelimit(10000);
+  }
 }
 
 /**
@@ -42,60 +42,60 @@ class ErrorHandler extends buscomponent.BusComponent {
  * @function module:errorhandler~ErrorHandler#err
  */
 ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
-	var self = this;
-	
-	if (!e)
-		return self.err(new Error('Error without Error object caught -- abort'), true);
-	
-	debug('Error', e);
-	
-	var cfg, longErrorText;
-	var catchstack = new Error().stack; // current stack
-	
-	self.getServerConfig().catch(function(e2) {
-		console.error('Could not get server config due to', e2);
-		return null;
-	}).then(function(cfg_) {
-		cfg = cfg_;
-		
-		return Promise.all([self.sem.take(), self.throttle()]);
-	}).then(function() {
-		noemail = noemail || false;
-		
-		longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
-		if (e.stack)
-			longErrorText += e.stack + '\n';
-		else // assume e is not actually an Error instance
-			longErrorText += util.inspect(e) + '\n';
-		
-		// indicating current stack may be helpful
-		longErrorText += catchstack + '\n';
-		
-		if (self.bus) {
-			longErrorText += 'Bus: ' + self.bus.id + '\n';
-		
-			if (e.nonexistentType || e.name.match(/^Assertion/i))
-				longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
-		}
-		
-		if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
-			console.error(longErrorText);
-		
-		if (cfg && cfg.errorLogFile)
-			return Q.nfcall(fs.appendFile, cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
-	}).then(function() {
-		if (cfg && cfg.mail) {
-			var opt = _.clone(cfg.mail['errorBase']);
-			opt.text = longErrorText;
-			return self.request({name: 'sendMail', mailtype: 'error', opt: opt});
-		} else {
-			console.warn('Could not send error mail due to missing config!');
-		}
-	}).catch(function(e2) {
-		console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
-	}).then(function() {
-		return self.sem.leave();
-	}).done();
+  var self = this;
+  
+  if (!e)
+    return self.err(new Error('Error without Error object caught -- abort'), true);
+  
+  debug('Error', e);
+  
+  var cfg, longErrorText;
+  var catchstack = new Error().stack; // current stack
+  
+  self.getServerConfig().catch(function(e2) {
+    console.error('Could not get server config due to', e2);
+    return null;
+  }).then(function(cfg_) {
+    cfg = cfg_;
+    
+    return Promise.all([self.sem.take(), self.throttle()]);
+  }).then(function() {
+    noemail = noemail || false;
+    
+    longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
+    if (e.stack)
+      longErrorText += e.stack + '\n';
+    else // assume e is not actually an Error instance
+      longErrorText += util.inspect(e) + '\n';
+    
+    // indicating current stack may be helpful
+    longErrorText += catchstack + '\n';
+    
+    if (self.bus) {
+      longErrorText += 'Bus: ' + self.bus.id + '\n';
+    
+      if (e.nonexistentType || e.name.match(/^Assertion/i))
+        longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
+    }
+    
+    if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
+      console.error(longErrorText);
+    
+    if (cfg && cfg.errorLogFile)
+      return Q.nfcall(fs.appendFile, cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
+  }).then(function() {
+    if (cfg && cfg.mail) {
+      var opt = _.clone(cfg.mail['errorBase']);
+      opt.text = longErrorText;
+      return self.request({name: 'sendMail', mailtype: 'error', opt: opt});
+    } else {
+      console.warn('Could not send error mail due to missing config!');
+    }
+  }).catch(function(e2) {
+    console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
+  }).then(function() {
+    return self.sem.leave();
+  }).done();
 });
 
 exports.ErrorHandler = ErrorHandler;

@@ -25,20 +25,20 @@ var qctx = require('./qctx.js');
  * @augments module:stbuscomponent~STBusComponent
  */
 class Mailer extends buscomponent.BusComponent {
-	constructor() {
-		super();
-		this.mailer = null;
-	}
+  constructor() {
+    super();
+    this.mailer = null;
+  }
 }
 
 Mailer.prototype._init = function() {
-	var self = this;
-	
-	return this.getServerConfig().then(function(cfg) {
-		var transportModule = require(cfg.mail.transport);
-		self.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
-		self.inited = true;
-	});
+  var self = this;
+  
+  return this.getServerConfig().then(function(cfg) {
+    var transportModule = require(cfg.mail.transport);
+    self.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
+    self.inited = true;
+  });
 };
 
 /**
@@ -55,19 +55,19 @@ Mailer.prototype._init = function() {
  * @function busreq~sendTemplateMail
  */
 Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
-	['variables', 'template', 'ctx', 'lang', 'mailtype', 'uid'],
-	function(variables, template, ctx, lang, mailtype, uid) {
-	var self = this;
-	
-	debug('Send templated mail', template, lang, ctx.user && ctx.user.lang);
-	
-	return self.request({name: 'readEMailTemplate', 
-		template: template,
-		lang: lang || (ctx.user && ctx.user.lang),
-		variables: variables || {},
-	}).then(function(opt) {
-		return self.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '', uid);
-	});
+  ['variables', 'template', 'ctx', 'lang', 'mailtype', 'uid'],
+  function(variables, template, ctx, lang, mailtype, uid) {
+  var self = this;
+  
+  debug('Send templated mail', template, lang, ctx.user && ctx.user.lang);
+  
+  return self.request({name: 'readEMailTemplate', 
+    template: template,
+    lang: lang || (ctx.user && ctx.user.lang),
+    variables: variables || {},
+  }).then(function(opt) {
+    return self.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '', uid);
+  });
 });
 
 /**
@@ -101,47 +101,47 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
  * @function c2s~email-bounced
  */
 Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx'],
-	function(query, internal, ctx)
+  function(query, internal, ctx)
 {
-	var self = this;
-	
-	if (!ctx)
-		ctx = new qctx.QContext({parentComponent: self});
-	
-	if (!internal && !ctx.access.has('email-bounces'))
-		throw new self.PermissionDenied();
-	
-	debug('Email bounced', query.messageId);
-	
-	var mail;
-	return ctx.startTransaction().then(function(conn) {
-		return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
-			[String(query.messageId)]).then(function(r) {
-			if (r.length == 0)
-				throw new self.SoTradeClientError('email-bounced-notfound');
-			
-			assert.equal(r.length, 1);
-			mail = r[0];
-			
-			assert.ok(mail);
-			
-			return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
-				[String(query.diagnostic_code || ''), mail.mailid]);
-		}).then(function() {
-			if (!mail)
-				return;
-			
-			return ctx.feed({
-				'type': 'email-bounced',
-				'targetid': mail.mailid,
-				'srcuser': mail.uid,
-				'noFollowers': true,
-				conn: conn
-			});
-		}).then(conn.commit, conn.rollbackAndThrow);
-	}).then(function() {
-		return { code: 'email-bounced-success' };
-	});
+  var self = this;
+  
+  if (!ctx)
+    ctx = new qctx.QContext({parentComponent: self});
+  
+  if (!internal && !ctx.access.has('email-bounces'))
+    throw new self.PermissionDenied();
+  
+  debug('Email bounced', query.messageId);
+  
+  var mail;
+  return ctx.startTransaction().then(function(conn) {
+    return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
+      [String(query.messageId)]).then(function(r) {
+      if (r.length == 0)
+        throw new self.SoTradeClientError('email-bounced-notfound');
+      
+      assert.equal(r.length, 1);
+      mail = r[0];
+      
+      assert.ok(mail);
+      
+      return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
+        [String(query.diagnostic_code || ''), mail.mailid]);
+    }).then(function() {
+      if (!mail)
+        return;
+      
+      return ctx.feed({
+        'type': 'email-bounced',
+        'targetid': mail.mailid,
+        'srcuser': mail.uid,
+        'noFollowers': true,
+        conn: conn
+      });
+    }).then(conn.commit, conn.rollbackAndThrow);
+  }).then(function() {
+    return { code: 'email-bounced-success' };
+  });
 });
 
 /**
@@ -159,42 +159,42 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
  * @function busreq~sendMail
  */
 Mailer.prototype.sendMail = buscomponent.provide('sendMail',
-	['opt', 'ctx', 'template', 'mailtype', 'uid'],
-	buscomponent.needsInit(function(opt, ctx, template, mailtype, uid)
+  ['opt', 'ctx', 'template', 'mailtype', 'uid'],
+  buscomponent.needsInit(function(opt, ctx, template, mailtype, uid)
 {
-	var self = this;
-	var shortId;
-	
-	assert.ok(self.mailer);
-	
-	return self.getServerConfig().then(function(cfg) {
-		var origTo = opt.to;
-		
-		if (cfg.mail.forceTo)
-			opt.to = cfg.mail.forceTo;
-		if (cfg.mail.forceFrom)
-			opt.from = cfg.mail.forceFrom;
-		
-		shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
-		opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
-		
-		if (ctx && !ctx.getProperty('readonly')) {
-			return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
-				'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-				[uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,
-				String(mailtype), String(origTo)]);
-		}
-	}).then(function() {
-		return Q.ninvoke(self.mailer, 'sendMail', opt);
-	}).then(function(status) {
-		if (status && status.rejected && status.rejected.length > 0)
-			self.emailBounced({messageId: shortId}, true, ctx);
-	}, function(err) {
-		self.emailBounced({messageId: shortId}, true, ctx);
-			
-		if (err)
-			return self.emitError(err);
-	});
+  var self = this;
+  var shortId;
+  
+  assert.ok(self.mailer);
+  
+  return self.getServerConfig().then(function(cfg) {
+    var origTo = opt.to;
+    
+    if (cfg.mail.forceTo)
+      opt.to = cfg.mail.forceTo;
+    if (cfg.mail.forceFrom)
+      opt.from = cfg.mail.forceFrom;
+    
+    shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
+    opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
+    
+    if (ctx && !ctx.getProperty('readonly')) {
+      return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
+        'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
+        [uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,
+        String(mailtype), String(origTo)]);
+    }
+  }).then(function() {
+    return Q.ninvoke(self.mailer, 'sendMail', opt);
+  }).then(function(status) {
+    if (status && status.rejected && status.rejected.length > 0)
+      self.emailBounced({messageId: shortId}, true, ctx);
+  }, function(err) {
+    self.emailBounced({messageId: shortId}, true, ctx);
+      
+    if (err)
+      return self.emitError(err);
+  });
 }));
 
 exports.Mailer = Mailer;

@@ -32,93 +32,93 @@ var debugSQL = require('debug')('sotrade:db:SQL');
  * @constructor module:dbbackend~Database
  */
 class Database extends buscomponent.BusComponent {
-	constructor() {
-		super();
-		
-		this.dbmod = null;
-		this.wConnectionPool = null;
-		this.rConnectionPool = null;
-		this.openConnections = 0;
-		this.deadlockCount = 0;
-		this.queryCount= 0;
-		this.isShuttingDown = false;
-		this.writableNodes = [];
-		this.id = 0;
-	}
+  constructor() {
+    super();
+    
+    this.dbmod = null;
+    this.wConnectionPool = null;
+    this.rConnectionPool = null;
+    this.openConnections = 0;
+    this.deadlockCount = 0;
+    this.queryCount= 0;
+    this.isShuttingDown = false;
+    this.writableNodes = [];
+    this.id = 0;
+  }
 }
 
 Database.prototype._init = function() {
-	var self = this;
-	
-	debug('Initializing database');
-	
-	return self.getServerConfig().then(function(cfg) {
-		self.dbmod = cfg.dbmod || require('mysql');
-		
-		self.wConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
-		self.rConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
-		self.writableNodes = [];
-		
-		for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
-			var id = cfg.db.clusterOptions.order[i];
-			assert.ok(cfg.db.cluster[id]);
-			var opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
-			
-			if (opt.ssl === 'default')
-				opt.ssl = cfg.ssl || {};
-			
-			debug('Create pool node', opt.writable, opt.readable, id);
-			
-			if (opt.writable) {
-				self.writableNodes.push(id);
-				self.wConnectionPool.add(id, opt);
-			}
-			
-			if (opt.readable)
-				self.rConnectionPool.add(id, opt);
-		}
-		
-		self.wConnectionPool.on('remove', function(nodeId) {
-			debug('Connection removed from writing pool!');
-			
-			self.writableNodes = _.without(self.writableNodes, nodeId);
-			if (self.writableNodes.length == 0)
-				self.emitImmediate('change-readability-mode', { readonly: true });
-		});
-		
-		self.wConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost write connection')); });
-		self.rConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost read connection')); });
-		
-		self.inited = true;
-		self.openConnections = 0;
-		
-		/*
-		 * Note: We don't set isShuttingDown = true here.
-		 * This happens so we can actually resurrect the database connection
-		 * during the shutdown process temporarily, so other components can complete
-		 * any remaining work in progress.
-		 */
-	});
+  var self = this;
+  
+  debug('Initializing database');
+  
+  return self.getServerConfig().then(function(cfg) {
+    self.dbmod = cfg.dbmod || require('mysql');
+    
+    self.wConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
+    self.rConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
+    self.writableNodes = [];
+    
+    for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
+      var id = cfg.db.clusterOptions.order[i];
+      assert.ok(cfg.db.cluster[id]);
+      var opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
+      
+      if (opt.ssl === 'default')
+        opt.ssl = cfg.ssl || {};
+      
+      debug('Create pool node', opt.writable, opt.readable, id);
+      
+      if (opt.writable) {
+        self.writableNodes.push(id);
+        self.wConnectionPool.add(id, opt);
+      }
+      
+      if (opt.readable)
+        self.rConnectionPool.add(id, opt);
+    }
+    
+    self.wConnectionPool.on('remove', function(nodeId) {
+      debug('Connection removed from writing pool!');
+      
+      self.writableNodes = _.without(self.writableNodes, nodeId);
+      if (self.writableNodes.length == 0)
+        self.emitImmediate('change-readability-mode', { readonly: true });
+    });
+    
+    self.wConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost write connection')); });
+    self.rConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost read connection')); });
+    
+    self.inited = true;
+    self.openConnections = 0;
+    
+    /*
+     * Note: We don't set isShuttingDown = true here.
+     * This happens so we can actually resurrect the database connection
+     * during the shutdown process temporarily, so other components can complete
+     * any remaining work in progress.
+     */
+  });
 };
 
 Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', function() {
-	this.isShuttingDown = true;
-	
-	debug('Database shutdown');
-	
-	if (this.openConnections == 0) {
-		if (this.wConnectionPool) {
-			this.wConnectionPool.end();
-			this.wConnectionPool = null;
-		}
-		
-		if (this.rConnectionPool) {
-			this.rConnectionPool.end();
-			this.rConnectionPool = null;
-		}
-		
-		this.inited = false;
-	}
+  this.isShuttingDown = true;
+  
+  debug('Database shutdown');
+  
+  if (this.openConnections == 0) {
+    if (this.wConnectionPool) {
+      this.wConnectionPool.end();
+      this.wConnectionPool = null;
+    }
+    
+    if (this.rConnectionPool) {
+      this.rConnectionPool.end();
+      this.rConnectionPool = null;
+    }
+    
+    this.inited = false;
+  }
 });
 
 /**
@@ -127,11 +127,11 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
  * @function busreq~dbUsageStatistics
  */
 Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [], function() {
-	return {
-		deadlockCount: this.deadlockCount,
-		queryCount: this.queryCount,
-		writableNodes: this.writableNodes.length
-	};
+  return {
+    deadlockCount: this.deadlockCount,
+    queryCount: this.queryCount,
+    writableNodes: this.writableNodes.length
+  };
 });
 
 /**
@@ -147,18 +147,18 @@ Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [
  * @function busreq~dbQuery
  */
 Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly'],
-	buscomponent.needsInit(function(query, args, readonly)
+  buscomponent.needsInit(function(query, args, readonly)
 {
-	var self = this, origArgs = arguments;
-	
-	if (typeof readonly !== 'boolean')
-		readonly = (query.trim().indexOf('SELECT') == 0);
-	
-	return self._getConnection(true, function /* restart */() {
-		return self._query.apply(self, origArgs);
-	}, readonly).then(function(connection) {
-		return connection.query(query, args || []);
-	});
+  var self = this, origArgs = arguments;
+  
+  if (typeof readonly !== 'boolean')
+    readonly = (query.trim().indexOf('SELECT') == 0);
+  
+  return self._getConnection(true, function /* restart */() {
+    return self._query.apply(self, origArgs);
+  }, readonly).then(function(connection) {
+    return connection.query(query, args || []);
+  });
 }));
 
 /**
@@ -176,93 +176,93 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
  * @function module:dbbackend~Database#_getConnection
  */
 Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly) {
-	var self = this;
-	var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
-	assert.ok(pool);
-	
-	return Q.ninvoke(pool, 'getConnection').then(function(conn) {
-		self.openConnections++;
-	
-		assert.ok(conn);
-		var id = self.id++;
-		
-		var release = function() {
-			self.openConnections--;
-			
-			if (self.openConnections == 0 && self.isShuttingDown)
-				self.shutdown();
-			
-			return conn.release();
-		};
-		
-		var query = function(q, args) {
-			self.queryCount++;
-			
-			var rollback = function() {
-				if (!readonly)
-					conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
-			};
-			
-			var deferred = Promise.defer();
-			var startTime = Date.now();
-			conn.query(q, args, function(err, res) {
-				debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
-					(res && typeof res.length != 'undefined' ? res.length + ' results' :
-					 res && typeof res.affectedRows != 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
-					 ' in ' + (Date.now() - startTime) + ' ms');
-				
-				if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
-					self.deadlockCount++;
-					rollback();
-					
-					release();
-					
-					deferred.resolve(Promise.resolve().then(restart));
-				}
-				
-				var exception = null;
-				
-				if (!err) {
-					try {
-						deferred.resolve(res);
-					} catch (e) {
-						exception = e;
-					}
-				}
-				
-				if (err || exception) {
-					rollback();
-					
-					// make sure that the error event is emitted -> release() will be called in next tick
-					Promise.resolve().then(release).catch(e => { throw e; });
-					
-					deferred.reject(err || exception);
-					
-					if (err) {
-						// query-related error
-						var datajson = JSON.stringify(args);
-						var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
-					
-						self.emitError(q ? new Error(
-							err + '\nCaused by ' + querydesc
-						) : err);
-					} else {
-						// exception in callback
-						self.emitError(exception);
-					}
-				}
-				
-				if (autorelease)
-					release();
-			});
-			
-			return deferred.promise;
-		};
-		
-		return {
-			query: query, release: release
-		};
-	});
+  var self = this;
+  var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
+  assert.ok(pool);
+  
+  return Q.ninvoke(pool, 'getConnection').then(function(conn) {
+    self.openConnections++;
+  
+    assert.ok(conn);
+    var id = self.id++;
+    
+    var release = function() {
+      self.openConnections--;
+      
+      if (self.openConnections == 0 && self.isShuttingDown)
+        self.shutdown();
+      
+      return conn.release();
+    };
+    
+    var query = function(q, args) {
+      self.queryCount++;
+      
+      var rollback = function() {
+        if (!readonly)
+          conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+      };
+      
+      var deferred = Promise.defer();
+      var startTime = Date.now();
+      conn.query(q, args, function(err, res) {
+        debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
+          (res && typeof res.length != 'undefined' ? res.length + ' results' :
+           res && typeof res.affectedRows != 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
+           ' in ' + (Date.now() - startTime) + ' ms');
+        
+        if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
+          self.deadlockCount++;
+          rollback();
+          
+          release();
+          
+          deferred.resolve(Promise.resolve().then(restart));
+        }
+        
+        var exception = null;
+        
+        if (!err) {
+          try {
+            deferred.resolve(res);
+          } catch (e) {
+            exception = e;
+          }
+        }
+        
+        if (err || exception) {
+          rollback();
+          
+          // make sure that the error event is emitted -> release() will be called in next tick
+          Promise.resolve().then(release).catch(e => { throw e; });
+          
+          deferred.reject(err || exception);
+          
+          if (err) {
+            // query-related error
+            var datajson = JSON.stringify(args);
+            var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
+          
+            self.emitError(q ? new Error(
+              err + '\nCaused by ' + querydesc
+            ) : err);
+          } else {
+            // exception in callback
+            self.emitError(exception);
+          }
+        }
+        
+        if (autorelease)
+          release();
+      });
+      
+      return deferred.promise;
+    };
+    
+    return {
+      query: query, release: release
+    };
+  });
 });
 
 /**
@@ -279,26 +279,26 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
  * @function busreq~dbGetConection
  */
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
-	['readonly', 'restart'], function(readonly, restart) 
+  ['readonly', 'restart'], function(readonly, restart) 
 {
-	var self = this;
-	
-	assert.ok(readonly === true || readonly === false);
-	
-	return self._getConnection(false, restart, readonly).then(function(cn) {
-		return {
-			query: function(q, data) {
-				data = data || [];
-				
-				// emitting self has the sole purpose of it showing up in the bus log
-				self.emitImmediate('dbBoundQueryLog', [q, data]);
-				return cn.query(q, data);
-			},
-			release: function() {
-				return cn.release();
-			}
-		};
-	});
+  var self = this;
+  
+  assert.ok(readonly === true || readonly === false);
+  
+  return self._getConnection(false, restart, readonly).then(function(cn) {
+    return {
+      query: function(q, data) {
+        data = data || [];
+        
+        // emitting self has the sole purpose of it showing up in the bus log
+        self.emitImmediate('dbBoundQueryLog', [q, data]);
+        return cn.query(q, data);
+      },
+      release: function() {
+        return cn.release();
+      }
+    };
+  });
 });
 
 exports.Database = Database;

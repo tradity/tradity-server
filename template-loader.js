@@ -22,9 +22,9 @@ var debug = require('debug')('sotrade:template-loader');
  * @augments module:stbuscomponent~STBusComponent
  */
 class TemplateLoader extends buscomponent.BusComponent {
-	constructor() {
-		super();
-	}
+  constructor() {
+    super();
+  }
 }
 
 /**
@@ -41,35 +41,35 @@ class TemplateLoader extends buscomponent.BusComponent {
  * @function busreq~readTemplate
  */
 TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
-	['template', 'lang', 'variables'],
-	function(template, lang, variables)
+  ['template', 'lang', 'variables'],
+  function(template, lang, variables)
 {
-	var self = this;
-	
-	debug('Read template', template, lang, variables);
-	
-	return self.getServerConfig().then(function(cfg) {
-		variables = variables || {};
-		
-		var t = templates[lang] && templates[lang][template];
-		
-		for (var i = 0; !t && i < cfg.languages.length; ++i)
-			t = templates[cfg.languages[i].id][template];
-		
-		if (!t)
-			throw new Error('Template not found: ' + template);
-		
-		_.chain(variables).keys().each(function(e) {
-			var r = new RegExp('\\$\\{' + e + '\\}', 'g');
-			t = t.replace(r, variables[e]);
-		}).value();
-		
-		var unresolved = t.match(/\$\{([^\}]*)\}/);
-		if (unresolved)
-			throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
-		
-		return t;
-	});
+  var self = this;
+  
+  debug('Read template', template, lang, variables);
+  
+  return self.getServerConfig().then(function(cfg) {
+    variables = variables || {};
+    
+    var t = templates[lang] && templates[lang][template];
+    
+    for (var i = 0; !t && i < cfg.languages.length; ++i)
+      t = templates[cfg.languages[i].id][template];
+    
+    if (!t)
+      throw new Error('Template not found: ' + template);
+    
+    _.chain(variables).keys().each(function(e) {
+      var r = new RegExp('\\$\\{' + e + '\\}', 'g');
+      t = t.replace(r, variables[e]);
+    }).value();
+    
+    var unresolved = t.match(/\$\{([^\}]*)\}/);
+    if (unresolved)
+      throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
+    
+    return t;
+  });
 });
 
 /**
@@ -85,37 +85,37 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
  * @function busreq~readEMailTemplate
  */
 TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate',
-	['template', 'lang', 'variables'], function(template, lang, variables) {
-	return this.readTemplate(template, lang, variables).then(function(t) {
-		var headerend = t.indexOf('\n\n');
-		
-		var headers = t.substr(0, headerend).split('\n');
-		var body = t.substr(headerend + 2);
-		
-		var opt = {
-			headers: {
-				'X-SoTrade-Lang': lang
-			}
-		};
-		
-		for (var i = 0; i < headers.length; ++i) {
-			var h = headers[i];
-			var headerNameEnd = h.indexOf(':');
-			var headerName = h.substr(0, headerNameEnd).trim();
-			var headerValue = h.substr(headerNameEnd + 1).trim();
-			
-			var camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase(); }).replace(/-/g, '');
-			
-			if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) != -1)
-				opt[camelCaseHeaderName] = headerValue;
-			else
-				opt.headers[headerName] = headerValue;
-		}
-		
-		opt.html = body;
-		opt.generateTextFromHTML = true;
-		return opt;
-	});
+  ['template', 'lang', 'variables'], function(template, lang, variables) {
+  return this.readTemplate(template, lang, variables).then(function(t) {
+    var headerend = t.indexOf('\n\n');
+    
+    var headers = t.substr(0, headerend).split('\n');
+    var body = t.substr(headerend + 2);
+    
+    var opt = {
+      headers: {
+        'X-SoTrade-Lang': lang
+      }
+    };
+    
+    for (var i = 0; i < headers.length; ++i) {
+      var h = headers[i];
+      var headerNameEnd = h.indexOf(':');
+      var headerName = h.substr(0, headerNameEnd).trim();
+      var headerValue = h.substr(headerNameEnd + 1).trim();
+      
+      var camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase(); }).replace(/-/g, '');
+      
+      if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) != -1)
+        opt[camelCaseHeaderName] = headerValue;
+      else
+        opt.headers[headerName] = headerValue;
+    }
+    
+    opt.html = body;
+    opt.generateTextFromHTML = true;
+    return opt;
+  });
 });
 
 exports.TemplateLoader = TemplateLoader;

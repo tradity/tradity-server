@@ -19,10 +19,10 @@
  * @constructor module:access~Access
  */
 var Access = function() {
-	this.areas = [];
-	this.hasAnyAccess = false;
-	
-	// above code is equiv to this.dropAll();
+  this.areas = [];
+  this.hasAnyAccess = false;
+  
+  // above code is equiv to this.dropAll();
 };
 
 /**
@@ -33,10 +33,10 @@ var Access = function() {
  * @function module:access~Access#clone
  */
 Access.prototype.clone = function() {
-	var a = new Access();
-	a.areas = this.areas.slice();
-	a.hasAnyAccess = this.hasAnyAccess;
-	return a;
+  var a = new Access();
+  a.areas = this.areas.slice();
+  a.hasAnyAccess = this.hasAnyAccess;
+  return a;
 };
 
 /**
@@ -51,21 +51,21 @@ Access.prototype.clone = function() {
  * @function module:access~Access.fromJSON
  */
 Access.fromJSON = function(j) {
-	var a = new Access();
-	if (!j)
-		return a;
-		
-	if (j.trim() == '*') {
-		a.grant('*');
-	} else {
-		var p = JSON.parse(j);
-		
-		// note that this can handle both an array and the "*" string!
-		for (var i = 0; i < p.length; ++i) 
-			a.grant(p[i]);
-	}
-	
-	return a;
+  var a = new Access();
+  if (!j)
+    return a;
+    
+  if (j.trim() == '*') {
+    a.grant('*');
+  } else {
+    var p = JSON.parse(j);
+    
+    // note that this can handle both an array and the "*" string!
+    for (var i = 0; i < p.length; ++i) 
+      a.grant(p[i]);
+  }
+  
+  return a;
 };
 
 /**
@@ -79,9 +79,9 @@ Access.fromJSON = function(j) {
  */
 Access.prototype.toString =
 Access.prototype.toJSON = function() {
-	if (this.hasAnyAccess)
-		return '["*"]';
-	return JSON.stringify(this.areas);
+  if (this.hasAnyAccess)
+    return '["*"]';
+  return JSON.stringify(this.areas);
 };
 
 /**
@@ -94,9 +94,9 @@ Access.prototype.toJSON = function() {
  * @function module:access~Access#toJSON
  */
 Access.prototype.toArray = function() {
-	if (this.hasAnyAccess)
-		return ['*'];
-	return this.areas;
+  if (this.hasAnyAccess)
+    return ['*'];
+  return this.areas;
 };
 
 /**
@@ -109,7 +109,7 @@ Access.prototype.toArray = function() {
  * @function module:access~Access#has
  */
 Access.prototype.has = function(area) {
-	return this.hasAnyAccess || (this.areas.indexOf(area) != -1);
+  return this.hasAnyAccess || (this.areas.indexOf(area) != -1);
 };
 
 /**
@@ -120,11 +120,11 @@ Access.prototype.has = function(area) {
  * @function module:access~Access#update
  */
 Access.prototype.update = function(otherAccess) {
-	if (otherAccess.hasAnyAccess)
-		this.grant('*');
-	
-	for (var i = 0; i < otherAccess.areas.length; ++i)
-		this.grant(otherAccess.areas[i]);
+  if (otherAccess.hasAnyAccess)
+    this.grant('*');
+  
+  for (var i = 0; i < otherAccess.areas.length; ++i)
+    this.grant(otherAccess.areas[i]);
 };
 
 /**
@@ -136,15 +136,15 @@ Access.prototype.update = function(otherAccess) {
  * @function module:access~Access#grant
  */
 Access.prototype.grant = function(area) {
-	area = area.trim();
-	if (!area)
-		return;
-	
-	if (area == '*')
-		return this.grantAny();
-	
-	if (this.areas.indexOf(area) == -1)
-		this.areas.push(area);
+  area = area.trim();
+  if (!area)
+    return;
+  
+  if (area == '*')
+    return this.grantAny();
+  
+  if (this.areas.indexOf(area) == -1)
+    this.areas.push(area);
 };
 
 /**
@@ -153,7 +153,7 @@ Access.prototype.grant = function(area) {
  * @function module:access~Access#grantAny
  */
 Access.prototype.grantAny = function() {
-	this.hasAnyAccess = true;
+  this.hasAnyAccess = true;
 };
 
 /**
@@ -165,16 +165,16 @@ Access.prototype.grantAny = function() {
  * @function module:access~Access#drop
  */
 Access.prototype.drop = function(area) {
-	area = area.trim();
-	if (!area)
-		return;
-	
-	if (area == '*')
-		return this.dropAny();
-	
-	var index;
-	while ((index = this.areas.indexOf(area)) != -1)
-		this.areas.splice(index, 1);
+  area = area.trim();
+  if (!area)
+    return;
+  
+  if (area == '*')
+    return this.dropAny();
+  
+  var index;
+  while ((index = this.areas.indexOf(area)) != -1)
+    this.areas.splice(index, 1);
 };
 
 /**
@@ -185,7 +185,7 @@ Access.prototype.drop = function(area) {
  * @function module:access~Access#dropAny
  */
 Access.prototype.dropAny = function(area) {
-	this.hasAnyAccess = false;
+  this.hasAnyAccess = false;
 };
 
 /**
@@ -195,8 +195,8 @@ Access.prototype.dropAny = function(area) {
  * @function module:access~Access#dropAall
  */
 Access.prototype.dropAll = function(area) {
-	this.dropAny();
-	this.areas = [];
+  this.dropAny();
+  this.areas = [];
 };
 
 exports.Access = Access;

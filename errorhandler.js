@@ -1,4 +1,4 @@
-(function () { "use strict";
+"use strict";
 
 var _ = require('lodash');
 var fs = require('fs');
@@ -43,24 +43,22 @@ class ErrorHandler extends buscomponent.BusComponent {
  * @function module:errorhandler~ErrorHandler#err
  */
 ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
-  var self = this;
-  
   if (!e)
-    return self.err(new Error('Error without Error object caught -- abort'), true);
+    return this.err(new Error('Error without Error object caught -- abort'), true);
   
   debug('Error', e);
   
   var cfg, longErrorText;
   var catchstack = new Error().stack; // current stack
   
-  self.getServerConfig().catch(function(e2) {
+  this.getServerConfig().catch(e2 => {
     console.error('Could not get server config due to', e2);
     return null;
-  }).then(function(cfg_) {
+  }).then(cfg_ => {
     cfg = cfg_;
     
-    return self.throttle();
-  }).then(function() {
+    return this.throttle();
+  }).then(() => {
     return this.sem.add(() => {
       return Promise.resolve().then(() => {
         noemail = noemail || false;
@@ -74,11 +72,11 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
         // indicating current stack may be helpful
         longErrorText += catchstack + '\n';
         
-        if (self.bus) {
-          longErrorText += 'Bus: ' + self.bus.id + '\n';
+        if (this.bus) {
+          longErrorText += 'Bus: ' + this.bus.id + '\n';
         
           if (e.nonexistentType || e.name.match(/^Assertion/i))
-            longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
+            longErrorText += '\n' + JSON.stringify(this.bus.busGraph.json()) + '\n';
         }
         
         if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
@@ -86,21 +84,20 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
         
         if (cfg && cfg.errorLogFile)
           return promiseUtil.ncall(fs.appendFile)(cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
-      }).then(function() {
+      }).then(() => {
         if (cfg && cfg.mail) {
           var opt = _.clone(cfg.mail['errorBase']);
           opt.text = longErrorText;
-          return self.request({name: 'sendMail', mailtype: 'error', opt: opt});
+          return this.request({name: 'sendMail', mailtype: 'error', opt: opt});
         } else {
           console.warn('Could not send error mail due to missing config!');
         }
-      }).catch(function(e2) {
-        console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
       });
     });
-  }).done();
+  }).catch(e2 => {
+    console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
+    process.exit(64);
+  });
 });
 
 exports.ErrorHandler = ErrorHandler;
-
-})();

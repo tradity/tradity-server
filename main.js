@@ -6,7 +6,7 @@ var assert = require('assert');
 var fs = require('fs');
 var https = require('https');
 var cluster = require('cluster');
-var events = require('events');
+var events = require('promise-events');
 var util = require('util');
 
 var qctx = require('./qctx.js');
@@ -401,7 +401,7 @@ Main.prototype.startWorker = function() {
     } else {
       return stserver.start(self.port);
     }
-  }).done();
+  });
 }
 
 Main.prototype.connectToSocketIORemotes = function() {
@@ -467,6 +467,6 @@ Main.prototype.ctx = function() {
 exports.Main = Main;
 
 if (require.main === module)
-  new Main().start().done();
+  new Main().start();
 
 })();

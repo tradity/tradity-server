@@ -27,7 +27,7 @@
     "lzma-native": "~0.5.0",
     "mailparser": "~0.5.0",
     "minimist": "~1.2.0",
-    "mysql": "~2.9.0",
+    "mysql": "~2.10.0",
     "nodemailer": "~1.10.0",
     "nodemailer-smtp-pool": "~1.1.1",
     "object-hash": ">=0.9.1",

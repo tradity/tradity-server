@@ -17,9 +17,9 @@ function notifyServer() {
   debug('Notifying server', diagnostic_code, messageId);
   
   notifying = true;
-  socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(function() {
+  return socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(function() {
     process.exit(0);
-  }).done();
+  });
 }
 
 var mailparser = new MailParser();
@@ -56,7 +56,7 @@ function handleMail(mail) {
           diagnostic_code = dsContent.headers['diagnostic-code'] || '[Unknown failure]';
           
           if (messageId)
-            notifyServer();
+            return notifyServer();
         });
         
         dsParser.end(attachmentContent.text);
@@ -64,7 +64,7 @@ function handleMail(mail) {
         messageId = attachmentContent.headers['message-id'].replace(/^<|@.+$/g, '');
         
         if (diagnostic_code)
-          notifyServer();
+          return notifyServer();
       }
     });
     

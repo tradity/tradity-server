@@ -119,8 +119,8 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(qu
     throw new self.PermissionDenied();
   
   promiseUtil.delay(2000).then(function() {
-    self.emit('globalShutdown');
-  }).done();
+    return self.emit('globalShutdown');
+  });
   
   return { code: 'shutdown-success' };
 });

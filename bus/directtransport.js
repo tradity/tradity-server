@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const events = require('events');
 const assert = require('assert');
 const util = require('util');
 const bus = require('./bus.js');

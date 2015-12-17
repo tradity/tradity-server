@@ -60,6 +60,6 @@ socket.once('server-config').then(function() {
   
   if (!query.lurk)
     process.exit(0);
-}).done();
+}).catch(e => console.trace(e));
 
 })();

@@ -13,4 +13,4 @@ if (process.argv.length < 2) {
 
 smdb.verifySignedMessage(process.argv[2], null).then(function(msg) {
   console.log(JSON.stringify(msg));
-}).done();
+}).catch(e => console.trace(e));

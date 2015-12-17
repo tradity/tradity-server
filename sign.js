@@ -13,4 +13,4 @@ if (process.argv.length < 2) {
 
 smdb.createSignedMessage(JSON.parse(process.argv[2])).then(function(msg) {
   console.log(msg);
-}).done();
+}).catch(e => console.trace(e));

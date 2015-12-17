@@ -515,7 +515,7 @@ ConnectionData.prototype.queryHandler = function(query) {
          * @function c2s~fetch-events
          */
         case 'fetch-events':
-          self.fetchEvents(query).done();
+          self.fetchEvents(query);
           return { code: 'fetching-events' };
         /**
          * Sets up this connection as a bus (server-to-server) transport.
@@ -616,7 +616,7 @@ ConnectionData.prototype.queryHandler = function(query) {
     });
   }).catch(function(e) {
     return self.emitError(e);
-  }).done();
+  });
 };
 
 /**

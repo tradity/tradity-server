@@ -480,7 +480,7 @@ class Bus extends events.EventEmitter {
         
         // Array comprehensions would be better here
         return Promise.all(Array.from(transports).map(
-          t => transports[i].emit('bus::nodeInfoInitial', encodedInfo)
+          t => t.emit('bus::nodeInfoInitial', encodedInfo)
         ));
       } else {
         return this.emitGlobal('bus::nodeInfo', encodedInfo);
@@ -497,9 +497,6 @@ class Bus extends events.EventEmitter {
           data = new Buffer(data);
         
         return inflate(data).then(data => {
-          if (error)
-            return this.emit('error', error);
-          
           data = JSON.parse(data);
           if (data.id == this.id)
             return;
@@ -923,11 +920,11 @@ cytoscape('core', 'union', function(g2) {
   const g1 = this;
   
   const elements = [];
-  g1 = g1.json();
-  g2 = g2.json();
+  const j1 = g1.json();
+  const j2 = g2.json();
   
   const ids = {};
-  const lists = [g1.elements.nodes, g2.elements.nodes, g1.elements.edges, g2.elements.edges];
+  const lists = [j1.elements.nodes, j2.elements.nodes, j1.elements.edges, j2.elements.edges];
   
   for (let i = 0; i < lists.length; ++i) {
     if (!lists[i])

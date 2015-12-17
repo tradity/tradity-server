@@ -76,7 +76,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
           longErrorText += 'Bus: ' + this.bus.id + '\n';
         
           if (e.nonexistentType || e.name.match(/^Assertion/i))
-            longErrorText += '\n' + JSON.stringify(this.bus.busGraph.json()) + '\n';
+            longErrorText += '\n' + JSON.stringify(this.bus.busGraph) + '\n';
         }
         
         if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
@@ -95,7 +95,13 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
       });
     });
   }).catch(e2 => {
-    console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
+    console.error('Error while handling other error:\n');
+    console.error(e2);
+    console.error(e2 && e2.stack);
+    console.error('during handling of\n');
+    console.error(e);
+    console.error(e && e.stack);
+    console.trace('aborting');
     process.exit(64);
   });
 });

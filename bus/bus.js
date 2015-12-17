@@ -65,6 +65,7 @@ class BusGraph extends events.EventEmitter {
       ]
     });
     
+    this.removedTransports = new Set();
     this.ownNode = this.c.getElementById(localNodeDesc.id);
     assert.ok(this.ownNode);
     assert.ok(this.ownNode.isNode());
@@ -77,7 +78,7 @@ class BusGraph extends events.EventEmitter {
   
   get dijkstra() {
     if (this._dijkstra)
-      return _dijkstra;
+      return this._dijkstra;
     
     this._dijkstra = this.c.elements().dijkstra(this.ownNode, edge => edge.data().weight);
     
@@ -188,8 +189,16 @@ class BusGraph extends events.EventEmitter {
     return this.c.nodes().filter(filter);
   }
   
-  removeEdge(id) {
-    return this.c.removeEdge(this.c.getElementById(id));
+  removeTransport(id) {
+    this.removedTransports.add(id);
+    return this.c.remove(this.c.getElementById(id));
+  }
+  
+  addTransport(transport) {
+    return this.c.add({
+      group: 'edges',
+      data: transport
+    });
   }
   
   listAllIds() {
@@ -291,7 +300,7 @@ class BusTransport extends events.EventEmitter {
           this.edgeId = data.edgeId; // take minimum
         
         return this.emit('bus::handshakeSYNACK', {id: this.bus.id, edgeId: this.edgeId})
-          .then(() => this.emitBusNodeInfo([this], true));
+          .then(() => this.bus.emitBusNodeInfo([this], true));
       }),
       
       this.on('bus::handshakeSYNACK', data => {
@@ -343,12 +352,11 @@ class Bus extends events.EventEmitter {
     this.busGraph = new BusGraph(this.desc);
     
     this.setMaxListeners(0);
-    this.responseWaiters = {};
+    this.responseWaiters = new Map();
     
     this.busNodeInfoEmittingPromise = null;
     
     this.transports = new Set();
-    this.removedTransports = new Set();
     
     this.remotesWithOurBusNodeInfo = new Set([this.id]);
     
@@ -369,7 +377,7 @@ class Bus extends events.EventEmitter {
       this.on('bus::nodeInfo', this.nodeInfoHandler),
       this.busGraph.on('updated', () => {
         // inform response waiters that nodes may have been removed and are therefore not able to answer requests
-        for (let w of this.responseWaiters) {
+        for (let w of this.responseWaiters.values()) {
           if (w.handleResponse)
             w.handleResponse(null);
         }
@@ -498,49 +506,48 @@ class Bus extends events.EventEmitter {
         
         return inflate(data).then(data => {
           data = JSON.parse(data);
+          assert.ok(data.id);
           if (data.id == this.id)
-            return;
+            return null;
           
           debugTransport('Received initial bus node info', this.id, transport.edgeId, data.id);
           
           return this.handleTransportNodeInfo(data, true) // modifies busGraph property!
-            .then(() => data.id);
-        }).then(remoteNodeID => {
-          const nodeIDs = [remoteNodeID, this.id].sort(); // sort for normalization across nodes
-          const transportGraphID = nodeIDs.join('-') + '-' + edgeId;
-          
-          assert.ok(this.busGraph.getNode(nodeIDs[0]).isNode());
-          assert.ok(this.busGraph.getNode(nodeIDs[1]).isNode());
-          
-          // remove the edge, if present, since it may have been updated
-          // during reading the remote node info
-          // (in which case emit() & co are missing!)
-          this.busGraph.removeEdge(transportGraphID);
-          
-          transport.source = nodeIDs[0];
-          transport.target = nodeIDs[1];
-          transport.id = transportGraphID;
-          transport.msgCount = 0;
-          
-          this.busGraph.add({
-            group: 'edges',
-            data: transport
+          .then(() => data.id)
+          .then(remoteNodeID => {
+            const nodeIDs = [remoteNodeID, this.id].sort(); // sort for normalization across nodes
+            const transportGraphID = nodeIDs.join('-') + '-' + transport.edgeId;
+            
+            assert.ok(this.busGraph.getNode(nodeIDs[0]).isNode());
+            assert.ok(this.busGraph.getNode(nodeIDs[1]).isNode());
+            
+            // remove the edge, if present, since it may have been updated
+            // during reading the remote node info
+            // (in which case emit() & co are missing!)
+            this.busGraph.removeTransport(transportGraphID);
+            
+            transport.source = nodeIDs[0];
+            transport.target = nodeIDs[1];
+            transport.id = transportGraphID;
+            transport.msgCount = 0;
+            
+            this.busGraph.addTransport(transport);
+            
+            return this.busGraph.updated();
+          }).then(() => {
+            this.transports.add(transport);
+            
+            this.emitBusNodeInfoSoon();
+            
+            debugTransport('Handled initial bus node info', this.id, transport.edgeId);
           });
-          
-          return this.busGraph.updated();
-        }).then(() => {
-          this.transports.add(transport);
-          
-          this.emitBusNodeInfoSoon();
-          
-          debugTransport('Handled initial bus node info', this.id, transport.edgeId);
         });
       }),
       
       transport.on('bus::packet', (p) => {
         const hasAlreadySeen = p.seenBy.indexOf(this.id) != -1;
         
-        debugTransport('Received bus packet', this.id, edgeId, hasAlreadySeen);
+        debugTransport('Received bus packet', this.id, transport.edgeId, hasAlreadySeen);
         
         if (hasAlreadySeen)
           return;
@@ -551,14 +558,13 @@ class Bus extends events.EventEmitter {
       }),
       
       transport.on('disconnect', () => {
-        debugTransport('Received transport disconnect', this.id, edgeId);
+        debugTransport('Received transport disconnect', this.id, transport.edgeId);
         
-        this.removedTransports.add(transport.id);
-        this.busGraph.removeEdge(transport.id);
+        this.busGraph.removeTransport(transport.id);
         this.transports.delete(transport);
         this.localizeBusGraph();
         return this.busGraph.updated().then(() => {
-          debugTransport('Handled transport disconnect', this.id, edgeId);
+          debugTransport('Handled transport disconnect', this.id, transport.edgeId);
         });
       })
     ]));
@@ -675,9 +681,9 @@ class Bus extends events.EventEmitter {
   handleIncomingResponse(resp) {
     debugPackets('Handle incoming response', this.id, resp.responseTo);
     assert.ok(resp.responseTo);
-    assert.ok(this.responseWaiters[resp.responseTo]);
+    assert.ok(this.responseWaiters.get(resp.responseTo));
     
-    return this.responseWaiters[resp.responseTo].handleResponse(resp);
+    return this.responseWaiters.get(resp.responseTo).handleResponse(resp);
   }
 
   handleIncomingRequest(req) {
@@ -793,7 +799,7 @@ class Bus extends events.EventEmitter {
     const responsePackets = [];
     let resolved = false;
     
-    this.responseWaiters[requestId] = {
+    this.responseWaiters.set(requestId, {
       handleResponse: responsePacket => {
         if (responsePacket !== null) {
           assert.ok(responsePacket.sender);
@@ -814,7 +820,7 @@ class Bus extends events.EventEmitter {
         if (responsePackets.length != availableRecipients.length) 
           return; // wait until they are
         
-        delete this.responseWaiters[requestId];
+        this.responseWaiters.delete(requestId);
         
         if (scope == 'nearest') {
           // re-send in case the packet got lost (disconnect or similar)
@@ -833,7 +839,7 @@ class Bus extends events.EventEmitter {
       unanswered: resp => {
         return _.difference(recipients, _.map(responsePackets, e => e.sender));
       }
-    };
+    });
     
     return this.handleBusPacket(this.filterOutput({
       sender: this.id,
@@ -858,7 +864,7 @@ class Bus extends events.EventEmitter {
   }
 
   get unansweredRequests() {
-    return _.keys(this.responseWaiters);
+    return Array.from(this.responseWaiters.keys());
   }
 
   filterInput(packet, type) {

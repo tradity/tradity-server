@@ -221,18 +221,12 @@ Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
   });
   
   return m.start().then(function() {
-    var deferred = Promise.defer();
-    
-    self.mainBus.addTransport(toWorker, function() {
-      deferred.resolve();
-    });
-    
-    return deferred.promise;
+    return self.mainBus.addTransport(toWorker);
   });
 };
 
-Main.prototype.registerWorker = function(w, done) {
-  return this.mainBus.addTransport(new pt.ProcessTransport(w), done);
+Main.prototype.registerWorker = function(w) {
+  return this.mainBus.addTransport(new pt.ProcessTransport(w));
 };
 
 Main.prototype.forkBackgroundWorker = function() {
@@ -246,7 +240,7 @@ Main.prototype.forkBackgroundWorker = function() {
 
   self.workers.push(bw);
 
-  self.registerWorker(bw, function() {
+  return self.registerWorker(bw).then(function() {
     bw.on('message', function(msg) {
       if (msg.cmd == 'startRequest' && !sentSBW) {
         sentSBW = true;
@@ -255,12 +249,12 @@ Main.prototype.forkBackgroundWorker = function() {
         bw.send({cmd: 'startBackgroundWorker'});
       }
     });
+  }).then(function() {
+    self.bwpid = bw.process.pid;
+    assert.ok(self.bwpid);
+    
+    return self.bwpid;
   });
-
-  self.bwpid = bw.process.pid;
-  assert.ok(self.bwpid);
-  
-  return self.bwpid;
 };
 
 Main.prototype.forkStandardWorker = function() {
@@ -430,16 +424,16 @@ Main.prototype.connectToSocketIORemote = function(remote) {
     socket = null;
   });
   
-  socket.once('server-config').then(function() {
-    socket.emit('init-bus-transport', {
+  return socket.once('server-config').then(function() {
+    return socket.emit('init-bus-transport', {
       weight: remote.weight
     }).then(function(r) {
       debug('init-bus-transport returned', r.code);
       
       if (r.code == 'init-bus-transport-success')
-        self.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
+        return self.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
       else
-        self.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
+        return self.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
     });
   });
 };

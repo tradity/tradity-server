@@ -536,8 +536,8 @@ ConnectionData.prototype.queryHandler = function(query) {
           
           debug('Setting up bus transport', self.cdid);
           self.ctx.setProperty('isBusTransport', true);
-          self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false));
-          return { code: 'init-bus-transport-success' };
+          return self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false))
+            .then(() => { code: 'init-bus-transport-success' });
         /**
          * Tell the current {@link module:qctx~QContext} to send back
          * debugging information.

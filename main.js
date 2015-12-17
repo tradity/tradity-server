@@ -75,7 +75,6 @@ class Main extends buscomponent.BusComponent {
 
 Main.init_ = function() {
   Error.stackTraceLimit = cfg.stackTraceLimit || 20;
-  Q.longStackSupport = cfg.longStackTraces || false;
   events.EventEmitter.defaultMaxListeners = 0;
   process.setMaxListeners(0);
   cluster.setMaxListeners(0);

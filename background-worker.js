@@ -4,7 +4,7 @@ var _ = require('lodash');
 var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
-var semaphore = require('q-semaphore');
+var PSemaphore = require('promise-semaphore');
 var debug = require('debug')('sotrade:bw');
 
 /**
@@ -26,7 +26,7 @@ class BackgroundWorker extends buscomponent.BusComponent {
   constructor() {
     super();
     
-    this.sem = semaphore(1);
+    this.sem = new PSemaphore();
   }
 }
 
@@ -50,15 +50,13 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
   
   var starttime, userdbtime;
   
-  return self.sem.take().then(function() {
+  return self.sem.add(function() {
     starttime = Date.now();
   
-    return self.request({name: 'regularCallbackUser', query: query, ctx: ctx});
-  }).then(function() {
-    userdbtime = Date.now();
-    return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
-  }).then(function() {
-    return self.sem.leave();
+    return self.request({name: 'regularCallbackUser', query: query, ctx: ctx}).then(function() {
+      userdbtime = Date.now();
+      return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
+    });
   }).then(function() {
     return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
   });

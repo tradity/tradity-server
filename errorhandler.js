@@ -3,10 +3,11 @@
 var _ = require('lodash');
 var fs = require('fs');
 var util = require('util');
-var semaphore = require('q-semaphore');
-var ratelimit = require('q-ratelimit');
+var PSemaphore = require('promise-semaphore');
+var ratelimit = require('promise-ratelimit');
 var buscomponent = require('./stbuscomponent.js');
 var debug = require('debug')('sotrade:error');
+const promiseUtil = require('./lib/promise-util.js');
 
 /**
  * Provides methods for handling, logging, and notifying about errors.
@@ -26,7 +27,7 @@ class ErrorHandler extends buscomponent.BusComponent {
   constructor() {
     super();
   
-    this.sem = semaphore(1);
+    this.sem = new PSemaphore();
     this.throttle = ratelimit(10000);
   }
 }
@@ -58,43 +59,45 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
   }).then(function(cfg_) {
     cfg = cfg_;
     
-    return Promise.all([self.sem.take(), self.throttle()]);
+    return self.throttle();
   }).then(function() {
-    noemail = noemail || false;
-    
-    longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
-    if (e.stack)
-      longErrorText += e.stack + '\n';
-    else // assume e is not actually an Error instance
-      longErrorText += util.inspect(e) + '\n';
-    
-    // indicating current stack may be helpful
-    longErrorText += catchstack + '\n';
-    
-    if (self.bus) {
-      longErrorText += 'Bus: ' + self.bus.id + '\n';
-    
-      if (e.nonexistentType || e.name.match(/^Assertion/i))
-        longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
-    }
-    
-    if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
-      console.error(longErrorText);
-    
-    if (cfg && cfg.errorLogFile)
-      return Q.nfcall(fs.appendFile, cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
-  }).then(function() {
-    if (cfg && cfg.mail) {
-      var opt = _.clone(cfg.mail['errorBase']);
-      opt.text = longErrorText;
-      return self.request({name: 'sendMail', mailtype: 'error', opt: opt});
-    } else {
-      console.warn('Could not send error mail due to missing config!');
-    }
-  }).catch(function(e2) {
-    console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
-  }).then(function() {
-    return self.sem.leave();
+    return this.sem.add(() => {
+      return Promise.resolve().then(() => {
+        noemail = noemail || false;
+        
+        longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
+        if (e.stack)
+          longErrorText += e.stack + '\n';
+        else // assume e is not actually an Error instance
+          longErrorText += util.inspect(e) + '\n';
+        
+        // indicating current stack may be helpful
+        longErrorText += catchstack + '\n';
+        
+        if (self.bus) {
+          longErrorText += 'Bus: ' + self.bus.id + '\n';
+        
+          if (e.nonexistentType || e.name.match(/^Assertion/i))
+            longErrorText += '\n' + JSON.stringify(self.bus.busGraph.json()) + '\n';
+        }
+        
+        if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
+          console.error(longErrorText);
+        
+        if (cfg && cfg.errorLogFile)
+          return promiseUtil.ncall(fs.appendFile)(cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
+      }).then(function() {
+        if (cfg && cfg.mail) {
+          var opt = _.clone(cfg.mail['errorBase']);
+          opt.text = longErrorText;
+          return self.request({name: 'sendMail', mailtype: 'error', opt: opt});
+        } else {
+          console.warn('Could not send error mail due to missing config!');
+        }
+      }).catch(function(e2) {
+        console.error('Error while handling other error:\n', e2, 'during handling of\n', e);
+      });
+    });
   }).done();
 });
 

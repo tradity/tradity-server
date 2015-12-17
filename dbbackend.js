@@ -7,6 +7,7 @@ var buscomponent = require('./stbuscomponent.js');
 var deepupdate = require('./lib/deepupdate.js');
 var debug = require('debug')('sotrade:db');
 var debugSQL = require('debug')('sotrade:db:SQL');
+const promiseUtil = require('./lib/promise-util.js');
 
 /**
  * Provides access to a (MySQL) database for storing and fetching information
@@ -180,7 +181,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
   var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
   assert.ok(pool);
   
-  return Q.ninvoke(pool, 'getConnection').then(function(conn) {
+  return promiseUtil.ncall(pool.getConnection.bind(pool))().then(function(conn) {
     self.openConnections++;
   
     assert.ok(conn);

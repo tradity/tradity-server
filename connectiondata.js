@@ -10,6 +10,7 @@ var buscomponent = require('./stbuscomponent.js');
 var dt = require('./bus/directtransport.js');
 var qctx = require('./qctx.js');
 var Access = require('./access.js').Access;
+const promiseUtil = require('./lib/promise-util.js');
 
 /**
  * Main entry point for all game-relevant
@@ -319,7 +320,7 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
   if (!self.ctx.user || !self.ctx.user.uid)
     return;
   
-  self.pushEventsTimer = Q.delay(1000).then(function() {
+  self.pushEventsTimer = promiseUtil.delay(1000).then(function() {
     self.pushEventsTimer = null;
     
     if (self.socket === null)

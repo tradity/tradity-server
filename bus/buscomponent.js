@@ -2,7 +2,6 @@
 
 const assert = require('assert');
 const _ = require('lodash');
-const Q = require('q');
 
 class BusComponent {
   constructor() {
@@ -23,7 +22,7 @@ class BusComponent {
     
     this.registerProviders();
     
-    return Q(this.onBusConnect());
+    return Promise.resolve(this.onBusConnect());
   }
 
   setBusFromParent(component) {
@@ -213,7 +212,7 @@ function needsInit (fn) {
     const arguments_ = arguments;
     
     if (this.initPromise === null)
-      this.initPromise = Q(this._init());
+      this.initPromise = Promise.resolve(this._init());
     
     return this.initPromise.then(() => {
       return fn.apply(this, arguments_);

@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const cytoscape = require('cytoscape');
 const zlib = require('zlib');
 const objectHash = require('object-hash');
-const Q = require('q');
+const promiseUtil = require('../lib/promise-util.js');
 
 const debug = require('debug')('sotrade:bus');
 const debugEvents = require('debug')('sotrade:bus:events');
@@ -18,22 +18,8 @@ const debugNetwork = require('debug')('sotrade:bus:network');
 const debugTransport = require('debug')('sotrade:bus:transport');
 const debugMisc = require('debug')('sotrade:bus:misc');
 
-function ncall(fn) {
-  return function() {
-    const args = arguments;
-    return new Promise((resolve, reject) => {
-      return fn(...args, (err, ret) => {
-        if (err)
-          return reject(err);
-        else
-          return resolve(ret);
-      });
-    });
-  };
-}
-
-const inflate = ncall(zlib.inflate);
-const deflate = ncall(zlib.deflate);
+const inflate = promiseUtil.ncall(zlib.inflate);
+const deflate = promiseUtil.ncall(zlib.deflate);
 
 class BusDescription {
   constructor(data) {
@@ -636,7 +622,8 @@ class Bus extends events.EventEmitter {
           
           debugPackets('Re-queueing packet', this.id, recpId, packet.name);
           assert.equal(packet_.seenBy.indexOf(this.id), -1);
-          return Q.delay(10).then(() => {
+          
+          return promiseUtil.fcall(this.busGraph.once, 'updated').then(() => {
             return this.handleBusPacket(packet_);
           });
         })();

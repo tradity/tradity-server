@@ -13,7 +13,12 @@ var buscomponent = require('./stbuscomponent.js');
 var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 var debug = require('debug')('sotrade:user');
+const promiseUtil = require('./lib/promise-util.js');
 require('datejs');
+
+const randomBytes = promiseUtil.ncall(crypto.randomBytes);
+const pseudoRandomBytes = promiseUtil.ncall(crypto.pseudoRandomBytes);
+const pbkdf2 = promiseUtil.ncall(crypto.pbkdf2);
 
 /**
  * Provides all single-user non-financial client requests.
@@ -60,7 +65,7 @@ User.prototype.generatePWKey = function(pw) {
   var pwsalt;
   var iterations;
   
-  return Q.nfcall(crypto.randomBytes, 32).then(function(pwsalt_) {
+  return randomBytes(32).then(function(pwsalt_) {
     pwsalt = pwsalt_;
     
     return self.getServerConfig();
@@ -69,7 +74,7 @@ User.prototype.generatePWKey = function(pw) {
     assert.strictEqual(iterations, parseInt(iterations));
     assert.ok(iterations >= cfg.passwords.pbkdf2MinIterations);
     
-    return Q.nfcall(crypto.pbkdf2, String(pw), pwsalt, 1 << iterations, 64);
+    return pbkdf2(String(pw), pwsalt, 1 << iterations, 64);
   }).then(function(pwhash) {
     return {salt: pwsalt, hash: pwhash, algorithm: 'PBKDF2|' + iterations};
   });
@@ -122,7 +127,7 @@ User.prototype.verifyPassword = function(pwdata, pw) {
       if (iterations < cfg.passwords.pbkdf2MinIterations)
         return false;
       
-      return Q.nfcall(crypto.pbkdf2, String(pw), pwdata.pwsalt, 1 << iterations, 64).then(function(pwhash) {
+      return pbkdf2(String(pw), pwdata.pwsalt, 1 << iterations, 64).then(function(pwhash) {
         return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
       });
     });
@@ -188,7 +193,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
     loginResp = loginResp_;
     assert.equal(loginResp.code, 'login-success');
     
-    return Q.nfcall(crypto.randomBytes, 16);
+    return randomBytes(16);
   }).then(function(buf) {
     key = buf.toString('hex');
     
@@ -288,7 +293,7 @@ User.prototype.login = buscomponent.provide('client-login',
           return passwordOkay ? r : null;
         });
       };
-    }).reduce(Q.when, null);
+    }).reduce((a,b) => a.then(b), null);
   }).then(function(r) {
     if (r === null) {
       if (!useTransaction)
@@ -311,7 +316,7 @@ User.prototype.login = buscomponent.provide('client-login',
       User.deprecatedPasswordAlgorithms.test(r.algorithm) ? self.generatePassword(pw, 'changetime', uid, ctx) : Promise.resolve()
     ]);
   }).then(function() {
-    return Q.nfcall(crypto.randomBytes, 16);
+    return randomBytes(16);
   }).then(function(buf) {
     key = buf.toString('hex');
     return self.getServerConfig();
@@ -1258,7 +1263,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
         if (psRes[0].c == 0) /* no collision, no additional identifier needed */
           return null;
         
-        return Q.nfcall(crypto.pseudoRandomBytes, 3);
+        return pseudoRandomBytes(3);
       }).then(function(rand) {
         if (rand)
           possibleSchoolPath += '-' + rand.toString('base64') + String(Date.now()).substr(3, 4);
@@ -1418,7 +1423,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
   }).then(function() {
     assert.strictEqual(uid, parseInt(uid));
     
-    return gainUIDCBs.reduce(Q.when, Promise.resolve());
+    return gainUIDCBs.reduce((a,b) => a.then(b), Promise.resolve());
   }).then(conn.commit, conn.rollbackAndThrow);
   }).then(function() {
     if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
@@ -1553,7 +1558,7 @@ User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset',
     u = res[0];
     assert.ok(u);
     
-    return Q.nfcall(crypto.randomBytes, 8);
+    return randomBytes(8);
   }).then(function(buf) {
     pw = buf.toString('hex');
     return self.generatePassword(pw, 'issuetime', u.uid, ctx);
@@ -1630,7 +1635,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
     }
     
     return Promise.all([
-      Q.nfcall(crypto.randomBytes, 16),
+      pseudoRandomBytes(16),
       ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
     ]);
   }).spread(function(buf, schoolcountres) {

@@ -185,7 +185,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
         String(mailtype), String(origTo)]);
     }
   }).then(function() {
-    return Q.ninvoke(self.mailer, 'sendMail', opt);
+    return promiseUtil.ncall(self.mailer.sendMail.bind(self.mailer))(opt);
   }).then(function(status) {
     if (status && status.rejected && status.rejected.length > 0)
       self.emailBounced({messageId: shortId}, true, ctx);

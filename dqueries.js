@@ -282,7 +282,7 @@ DelayedQueries.prototype.addNeededStock = function(queryid, stocktextid) {
  * 
  * @return {object}  Returns an object where <code>.check(ctx)</code>
  *                   is a callback for checking whether the condition is currently met
- *                   (returning a Q promise)
+ *                   (returning a Promise)
  *                   and where <code>.neededStocks</code> is a list of stock ids
  *                   required to have accurate database information for checking.
  * 

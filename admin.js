@@ -6,6 +6,7 @@ var util = require('util');
 var assert = require('assert');
 var debug = require('debug')('sotrade:admin');
 var buscomponent = require('./stbuscomponent.js');
+const promiseUtil = require('./lib/promise-util.js');
 
 /**
  * Provides client requests for administrative tasks and information gathering.
@@ -117,7 +118,7 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(qu
   if (!ctx.access.has('server'))
     throw new self.PermissionDenied();
   
-  Q.delay(2000).then(function() {
+  promiseUtil.delay(2000).then(function() {
     self.emit('globalShutdown');
   }).done();
   

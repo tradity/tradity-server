@@ -13,6 +13,7 @@ var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
+const promiseUtil = require('./lib/promise-util.js');
 
 /**
  * Provides the HTTP backend for all client connections
@@ -175,7 +176,7 @@ SoTradeServer.prototype.listen = function(port, host) {
       return deferred.reject(e);
     
     console.log(process.pid, 'has address in use on', port, host);
-    deferred.resolve(Q.delay(500).then(function() {
+    deferred.resolve(promiseUtil.delay(500).then(function() {
       try {
         self.httpServer.close();
       } catch(e2) {

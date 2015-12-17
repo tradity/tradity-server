@@ -5,6 +5,7 @@ var util = require('util');
 var events = require('events');
 var request = require('request');
 var debug = require('debug')('sotrade:stockloader');
+const promiseUtil = require('./lib/promise-util.js');
 
 var MAXLEN_DEFAULT = 196;
 var CACHE_TIME_DEFAULT = 25000;
@@ -112,7 +113,7 @@ AbstractLoader.prototype.request = function(url, attemptsLeft) {
       return requestDeferred.reject(err);
     
     if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0)
-      return Q.delay(750).then(() => this.request(url, attemptsLeft - 1));
+      return promiseUtil.delay(750).then(() => this.request(url, attemptsLeft - 1));
     
     if (res.statusCode != 200)
       return requestDeferred.reject(new Error('Stock loader error: URL ' + url + ' returned status code ' + res.statusCode));

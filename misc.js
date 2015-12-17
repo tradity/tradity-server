@@ -6,6 +6,7 @@ var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 var debug = require('debug')('sotrade:misc');
+const promiseUtil = require('./lib/promise-util.js');
 
 /**
  * Provides handlers for client requests not fitting into any of
@@ -147,7 +148,7 @@ Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-
   var conn;
   return ctx.startTransaction({httpresources: 'w'}).then(function(conn_) {
     conn = conn_;
-    return Q.delay(5 * 60000);
+    return promiseUtil.delay(5 * 60000);
   }).then(_.bind(conn.commit, conn));
 });
 

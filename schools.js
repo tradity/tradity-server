@@ -7,6 +7,8 @@ var util = require('util');
 var assert = require('assert');
 var debug = require('debug')('sotrade:schools');
 var buscomponent = require('./stbuscomponent.js');
+const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 /**
  * Provides requests regarding the group structure to the client
@@ -222,7 +224,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
           Promise.resolve({schoolinfo: null});
       }) // parentResult
     ]);
-  }).spread(function(admins, subschools, usercount, comments, blogposts, popularStocks, feedblogs, parentResult) {
+  }).then(spread(function(admins, subschools, usercount, comments, blogposts, popularStocks, feedblogs, parentResult) {
     s.admins = admins;
     s.subschools = subschools;
     s.usercount = usercount[0].usercount;
@@ -242,7 +244,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
       s.parentSchool ? s.parentSchool.config : {}, s.config);
     
     return { code: 'get-school-info-success', schoolinfo: s };
-  });
+  }));
 };
 
 /**

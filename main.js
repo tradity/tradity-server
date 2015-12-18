@@ -184,8 +184,9 @@ Main.prototype.start = function() {
     if (!this.transportToMaster)
       this.transportToMaster = new pt.ProcessTransport(process);
     
+    debug('Connecting to master', process.pid);
     if (this.isWorker)
-      return this.mainBus.addTransport(this.transportToMaster, this.worker.bind(this));
+      return this.mainBus.addTransport(this.transportToMaster).then(() => this.worker());
     
     assert.ok(cluster.isMaster);
     return this.startMaster();
@@ -221,6 +222,7 @@ Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
   });
   
   return m.start().then(function() {
+    debug('Adding transport to non-cluster worker');
     return self.mainBus.addTransport(toWorker);
   });
 };
@@ -232,6 +234,7 @@ Main.prototype.registerWorker = function(w) {
 Main.prototype.forkBackgroundWorker = function() {
   var self = this;
   
+  debug('Forking new background worker', self.useCluster);
   if (!self.useCluster)
     return self.newNonClusterWorker(true, null);
   
@@ -260,6 +263,7 @@ Main.prototype.forkBackgroundWorker = function() {
 Main.prototype.forkStandardWorker = function() {
   var self = this;
   
+  debug('Forking new standard worker', self.useCluster);
   if (!self.useCluster)
     return self.newNonClusterWorker(false, self.getFreePort(process.pid));
   

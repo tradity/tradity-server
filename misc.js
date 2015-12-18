@@ -7,6 +7,7 @@ var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 var debug = require('debug')('sotrade:misc');
 const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 /**
  * Provides handlers for client requests not fitting into any of
@@ -204,13 +205,13 @@ Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatis
     ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL'),
     ctx.query('SELECT COUNT(*) AS c FROM orderhistory'),
     ctx.query('SELECT COUNT(*) AS c FROM schools')
-  ]).spread(function(ures, ores, sres) {
+  ]).then(spread(function(ures, ores, sres) {
     return {
       userCount: ures[0].c,
       tradeCount: ores[0].c,
       schoolCount: sres[0].c
     };
-  });
+  }));
 });
 
 exports.Misc = Misc;

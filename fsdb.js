@@ -10,6 +10,8 @@ var deepupdate = require('./lib/deepupdate.js');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
 var debug = require('debug')('sotrade:fsdb');
+const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 /**
  * Provides an interface for publishing files and downloading them via HTTP.
@@ -174,7 +176,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   return Promise.all([
     self.getServerConfig(),
     ctx.startTransaction()
-  ]).spread(function(cfg, conn) {
+  ]).then(spread(function(cfg, conn) {
   uniqrole = cfg.fsdb.uniqroles[query.role];
   
   query.proxy = query.proxy ? true : false;
@@ -267,7 +269,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
       });
     }
   }).then(conn.commit, conn && conn.rollbackAndThrow);
-  }).then(function() {
+  })).then(function() {
     return { code: 'publish-success', extra: 'repush' };
   });
 });

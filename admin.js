@@ -7,6 +7,7 @@ var assert = require('assert');
 var debug = require('debug')('sotrade:admin');
 var buscomponent = require('./stbuscomponent.js');
 const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 /**
  * Provides client requests for administrative tasks and information gathering.
@@ -364,7 +365,7 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
   return Promise.all([
     ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [query.masterschool]),
     ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [query.subschool]),
-  ]).spread(function(mr, sr) {
+  ]).then(spread(function(mr, sr) {
     assert.ok(mr.length <= 1);
     assert.ok(sr.length <= 1);
     
@@ -400,7 +401,7 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
         ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [query.subschool])
       ]);
     }
-  }).then(function() {
+  })).then(function() {
     return ctx.query('DELETE FROM schools WHERE schoolid = ?', [query.subschool]);
   }).then(function() {
     return { code: 'join-schools-success' };

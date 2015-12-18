@@ -5,6 +5,8 @@ var util = require('util');
 var assert = require('assert');
 var buscomponent = require('./stbuscomponent.js');
 var debug = require('debug')('sotrade:questionnaires');
+const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 /**
  * Provides methods for sending questionnaires to the
@@ -49,7 +51,7 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
         'AND (SELECT COUNT(*) FROM qn_result_sets ' + 
         'WHERE uid = ? AND qn_result_sets.questionnaire_id = qn_questionnaires.questionnaire_id) = 0 '
       ), uid === null ? [] : [uid])
-    ]).spread(function(questionnaires, res) {
+    ]).then(spread(function(questionnaires, res) {
     var ids = _.pluck(res, 'questionnaire_id');
     
     return {
@@ -57,7 +59,7 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
       questionnaires: _.pick(questionnaires, ids),
       isPersonalized: uid !== null
     };
-  });
+  }));
 });
 
 /**
@@ -171,13 +173,13 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
         .then(function(res) {
         return Promise.all(res.map(loadQuestion));
       })
-    ]).spread(function(texts, questions) {
+    ]).then(spread(function(texts, questions) {
       return _.mapValues(texts, function(entry, lang) {
         return _.extend(entry, questionnaire, {
           questions: _.pluck(questions, lang)
         });
       });
-    }).then(function(questionnaireObject) {
+    })).then(function(questionnaireObject) {
       questionnaireObject.questionnaire_id = questionnaire.questionnaire_id;
       return questionnaireObject;
     });
@@ -192,13 +194,13 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
         'WHERE alist.question_id = ? ORDER BY `order` ASC', [question.question_id]).then(function(res) {
         return Promise.all(res.map(loadAnswer));
       })
-    ]).spread(function(texts, answers) {
+    ]).then(spread(function(texts, answers) {
       return _.mapValues(texts, function(entry, lang) {
         return _.extend(entry, question, {
           answers: _.pluck(answers, lang)
         });
       });
-    });
+    }));
   };
   
   loadAnswer = function(answer) {

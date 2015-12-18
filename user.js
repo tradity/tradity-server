@@ -14,6 +14,7 @@ var Access = require('./access.js').Access;
 var qctx = require('./qctx.js');
 var debug = require('debug')('sotrade:user');
 const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 require('datejs');
 
 const randomBytes = promiseUtil.ncall(crypto.randomBytes);
@@ -721,7 +722,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
           'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ' + 
           'WHERE c.schoolid = ? ORDER BY LENGTH(p.path) ASC', [xuser.dschoolid])
       ]));
-  }).spread(function(followers, schools) {
+  }).then(spread(function(followers, schools) {
     xuser.f_amount = followers[0].samount || 0;
     xuser.f_count = followers[0].sone || 0;
     
@@ -771,7 +772,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
         // values
         ctx.query('SELECT time, totalvalue FROM valuehistory WHERE uid = ?', [xuser.uid]),
       ]));
-    }).spread(function(orders, achievements, values) {
+    }).then(spread(function(orders, achievements, values) {
       result.orders = orders;
       result.achievements = achievements;
       result.values = values;
@@ -781,12 +782,12 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
         'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
         'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' + 
         'WHERE c.eventid = ?', [xuser.registerevent]);
-    }).then(function(comments) {
+    })).then(function(comments) {
       result.pinboard = comments;
       
       return result;
     });
-  }).then(function(result) {
+  })).then(function(result) {
     if (cacheable) {
       result.cc__ = {
         fields: ['result', 'orders', 'achievements', 'values'],
@@ -1592,7 +1593,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
   return Promise.all([
     ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]),
     self.getServerConfig()
-  ]).spread(function(res, cfg) {
+  ]).then(spread(function(res, cfg) {
     if (res.length == 0)
       throw new self.SoTradeClientError('get-invitekey-info-notfound');
   
@@ -1601,7 +1602,7 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
     res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, String(query.invitekey)));
     
     return { code: 'get-invitekey-info-success', result: res[0] };
-  });
+  }));
 });
 
 /**
@@ -1638,7 +1639,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
       pseudoRandomBytes(16),
       ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
     ]);
-  }).spread(function(buf, schoolcountres) {
+  }).then(spread(function(buf, schoolcountres) {
     if (query.schoolid && schoolcountres[0].c != 1)
       throw new self.SoTradeClientError('create-invite-link-school-not-found');
     
@@ -1647,7 +1648,7 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
       '(uid, `key`, email, ctime, schoolid) VALUES ' +
       '(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
       [ctx.user.uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
-  }).then(function() {
+  })).then(function() {
     url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
   
     if (query.email) {

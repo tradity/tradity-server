@@ -7,6 +7,8 @@ var validator = require('validator');
 var debug = require('debug')('sotrade:stocks');
 var qctx = require('./qctx.js');
 var buscomponent = require('./stbuscomponent.js');
+const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 require('datejs');
 
 /**
@@ -434,7 +436,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
       'FROM stocks ' +
       'WHERE (name LIKE ? OR stocktextid LIKE ?) AND leader IS NULL',
       [xstr, xstr])
-  ]).spread(function(cfg, localResults_, externalStocks) {
+  ]).then(spread(function(cfg, localResults_, externalStocks) {
     localResults = localResults_;
     var externalStocksIDs = _.pluck(externalStocks, 'stocktextid');
 
@@ -443,7 +445,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
       externalStocksIDs.push(str.toUpperCase());
     
     return self.quoteLoader.loadQuotesList(_.uniq(externalStocksIDs), _.bind(self.stocksFilter, self, cfg));
-  }).then(function(externalResults) {
+  })).then(function(externalResults) {
     var results = _.union(localResults, _.map(externalResults, function(r) {
       return {
         'stockid': r.symbol, /* backwards compatibility */
@@ -738,7 +740,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
         'WHERE stocktextid = ? AND uid = ? AND buytime > FLOOR(UNIX_TIMESTAMP()/86400)*86400 AND SIGN(amount) = SIGN(?)',
         [r.stocktextid, ctx.user.uid, r.amount])
     ]);
-  }).spread(function(ures_, ohr_) {
+  }).then(spread(function(ures_, ohr_) {
     ures = ures_;
     ohr = ohr_;
     
@@ -767,7 +769,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     return conn.query('INSERT INTO orderhistory (uid, stocktextid, leader, money, buytime, amount, fee, stockname, prevmoney, prevamount) ' +
       'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?, ?, ?)',
       [ctx.user.uid, r.stocktextid, r.leader, price, amount, fee, r.name, r.money, r.amount]);
-  }).then(function(oh_res_) {
+  })).then(function(oh_res_) {
     oh_res = oh_res_;
     
     if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0))) {
@@ -977,7 +979,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
       'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid ' +
       'LEFT JOIN users AS u ON u.uid = oh.leader ' +
       'LEFT JOIN users AS trader ON trader.uid = oh.uid WHERE oh.orderid = ?', [parseInt(query.tradeid)])
-  ]).spread(function(cfg, oh_res) {
+  ]).then(spread(function(cfg, oh_res) {
     if (oh_res.length == 0)
       throw new self.SoTradeClientError('get-trade-info-notfound');
     r = oh_res[0];
@@ -993,7 +995,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
       'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' +
       'LEFT JOIN users AS u ON c.commenter = u.uid ' +
       'WHERE c.eventid = ?', [r.eventid]);
-  }).then(function(comments) {
+  })).then(function(comments) {
     return { code: 'get-trade-info-success', 'trade': r, 'comments': comments };
   });
 });

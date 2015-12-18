@@ -14,6 +14,7 @@ var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 var ConnectionData = require('./connectiondata.js').ConnectionData;
 const promiseUtil = require('./lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 /**
  * Provides the HTTP backend for all client connections
@@ -41,7 +42,7 @@ const promiseUtil = require('./lib/promise-util.js');
  * @augments module:stbuscomponent~STBusComponent
  */
 class SoTradeServer extends buscomponent.BusComponent {
-  constructor() {
+  constructor(info) {
     super();
     
     this.httpServer = null;
@@ -97,12 +98,12 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
   return Promise.all([
     self.request({name: 'get-readability-mode'}),
     self.request({name: 'dbUsageStatistics'})
-  ]).spread(function(readonlyReply, dbstats) {
+  ]).then(spread(function(readonlyReply, dbstats) {
     ret.readonly = readonlyReply.readonly;
     ret.dbstats = dbstats;
     
     return ret;
-  });
+  }));
 });
 
 /**

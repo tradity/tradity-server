@@ -60,7 +60,10 @@ class BusGraph extends events.EventEmitter {
       elements: [
         {
           group: 'nodes',
-          data: localNodeDesc
+          data: {
+            desc: localNodeDesc,
+            id: localNodeDesc.id
+          }
         }
       ]
     });
@@ -133,11 +136,13 @@ class BusGraph extends events.EventEmitter {
   mergeRemoteGraph(busnode, doNotLocalize) {
     const remoteBusGraph = cytoscape(busnode.graph);
     remoteBusGraph.nodes().forEach(e => {
-      e.data().handledEvents = new Set(e.data().handledEvents);
+      const desc = new BusDescription(e.data().desc);
+      e.data({desc: desc});
+      assert.ok(e.data().desc instanceof BusDescription);
     });
     
     if (remoteBusGraph.gHash() == this.c.gHash())
-      return;
+      return Promise.resolve();
     
     // remove all own edges from the remote bus graph, then take the union and
     // add our own edges later on
@@ -158,14 +163,12 @@ class BusGraph extends events.EventEmitter {
     for (let edge of edgesToRemove)
       this.c.remove(this.c.getElementById(edge));
     
-    this.c.getElementById(busnode.id).data().handledEvents = new Set(busnode.handledEvents);
-    
     // localization can be supressed, e. g. because we just received an initial node info
     // and the edge that keeps the graph connected is yet to be added
     // (localizing refers to taking only the current connected component)
     return Promise.resolve().then(() => {
       if (!doNotLocalize)
-        this.localizeBusGraph();
+        this.localize();
     }).then(() => {
     // fail early in case we cannot use one of our own edges as a transport
       this.ownNode.edgesWith(this.c.elements()).forEach(e => {
@@ -207,12 +210,12 @@ class BusGraph extends events.EventEmitter {
   
   expandScope(scope, eventType) {
     const eventTypeFilter = (i, e) => {
-      return e.isNode() && e.data().handledEvents.has(eventType);
+      return e.isNode() && e.data().desc.handledEvents.has(eventType);
     };
     
     switch (scope) {
       case 'immediate':
-        scope = !this.ownNode.data().handledEvents.has(eventType) ? [] : [this.ownNode.id()];
+        scope = !this.ownNode.data().desc.handledEvents.has(eventType) ? [] : [this.ownNode.id()];
         break;
       case 'local':
         scope = this.localNodes.filter(eventTypeFilter).map(e => e.id());
@@ -220,7 +223,7 @@ class BusGraph extends events.EventEmitter {
       case 'nearest':
         // take a shortcut if we provide the relevant event ourselves
         // this proably happens quite often
-        if (this.ownNode.data().handledEvents.has(eventType)) {
+        if (this.ownNode.data().desc.handledEvents.has(eventType)) {
           scope = [this.ownNode.id()];
           break;
         }
@@ -562,7 +565,7 @@ class Bus extends events.EventEmitter {
         
         this.busGraph.removeTransport(transport.id);
         this.transports.delete(transport);
-        this.localizeBusGraph();
+        this.busGraph.localize();
         return this.busGraph.updated().then(() => {
           debugTransport('Handled transport disconnect', this.id, transport.edgeId);
         });
@@ -797,24 +800,25 @@ class Bus extends events.EventEmitter {
     
     const deferred = Promise.defer();
     const responsePackets = [];
-    let resolved = false;
     
     this.responseWaiters.set(requestId, {
       handleResponse: responsePacket => {
+        const availableRecipients = _.intersection(this.listAllIds(), recipients);
+        
+        debugEvents('Response packet in', this.id, scope, requestId,
+          responsePackets.length, availableRecipients.length,
+          recipients.length, responsePacket && responsePacket.state);
+        
         if (responsePacket !== null) {
           assert.ok(responsePacket.sender);
           
+          if (responsePacket.state === 'failure')
+            return deferred.reject(responsePacket.result);
+          
           responsePackets.push(responsePacket);
+          
+          assert.strictEqual(responsePacket.state, 'success');
         }
-        
-        const availableRecipients = _.intersection(this.listAllIds(), recipients);
-        
-        debugEvents('Response packet in', this.id, scope, requestId, responsePackets.length, availableRecipients.length, recipients.length);
-        
-        if (responsePacket.state === 'failure' && !resolved)
-          return deferred.reject(responsePacket.result);
-        
-        assert.strictEqual(responsePacket.state, 'success');
         
         // all responses in?
         if (responsePackets.length != availableRecipients.length) 
@@ -913,7 +917,7 @@ cytoscape('core', 'gHash', function() {
   
   nodes.forEach(v => {
     nodeData[v.id()] = [
-      v.data().handledEvents,
+      v.data().desc.handledEvents,
       v.edgesWith(nodes).map(e => e.id()).sort()
     ];
   });

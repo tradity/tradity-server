@@ -401,7 +401,13 @@ DelayedQueries.prototype.executeQuery = function(query) {
     name: 'client-' + query.query.type,
     query: query.query,
     ctx: ctx
+  }).catch(function (e) {
+    if (typeof e.toJSON !== 'function')
+      throw e;
+    
+    return e.toJSON();
   }).then(function(result) {
+    debug('Executed dquery', query.queryid, result.code);
     var json = query.query.dquerydata || {};
     json.result = result.code;
     

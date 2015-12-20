@@ -671,7 +671,8 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     if (opt.testOnly) {
       return {
         query: _.bind(ctx.query, ctx),
-        commit: Promise.resolve, rollback: Promise.resolve
+        commit:   () => Promise.resolve(),
+        rollback: () => Promise.resolve()
       };
     }
     

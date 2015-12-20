@@ -134,7 +134,7 @@ SoTradeServer.prototype.start = function(port) {
   }).then(function() {
     self.io = sio.listen(self.httpServer, _.bind(cfg.configureSocketIO, self)(sio, cfg));
     self.io.adapter(busAdapter(self.bus));
-    debug(process.pid, 'has socket.io set up on', port);
+    debug('socket.io set up', process.pid, 'port ' + port);
     
     self.io.sockets.on('connection', _.bind(self.handleConnection, self));
   });
@@ -191,7 +191,7 @@ SoTradeServer.prototype.listen = function(port, host) {
   self.httpServer.addListener('listening', listenHandler);
   
   process.nextTick(function() {
-    debug(process.pid, 'listening on', port, host);
+    debug('listening', process.pid, 'port ' + port, 'host ' + host);
     self.httpServer.listen(port, host);
   });
   
@@ -293,11 +293,14 @@ SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'glob
   this.isShuttingDown = true;
   
   if (this.clients.length == 0) {
-    this.emitImmediate('localMasterShutdown');
+    this.emitImmediate('localMasterShutdown').catch(e => {
+      console.error(e);
+    });
+    
     if (this.httpServer)
       this.httpServer.close();
     
-    this.unplugBus();
+    return this.unplugBus();
   }
 });
 

@@ -537,7 +537,7 @@ ConnectionData.prototype.queryHandler = function(query) {
           debug('Setting up bus transport', self.cdid);
           self.ctx.setProperty('isBusTransport', true);
           return self.bus.addTransport(new dt.DirectTransport(self.socket, query.weight || 10, false))
-            .then(() => { code: 'init-bus-transport-success' });
+            .then(() => ({ code: 'init-bus-transport-success' }));
         /**
          * Tell the current {@link module:qctx~QContext} to send back
          * debugging information.
@@ -566,6 +566,7 @@ ConnectionData.prototype.queryHandler = function(query) {
             xdata: self.pickXDataFields()
           });
         }).catch(function(e) {
+          debug('Query errored', self.cdid, query.type, query.id, e);
           if (e.nonexistentType) {
             throw new self.SoTradeClientError('unknown-query-type');
           } else {
@@ -576,10 +577,10 @@ ConnectionData.prototype.queryHandler = function(query) {
       }).catch(function (e) {
         return e.toJSON();
       }).then(function(result) {
+        debug('Query returned', self.cdid, query.type, query.id, result && result.code);
+        
         assert.ok(result);
         assert.ok(result.code);
-        
-        debug('Query returned', self.cdid, query.type, query.id, result.code);
         
         if (callbackHasBeenCalled)
           return self.emitError(new Error('Callback for client request called multiple times!'));

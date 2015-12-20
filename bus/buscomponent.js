@@ -32,7 +32,8 @@ class BusComponent {
   }
 
   unplugBus() {
-    assert.ok(this.bus);
+    if (!this.bus)
+      return Promise.resolve();
     
     this.wantsUnplug = true;
     
@@ -104,25 +105,25 @@ class BusComponent {
 
   emit(name, data) {
     if (!this.bus)
-      throw new Error('Cannot emit event "' + name + '" without bus connection');
+      return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
     return this.bus.emit(name, data);
   }
 
   emitImmediate(name, data) {
     if (!this.bus)
-      throw new Error('Cannot emit event "' + name + '" without bus connection');
+      return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
     return this.bus.emitImmediate(name, data);
   }
 
   emitLocal(name, data) {
     if (!this.bus)
-      throw new Error('Cannot emit event "' + name + '" without bus connection');
+      return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
     return this.bus.emitLocal(name, data);
   }
 
   emitGlobal(name, data) {
     if (!this.bus)
-      throw new Error('Cannot emit event "' + name + '" without bus connection');
+      return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
     return this.bus.emitGlobal(name, data);
   }
 

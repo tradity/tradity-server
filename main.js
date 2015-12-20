@@ -150,7 +150,7 @@ Main.prototype.start = function() {
   debug('Starting');
   
   return this.initBus().then(() => {
-    return this.setBus(this.mainBus, 'manager-' + process.pid);
+    return this.setBus(this.mainBus, 'manager-' + process.pid + '-' + Date.now());
   }).then(() => {
     return this.loadComponents(this.superEssentialComponents);
   }).then(() => {
@@ -163,13 +163,14 @@ Main.prototype.start = function() {
     });
     
     process.on('unhandledRejection', (reason, p) => {
-      debug('Unhandled rejection', reason, p);
+      debug('Unhandled rejection', reason, reason && reason.stack);
       this.emitError(reason);
       this.emitImmediate('localShutdown');
     });
     
     this.mainBus.on('localShutdown', () => {
       setTimeout(() => {
+        debug('Quitting aftter localShutdown', process.pid);
         process.exit(0);
       }, 250);
     });
@@ -184,12 +185,18 @@ Main.prototype.start = function() {
     if (!this.transportToMaster)
       this.transportToMaster = new pt.ProcessTransport(process);
     
-    debug('Connecting to master', process.pid);
-    if (this.isWorker)
+    if (this.isWorker) {
+      debug('Connecting to master', process.pid);
       return this.mainBus.addTransport(this.transportToMaster).then(() => this.worker());
+    }
     
+    debug('Starting master', process.pid);
     assert.ok(cluster.isMaster);
-    return this.startMaster();
+    return this.startMaster().then(() => {
+      debug('Started master', process.pid);
+    });
+  }).then(() => {
+    debug('Startup complete!', process.pid);
   });
 };
 
@@ -223,7 +230,9 @@ Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
   
   return m.start().then(function() {
     debug('Adding transport to non-cluster worker');
-    return self.mainBus.addTransport(toWorker);
+    return self.mainBus.addTransport(toWorker).then(() => {
+      debug('Added transport to non-cluster worker');
+    });
   });
 };
 
@@ -303,8 +312,12 @@ Main.prototype.startMaster = function() {
     for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
       workerStartedPromises.push(Promise.resolve().then(self.forkStandardWorker.bind(self)));
     
+    debug('Starting workers', process.pid, workerStartedPromises.length + ' workers');
+    
     return Promise.all(workerStartedPromises);
   }).then(function() {
+    debug('All workers started', process.pid);
+    
     var shuttingDown = false;
     self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
     self.mainBus.on('localShutdown', function() { shuttingDown = true; });
@@ -333,7 +346,9 @@ Main.prototype.startMaster = function() {
       }
     });
     
-    return self.connectToSocketIORemotes();
+    return self.connectToSocketIORemotes().then(() => {
+      debug('Connected to socket.io remotes', process.pid);
+    });
   });
 };
 
@@ -355,13 +370,13 @@ Main.prototype.worker = function() {
       return;
     
     if (msg.cmd == 'startBackgroundWorker') {
-      debug(process.pid, 'received SBW');
+      debug('received SBW', process.pid);
       
       self.isBackgroundWorker = true;
     } else if (msg.cmd == 'startStandardWorker') {
       assert.ok(msg.port);
       
-      debug(process.pid, 'received SSW[', msg.port, ']');
+      debug('received SSW', process.pid, msg.port);
       self.port = msg.port;
       self.isBackgroundWorker = false;
     } else {
@@ -381,7 +396,7 @@ Main.prototype.startWorker = function() {
   var componentsForLoading = self.basicComponents
     .concat(self.isBackgroundWorker ? self.bwComponents : self.regularComponents);
   
-  debug(process.pid, 'loading');
+  debug('loading', process.pid);
   var stserver;
   return self.loadComponents(componentsForLoading).then(function() {
     var server = require('./server.js');
@@ -389,7 +404,7 @@ Main.prototype.startWorker = function() {
     
     return stserver.setBus(self.mainBus, 'serverMaster');
   }).then(function() {
-    debug(process.pid, 'loaded');
+    debug('loaded', process.pid);
     
     if (self.isBackgroundWorker) {
       debug('BW started at', process.pid, 'connecting to remotes...');
@@ -397,18 +412,25 @@ Main.prototype.startWorker = function() {
         debug('BW connected to remotes', process.pid);
       });
     } else {
-      return stserver.start(self.port);
+      return stserver.start(self.port).then(() => {
+        debug('Server started!', process.pid);
+      });
     }
   });
 }
 
 Main.prototype.connectToSocketIORemotes = function() {
-  return Promise.all(this.getServerConfig().socketIORemotes.map(this.connectToSocketIORemote.bind(this)));
+  return Promise.all(
+    this.getServerConfig().socketIORemotes.map(
+      remote => this.connectToSocketIORemote(remote)
+    )
+  );
 };
 
 Main.prototype.connectToSocketIORemote = function(remote) {
   var self = this;
   
+  debug('Connecting to socket.io remote', process.pid, remote.url);
   var sslOpts = remote.ssl || self.getServerConfig().ssl;
   var socket = new sotradeClient.SoTradeConnection({
     url: remote.url,
@@ -429,16 +451,18 @@ Main.prototype.connectToSocketIORemote = function(remote) {
   });
   
   return socket.once('server-config').then(function() {
+    debug('Received server-config from remote', process.pid, remote.url);
+    
     return socket.emit('init-bus-transport', {
       weight: remote.weight
-    }).then(function(r) {
-      debug('init-bus-transport returned', r.code);
-      
-      if (r.code == 'init-bus-transport-success')
-        return self.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
-      else
-        return self.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
     });
+  }).then(function(r) {
+    debug('init-bus-transport returned', process.pid, r.code);
+    
+    if (r.code == 'init-bus-transport-success')
+      return self.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
+    else
+      return self.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
   });
 };
 

@@ -83,7 +83,6 @@ function SoTradeClientError(code, msg) {
   tmp.name = this.name = 'SoTradeClientError';
   this.message = msg || tmp.message;
   this.code = code;
-  this.busTransmitAsJSON = true;
   this.stack = tmp.stack;
   
   return this;

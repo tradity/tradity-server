@@ -373,7 +373,7 @@ ConnectionData.prototype.onUserConnected = function() {
 /**
  * Callback which will be invoked when a user just logged out or disconnected.
  * 
- * @function module:connectiondata~ConnectionData#onUserConnected
+ * @function module:connectiondata~ConnectionData#onLogout
  */
 ConnectionData.prototype.onLogout = function() {
   var self = this;
@@ -567,6 +567,9 @@ ConnectionData.prototype.queryHandler = function(query) {
           });
         }).catch(function(e) {
           debug('Query errored', self.cdid, query.type, query.id, e);
+          if (e.code)
+            return e;
+          
           if (e.nonexistentType) {
             throw new self.SoTradeClientError('unknown-query-type');
           } else {
@@ -636,7 +639,7 @@ ConnectionData.prototype.disconnectedHandler = function() {
   }
   
   if (this.bus) {
-    return this.request({name: 'deleteConnectionData', id: this.cdid}).then(function() {
+    return this.request({name: 'deleteConnectionData', id: this.cdid}).then(() => {
       this.unplugBus();
       this.socket = null;
     });

@@ -2,7 +2,6 @@
 
 var _ = require('lodash');
 var util = require('util');
-var events = require('promise-events');
 var request = require('request');
 var debug = require('debug')('sotrade:stockloader');
 const promiseUtil = require('../lib/promise-util.js');
@@ -10,7 +9,7 @@ const promiseUtil = require('../lib/promise-util.js');
 var MAXLEN_DEFAULT = 196;
 var CACHE_TIME_DEFAULT = 25000;
 
-class AbstractLoader extends events.EventEmitter {
+class AbstractLoader extends promiseUtil.EventEmitter {
   constructor(opt) {
     super();
     opt = opt || {};

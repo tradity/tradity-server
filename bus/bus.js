@@ -3,7 +3,6 @@
 const _ = require('lodash');
 const util = require('util');
 const assert = require('assert');
-const events = require('promise-events');
 const os = require('os');
 const crypto = require('crypto');
 const cytoscape = require('cytoscape');
@@ -50,7 +49,7 @@ class BusDescription {
   }
 }
 
-class BusGraph extends events.EventEmitter {
+class BusGraph extends promiseUtil.EventEmitter {
   constructor(localNodeDesc) {
     super();
     assert.ok(localNodeDesc.id);
@@ -258,7 +257,7 @@ class BusGraph extends events.EventEmitter {
   }
 }
 
-class BusTransport extends events.EventEmitter {
+class BusTransport extends promiseUtil.EventEmitter {
   constructor() {
     super();
     
@@ -343,7 +342,7 @@ class BusTransport extends events.EventEmitter {
   }
 }
 
-class Bus extends events.EventEmitter {
+class Bus extends promiseUtil.EventEmitter {
   constructor() {
     super();
     
@@ -702,6 +701,9 @@ class Bus extends events.EventEmitter {
       successes => ({ state: 'success', result: successes }),
       failure => ({ state: 'failure', result: failure })
     ).then(taggedResult => {
+      debug('Handled incoming request', this.id, req.name, req.requestId,
+        taggedResult.state, taggedResult.result && taggedResult.result.length);
+      
       return this.handleBusPacket(this.filterOutput({
         sender: this.id,
         seenBy: [],
@@ -828,8 +830,11 @@ class Bus extends events.EventEmitter {
         
         if (scope == 'nearest') {
           // re-send in case the packet got lost (disconnect or similar)
-          if (responsePackets.length == 0)
+          if (responsePackets.length == 0 ||
+              responsePackets[0].result.length == 0) {
+              debugEvents('Re-sending request due to missing answer', this.id, req.name, requestId, scope, recipients);
             return this.requestScoped(req, scope);
+          }
           
           assert.equal(responsePackets.length, 1);
           assert.equal(responsePackets[0].result.length, 1);

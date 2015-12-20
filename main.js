@@ -6,7 +6,6 @@ var assert = require('assert');
 var fs = require('fs');
 var https = require('https');
 var cluster = require('cluster');
-var events = require('promise-events');
 var util = require('util');
 
 var qctx = require('./qctx.js');
@@ -16,6 +15,7 @@ var buscomponent = require('./stbuscomponent.js');
 var pt = require('./bus/processtransport.js');
 var dt = require('./bus/directtransport.js');
 var sotradeClient = require('./sotrade-client.js');
+const promiseUtil = require('./lib/promise-util.js');
 var debug = require('debug')('sotrade:main');
 
 var achievementList = require('./achievement-list.js');
@@ -75,7 +75,8 @@ class Main extends buscomponent.BusComponent {
 
 Main.init_ = function() {
   Error.stackTraceLimit = cfg.stackTraceLimit || 20;
-  events.EventEmitter.defaultMaxListeners = 0;
+  require('events').EventEmitter.defaultMaxListeners = 0;
+  require('promise-events').EventEmitter.defaultMaxListeners = 0;
   process.setMaxListeners(0);
   cluster.setMaxListeners(0);
 };
@@ -215,7 +216,7 @@ Main.prototype.getFreePort = function(pid) {
 
 Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
   var self = this;
-  var ev = new events.EventEmitter();
+  var ev = new promiseUtil.EventEmitter();
   var toMaster = new dt.DirectTransport(ev, 1, true);
   var toWorker = new dt.DirectTransport(ev, 1, true);
   
@@ -408,7 +409,7 @@ Main.prototype.startWorker = function() {
     
     if (self.isBackgroundWorker) {
       debug('BW started at', process.pid, 'connecting to remotes...');
-      return self.connectToSocketIORemotes().then(function() {
+      return Promise.resolve()/*self.connectToSocketIORemotes() XXX*/.then(function() {
         debug('BW connected to remotes', process.pid);
       });
     } else {

@@ -7,6 +7,7 @@ var nodemailer = require('nodemailer');
 var commonUtil = require('tradity-connection');
 var debug = require('debug')('sotrade:emailsender');
 var sha256 = require('./lib/sha256.js');
+const promiseUtil = require('./lib/promise-util.js');
 var buscomponent = require('./stbuscomponent.js');
 var qctx = require('./qctx.js');
 

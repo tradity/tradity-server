@@ -294,7 +294,7 @@ User.prototype.login = buscomponent.provide('client-login',
           return passwordOkay ? r : null;
         });
       };
-    }).reduce((a,b) => a.then(b), null);
+    }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve(null));
   }).then(function(r) {
     if (r === null) {
       if (!useTransaction)
@@ -1424,7 +1424,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
   }).then(function() {
     assert.strictEqual(uid, parseInt(uid));
     
-    return gainUIDCBs.reduce((a,b) => a.then(b), Promise.resolve());
+    return gainUIDCBs.reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve());
   }).then(conn.commit, conn.rollbackAndThrow);
   }).then(function() {
     if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))

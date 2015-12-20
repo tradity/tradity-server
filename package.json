@@ -31,7 +31,7 @@
     "nodemailer": "~1.10.0",
     "nodemailer-smtp-pool": "~1.1.1",
     "object-hash": ">=0.9.1",
-    "promise-events": "~0.0.8",
+    "promise-events": "git+https://github.com/addaleax/promise-events.git#optional-result-filtering",
     "promise-semaphore": ">=0.2.4",
     "promise-ratelimit": "~0.0.2",
     "request": "^2.67.0",

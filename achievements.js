@@ -379,7 +379,7 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
       return function() {
         return self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
       };
-    }).reduce((a,b) => a.then(b), Promise.resolve()).then(function() {
+    }).reduce((a,b) => Promise.resolve(a).then(b)).then(function() {
       return { code: 'dl-achievement-success', streak: longestStreak };
     });
   });

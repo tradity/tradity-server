@@ -73,7 +73,7 @@ class SoTradeServer extends buscomponent.BusComponent {
 SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('internalServerStatistics',
   ['qctxDebug'], function(qctxDebug)
 {
-  if (typeof gc == 'function')
+  if (typeof gc === 'function')
     gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
   
   var self = this;
@@ -102,6 +102,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
     ret.readonly = readonlyReply.readonly;
     ret.dbstats = dbstats;
     
+    debug('Collected internal server statistics', ret.bus.id);
     return ret;
   }));
 });

@@ -490,8 +490,6 @@ ConnectionData.prototype.queryHandler = function(query) {
       if (!hadUser && self.ctx.user != null)
         self.onUserConnected();
       
-      var callbackHasBeenCalled = false;
-      
       return Promise.resolve().then(function() {
         self.unansweredCount++;
         if (self.isShuttingDown)
@@ -567,8 +565,8 @@ ConnectionData.prototype.queryHandler = function(query) {
           });
         }).catch(function(e) {
           debug('Query errored', self.cdid, query.type, query.id, e);
-          if (e.code)
-            return e;
+          if (e.isSotradeError)
+            throw e;
           
           if (e.nonexistentType) {
             throw new self.SoTradeClientError('unknown-query-type');
@@ -584,11 +582,6 @@ ConnectionData.prototype.queryHandler = function(query) {
         
         assert.ok(result);
         assert.ok(result.code);
-        
-        if (callbackHasBeenCalled)
-          return self.emitError(new Error('Callback for client request called multiple times!'));
-        
-        callbackHasBeenCalled = true;
         
         self.unansweredCount--;
         

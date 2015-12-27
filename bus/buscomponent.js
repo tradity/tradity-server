@@ -184,7 +184,7 @@ function provide(name, args, fn, prefilter) {
     if (prefilter && prefilter(data))
       return;
     
-    var passArgs = [];
+    const passArgs = [];
     for (let i = 0; i < args.length; ++i)
       passArgs.push(data[args[i]]);
     

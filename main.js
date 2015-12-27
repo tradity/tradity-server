@@ -121,7 +121,10 @@ Main.prototype.getReadabilityMode = buscomponent.provide('get-readability-mode',
 });
 
 Main.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
-  debug('Change readability mode', event.readonly);
+  if (this.readonly !== event.readonly) {
+    debug('Change readability mode', event.readonly);
+  }
+  
   this.readonly = event.readonly;
 });
 
@@ -157,21 +160,27 @@ Main.prototype.start = function() {
   }).then(() => {
     this.managerCTX = new qctx.QContext({parentComponent: this});
     
-    process.on('uncaughtException', err => {
-      debug('Uncaught exception', err);
+    let isAlreadyShuttingDownDueToError = false;
+    const unhandledSomething = err => {
       this.emitError(err);
-      this.emitImmediate('localShutdown');
+      if (!isAlreadyShuttingDownDueToError)
+        this.emitImmediate('localShutdown');
+      isAlreadyShuttingDownDueToError = true;
+    };
+    
+    process.on('uncaughtException', err => {
+      debug('Uncaught exception', err, err && err.stack);
+      return unhandledSomething(err);
     });
     
     process.on('unhandledRejection', (reason, p) => {
       debug('Unhandled rejection', reason, reason && reason.stack);
-      this.emitError(reason);
-      this.emitImmediate('localShutdown');
+      return unhandledSomething(reason);
     });
     
     this.mainBus.on('localShutdown', () => {
       setTimeout(() => {
-        debug('Quitting aftter localShutdown', process.pid);
+        debug('Quitting after localShutdown', process.pid);
         process.exit(0);
       }, 250);
     });
@@ -409,7 +418,7 @@ Main.prototype.startWorker = function() {
     
     if (self.isBackgroundWorker) {
       debug('BW started at', process.pid, 'connecting to remotes...');
-      return Promise.resolve()/*self.connectToSocketIORemotes() XXX*/.then(function() {
+      return self.connectToSocketIORemotes().then(function() {
         debug('BW connected to remotes', process.pid);
       });
     } else {

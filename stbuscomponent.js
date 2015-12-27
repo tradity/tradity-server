@@ -84,6 +84,7 @@ function SoTradeClientError(code, msg) {
   this.message = msg || tmp.message;
   this.code = code;
   this.stack = tmp.stack;
+  this.isSotradeError = true;
   
   return this;
 };

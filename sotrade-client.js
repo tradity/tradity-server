@@ -5,6 +5,7 @@ var sio = require('socket.io-client');
 var fs = require('fs');
 var https = require('https');
 var _ = require('lodash');
+const debug = require('debug')('sotrade:s-client');
 
 function NodeSoTradeConnection (opt) {
   opt = opt || {};
@@ -33,19 +34,22 @@ function NodeSoTradeConnection (opt) {
     console.error(e);
   }
   
-  opt.q = require('q');
-  opt.q.longStackSupport = true;
-  
   var socketopts = opt.socketopts || {};
   if (!socketopts.transports)
     socketopts.transports = ['websocket'];
+  if (socketopts.multiplex !== true)
+    socketopts.multiplex = false;
   
   if (/^(https|wss)/.test(opt.url))
     socketopts.agent = new https.Agent(cfg.ssl);
   
   var url = opt.url;
-  if (url && !opt.connect)
-    opt.connect = function() { return sio.connect(url, socketopts); };
+  if (url && !opt.connect) {
+    opt.connect = function() {
+      debug('Connecting', url, socketopts);
+      return sio.connect(url, socketopts);
+    };
+  }
   
   if (typeof opt.logDevCheck == 'undefined')
     opt.logDevCheck = true;
@@ -58,6 +62,7 @@ function NodeSoTradeConnection (opt) {
   }
   
   opt.clientSoftwareVersion = opt.clientSoftwareVersion || ownVersion;
+  debug('Setting up connection', opt.url);
   return new commonAPI.SoTradeConnection(opt);
 };
 

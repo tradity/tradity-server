@@ -30,12 +30,12 @@ LoopbackQuoteLoader.prototype._makeQuoteRequestFetch = function(stocklist) {
 			record.symbol = record.isin;
 			record.failure = null;
 			record.currency_name = 'EUR';
+            record.pieces = 10000;
 			
-			if (record.leader === null) {
-				var factor = Math.exp((Math.random() - 0.5) * 0.1 * (Date.now()/1000.0 - record.lastchecktime) / 86400.0);
-				record.ask *= factor / 10000.0;
-				record.bid *= factor / 10000.0;
-			}
+            if (record.leader === null) {
+              record.ask *= 1.0001;
+              record.bid *= 1.0001;
+            }
 			
 			record.last = (record.ask + record.bid)/2.0;
 			record.lastTradePrice = record.last;

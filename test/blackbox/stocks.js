@@ -14,6 +14,27 @@ describe('stocks', function() {
       user = data.user;
     });
   });
+  
+  beforeEach(function() {
+    /* do standard reset, then clear depot */
+    return testHelpers.standardReset().then(function() {
+      return socket.emit('list-own-depot');
+    }).then(function(data) {
+      assert.equal(data.code, 'list-own-depot-success');
+      assert.ok(data.results);
+      
+      return Q.all(data.results.map(function(r) {
+        return socket.emit('stock-buy', {
+          __sign__: true,
+          amount: -r.amount,
+          value: null,
+          stocktextid: r.stockid,
+          leader: null,
+          forceNow: true
+        });
+      }));
+    });
+  });
 
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
@@ -85,29 +106,13 @@ describe('stocks', function() {
       var amount = 5;
       
       /* clear depot first */
-      return socket.emit('list-own-depot').then(function(data) {
-        assert.equal(data.code, 'list-own-depot-success');
-        assert.ok(data.results);
-        
-        return Q.all(data.results.map(function(r) {
-          return socket.emit('stock-buy', {
-            __sign__: true,
-            amount: -r.amount,
-            value: null,
-            stockid: r.stockid,
-            leader: null,
-            forceNow: true
-          });
-        }));
-      }).then(function() {
-        return socket.emit('stock-buy', {
-          __sign__: true,
-          amount: amount,
-          value: null,
-          stockid: standardISIN,
-          leader: null,
-          forceNow: true
-        });
+      return socket.emit('stock-buy', {
+        __sign__: true,
+        amount: amount,
+        value: null,
+        stocktextid: standardISIN,
+        leader: null,
+        forceNow: true
       }).then(function(res) {
         assert.equal(res.code, 'stock-buy-success');
         
@@ -125,7 +130,7 @@ describe('stocks', function() {
           __sign__: true,
           amount: -amount,
           value: null,
-          stockid: standardISIN,
+          stocktextid: standardISIN,
           leader: null,
           forceNow: true
         });
@@ -145,7 +150,7 @@ describe('stocks', function() {
           __sign__: true,
           amount: -amount,
           value: null,
-          stockid: standardISIN,
+          stocktextid: standardISIN,
           leader: null,
           forceNow: true
         });

@@ -56,15 +56,13 @@ exports.needsInit = buscomponent.needsInit;
 var provide = buscomponent.provide;
 
 function provideW(name, args, fn) {
-  fn.isWriting = true;
+  fn.needsWriting = true;
   
   return provide(name, args, fn, function(data) {
-    if (data.ctx && data.reply && data.ctx.getProperty('readonly')) {
-      data.reply({ code: 'server-readonly' });
-      return true;
-    }
+    if (data.ctx && data.ctx.getProperty('readonly'))
+      return { result: { code: 'server-readonly' }, prefiltered: true };
     
-    return false;
+    return { prefiltered: false };
   });
 };
 

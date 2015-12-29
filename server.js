@@ -305,6 +305,18 @@ SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'glob
   }
 });
 
+/**
+ * Dummy listener.
+ * 
+ * This only exists to inform other bus nodes that we handle the
+ * <code>push-events</code> event for cases in which there are no
+ * {module:connectiondata~ConnectionData} instances.
+ * 
+ * @function module:server~SoTradeServer#dummyListener
+ */
+SoTradeServer.prototype.dummyListener = buscomponent.listener(['push-events'], function() {
+});
+
 exports.SoTradeServer = SoTradeServer;
 
 })();

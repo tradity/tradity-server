@@ -310,7 +310,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
 ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', function() {
   var self = this;
   
-  debug('Push pending events', self.cdid, !!self.pushEventsTimer, self.ctx.user && self.ctx.user.uid);
+  debug('Push pending events', self.cdid, self.bus && self.bus.id, !!self.pushEventsTimer, self.ctx.user && self.ctx.user.uid);
   
   if (self.pushEventsTimer)
     return self.pushEventsTimer;
@@ -436,7 +436,7 @@ ConnectionData.prototype.queryHandler = function(query) {
     if (!query)
       return;
     
-    debug('Received query of type', self.cdid, query.type, query.id);
+    debug('Received query of type', self.cdid, self.bus && self.bus.id, query.type, query.id);
     var recvTime = Date.now();
     
     self.queryCount++;

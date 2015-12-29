@@ -179,17 +179,23 @@ class BusComponent {
 function provide(name, args, fn, prefilter) {
   fn.isProvider = true;
   fn.providedRequest = name;
+  prefilter = prefilter || (() => ({ prefiltered: false }));
   
   fn.requestCB = function(data) {
-    if (prefilter && prefilter(data))
-      return;
-    
     const passArgs = [];
     for (let i = 0; i < args.length; ++i)
       passArgs.push(data[args[i]]);
     
-    return Promise.resolve().then(() => {
-      return fn.apply(this, passArgs);
+    return Promise.resolve(data).then(prefilter).then(prefilterResult => {
+      assert.equal(typeof prefilterResult.prefiltered, 'boolean');
+      
+      if (prefilterResult.prefiltered) {
+        assert.equal(typeof prefilterResult.result, 'object');
+        
+        return prefilterResult.result;
+      } else {
+        return fn.apply(this, passArgs);
+      }
     });
   };
   

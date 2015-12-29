@@ -1,8 +1,8 @@
 {
   "scripts": {
     "start": "service-sotrade-restart || true",
-    "test": "./node_modules/.bin/mocha --recursive -s 15000 -t 240000",
-    "test-cov": "./node_modules/.bin/istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 15000 -t 80000 && ./node_modules/.bin/istanbul report html"
+    "test": "./node_modules/.bin/mocha --recursive -s 15000 -t 24000",
+    "test-cov": "./node_modules/.bin/istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 15000 -t 40000 && ./node_modules/.bin/istanbul report html"
   },
   "name": "tradity-de-server",
   "version": "0.0.1",

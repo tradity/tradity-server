@@ -179,7 +179,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
   if (query.since)
     self.mostRecentEventTime = Math.max(self.mostRecentEventTime, parseInt(query.since));
   
-  // possibly push info 
+  // possibly push info
   self.pushSelfInfo();
   
   if (self.currentFetchingEvents)
@@ -205,8 +205,6 @@ ConnectionData.prototype.fetchEvents = function(query) {
     
       if (self.socket)
         return self.socket.emit('push-container', r);
-    }).catch(function(e) {
-      return self.emitError(e);
     });
   });
 };
@@ -508,13 +506,13 @@ ConnectionData.prototype.queryHandler = function(query) {
          * See {@link module:connectiondata~ConnectionData#fetchEvents}
          * for the query structure.
          * 
-         * @return {object} Returns with <code>fetching-events</code>.
+         * @return {object} Returns with <code>fetched-events</code>.
          * 
          * @function c2s~fetch-events
          */
         case 'fetch-events':
-          self.fetchEvents(query);
-          return { code: 'fetching-events' };
+          return self.fetchEvents(query).then(() => ({ code: 'fetched-events' }));
+        
         /**
          * Sets up this connection as a bus (server-to-server) transport.
          * This requires unlimited privileges.
@@ -576,6 +574,7 @@ ConnectionData.prototype.queryHandler = function(query) {
           }
         });
       }).catch(function (e) {
+        debug('Querry error catch', self.cdid, e);
         return e.toJSON();
       }).then(function(result) {
         debug('Query returned', self.cdid, query.type, query.id, result && result.code);

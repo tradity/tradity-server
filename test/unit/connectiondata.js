@@ -14,8 +14,17 @@ describe('ConnectionData', () => {
     
     return mocks.fakeBus({
       'feedFetchEvents': () => {
-        if (++ffeCount == 2)
-          return deferred.resolve();
+        if (++ffeCount == 2) {
+          deferred.resolve();
+        }
+        
+        return []; // connectiondata expects array return
+      },
+      'client-get-user-info': () => {
+        return {
+          code: 'get-user-info-success',
+          result: {}
+        };
       }
     }).then(bus => {
       const fakeConnection = () => {

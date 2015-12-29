@@ -10,7 +10,6 @@ describe('questionnaires', function() {
   
   before(function() {
     var seed = Math.random();
-    console.log('questionnaires seed', seed);
     
     random = function() {
       var x = Math.sin(seed++) * 100000;

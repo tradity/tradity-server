@@ -63,4 +63,12 @@ describe('misc', function() {
       });
     });
   });
+  
+  describe('fetch-events', function() {
+    it('Should return fetched-events', function() {
+      return socket.emit('fetch-events', function(res) {
+        assert.equal(res.code, 'fetched-events');
+      });
+    });
+  });
 });

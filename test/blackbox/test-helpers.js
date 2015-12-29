@@ -10,7 +10,7 @@ var fs = require('fs');
 var assert = require('assert');
 
 var testPerformance = process.env.SOTRADE_PROFILE_PERFORMANCE;
-var timingFile = process.env.SOTRADE_TIMING_FILE; // thought about naming this proFile... haha
+var timingFile = process.env.SOTRADE_TIMING_FILE;
 
 var startServer = _.memoize(function() {
   return setup.setupDatabase().then(function() {

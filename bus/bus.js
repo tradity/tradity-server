@@ -839,6 +839,8 @@ class Bus extends promiseUtil.EventEmitter {
   }
 
   emitScoped(name, data, scope) {
+    assert.ok(this.initedPromise);
+    
     debugEvents('Emit scoped', this.id, name, scope);
     
     const recipients = this.busGraph.expandScope(scope, name);
@@ -877,6 +879,8 @@ class Bus extends promiseUtil.EventEmitter {
   }
 
   requestScoped(req, scope) {
+    assert.ok(this.initedPromise);
+    
     assert.ok(req);
     
     req = _.clone(req);

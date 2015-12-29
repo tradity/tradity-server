@@ -6,6 +6,7 @@ const buscomponent = require('../../stbuscomponent.js');
 const cfg = require('../../config.js').config();
 const _ = require('lodash');
 const util = require('util');
+const assert = require('assert');
 
 exports.fakeBus = function(handlers) {
   const mainBus = new bus.Bus();
@@ -28,7 +29,9 @@ exports.fakeBus = function(handlers) {
   }
   
   const manager = new ManagerType();
-  return manager.setBus(mainBus, 'test-manager').then(() => {
+  return mainBus.init().then(() => {
+    return manager.setBus(mainBus, 'test-manager');
+  }).then(() => {
     // better way: destructuring
     mainBus.manager = manager;
     return mainBus;

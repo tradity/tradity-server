@@ -20,9 +20,9 @@ class BusComponent {
     this.wantsUnplug = false;
     this.initPromise = null;
     
-    this.registerProviders();
-    
-    return Promise.resolve(this.onBusConnect());
+    return this.registerProviders().then(() => {
+      return this.onBusConnect();
+    });
   }
 
   setBusFromParent(component) {

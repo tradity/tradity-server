@@ -85,7 +85,7 @@ Main.prototype.initBus = function() {
   return this.mainBus.init().then(() => Promise.all([
     this.mainBus.addInputFilter(packet => {
       if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)
-        packet.data.ctx = qctx.fromJSON(packet.data.ctx, self);
+        packet.data.ctx = qctx.fromJSON(packet.data.ctx, this);
       
       return packet;
     }),
@@ -224,7 +224,6 @@ Main.prototype.getFreePort = function(pid) {
 };
 
 Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
-  var self = this;
   var ev = new promiseUtil.EventEmitter();
   var toMaster = new dt.DirectTransport(ev, 1, true);
   var toWorker = new dt.DirectTransport(ev, 1, true);
@@ -238,9 +237,9 @@ Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
     port: port
   });
   
-  return m.start().then(function() {
+  return m.start().then(() => {
     debug('Adding transport to non-cluster worker');
-    return self.mainBus.addTransport(toWorker).then(() => {
+    return this.mainBus.addTransport(toWorker).then(() => {
       debug('Added transport to non-cluster worker');
     });
   });

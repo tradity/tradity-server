@@ -248,7 +248,7 @@ AchievementList.push({
   name: 'CHAT_PARTICIPANTS_5',
   fireOn: {
     'feed-chat-start': function (ev, ctx) { return ev.endpoints; },
-    'feed-chat-user-added': function (ev, ctx) { return _.union([ev.addedUser], _.pluck(ev.endpoints, 'uid')); }
+    'feed-chat-user-added': function (ev, ctx) { return _.union([ev.addedChats], _.pluck(ev.endpoints, 'uid')); }
   },
   xp: 400,
   check: function(uid, userAchievements, cfg, ctx) {

@@ -111,6 +111,8 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
     return;
   
   var uid = ctx.user.uid;
+  debug('Checking achievement for user', achievementEntry.name, uid);
+  
   assert.equal(uid, parseInt(uid));
   assert.ok(!uid.splice);
   

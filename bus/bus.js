@@ -628,7 +628,7 @@ class Bus extends promiseUtil.EventEmitter {
       }),
       
       transport.on('disconnect', (reason) => {
-        debugTransport('Received transport disconnect', this.id, transport.edgeId, connecting);
+        debugTransport('Received transport disconnect', this.id, transport.edgeId);
         this.connectingTransports.delete(transport);
         
         this.busGraph.removeTransport(transport.id);

@@ -218,7 +218,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
           
           release();
           
-          deferred.resolve(Promise.resolve().then(restart));
+          return deferred.resolve(Promise.resolve().then(restart));
         }
         
         var exception = null;

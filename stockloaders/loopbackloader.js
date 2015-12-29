@@ -33,8 +33,8 @@ LoopbackQuoteLoader.prototype._makeQuoteRequestFetch = function(stocklist) {
             record.pieces = 10000;
 			
             if (record.leader === null) {
-              record.ask *= 1.0001;
-              record.bid *= 1.0001;
+              record.ask *= 1.0001 / 10000;
+              record.bid *= 1.0001 / 10000;
             }
 			
 			record.last = (record.ask + record.bid)/2.0;

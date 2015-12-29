@@ -29,6 +29,8 @@ class BusDescription {
     this.hostname = data.hostname || os.hostname();
     this.pid = data.pid || process.pid;
     this.id = data.id || this.determineBusID();
+    this.lastInfoTime = data.lastInfoTime || Date.now();
+    this.lastPublishedGHash = null;
   }
   
   determineBusID() {
@@ -44,7 +46,8 @@ class BusDescription {
       msgCount: this.msgCount,
       lostPackets: this.lostPackets,
       hostname: this.hostname,
-      pid: this.pid
+      pid: this.pid,
+      lastInfoTime: this.lastInfoTime
     }
   }
 }
@@ -103,9 +106,17 @@ class BusGraph extends promiseUtil.EventEmitter {
     assert.ok(this._localNodes.length >= 1);
     assert.notStrictEqual(Array.from(this._localNodes).indexOf(this.ownNode), -1);
     
-    debugNetwork('Checked for local nodes', this.ownNode.id, this._localNodes.length);
+    debugNetwork('Checked for local nodes', this.ownNode.id(), this._localNodes.length);
     
     return this.localNodes;
+  }
+  
+  get hash () {
+    if (this._hash)
+      return this._hash;
+    
+    this._hash = this.c.gHash();
+    return this.hash;
   }
   
   updated() {
@@ -117,6 +128,7 @@ class BusGraph extends promiseUtil.EventEmitter {
     // invalidate cached properties
     this._dijkstra = null;
     this._localNodes = null;
+    this._hash = null;
     
     return this.emit('updated');
   }
@@ -140,43 +152,79 @@ class BusGraph extends promiseUtil.EventEmitter {
       assert.ok(e.data().desc instanceof BusDescription);
     });
     
-    if (remoteBusGraph.gHash() == this.c.gHash())
-      return Promise.resolve();
+    const lHash = this.hash;
+    const rHash = remoteBusGraph.gHash();
+    const rEdgeCount = remoteBusGraph.edges().length;
+    const rNodeCount = remoteBusGraph.nodes().length;
+    const lEdgeCount = this.c.edges().length;
+    const lNodeCount = this.c.nodes().length;
+    const lOwnEdges = this.ownNode.edgesWith(this.c.elements()).map(e => e.id());
+    
+    debugNetwork('Remote graph info', rNodeCount, rEdgeCount, rHash, lHash);
+    
+    if (rHash === lHash) {
+      assert.strictEqual(rNodeCount, lNodeCount);
+      assert.strictEqual(rEdgeCount, lEdgeCount);
+      return Promise.resolve(false);
+    }
+    
+    // const fs = require('fs');
+    // fs.writeFileSync('/tmp/premerge-local', JSON.stringify(this.toJSON()));
+    // fs.writeFileSync('/tmp/premerge-remote', JSON.stringify(busnode.graph));
     
     // remove all own edges from the remote bus graph, then take the union and
     // add our own edges later on
     remoteBusGraph.remove(remoteBusGraph.getElementById(this.ownNode.id()));
     this.c = remoteBusGraph.union(this.c);
     
+    assert.ok(this.c.nodes().length >= rNodeCount - 1);
+    assert.ok(this.c.nodes().length >= lNodeCount);
+    assert.ok(this.c.edges().length >= lEdgeCount);
+    
     // Remove edges from the graph of which the remote node is an endpoint (but we are not)
     // and which are not present in the remote graph;
     // Work with IDs since the nodes are in different Cytoscape instances
-    const rEdgesInUnion = this.ownNode.edgesWith(this.c.elements()).map(e => e.id());
+    const rEdgesInUnion = this.c.getElementById(busnode.id).edgesWith(this.c.elements()).map(e => e.id());
     const rEdgesInRGraph = remoteBusGraph.getElementById(busnode.id).edgesWith(remoteBusGraph.elements()).map(e => e.id());
     const ownEdges = this.ownNode.edgesWith(this.c.elements()).map(e => e.id());
     let edgesToRemove = _.difference(_.difference(rEdgesInUnion, rEdgesInRGraph), ownEdges);
     
+    assert.deepEqual(lOwnEdges.sort(), ownEdges.sort());
+    
     // remove edges that have been removed locally
     // (the remote may not yet be aware of that fact)
     edgesToRemove = _.union(edgesToRemove, Array.from(this.removedTransports));
-    for (let edge of edgesToRemove)
+    for (let edge of edgesToRemove) {
       this.c.remove(this.c.getElementById(edge));
+    }
+    
+    const rEdgesAfterRemove = this.c.getElementById(busnode.id).edgesWith(this.c.elements()).map(e => e.id());
     
     // localization can be supressed, e. g. because we just received an initial node info
     // and the edge that keeps the graph connected is yet to be added
     // (localizing refers to taking only the current connected component)
     return Promise.resolve().then(() => {
       if (!doNotLocalize)
-        this.localize();
+        return this.localize();
     }).then(() => {
     // fail early in case we cannot use one of our own edges as a transport
       this.ownNode.edgesWith(this.c.elements()).forEach(e => {
         assert.ok(e);
         assert.ok(e.data().emit);
+        assert.ok(e.data() instanceof BusTransport);
       });
+      
+      // fs.writeFileSync('/tmp/postmerge', JSON.stringify(this.toJSON()));
     
       return this.updated();
-    });
+    }).then(() => true);
+  }
+  
+  stats() {
+    return {
+      nodes: this.c.nodes().length,
+      edges: this.c.edges().length,
+    };
   }
   
   toJSON() {
@@ -192,11 +240,15 @@ class BusGraph extends promiseUtil.EventEmitter {
   }
   
   removeTransport(id) {
+    debugNetwork('Remove transport', id);
     this.removedTransports.add(id);
     return this.c.remove(this.c.getElementById(id));
   }
   
   addTransport(transport) {
+    debugNetwork('Add transport', transport.id);
+    this.removedTransports.delete(transport.id);
+    
     return this.c.add({
       group: 'edges',
       data: transport
@@ -218,6 +270,10 @@ class BusGraph extends promiseUtil.EventEmitter {
         break;
       case 'local':
         scope = this.localNodes.filter(eventTypeFilter).map(e => e.id());
+        break;
+      case 'neighbors': // meh
+      case 'neighbours':
+        scope = this.ownNode.closedNeighbourhood().nodes().map(e => e.id());
         break;
       case 'nearest':
         // take a shortcut if we provide the relevant event ourselves
@@ -316,9 +372,11 @@ class BusTransport extends promiseUtil.EventEmitter {
         
         return this.bus.emitBusNodeInfo([this], true);
       })
-    ]).then(() =>
-      this.emit('bus::handshakeSYN', {id: this.bus.id, edgeId: this.edgeId})
-    );
+    ]);
+  }
+  
+  emitSYN() {
+    return this.emit('bus::handshakeSYN', {id: this.bus.id, edgeId: this.edgeId});
   }
   
   assertInitialState() {
@@ -360,7 +418,7 @@ class Bus extends promiseUtil.EventEmitter {
     
     this.transports = new Set();
     
-    this.remotesWithOurBusNodeInfo = new Set([this.id]);
+    this.connectingTransports = new Set();
     
     this.inputFilters = [];
     this.outputFilters = [];
@@ -432,11 +490,7 @@ class Bus extends promiseUtil.EventEmitter {
       
       debugNetwork('Parsed nodeInfo', this.id + ' <- ' + data.id);
       
-      return this.handleTransportNodeInfo(data, false).then(() => {
-        if (this.remotesWithOurBusNodeInfo.has(data.id))
-          return;
-        
-        this.remotesWithOurBusNodeInfo.add(data.id);
+      return this.handleTransportNodeInfo(data).then(() => {
         return this.emitBusNodeInfoSoon();
       });
     });
@@ -476,11 +530,23 @@ class Bus extends promiseUtil.EventEmitter {
   }
 
   emitBusNodeInfo(transports, initial) {
+    if (this.busGraph.hash !== this.desc.lastPublishedGHash) {
+      // only update lastInfoTime if something changed
+      this.desc.lastInfoTime = Date.now();
+      this.desc.lastPublishedGHash = this.busGraph.hash;
+    } else {
+      if (!initial) {
+        debugNetwork('Suppress bus node info emitting due to unchanged graph info',
+          this.id, this.busGraph.hash);
+        return;
+      }
+    }
+    
     const info = _.extend({}, this.toJSON(), { graph: this.busGraph.toJSON() });
     
     debugNetwork('emitBusNodeInfo', this.id,
       'with transports ' + (transports || []).map(t => t.id).join(' '),
-      initial ? 'initial' : 'non-initial');
+      initial ? 'initial' : 'non-initial', info.sendTime);
 
     return deflate(JSON.stringify(info)).then(encodedInfo => {
       // note that initial infos are transport events, whereas
@@ -493,13 +559,15 @@ class Bus extends promiseUtil.EventEmitter {
           t => t.emit('bus::nodeInfoInitial', encodedInfo)
         ));
       } else {
-        return this.emitGlobal('bus::nodeInfo', encodedInfo);
+        return this.emitScoped('bus::nodeInfo', encodedInfo, 'neighbours');
       }
     });
   }
 
   addTransport(transport) {
     transport.assertInitialState();
+    
+    this.connectingTransports.add(transport);
     
     return transport.init(this).then(() => Promise.all([
       transport.on('bus::nodeInfoInitial', data => { // ~ ACK after SYN-ACK
@@ -513,8 +581,9 @@ class Bus extends promiseUtil.EventEmitter {
             return null;
           
           debugTransport('Received initial bus node info', this.id, transport.edgeId, data.id);
+          assert.ok(this.connectingTransports.size > 0);
           
-          return this.handleTransportNodeInfo(data, true) // modifies busGraph property!
+          return this.handleTransportNodeInfo(data) // modifies this.busGraph!
           .then(() => data.id)
           .then(remoteNodeID => {
             const nodeIDs = [remoteNodeID, this.id].sort(); // sort for normalization across nodes
@@ -542,16 +611,15 @@ class Bus extends promiseUtil.EventEmitter {
             this.emitBusNodeInfoSoon();
             
             debugTransport('Handled initial bus node info', this.id, transport.edgeId);
+            
+            return this.connectingTransports.delete(transport);
           });
         });
       }),
       
       transport.on('bus::packet', (p) => {
-        const hasAlreadySeen = p.seenBy.indexOf(this.id) != -1;
-        
-        debugTransport('Received bus packet', this.id, transport.edgeId, hasAlreadySeen);
-        
-        if (hasAlreadySeen)
+        assert.ok(p.immediateSender.id);
+        if (p.immediateSender.id == this.id) // comes directly from .emit()
           return;
         
         transport.msgCount++;
@@ -559,8 +627,9 @@ class Bus extends promiseUtil.EventEmitter {
         return this.handleBusPacket(p);
       }),
       
-      transport.on('disconnect', () => {
-        debugTransport('Received transport disconnect', this.id, transport.edgeId);
+      transport.on('disconnect', (reason) => {
+        debugTransport('Received transport disconnect', this.id, transport.edgeId, connecting);
+        this.connectingTransports.delete(transport);
         
         this.busGraph.removeTransport(transport.id);
         this.transports.delete(transport);
@@ -569,25 +638,55 @@ class Bus extends promiseUtil.EventEmitter {
           debugTransport('Handled transport disconnect', this.id, transport.edgeId);
         });
       })
-    ]));
+    ])).then(() => transport.emitSYN());
   }
 
-  handleTransportNodeInfo(busnode, doNotLocalize) {
-    debugNetwork('Handling transport node info', this.id, busnode.id, doNotLocalize);
+  handleTransportNodeInfo(busnode) {
+    const doNotLocalize = this.connectingTransports.size > 0;
+    debugNetwork('Handling transport node info', this.id, busnode.id, doNotLocalize, this.busGraph.stats());
     
-    return this.busGraph.mergeRemoteGraph(busnode, doNotLocalize).then(() => {
-      debugNetwork('Handled transport node info', this.id, busnode.id, doNotLocalize);
+    return this.busGraph.mergeRemoteGraph(busnode, doNotLocalize).then((changed) => {
+      debugNetwork('Handled transport node info', this.id, busnode.id, doNotLocalize, this.busGraph.stats());
+      
+      if (changed)
+        return;
+      
+      debugNetwork('Scheduling bus node info after graph change', this.id, this.busGraph.hash);
+      this.emitBusNodeInfoSoon();
     });
   }
 
   handleBusPacket(packet) {
     assert.ok(this.initedPromise);
+    assert.ok(this.id);
+    assert.notStrictEqual(packet.immediateSender && packet.immediateSender.id, this.id);
     
+    packet = _.clone(packet);
     this.msgCount++;
     
-    assert.ok(this.id);
-    assert.equal(packet.seenBy.indexOf(this.id), -1);
-    packet.seenBy.push(this.id);
+    const hasAlreadySeen = packet.seenBy.indexOf(this.id) != -1;
+    if (hasAlreadySeen ||
+        (packet.immediateSender &&
+          packet.immediateSender.graphHash != this.busGraph.hash))
+    {
+      // in the case of hasAlreadySeen == true:
+      // how did we end up here? chances are, some node to which
+      // we transmitted the packet has a different bus graph and sent
+      // the packet back to us, so either our graph or theirs is outdated.
+      // we emit a new bus node info now.
+      //
+      // in the case of different hashes:
+      // no harm in sending updates, this is just a good occasion since
+      // we know that at least one node is interested
+      this.emitBusNodeInfoSoon();
+    } else {
+      packet.seenBy.push(this.id);
+    }
+    
+    packet.immediateSender = {
+      id: this.id,
+      graphHash: this.busGraph.hash
+    };
     
     assert.ok(packet.recipients.length > 0);
     
@@ -617,21 +716,20 @@ class Bus extends promiseUtil.EventEmitter {
       
       // path.length >= 3: at least source node, edge, target node
       if (!path || path.length < 3) {
-        return (() => { // use closure so packet_ gets captured per closure
-          /* no route -> probably not fully connected yet;
-           * keep packet for a while */
-          const packet_ = _.clone(packet);
-          
-          packet_.recipients = [recpId];
-          packet_.seenBy = packet_.seenBy.slice(0, packet_.seenBy.length - 1);
-          
-          debugPackets('Re-queueing packet', this.id, recpId, packet.name);
-          assert.equal(packet_.seenBy.indexOf(this.id), -1);
-          
-          return promiseUtil.fcall(this.busGraph.once, 'updated').then(() => {
-            return this.handleBusPacket(packet_);
-          });
-        })();
+        // no route -> probably not fully connected yet;
+        // keep packet for a while
+        const packet_ = _.clone(packet);
+        
+        packet_.recipients = [recpId];
+        packet_.seenBy = packet_.seenBy.slice(0, packet_.seenBy.length - 1);
+        
+        debugNetwork('No route found', this.id, recpId);
+        debugPackets('Re-queueing packet', this.id, recpId, packet.name);
+        assert.equal(packet_.seenBy.indexOf(this.id), -1);
+        
+        return this.busGraph.promiseOnce('updated').then(() => {
+          return this.handleBusPacket(packet_);
+        });
       }
       
       // add recipient id to recipient list for this transport
@@ -648,7 +746,7 @@ class Bus extends promiseUtil.EventEmitter {
       const packet_ = _.clone(packet);
       packet_.recipients = nextTransports[i].recipients;
 
-      debugPackets('Writing packet', this.id, packet_.name, transport.id);
+      debugPackets('Writing packet', this.id, packet_.name, transport.id, packet_.recipients.length);
       transport.msgCount++;
       return transport.emit('bus::packet', packet_);
     }))).then(() => {
@@ -701,7 +799,7 @@ class Bus extends promiseUtil.EventEmitter {
       successes => ({ state: 'success', result: successes }),
       failure => ({ state: 'failure', result: failure })
     ).then(taggedResult => {
-      debug('Handled incoming request', this.id, req.name, req.requestId,
+      debugPackets('Handled incoming request', this.id, req.name, req.requestId,
         taggedResult.state, taggedResult.result && taggedResult.result.length);
       
       return this.handleBusPacket(this.filterOutput({
@@ -912,11 +1010,14 @@ exports.Transport = BusTransport;
 
 /* cytoscape connected component extension */
 cytoscape('collection', 'connectedComponent', function(root) {
-  return this.breadthFirstSearch(root).path.closedNeighborhood();
+  return this.breadthFirstSearch(root).path.closedNeighbourhood();
 });
 
 /* cytoscape graph hashing extension */
-cytoscape('core', 'gHash', function() {
+cytoscape('core', 'gHash', function(opt) {
+  opt = opt || {};
+  opt.respectType = opt.respectType || false;
+  
   const nodes = this.nodes();
   const nodeData = {};
   
@@ -927,7 +1028,7 @@ cytoscape('core', 'gHash', function() {
     ];
   });
   
-  return objectHash(nodeData);
+  return objectHash(nodeData, opt);
 });
 
 /* cytoscape graph union extension */
@@ -938,15 +1039,20 @@ cytoscape('core', 'union', function(g2) {
   const j1 = g1.json();
   const j2 = g2.json();
   
+  const edges = (j1.elements.edges || []).concat(j2.elements.edges || []);
+  const nodes = (j1.elements.nodes || []).concat(j2.elements.nodes || [])
+    .sort((a, b) => { // sort in descending order of lastInfoTime
+      b.data.desc.lastInfoTime - a.data.desc.lastInfoTime
+    });
+  
+  const lists = [nodes, edges];
   const ids = {};
-  const lists = [j1.elements.nodes, j2.elements.nodes, j1.elements.edges, j2.elements.edges];
   
   for (let i = 0; i < lists.length; ++i) {
-    if (!lists[i])
-      continue;
+    assert.ok(lists[i]);
     
     for (let j = 0; j < lists[i].length; ++j) {
-      var e = lists[i][j];
+      const e = lists[i][j];
       
       if (ids[e.data.id]) {
         assert.equal(e.group, ids[e.data.id]);

@@ -74,27 +74,25 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
  * @function c2s~save-questionnaire
  */
 Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-save-questionnaire', function(query, ctx) {
-  var self = this;
-  
   if (parseInt(query.questionnaire) != query.questionnaire || parseInt(query.fill_time) != query.fill_time)
     throw new self.FormatError();
   
   query.fill_language = String(query.fill_language);
   
   if (!query.results || !query.results.length)
-    throw new self.FormatError();
+    throw new this.FormatError();
   
   var resultsQuery = [];
   var resultsArguments = [];
   
-  return this.loadQuestionnaires(ctx).then(function(questionnaires) {
+  return this.loadQuestionnaires(ctx).then(questionnaires => {
     if (!questionnaires.hasOwnProperty(query.questionnaire))
-      throw new self.SoTradeClientError('save-questionnaire-unknown-questionnaire');
+      throw new this.SoTradeClientError('save-questionnaire-unknown-questionnaire');
     
     var questionnaire = questionnaires[query.questionnaire][query.fill_language];
     
     if (!questionnaire)
-      throw new self.SoTradeClientError('save-questionnaire-unknown-questionnaire');
+      throw new this.SoTradeClientError('save-questionnaire-unknown-questionnaire');
     
     assert.ok(questionnaire.questionnaire_id);
     
@@ -102,18 +100,18 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
     var availableQuestions = _.pluck(questionnaire.questions, 'question_id');
     
     if (_.xor(answeredQuestions, availableQuestions).length > 0)
-      throw new self.SoTradeClientError('save-questionnaire-incomplete');
+      throw new this.SoTradeClientError('save-questionnaire-incomplete');
     
     for (var i = 0; i < query.results.length; ++i) {
       var answers = query.results[i].answers;
-      var question = questionnaire.questions.filter(function(qn) {
+      var question = questionnaire.questions.filter(qn => {
         return qn.question_id == query.results[i].question;
       })[0];
       
       assert.ok(question);
       
       if (!answers || (answers.length != 1 && !question.question_multiple_answers))
-        throw new self.SoTradeClientError('save-questionnaire-invalid',
+        throw new this.SoTradeClientError('save-questionnaire-invalid',
           'Invalid number of answers for question ' + question.question_id +
           ' (' + JSON.stringify(question) + ')');
       
@@ -121,7 +119,7 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
       var availableAnswers = _.pluck(question.answers, 'answer_id');
       
       if (_.difference(chosenAnswers, availableAnswers).length > 0)
-        throw new self.SoTradeClientError('save-questionnaire-invalid',
+        throw new this.SoTradeClientError('save-questionnaire-invalid',
           'Invalid answer(s) for question ' + question.question_id + ': ' +
           JSON.stringify(_.difference(chosenAnswers, availableAnswers)) +
           ' (' + JSON.stringify(question) + ')');
@@ -135,12 +133,12 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
     return ctx.query('INSERT INTO qn_result_sets (questionnaire_id, uid, submission_time, fill_time, fill_language)' + 
       'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?)',
       [questionnaire.questionnaire_id, ctx.user.uid, query.fill_time, query.fill_language]);
-  }).then(function(res) {
+  }).then(res => {
     var resultSetID = parseInt(res.insertId);
     
     return ctx.query('INSERT INTO qn_results (result_set_id, question_id, answer_id, answer_text) VALUES ' +
       resultsQuery.join(',').replace(/%resultSetID%/g, resultSetID), resultsArguments);
-  }).then(function() {
+  }).then(() => {
     return { code: 'save-questionnaire-success' };
   });
 });
@@ -158,9 +156,9 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
   
   var loadQuestionnaire, loadQuestion, loadAnswer, groupByLanguage;
   
-  groupByLanguage = function(listWithLangAttribute) {
+  groupByLanguage = listWithLangAttribute => {
     var ret = _.groupBy(listWithLangAttribute, 'language');
-    return _.mapValues(ret, function(list) { return _.omit(list[0], 'language'); });
+    return _.mapValues(ret, list => _.omit(list[0], 'language'));
   };
   
   loadQuestionnaire = function(questionnaire) {
@@ -170,16 +168,16 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
         'FROM qn_questions_questionnaires AS qlist ' +
         'JOIN qn_questions ON qn_questions.question_id = qlist.question_id ' +
         'WHERE qlist.questionnaire_id = ? ORDER BY `order` ASC', [questionnaire.questionnaire_id])
-        .then(function(res) {
+        .then(res => {
         return Promise.all(res.map(loadQuestion));
       })
-    ]).then(spread(function(texts, questions) {
-      return _.mapValues(texts, function(entry, lang) {
+    ]).then(spread((texts, questions) => {
+      return _.mapValues(texts, (entry, lang) => {
         return _.extend(entry, questionnaire, {
           questions: _.pluck(questions, lang)
         });
       });
-    })).then(function(questionnaireObject) {
+    })).then(questionnaireObject => {
       questionnaireObject.questionnaire_id = questionnaire.questionnaire_id;
       return questionnaireObject;
     });
@@ -191,11 +189,11 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
       ctx.query('SELECT qn_answers.answer_id, answer_freetext, `order` ' +
         'FROM qn_questions_answers AS alist ' +
         'JOIN qn_answers ON qn_answers.answer_id = alist.answer_id ' +
-        'WHERE alist.question_id = ? ORDER BY `order` ASC', [question.question_id]).then(function(res) {
+        'WHERE alist.question_id = ? ORDER BY `order` ASC', [question.question_id]).then(res => {
         return Promise.all(res.map(loadAnswer));
       })
-    ]).then(spread(function(texts, answers) {
-      return _.mapValues(texts, function(entry, lang) {
+    ]).then(spread((texts, answers) => {
+      return _.mapValues(texts, (entry, lang) => {
         return _.extend(entry, question, {
           answers: _.pluck(answers, lang)
         });
@@ -205,16 +203,16 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
   
   loadAnswer = function(answer) {
     return ctx.query('SELECT language, atext FROM qn_answer_texts WHERE answer_id = ?', [answer.answer_id]).then(groupByLanguage)
-    .then(function(texts) {
-      return _.mapValues(texts, function(entry) {
+    .then(texts => {
+      return _.mapValues(texts, entry => {
         return _.extend(entry, answer);
       });
     });
   };
   
-  return this.questionnaires = ctx.query('SELECT * FROM qn_questionnaires').then(function(res) {
+  return this.questionnaires = ctx.query('SELECT * FROM qn_questionnaires').then(res => {
     return Promise.all(res.map(loadQuestionnaire));
-  }).then(function(questionnaires) {
+  }).then(questionnaires => {
     debug('Loaded questionnaires', questionnaires.length);
     
     return _.mapValues(_.groupBy(questionnaires, 'questionnaire_id'), 0);

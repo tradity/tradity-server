@@ -52,8 +52,6 @@ class FeedController extends buscomponent.BusComponent {
  */
 FeedController.prototype.feed = buscomponent.provide('feed',
   ['data', 'ctx', 'conn', 'onEventId'], function(data, ctx, conn, onEventId) {
-  var self = this;
-  
   debug('Feed event', data.type);
   
   assert.ok(data.type);
@@ -68,7 +66,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
   var eventid;
   return conn.query('INSERT INTO events(`type`, targetid, time, srcuser, json) VALUES (?, ?, ?, ?, ?)',
     [String(data.type), data.targetid ? parseInt(data.targetid) : null,
-    data.time ? data.time : parseInt(Date.now() / 1000), parseInt(data.srcuser), json]).then(function(r) {
+    data.time ? data.time : parseInt(Date.now() / 1000), parseInt(data.srcuser), json]).then(r => {
     eventid = r.insertId;
     onEventId(eventid);
     
@@ -112,7 +110,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
        
       for (var i = 0; i < additional.length; ++i) {
         if (parseInt(additional[i]) != additional[i])
-          return self.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
+          return this.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
         
         subselects.push('SELECT ?, ?');
         params.push(eventid, additional[i]);
@@ -124,10 +122,10 @@ FeedController.prototype.feed = buscomponent.provide('feed',
     }
     
     return conn.query(query, params);
-  }).then(function() {
+  }).then(() => {
     debug('Invoking push-events', data.type);
-    self.emitGlobal('feed-' + data.type, data);
-    self.emitGlobal('push-events');
+    this.emitGlobal('feed-' + data.type, data);
+    this.emitGlobal('push-events');
     return eventid;
   });
 });
@@ -172,8 +170,8 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
     'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +
     'LEFT JOIN schools ON schools.schoolid = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
     'WHERE events_users.uid = ? AND events.time >= ? ORDER BY events.time DESC LIMIT ?',
-    [ctx.user.uid, since, count]).then(function(r) {
-    return _.chain(r).map(function(ev) {
+    [ctx.user.uid, since, count]).then(r => {
+    return _.chain(r).map(ev => {
       if (ev.json) {
         var json = JSON.parse(ev.json);
         if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid != ev.srcuser)
@@ -197,7 +195,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
       
       delete ev.json;
       return ev;
-    }).reject(function(ev) { return !ev; }).value();
+    }).reject(ev => !ev).value();
   });
 });
 
@@ -215,7 +213,7 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
     throw new this.FormatError();
   
   return ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND uid = ?', 
-    [parseInt(query.eventid), ctx.user.uid]).then(function() {
+    [parseInt(query.eventid), ctx.user.uid]).then(() => {
     return { code: 'mark-as-seen-success' };
   });
 });
@@ -233,10 +231,8 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * @function c2s~comment
  */
 FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment', function(query, ctx) {
-  var self = this;
-  
   if (!query.comment || parseInt(query.eventid) != query.eventid)
-    throw new self.FormatError();
+    throw new this.FormatError();
   
   var feedschool = null;
   var feedchat = null;
@@ -245,9 +241,9 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
   
   return ctx.query('SELECT events.type, events.targetid, oh.uid AS trader FROM events ' +
     'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ? LOCK IN SHARE MODE',
-    [parseInt(query.eventid)]).then(function(res) {
+    [parseInt(query.eventid)]).then(res => {
     if (res.length == 0)
-      throw new self.SoTradeClientError('comment-notfound');
+      throw new this.SoTradeClientError('comment-notfound');
     
     var r = res[0];
     
@@ -274,7 +270,7 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
     return ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, cstate, time) VALUES(?, ?, ?, ?, "", UNIX_TIMESTAMP())', 
       [parseInt(query.eventid), ctx.user.uid, String(query.comment),
        query.ishtml && ctx.access.has('comments') ? 1 : 0]);
-  }).then(function(res) {
+  }).then(res => {
     return ctx.feed({
       type: 'comment',
       targetid: res.insertId,
@@ -284,7 +280,7 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
       feedchat: feedchat,
       noFollowers: noFollowers
     });
-  }).then(function() {
+  }).then(() => {
     return { code: 'comment-success' };
   });
 });

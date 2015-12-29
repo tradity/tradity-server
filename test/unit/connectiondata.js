@@ -34,14 +34,14 @@ describe('ConnectionData', () => {
         };
 
         const conn = new ConnectionData(fakeClient);
-        return conn.setBus(bus, 'cdata-' + conn.cdid).then(function() {
+        return conn.setBus(bus, 'cdata-' + conn.cdid).then(() => {
           conn.fakeClient_ = fakeClient;
           conn.ctx.user = { uid : 1 };
           return conn;
         });
       }
 
-      return Q.all([fakeConnection(), fakeConnection()]).then(function() {
+      return Q.all([fakeConnection(), fakeConnection()]).then(() => {
         bus.manager.emitGlobal('push-events');
       });
     }).then(() => deferred.promise);

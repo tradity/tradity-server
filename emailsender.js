@@ -33,12 +33,10 @@ class Mailer extends buscomponent.BusComponent {
 }
 
 Mailer.prototype._init = function() {
-  var self = this;
-  
-  return this.getServerConfig().then(function(cfg) {
+  return this.getServerConfig().then(cfg => {
     var transportModule = require(cfg.mail.transport);
-    self.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
-    self.inited = true;
+    this.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
+    this.inited = true;
   });
 };
 
@@ -58,16 +56,14 @@ Mailer.prototype._init = function() {
 Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
   ['variables', 'template', 'ctx', 'lang', 'mailtype', 'uid'],
   function(variables, template, ctx, lang, mailtype, uid) {
-  var self = this;
-  
   debug('Send templated mail', template, lang, ctx.user && ctx.user.lang);
   
-  return self.request({name: 'readEMailTemplate', 
+  return this.request({name: 'readEMailTemplate', 
     template: template,
     lang: lang || (ctx.user && ctx.user.lang),
     variables: variables || {},
-  }).then(function(opt) {
-    return self.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '', uid);
+  }).then(opt => {
+    return this.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '', uid);
   });
 });
 
@@ -104,22 +100,20 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx'],
   function(query, internal, ctx)
 {
-  var self = this;
-  
   if (!ctx)
-    ctx = new qctx.QContext({parentComponent: self});
+    ctx = new qctx.QContext({parentComponent: this});
   
   if (!internal && !ctx.access.has('email-bounces'))
-    throw new self.PermissionDenied();
+    throw new this.PermissionDenied();
   
   debug('Email bounced', query.messageId);
   
   var mail;
-  return ctx.startTransaction().then(function(conn) {
+  return ctx.startTransaction().then(conn => {
     return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
-      [String(query.messageId)]).then(function(r) {
+      [String(query.messageId)]).then(r => {
       if (r.length == 0)
-        throw new self.SoTradeClientError('email-bounced-notfound');
+        throw new this.SoTradeClientError('email-bounced-notfound');
       
       assert.equal(r.length, 1);
       mail = r[0];
@@ -128,7 +122,7 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
       
       return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
         [String(query.diagnostic_code || ''), mail.mailid]);
-    }).then(function() {
+    }).then(() => {
       if (!mail)
         return;
       
@@ -140,7 +134,7 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
         conn: conn
       });
     }).then(conn.commit, conn.rollbackAndThrow);
-  }).then(function() {
+  }).then(() => {
     return { code: 'email-bounced-success' };
   });
 });
@@ -163,12 +157,11 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
   ['opt', 'ctx', 'template', 'mailtype', 'uid'],
   buscomponent.needsInit(function(opt, ctx, template, mailtype, uid)
 {
-  var self = this;
   var shortId;
   
-  assert.ok(self.mailer);
+  assert.ok(this.mailer);
   
-  return self.getServerConfig().then(function(cfg) {
+  return this.getServerConfig().then(cfg => {
     var origTo = opt.to;
     
     if (cfg.mail.forceTo)
@@ -185,16 +178,16 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
         [uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,
         String(mailtype), String(origTo)]);
     }
-  }).then(function() {
-    return promiseUtil.ncall(self.mailer.sendMail.bind(self.mailer))(opt);
-  }).then(function(status) {
+  }).then(() => {
+    return promiseUtil.ncall(this.mailer.sendMail.bind(this.mailer))(opt);
+  }).then(status => {
     if (status && status.rejected && status.rejected.length > 0)
-      self.emailBounced({messageId: shortId}, true, ctx);
-  }, function(err) {
-    self.emailBounced({messageId: shortId}, true, ctx);
+      this.emailBounced({messageId: shortId}, true, ctx);
+  }, err => {
+    this.emailBounced({messageId: shortId}, true, ctx);
       
     if (err)
-      return self.emitError(err);
+      return this.emitError(err);
   });
 }));
 

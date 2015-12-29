@@ -99,7 +99,7 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
     'JOIN users_finance ON users.uid = users_finance.uid ' +
     'LEFT JOIN schoolmembers AS sm ON sm.uid = users.uid ' +
     'LEFT JOIN schools ON schools.schoolid = sm.schoolid ',
-    []).then(function(userlist) {
+    []).then(userlist => {
     return { code: 'list-all-users-success', results: userlist };
   });
 }));
@@ -112,16 +112,12 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
  * @function c2s~shutdown
  */
 Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(query, ctx) {
-  var self = this;
-  
   debug('Administrative server shutdown');
   
   if (!ctx.access.has('server'))
-    throw new self.PermissionDenied();
+    throw new this.PermissionDenied();
   
-  promiseUtil.delay(2000).then(function() {
-    return self.emit('globalShutdown');
-  });
+  promiseUtil.delay(2000).then(() => this.emit('globalShutdown'));
   
   return { code: 'shutdown-success' };
 });
@@ -142,7 +138,7 @@ Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-u
   
   debug('Admin impersonation', ctx.user.uid, query.uid);
   
-  return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [parseInt(query.uid)]).then(function(r) {
+  return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [parseInt(query.uid)]).then(r => {
     assert.equal(r.length, 1);
     if (r[0].c == 0)
       throw new this.SoTradeClientError('impersonate-user-notfound');
@@ -272,7 +268,7 @@ Admin.prototype.notifyUnstickAll = buscomponent.provideWQT('client-notify-unstic
  */
 Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpriv('moderate', function(query, ctx) {
   return ctx.query('INSERT INTO mod_notif (content, sticky) VALUES (?, ?)',
-    [String(query.content), query.sticky ? 1 : 0]).then(function(res) {
+    [String(query.content), query.sticky ? 1 : 0]).then(res => {
     return ctx.feed({
       'type': 'mod-notification',
       'targetid': res.insertId,
@@ -299,13 +295,12 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
  * @function c2s~rename-school
  */
 Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
-  var self = this;
   query.schoolpath = String(query.schoolpath || '/').toLowerCase();
   
   var oldpath;
-  return ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.schoolid)]).then(function(r) {
+  return ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.schoolid)]).then(r => {
     if (r.length == 0)
-      throw new self.SoTradeClientError('rename-school-notfound');
+      throw new this.SoTradeClientError('rename-school-notfound');
     
     oldpath = r[0].path;
     assert.ok(oldpath);
@@ -313,15 +308,15 @@ Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', 
 
     return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ? LOCK IN SHARE MODE',
       [commonUtil.parentPath(query.schoolpath)]);
-  }).then(function(pr) {
+  }).then(pr => {
     assert.equal(pr.length, 1);
     if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
-      throw new self.SoTradeClientError('rename-school-notfound');
+      throw new this.SoTradeClientError('rename-school-notfound');
     
     return ctx.query('SELECT path FROM schools WHERE path = ? FOR UPDATE', [query.schoolpath]);
-  }).then(function(er) {
+  }).then(er => {
     if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() == query.schoolpath)
-      throw new self.SoTradeClientError('rename-school-already-exists');
+      throw new this.SoTradeClientError('rename-school-already-exists');
     
     return ctx.query('UPDATE schools SET name = ? WHERE schoolid = ?',
       [String(query.schoolname), parseInt(query.schoolid)]);
@@ -351,8 +346,6 @@ Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', 
  * @function c2s~join-schools
  */
 Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _reqpriv('schooldb', function(query, ctx) {
-  var self = this;
-  
   query.masterschool = parseInt(query.masterschool);
   query.subschool    = parseInt(query.subschool);
   
@@ -360,26 +353,26 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
     query.masterschool = null;
   
   if (query.subschool !== query.subschool)
-    throw new self.FormatError();
+    throw new this.FormatError();
   
   return Promise.all([
     ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [query.masterschool]),
     ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [query.subschool]),
-  ]).then(spread(function(mr, sr) {
+  ]).then(spread((mr, sr) => {
     assert.ok(mr.length <= 1);
     assert.ok(sr.length <= 1);
     
     if (sr.length == 0 || ((mr.length == 0 || mr[0].path == sr[0].path) && query.masterschool != null))
-      throw new self.SoTradeClientError('join-schools-notfound');
+      throw new this.SoTradeClientError('join-schools-notfound');
     if (mr.length > 0 && commonUtil.parentPath(mr[0].path) != commonUtil.parentPath(sr[0].path))
-      throw new self.SoTradeClientError('join-schools-diff-parent');
+      throw new this.SoTradeClientError('join-schools-diff-parent');
     
     if (query.masterschool === null) {
-      return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path LIKE ?', [sr[0].path + '/%']).then(function(ssr) {
+      return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path LIKE ?', [sr[0].path + '/%']).then(ssr => {
         assert.equal(ssr.length, 1);
         
         if (ssr[0].c > 0)
-          throw new self.SoTradeClientError('join-schools-delete-nosubschools');
+          throw new this.SoTradeClientError('join-schools-delete-nosubschools');
       }).then(function() {
         return Promise.all([
           ctx.query('DELETE FROM schoolmembers WHERE schoolid = ?', [query.subschool]),
@@ -427,7 +420,7 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
     'FROM stocks AS s ' +
     'JOIN depot_stocks AS ds ON ds.stockid = s.stockid ' +
     'JOIN users AS u ON ds.uid = u.uid ' +
-    'WHERE s.leader = ?', [parseInt(query.uid)]).then(function(res) {
+    'WHERE s.leader = ?', [parseInt(query.uid)]).then(res => {
     
     /* backwards compatibility */
     for (var i = 0; i < res.length; ++i)
@@ -452,7 +445,7 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
 Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx) {
   debug('Requesting server statistics');
   
-  return this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}).then(function(replies) {
+  return this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}).then(replies => {
     return { code: 'get-server-statistics-success', servers: replies };
   });
 }));
@@ -481,7 +474,7 @@ Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-st
     'FROM tickshistory ' +
     'WHERE time >= ? AND time < ? ' +
     'GROUP BY timeindex',
-    [dt, dt, timespanStart, todayStart]).then(function(res) {
+    [dt, dt, timespanStart, todayStart]).then(res => {
     return { code: 'get-ticks-statistics-success', results: res };
   });
 }));

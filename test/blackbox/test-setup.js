@@ -58,7 +58,7 @@ const setupDatabase = function() {
   
   const deferred = Q.defer();
   
-  mysqlRunner.on('close', function(code) {
+  mysqlRunner.on('close', code => {
     fs.unlinkSync(mysqlConfigFilename);
     
     if (code !== 0)
@@ -84,7 +84,7 @@ const generateKeys = function() {
     stdio: ['ignore', fs.openSync(cfg.privateKey, 'w'), process.stderr]
   });
   
-  privateKeyGen.on('close', function(code) {
+  privateKeyGen.on('close', code => {
     if (code !== 0)
       return deferred.reject(new Error('openssl genrsa exited with error code ' + code));
     
@@ -92,7 +92,7 @@ const generateKeys = function() {
       stdio: ['ignore', fs.openSync(cfg.publicKeys[0], 'w'), process.stderr]
     });
     
-    publicKeyGen.on('close', function(code) {
+    publicKeyGen.on('close', code => {
       if (code !== 0)
         return deferred.reject(new Error('openssl rsa -pubout exited with error code ' + code));
       

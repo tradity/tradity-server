@@ -284,7 +284,7 @@ Stocks.prototype.updateStockValues = function(ctx) {
     return ctx.query('SELECT * FROM stocks ' +
       'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
     [cfg.lrutimeLimit, cfg.refetchLimit]);
-  }).then(function(res) {
+  }).then(res => {
     stocklist = _.pluck(res, 'stocktextid')
     return self.request({name: 'neededStocksDQ'});
   }).then(function(dqNeededStocks) {
@@ -471,7 +471,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     if (symbols.length > 0 && !ctx.getProperty('readonly')) {
       symbols = _.map(symbols, escape);
       ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
-        'WHERE stocktextid IN (' + _.map(symbols, _.constant('?')).join(',') + ')', symbols);
+        'WHERE stocktextid IN (' + _.map(symbols, () => '?').join(',') + ')', symbols);
     }
     
     return { code: 'stock-search-success', results: results };
@@ -690,7 +690,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
       'LEFT JOIN depot_stocks ON depot_stocks.uid = ? AND depot_stocks.stockid = stocks.stockid ' +
       'LEFT JOIN users_finance AS l ON stocks.leader = l.uid AND depot_stocks.uid != l.uid ' +
       'WHERE stocks.stocktextid = ? FOR UPDATE', [ctx.user.uid, String(query.stocktextid)]);
-  }).then(function(res) {
+  }).then(res => {
     if (res.length == 0 || res[0].lastvalue == 0)
       throw new self.SoTradeClientError('stock-buy-stock-not-found');
     

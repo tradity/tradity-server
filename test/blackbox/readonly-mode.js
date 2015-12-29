@@ -6,7 +6,7 @@ var testHelpers = require('./test-helpers.js');
 var socket, user;
 
 before(function() {
-  return testHelpers.standardSetup().then(function(data) {
+  return testHelpers.standardSetup().then(data => {
     socket = data.socket;
     user = data.user;
   });
@@ -18,7 +18,7 @@ afterEach(function() {
   return socket.emit('force-readonly', {
     __sign__: true,
     readonly: false
-  }).then(function(res) {
+  }).then(res => {
     assert.equal(res.code, 'force-readonly-success');
   });
 });
@@ -29,11 +29,11 @@ describe('Readonly Login', function() {
     return socket.emit('force-readonly', {
       __sign__: true,
       readonly: true
-    }).then(function(res) {
+    }).then(res => {
       assert.equal(res.code, 'force-readonly-success');
       
       return socket.emit('logout');
-    }).then(function(res) { // flush privileges
+    }).then(res => { // flush privileges
       assert.equal(res.code, 'server-readonly');
       
       return socket.emit('login', {
@@ -41,11 +41,11 @@ describe('Readonly Login', function() {
         pw: user.password,
         stayloggedin: false
       });
-    }).then(function(loginresult) {
+    }).then(loginresult => {
       assert.equal(loginresult.code, 'login-success');
       
       return socket.emit('ping');
-    }).then(function(res) {
+    }).then(res => {
       assert.equal(res.code, 'pong');
       assert.equal(res.uid, user.uid);
     });

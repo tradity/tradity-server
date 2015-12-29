@@ -8,7 +8,7 @@ describe('emailsender', function() {
   var socket, user;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -21,7 +21,7 @@ describe('emailsender', function() {
     return socket.emit('create-invite-link', {
       __sign__: true,
       email: user.email
-    }).then(function(res) {
+    }).then(res => {
       assert.equal(res.code, 'create-invite-link-success');
       
       return socket.once('email-bounced');

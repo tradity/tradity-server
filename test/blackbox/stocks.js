@@ -55,7 +55,7 @@ describe('stocks', function() {
     it('Returns information based on the ISIN', function() {
       return socket.emit('stock-search', {
         name: standardISIN
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'stock-search-success');
         assert.equal(res.results.length, 1);
         var stockinfo = res.results[0];
@@ -72,7 +72,7 @@ describe('stocks', function() {
     it('Should handle umlauts correctly', function() {
       return socket.emit('stock-search', {
         name: umlautNameISIN
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'stock-search-success');
         assert.equal(res.results.length, 1);
         var stockinfo = res.results[0];
@@ -88,7 +88,7 @@ describe('stocks', function() {
     it('Returns information based on the username', function() {
       return socket.emit('stock-search', {
         name: user.name
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'stock-search-success');
         assert.equal(res.results.length, 1);
         var stockinfo = res.results[0];
@@ -113,7 +113,7 @@ describe('stocks', function() {
         stocktextid: standardISIN,
         leader: null,
         forceNow: true
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'stock-buy-success');
         
         return socket.once('trade');
@@ -134,7 +134,7 @@ describe('stocks', function() {
           leader: null,
           forceNow: true
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.ok(res.code == 'stock-buy-success' ||
               res.code == 'stock-buy-not-enough-stocks');
         
@@ -167,7 +167,7 @@ describe('stocks', function() {
           lookfor: '$self',
           noCache: true, __sign__: true
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-user-info-success');
         
         assert.ok(res.orders);
@@ -176,7 +176,7 @@ describe('stocks', function() {
         return socket.emit('get-trade-info', {
           tradeid: res.orders[0].orderid
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-trade-info-success');
         
         assert.ok(res.trade);

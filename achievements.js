@@ -35,17 +35,15 @@ class Achievements extends buscomponent.BusComponent {
 }
 
 Achievements.prototype.onBusConnect = function() {
-  var self = this;
-  
-  return self.request({name: 'getAchievementList'}).then(function(al) {
+  return this.request({name: 'getAchievementList'}).then(al => {
     assert.ok(al);
-    return self.registerAchievements(al);
-  }).then(function() {
-    return self.request({name: 'getClientAchievementList'});
-  }).then(function(al) {
+    return this.registerAchievements(al);
+  }).then(() => {
+    return this.request({name: 'getClientAchievementList'});
+  }).then(al => {
     assert.ok(al);
-    self.clientAchievements = al;
-    return self.markClientAchievements();
+    this.clientAchievements = al;
+    return this.markClientAchievements();
   });
 };
 
@@ -57,16 +55,14 @@ Achievements.prototype.onBusConnect = function() {
  * @function busreq~checkAchievements
  */
 Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievements', ['ctx'], function(ctx) {
-  var self = this;
-  
   debug('Checking achievements for current user');
   
   if (ctx.getProperty('readonly'))
     return;
   
-  return ctx.query('SELECT * FROM achievements WHERE uid = ?', [ctx.user.uid]).then(function(userAchievements) {
-    return Promise.all(self.achievementList.map(function(achievementEntry) {
-      return self.checkAchievement(achievementEntry, ctx, userAchievements);
+  return ctx.query('SELECT * FROM achievements WHERE uid = ?', [ctx.user.uid]).then(userAchievements => {
+    return Promise.all(this.achievementList.map(achievementEntry => {
+      return this.checkAchievement(achievementEntry, ctx, userAchievements);
     }));
   });
 });
@@ -105,8 +101,6 @@ Achievements.prototype.checkAchievements = buscomponent.provide('checkAchievemen
  * @function module:achievements~Achievements#checkAchievement
  */
 Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAchievements_) {
-  var self = this;
-  
   if (!ctx.user)
     return;
   
@@ -119,7 +113,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
   uid = parseInt(uid);
   
   var cfg;
-  return self.getServerConfig().then(function(cfg_) {
+  return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     
     if (userAchievements_)
@@ -129,15 +123,15 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
     lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
     
     return ctx.query('SELECT * FROM achievements ' +
-      'WHERE uid = ? AND achname IN (' + _.map(lookfor, _.constant('?')).join(',') + ')',
+      'WHERE uid = ? AND achname IN (' + _.map(lookfor, () => '?').join(',') + ')',
       [uid].splice(0).concat(lookfor));
-  }).then(function(userAchievements) {
-    userAchievements = _.chain(userAchievements).map(function(a) { return [a.achname, a]; }).object().value();
+  }).then(userAchievements => {
+    userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).object().value();
     
     if (userAchievements[achievementEntry.name]) {
       var dbver = userAchievements[achievementEntry.name].version;
       if (dbver > achievementEntry.version)
-        self.emitError(new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
+        this.emitError(new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
       
       if (dbver >= achievementEntry.version)
         return;
@@ -150,13 +144,13 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
       (_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
         true : 
         achievementEntry.check(uid, userAchievements, cfg, ctx)
-    ).then(function(hasBeenAchieved) {
+    ).then(hasBeenAchieved => {
       assert.equal(typeof hasBeenAchieved, 'boolean');
       if (!hasBeenAchieved)
         return;
       
       return ctx.query('REPLACE INTO achievements (uid, achname, xp, version) VALUES (?, ?, ?, ?)', 
-        [uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version]).then(function(res) {
+        [uid, achievementEntry.name, achievementEntry.xp, achievementEntry.version]).then(res => {
         if (res.affectedRows != 1)
           return;
         
@@ -168,13 +162,13 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
           srcuser: uid,
           targetid: res.insertId
         });
-      }).then(function()  {
-        return Promise.all(self.achievementList.map(function(ae) {
+      }).then(() => {
+        return Promise.all(this.achievementList.map(ae => {
           // look for achievements of which we have changed the prereq/implicating achievements list
           if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) == -1)
             return -1;
           
-          return self.checkAchievement(ae, ctx);
+          return this.checkAchievement(ae, ctx);
         }));
       });
     });
@@ -190,18 +184,16 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
  * @function module:achievements~Achievements#registerObservers
  */
 Achievements.prototype.registerObservers = function(achievementEntry) {
-  var self = this;
-  
-  var ctx = new qctx.QContext({parentComponent: self});
+  var ctx = new qctx.QContext({parentComponent: this});
 
-  return _.each(achievementEntry.fireOn, function(checkCallback, eventName) {
-    self.on(eventName, function(data) {
-      return Promise.resolve(_.bind(checkCallback, achievementEntry)(data, ctx)).then(function(userIDs) {
+  return _.each(achievementEntry.fireOn, (checkCallback, eventName) => {
+    this.on(eventName, (data) => {
+      return Promise.resolve(_.bind(checkCallback, achievementEntry)(data, ctx)).then(userIDs => {
         assert.ok(userIDs);
         assert.notEqual(typeof userIDs.length, 'undefined');
         
-        return Promise.all(_.map(userIDs, function(uid) {
-          return self.checkAchievement(achievementEntry, new qctx.QContext({user: {uid: uid}, parentComponent: self}));
+        return Promise.all(_.map(userIDs, uid => {
+          return this.checkAchievement(achievementEntry, new qctx.QContext({user: {uid: uid}, parentComponent: this}));
         }));
       });
     });
@@ -216,9 +208,7 @@ Achievements.prototype.registerObservers = function(achievementEntry) {
  * @function module:achievements~Achievements#registerAchievements
  */
 Achievements.prototype.registerAchievements = function(list) {
-  var self = this;
-  
-  list = _.map(list, function(achievementEntry) {
+  list = _.map(list, achievementEntry => {
     var e = _.defaults(achievementEntry, {
       requireAchievementInfo: [],
       prereqAchievements: [],
@@ -230,15 +220,15 @@ Achievements.prototype.registerAchievements = function(list) {
     return e;
   });
   
-  self.achievementList = self.achievementList.concat(list);
+  this.achievementList = this.achievementList.concat(list);
   
-  _.each(list, function(achievementEntry) {
+  _.each(list, achievementEntry => {
     assert.notStrictEqual(achievementEntry.version, null);
     
-    self.registerObservers(achievementEntry);
+    this.registerObservers(achievementEntry);
   });
   
-  return self.markClientAchievements();
+  return this.markClientAchievements();
 };
 
 /**
@@ -248,10 +238,8 @@ Achievements.prototype.registerAchievements = function(list) {
  * @function module:achievements~Achievements#markClientAchievements
  */
 Achievements.prototype.markClientAchievements = function() {
-  var self = this;
-  
-  _.each(self.achievementList, function(ach) {
-    ach.isClientAchievement = (self.clientAchievements.indexOf(ach.name) != -1);
+  _.each(this.achievementList, ach => {
+    ach.isClientAchievement = (this.clientAchievements.indexOf(ach.name) != -1);
   });
 };
 
@@ -296,7 +284,7 @@ Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('clien
     uid: ctx.user.uid,
     date: today,
     certType: 'wasOnline'
-  }}).then(function(cert) {
+  }}).then(cert => {
     return { code: 'get-daily-login-certificate-success', cert: cert };
   });
 });
@@ -315,20 +303,18 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
   ['query', 'ctx', 'verified'],
   function(query, ctx, verified)
 {
-  var self = this;
-  
   if (!query.name)
-    throw new self.FormatError();
+    throw new this.FormatError();
   
   query.name = String(query.name);
   
-  if (self.clientAchievements.indexOf(query.name) == -1)
-    throw new self.SoTradeClientError('achievement-unknown-name');
+  if (this.clientAchievements.indexOf(query.name) == -1)
+    throw new this.SoTradeClientError('achievement-unknown-name');
   
   return ctx.query('REPLACE INTO achievements_client (uid, achname, verified) VALUES(?, ?, ?)',
-    [ctx.user.uid, query.name, verified || 0]).then(function()
+    [ctx.user.uid, query.name, verified || 0]).then(() =>
   {
-    self.emitImmediate('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
+    this.emitImmediate('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
     
     return { code: 'achievement-success' };
   });
@@ -345,25 +331,24 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
  * @function c2s~dl-achievement
  */
 Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-achievement', function(query, ctx) {
-  var self = this;
   var uid = ctx.user.uid;
   
   if (!query.certs || !query.certs.map)
-    throw new self.FormatError();
+    throw new this.FormatError();
     
-  return self.getServerConfig().then(function(cfg) {
-    return Promise.all(query.certs.map(function(cert) {
-      return self.request({
+  return this.getServerConfig().then(cfg => {
+    return Promise.all(query.certs.map(cert => {
+      return this.request({
         name: 'verifySignedMessage',
         maxAge: cfg.DLAValidityDays * 24 * 60 * 60,
         msg: cert
       });
     }));
-  }).then(function(verifiedCerts) {
+  }).then(verifiedCerts => {
     var dates = verifiedCerts
-      .filter(function(c) { return c && c.uid == uid && c.certType == 'wasOnline'; })
-      .map(function(c) { return new Date(c.date); })
-      .sort(function(a, b) { return a.getTime() - b.getTime(); }); // ascending sort
+      .filter(c => { return c && c.uid == uid && c.certType == 'wasOnline'; })
+      .map(c => { return new Date(c.date); })
+      .sort((a, b) => { return a.getTime() - b.getTime(); }); // ascending sort
     
     var currentStreak = 1;
     var longestStreak = 1;
@@ -377,11 +362,11 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
       longestStreak = Math.max(longestStreak, currentStreak);
     }
     
-    return _.range(2, Math.min(longestStreak, 20) + 1).map(function(i) {
-      return function() {
-        return self.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
+    return _.range(2, Math.min(longestStreak, 20) + 1).map(i => {
+      return () => {
+        return this.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
       };
-    }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve()).then(function() {
+    }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve()).then(() => {
       return { code: 'dl-achievement-success', streak: longestStreak };
     });
   });

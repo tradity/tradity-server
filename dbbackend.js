@@ -49,16 +49,14 @@ class Database extends buscomponent.BusComponent {
 }
 
 Database.prototype._init = function() {
-  var self = this;
-  
   debug('Initializing database');
   
-  return self.getServerConfig().then(function(cfg) {
-    self.dbmod = cfg.dbmod || require('mysql');
+  return this.getServerConfig().then(cfg => {
+    this.dbmod = cfg.dbmod || require('mysql');
     
-    self.wConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
-    self.rConnectionPool = self.dbmod.createPoolCluster(cfg.db.clusterOptions);
-    self.writableNodes = [];
+    this.wConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
+    this.rConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
+    this.writableNodes = [];
     
     for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
       var id = cfg.db.clusterOptions.order[i];
@@ -71,27 +69,27 @@ Database.prototype._init = function() {
       debug('Create pool node', opt.writable, opt.readable, id);
       
       if (opt.writable) {
-        self.writableNodes.push(id);
-        self.wConnectionPool.add(id, opt);
+        this.writableNodes.push(id);
+        this.wConnectionPool.add(id, opt);
       }
       
       if (opt.readable)
-        self.rConnectionPool.add(id, opt);
+        this.rConnectionPool.add(id, opt);
     }
     
-    self.wConnectionPool.on('remove', function(nodeId) {
+    this.wConnectionPool.on('remove', nodeId => {
       debug('Connection removed from writing pool!');
       
-      self.writableNodes = _.without(self.writableNodes, nodeId);
-      if (self.writableNodes.length == 0)
-        self.emitImmediate('change-readability-mode', { readonly: true });
+      this.writableNodes = _.without(this.writableNodes, nodeId);
+      if (this.writableNodes.length == 0)
+        this.emitImmediate('change-readability-mode', { readonly: true });
     });
     
-    self.wConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost write connection')); });
-    self.rConnectionPool.on('remove', function() { return self.emitError(new Error('DB lost read connection')); });
+    this.wConnectionPool.on('remove', () => this.emitError(new Error('DB lost write connection')));
+    this.rConnectionPool.on('remove', () => this.emitError(new Error('DB lost read connection')));
     
-    self.inited = true;
-    self.openConnections = 0;
+    this.inited = true;
+    this.openConnections = 0;
     
     /*
      * Note: We don't set isShuttingDown = true here.
@@ -150,14 +148,14 @@ Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [
 Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly'],
   buscomponent.needsInit(function(query, args, readonly)
 {
-  var self = this, origArgs = arguments;
+  var origArgs = arguments;
   
   if (typeof readonly !== 'boolean')
     readonly = (query.trim().indexOf('SELECT') == 0);
   
-  return self._getConnection(true, function /* restart */() {
-    return self._query.apply(self, origArgs);
-  }, readonly).then(function(connection) {
+  return this._getConnection(true, /* restart */() => {
+    return this._query.apply(this, origArgs);
+  }, readonly).then(connection => {
     return connection.query(query, args || []);
   });
 }));
@@ -177,43 +175,42 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
  * @function module:dbbackend~Database#_getConnection
  */
 Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly) {
-  var self = this;
-  var pool = readonly ? self.rConnectionPool : self.wConnectionPool;
+  var pool = readonly ? this.rConnectionPool : this.wConnectionPool;
   assert.ok(pool);
   
-  return promiseUtil.ncall(pool.getConnection.bind(pool))().then(function(conn) {
-    self.openConnections++;
+  return promiseUtil.ncall(pool.getConnection.bind(pool))().then(conn => {
+    this.openConnections++;
   
     assert.ok(conn);
-    var id = self.id++;
+    var id = this.id++;
     
-    var release = function() {
-      self.openConnections--;
+    var release = () => {
+      this.openConnections--;
       
-      if (self.openConnections == 0 && self.isShuttingDown)
-        self.shutdown();
+      if (this.openConnections == 0 && this.isShuttingDown)
+        this.shutdown();
       
       return conn.release();
     };
     
-    var query = function(q, args) {
-      self.queryCount++;
+    var query = (q, args) => {
+      this.queryCount++;
       
-      var rollback = function() {
+      var rollback = () => {
         if (!readonly)
-          conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+          return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
       };
       
       var deferred = Promise.defer();
       var startTime = Date.now();
-      conn.query(q, args, function(err, res) {
+      conn.query(q, args, (err, res) => {
         debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
           (res && typeof res.length != 'undefined' ? res.length + ' results' :
            res && typeof res.affectedRows != 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
            ' in ' + (Date.now() - startTime) + ' ms');
         
         if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
-          self.deadlockCount++;
+          this.deadlockCount++;
           rollback();
           
           release();
@@ -244,12 +241,12 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
             var datajson = JSON.stringify(args);
             var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
           
-            self.emitError(q ? new Error(
+            this.emitError(q ? new Error(
               err + '\nCaused by ' + querydesc
             ) : err);
           } else {
             // exception in callback
-            self.emitError(exception);
+            this.emitError(exception);
           }
         }
         
@@ -281,21 +278,19 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
  */
 Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
   ['readonly', 'restart'], function(readonly, restart) 
-{
-  var self = this;
-  
+{ 
   assert.ok(readonly === true || readonly === false);
   
-  return self._getConnection(false, restart, readonly).then(function(cn) {
+  return this._getConnection(false, restart, readonly).then(cn => {
     return {
-      query: function(q, data) {
+      query: (q, data) => {
         data = data || [];
         
         // emitting self has the sole purpose of it showing up in the bus log
-        self.emitImmediate('dbBoundQueryLog', [q, data]);
+        this.emitImmediate('dbBoundQueryLog', [q, data]);
         return cn.query(q, data);
       },
-      release: function() {
+      release: () => {
         return cn.release();
       }
     };

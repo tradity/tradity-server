@@ -24,7 +24,7 @@ describe('user', function() {
         lookfor: user.name,
         nohistory: true,
         noCache: true, __sign__: true
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-user-info-success');
         assert.ok(res.result);
         assert.ok(!res.comments);
@@ -41,7 +41,7 @@ describe('user', function() {
           lookfor: user.name,
           noCache: true, __sign__: true
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-user-info-success');
         assert.ok(res.result);
         assert.ok(res.pinboard);
@@ -85,7 +85,7 @@ describe('user', function() {
     it('Should allow valid user names', function() {
       return socket.emit('validate-username', {
         name: 'Banana1992'
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'validate-username-valid');
       });
     });
@@ -93,7 +93,7 @@ describe('user', function() {
     it('Should recognize invalid user names', function() {
       return socket.emit('validate-username', {
         name: 'Banana 1992'
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'reg-name-invalid-char');
       });
     });
@@ -101,7 +101,7 @@ describe('user', function() {
     it('Should recognize already present user names', function() {
       return socket.emit('validate-username', {
         name: user.name
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'reg-name-already-present');
       });
     });
@@ -111,7 +111,7 @@ describe('user', function() {
     it('Should allow valid email addresses', function() {
       return socket.emit('validate-email', {
         email: 'Banana1992@notsohotmail.com'
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'validate-email-valid');
       });
     });
@@ -119,7 +119,7 @@ describe('user', function() {
     it('Should recognize invalid email addresses', function() {
       return socket.emit('validate-email', {
         email: 'Banana 1992'
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'reg-invalid-email');
       });
     });
@@ -127,7 +127,7 @@ describe('user', function() {
     it('Should recognize already present email addresses', function() {
       return socket.emit('validate-email', {
         email: user.email
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'reg-email-already-present');
       });
     });

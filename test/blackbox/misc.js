@@ -9,7 +9,7 @@ describe('misc', function() {
   var socket, user;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -20,7 +20,7 @@ describe('misc', function() {
 
   describe('get-own-options', function() {
     it('Should return information about own options', function() {
-      return socket.emit('get-own-options').then(function(res) {
+      return socket.emit('get-own-options').then(res => {
         assert.equal(res.code, 'get-own-options-success');
         assert.equal(res.result.name, user.name);
         assert.ok(!res.result.pwhash);
@@ -35,11 +35,11 @@ describe('misc', function() {
       
       return socket.emit('set-clientstorage', {
         storage: buf
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'set-clientstorage-success');
         
         return socket.emit('get-own-options');
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-own-options-success');
         
         assert.ok(res.result.clientstorage);
@@ -50,7 +50,7 @@ describe('misc', function() {
     it('Should fail with format-error when given invalid input', function() {
       return socket.emit('set-clientstorage', {
         storage: null
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'format-error');
       });
     });
@@ -58,7 +58,7 @@ describe('misc', function() {
   
   describe('ping', function() {
     it('Should really not do much', function() {
-      return socket.emit('ping').then(function(res) {
+      return socket.emit('ping').then(res => {
         assert.equal(res.code, 'pong');
       });
     });
@@ -66,7 +66,7 @@ describe('misc', function() {
   
   describe('fetch-events', function() {
     it('Should return fetched-events', function() {
-      return socket.emit('fetch-events', function(res) {
+      return socket.emit('fetch-events', res => {
         assert.equal(res.code, 'fetched-events');
       });
     });

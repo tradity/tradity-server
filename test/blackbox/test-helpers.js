@@ -13,16 +13,16 @@ var testPerformance = process.env.SOTRADE_PROFILE_PERFORMANCE;
 var timingFile = process.env.SOTRADE_TIMING_FILE;
 
 var startServer = _.memoize(function() {
-  return setup.setupDatabase().then(function() {
+  return setup.setupDatabase().then(() => {
     return setup.generateKeys();
-  }).then(function() {
+  }).then(() => {
     return new main.Main().start();
-  }).then(function() {
+  }).then(() => {
     // test connectivity
     
     return new sotradeClient.SoTradeConnection({logDevCheck: false});
-  }).then(function(socket) {
-    return socket.emit('ping').then(function() {
+  }).then(socket => {
+    return socket.emit('ping').then(() => {
       console.error('Server connectivity established');
       return socket.raw().disconnect();
     });
@@ -30,14 +30,14 @@ var startServer = _.memoize(function() {
 });
 
 var getSocket = _.memoize(function() {
-  return startServer().then(function() {
+  return startServer().then(() => {
     var socket = new sotradeClient.SoTradeConnection({
       noSignByDefault: true,
       logDevCheck: false
     });
     
     if (testPerformance && timingFile) {
-      socket.on('*', function(data) {
+      socket.on('*', data => {
         var dt = data._dt;
         
         if (!dt)
@@ -58,7 +58,7 @@ var getSocket = _.memoize(function() {
           data.type,
         ];
         
-        fs.appendFile(timingFile, fields.join('\t') + '\n', { mode: '0660' }, function() {});
+        fs.appendFile(timingFile, fields.join('\t') + '\n', { mode: '0660' }, () => {});
       });
     }
     
@@ -76,8 +76,8 @@ var getTestUser = _.memoize(function() {
   var schoolid = 'MegaMusterschule' + parseInt(Date.now() / 100000);
   var schoolname = schoolid;
   
-  return getSocket().then(function(socket) {
-    return socket.emit('list-schools').then(function(data) {
+  return getSocket().then(socket => {
+    return socket.emit('list-schools').then(data => {
       assert.equal(data.code, 'list-schools-success');
       for (var i = 0; i < data.result.length; ++i) {
         assert.ok(data.result[i].banner === null || typeof data.result[i].banner == 'string');
@@ -89,7 +89,7 @@ var getTestUser = _.memoize(function() {
       }
       
       return socket.emit('list-genders');
-    }).then(function(data) {
+    }).then(data => {
       assert.equal(data.code, 'list-genders-success');
       
       gender = data.genders.genders[parseInt(Math.random() * data.genders.genders.length)];
@@ -113,7 +113,7 @@ var getTestUser = _.memoize(function() {
         dla_optin: 0,
         gender: gender
       });
-    }).then(function(data) {
+    }).then(data => {
       assert.equal(data.code, 'reg-success');
       
       return socket.emit('login', {
@@ -121,11 +121,11 @@ var getTestUser = _.memoize(function() {
         pw: password,
         stayloggedin: false
       });
-    }).then(function(data) {
+    }).then(data => {
       assert.equal(data.code, 'login-success');
           
       return socket.emit('get-own-options');
-    }).then(function(data) {
+    }).then(data => {
       assert.equal(data.code, 'get-own-options-success');
       assert.ok(!data.result.pwhash);
       assert.equal(data.result.uid, parseInt(data.result.uid));
@@ -145,33 +145,31 @@ var getTestUser = _.memoize(function() {
 var standardSetup = function() {
   var socket;
   
-  return getSocket().then(function(socket_) {
+  return getSocket().then(socket_ => {
     socket = socket_;
     return getTestUser();
-  }).then(function(user) {
+  }).then(user => {
     return { socket: socket, user: user };
   });
 };
 
 var standardTeardown = function() {
-  return getSocket().then(function(socket) {
-    socket.raw().disconnect();
-  });
+  return getSocket().then(socket => socket.raw().disconnect());
 };
 
 var standardReset = function() {
-  return getSocket().then(function(socket) {
-    return getTestUser().then(function(user) {
+  return getSocket().then(socket => {
+    return getTestUser().then(user => {
       if (testPerformance)
         return;
       
-      return socket.emit('logout').then(function() {
+      return socket.emit('logout').then(() => {
         return socket.emit('login', { // login to reset privileges
           name: user.name,
           pw: user.password,
           stayloggedin: false
         });
-      }).then(function(loginresult) {
+      }).then(loginresult => {
         assert.equal(loginresult.code, 'login-success');
       });
     });

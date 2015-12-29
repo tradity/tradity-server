@@ -39,25 +39,23 @@ class BackgroundWorker extends buscomponent.BusComponent {
  * @function c2s~prod
  */
 BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', function(query, ctx) {
-  var self = this;
-  
   debug('Received prod');
   
   assert.ok(ctx.access);
   
   if (ctx.access.has('server') == -1)
-    throw new self.SoTradeClientError('prod-not-allowed');
+    throw new this.SoTradeClientError('prod-not-allowed');
   
   var starttime, userdbtime;
   
-  return self.sem.add(function() {
+  return this.sem.add(() => {
     starttime = Date.now();
   
-    return self.request({name: 'regularCallbackUser', query: query, ctx: ctx}).then(function() {
+    return this.request({name: 'regularCallbackUser', query: query, ctx: ctx}).then(() => {
       userdbtime = Date.now();
-      return self.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
+      return this.request({name: 'regularCallbackStocks', query: query, ctx: ctx});
     });
-  }).then(function() {
+  }).then(() => {
     return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
   });
 });

@@ -42,10 +42,8 @@ class FileStorage extends buscomponent.BusComponent {
  * @function busreq~handleFSDBRequest
  */
 FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL'], function(req, res, reqURL) {
-  var self = this;
-  
-  var ctx = new qctx.QContext({parentComponent: self});
-  return self.getServerConfig().then(function(cfg) {
+  var ctx = new qctx.QContext({parentComponent: this});
+  return this.getServerConfig().then(cfg => {
   
   var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
   
@@ -56,7 +54,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
   
   debug('Requested file', filename);
   
-  return ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename]).then(function(rows) {
+  return ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename]).then(rows => {
     if (rows.length == 0) {
       res.writeHead(404, {'Content-Type': 'text/plain'});
       res.end('Not found');
@@ -78,21 +76,21 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
       'X-Sotrade-Proxied': r.proxy
     };
     
-    return (r.proxy ? function(cont) {
+    return (r.proxy ? cont => {
       var proxyURL = r.content.toString('utf8');
       
       var httpx = proxyURL.match(/^https/) ? https : http;
-      var preq = httpx.request(proxyURL, function(pres) {
+      var preq = httpx.request(proxyURL, pres => {
         var pheaders = _.pick(pres.headers, 'cache-control', 'expires', 'last-modified', 'source-age', 'content-type');
         
-        _.each(pheaders, function(value, key) {
-          headers[key.replace(/(-|^)\w/g, function(w) { return w.toUpperCase(); })] = value;
+        _.each(pheaders, (value, key) => {
+          headers[key.replace(/(-|^)\w/g, w => w.toUpperCase())] = value;
         });
         
-        cont(pres.statusCode, function(res) { pres.pipe(res); });
+        cont(pres.statusCode, res => pres.pipe(res));
       });
     
-      preq.on('error', function(e) { self.emitError(e); });
+      preq.on('error', e => this.emitError(e));
       
       if (req.headers['if-modified-since'])
         preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
@@ -101,7 +99,7 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
       preq.end();
       
       return true;
-    } : function(cont) {
+    } : cont => {
       headers['Content-Type'] = r.mime;
       headers['Cache-Control'] = r.cache ? 'max-age=100000000' : 'no-cache';
       headers['Last-Modified'] = new Date(r.uploadtime * 1000).toString();
@@ -112,10 +110,10 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
         if (r.gzipped) 
           headers['Content-Encoding'] = 'gzip';
         
-        return cont(200, function(res) { res.end(r.content) });
+        return cont(200, res => res.end(r.content));
       }
-    })(function (status, finalize) {
-      finalize = finalize || function(res) { res.end(); };
+    })((status, finalize) => {
+      finalize = finalize || (res => res.end());
       
       if (r.headers)
         headers = deepupdate(headers, JSON.parse(r.headers));
@@ -126,7 +124,6 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
   });
   
   return true;
-  
   });
 });
 
@@ -163,10 +160,8 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
  */
 FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   ['query', 'ctx', 'groupassoc'], function(query, ctx, groupassoc) {
-  var self = this;
-  
   if (ctx.getProperty('readonly'))
-    throw new self.SoTradeClientError('server-readonly');
+    throw new this.SoTradeClientError('server-readonly');
   
   var content = query.content;
   var uniqrole, filehash, filename, url, content;
@@ -174,9 +169,9 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   debug('Upload file', query.mime, query.role);
   
   return Promise.all([
-    self.getServerConfig(),
+    this.getServerConfig(),
     ctx.startTransaction()
-  ]).then(spread(function(cfg, conn) {
+  ]).then(spread((cfg, conn) => {
   uniqrole = cfg.fsdb.uniqroles[query.role];
   
   query.proxy = query.proxy ? true : false;
@@ -186,14 +181,14 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
     content = new Buffer(query.content, 'base64');
   
   return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
-    [ctx.user ? ctx.user.uid : null]).then(function(res) {
+    [ctx.user ? ctx.user.uid : null]).then(res => {
     var total = uniqrole ? 0 : res[0].total;
     
     if (!ctx.access.has('filesystem')) {
       if (content.length + total > cfg.fsdb.userquota)
-        throw new self.SoTradeClientError('publish-quota-exceed');
+        throw new this.SoTradeClientError('publish-quota-exceed');
       if (cfg.fsdb.allowroles.indexOf(query.role) == -1)
-        throw new self.SoTradeClientError('publish-inacceptable-role');
+        throw new this.SoTradeClientError('publish-inacceptable-role');
         
       if (query.proxy) {
         var hasRequiredAccess = false;
@@ -220,12 +215,12 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
         }
         
         if (!hasRequiredAccess)
-          throw new self.SoTradeClientError('publish-proxy-not-allowed');
+          throw new this.SoTradeClientError('publish-proxy-not-allowed');
       } else {
         // local mime type is ignored for proxy requests
         
         if (cfg.fsdb.allowmime.indexOf(query.mime) == -1)
-          throw new self.SoTradeClientError('publish-inacceptable-mime');
+          throw new this.SoTradeClientError('publish-inacceptable-mime');
       }
     }
     
@@ -248,18 +243,18 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
         switch (fieldname) {
           case 'uid': dataarr.push(ctx.user.uid); break;
           case 'groupassoc': dataarr.push(groupassoc); break;
-          default: self.emitError(new Error('Unknown uniqrole field: ' + fieldname));
+          default: this.emitError(new Error('Unknown uniqrole field: ' + fieldname));
         }
       }
       
       return conn.query(sql, dataarr);
     }
-  }).then(function() {
+  }).then(() => {
     return conn.query('INSERT INTO httpresources(uid, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
       'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
       [ctx.user ? ctx.user.uid : null, filename, url, query.mime ? String(query.mime) : null, filehash,
       String(query.role), content, groupassoc, query.proxy ? 1:0]);
-  }).then(function(res) {
+  }).then(res => {
     if (ctx.user) {
       return ctx.feed({
         'type': 'file-publish',
@@ -269,7 +264,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
       });
     }
   }).then(conn.commit, conn && conn.rollbackAndThrow);
-  })).then(function() {
+  })).then(() => {
     return { code: 'publish-success', extra: 'repush' };
   });
 });

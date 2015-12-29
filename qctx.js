@@ -86,7 +86,7 @@ class QContext extends buscomponent.BusComponent {
           _ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
         } catch (e) { console.log(e); }
         
-        setTimeout(function() {
+        setTimeout(() => {
           process.exit(122);
         }, 1500);
       }
@@ -152,13 +152,11 @@ QContext.prototype.getChildContexts = function() {
 };
 
 QContext.prototype.onBusConnect = function() {
-  var self = this;
-  
-  return self.request({name: 'get-readability-mode'}).then(function(reply) {
+  return this.request({name: 'get-readability-mode'}).then(reply => {
     assert.ok(reply.readonly === true || reply.readonly === false);
     
-    if (!self.hasProperty('readonly')) {
-      self.addProperty({
+    if (!this.hasProperty('readonly')) {
+      return this.addProperty({
         name: 'readonly',
         value: reply.readonly
       });
@@ -168,7 +166,7 @@ QContext.prototype.onBusConnect = function() {
 
 QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
   if (this.hasProperty('readonly'))
-    this.setProperty('readonly', event.readonly);
+    return this.setProperty('readonly', event.readonly);
 });
 
 /**
@@ -284,32 +282,30 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * @function module:qctx~QContext#feed
  */
 QContext.prototype.feed = function(data) {
-  var self = this;
-  
-  var conn = data.conn || self.contextTransaction || null;
+  var conn = data.conn || this.contextTransaction || null;
   delete data.conn;
-  var onEventId = data.onEventId || function() {};
+  var onEventId = data.onEventId || (() => {});
   delete data.onEventId;
   
   var release = null;
   
   // keep in mind that self.contextTransaction may be a promise or null
   // use Promise.resolve(…) to clarify that before all else
-  return Promise.resolve(conn).then(function(conn_) {
+  return Promise.resolve(conn).then(conn_ => {
     // connection is there? -> set conn to the resolved promise
     if (conn_)
       return conn = conn_;
     
-    return self.startTransaction().then(function(conn_) {
+    return this.startTransaction().then(conn_ => {
       return conn = release = conn_;
     });
-  }).then(function() {
-    return self.request({name: 'feed', data: data, ctx: self, onEventId: onEventId, conn: conn});
-  }).then(function(retval) {
+  }).then(() => {
+    return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn});
+  }).then(retval => {
     // release is never a promise
     if (release)
-      return release.commit().then(_.constant(retval));
-  }).catch(function(e) {
+      return release.commit().then(() => retval);
+  }).catch(e => {
     if (release)
       return release.rollbackAndThrow(e);
     throw e;
@@ -323,13 +319,13 @@ QContext.prototype.txwrap = function(fn) {
   assert.ok(!self.contextTransaction);
   
   return function() {
-    return Promise.resolve(fn.apply(this, arguments)).then(function(v) {
-      return self.commit().then(function() {
+    return Promise.resolve(fn.apply(this, arguments)).then(v => {
+      return self.commit().then(() => {
         self.contextTransaction = null;
         return v;
       });
-    }).catch(function(err) {
-      return self.rollback().then(function() {
+    }).catch(err => {
+      return self.rollback().then(() => {
         self.contextTransaction = null;
         throw err;
       });
@@ -347,31 +343,29 @@ QContext.prototype.enterTransactionOnQuery = function(tables, options) {
 };
 
 QContext.prototype.commit = function() {
-  var self = this;
   var args = arguments;
   
   if (!this.contextTransaction)
     return Promise.resolve();
   
-  return Promise.resolve(this.contextTransaction).then(function(conn) {
-    return conn.commit.apply(self, args);
+  return Promise.resolve(this.contextTransaction).then(conn => {
+    return conn.commit.apply(this, args);
   });
 };
 
 QContext.prototype.rollback = function() {
-  var self = this;
   var args = arguments;
   
   if (!this.contextTransaction)
     return Promise.resolve();
   
-  return Promise.resolve(this.contextTransaction).then(function(conn) {
-    return conn.rollback.apply(self, args);
+  return Promise.resolve(this.contextTransaction).then(conn => {
+    return conn.rollback.apply(this, args);
   });
 };
 
 QContext.prototype.rollbackAndThrow = function(e) {
-  return this.rollback().then(function() {
+  return this.rollback().then(() => {
     throw e;
   });
 };
@@ -384,33 +378,32 @@ QContext.prototype.rollbackAndThrow = function(e) {
  * @function module:qctx~QContext#query
  */
 QContext.prototype.query = function(query, args, readonly) {
-  var self = this;
   var queryArgs = arguments;
-  var sToQ = self.startTransactionOnQuery;
+  var sToQ = this.startTransactionOnQuery;
   
-  if (self.contextTransaction) {
+  if (this.contextTransaction) {
     assert.ok(sToQ);
     
-    return Promise.resolve(self.contextTransaction).then(function(conn) {
-      return conn.query.apply(self, queryArgs);
+    return Promise.resolve(this.contextTransaction).then(function(conn) {
+      return conn.query.apply(this, queryArgs);
     });
   }
   
   if (sToQ) {
-    assert.ok(!self.contextTransaction);
+    assert.ok(!this.contextTransaction);
     
-    self.contextTransaction = self.startTransaction(sToQ.tables, sToQ.options);
+    this.contextTransaction = this.startTransaction(sToQ.tables, sToQ.options);
     
     // equivalent to goto to the above case
-    return self.query.apply(self, queryArgs);
+    return this.query.apply(this, queryArgs);
   }
   
-  self.debug('Executing query [unbound]', query, args);
-  self.incompleteQueryCount++;
+  this.debug('Executing query [unbound]', query, args);
+  this.incompleteQueryCount++;
   
-  return self.request({name: 'dbQuery', query: query, args: args, readonly: readonly}).then(function(data) {
-    self.incompleteQueryCount--;
-    self.queryCount++;
+  return this.request({name: 'dbQuery', query: query, args: args, readonly: readonly}).then(data => {
+    this.incompleteQueryCount--;
+    this.queryCount++;
     
     return data;
   });
@@ -429,15 +422,13 @@ QContext.prototype.query = function(query, args, readonly) {
  * @function module:qctx~QContext#getConnection
  */
 QContext.prototype.getConnection = function(readonly, restart) {
-  var self = this;
-  
-  var oci = self.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
+  var oci = this.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
   var conn;
   
-  var postTransaction = function(doRelease) {
-    delete self.openConnections[oci];
-    if (_.compact(self.openConnections) == [])
-      self.openConnections = [];
+  var postTransaction = doRelease => {
+    delete this.openConnections[oci];
+    if (_.compact(this.openConnections) == [])
+      this.openConnections = [];
     
     if (typeof doRelease == 'undefined')
       doRelease = true;
@@ -447,30 +438,30 @@ QContext.prototype.getConnection = function(readonly, restart) {
   };
   
   var oldrestart = restart;
-  restart = function() {
+  restart = () => {
     return Promise.resolve(postTransaction()).then(oldrestart);
   };
   
-  return self.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(function(conn_) {
+  return this.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(conn_ => {
     conn = conn_;
     assert.ok(conn);
     
     /* return wrapper object for better debugging, no semantic change */
     var conn_ = {
       release: _.bind(conn.release, conn),
-      query: function(query, args) {
-        self.debug('Executing query [bound]', query, args);
+      query: (query, args) => {
+        this.debug('Executing query [bound]', query, args);
         return conn.query(query, args);
       },
       
       /* convenience functions for rollback and commit with implicit release */
-      commit: function(doRelease) {
-        return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;').then(function() {
+      commit: doRelease => {
+        return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;').then(() => {
           return postTransaction(doRelease);
         });
       },
-      rollback: function(doRelease) {
-        return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;').then(function() {
+      rollback: doRelease => {
+        return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;').then(() => {
           return postTransaction(doRelease);
         });
       }
@@ -502,7 +493,7 @@ QContext.prototype.getConnection = function(readonly, restart) {
  * @function module:qctx~QContext#startTransaction
  */
 QContext.prototype.startTransaction = function(tablelocks, options) {
-  var self = this, args = arguments;
+  var args = arguments;
   
   options = options || {};
   tablelocks = tablelocks || {};
@@ -513,10 +504,10 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
   var notifyTimer = null;
   
   if (tablelocks)
-    tli = self.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
+    tli = this.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
   
   debug('Starting transaction', tli);
-  var cleanTLEntry = function() {
+  var cleanTLEntry = () => {
     debug('Ended transaction', tli);
     
     if (tli === null)
@@ -526,46 +517,46 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
       clearTimeout(notifyTimer);
     
     notifyTimer = null;
-    delete self.tableLocks[tli];
-    if (_.compact(self.tableLocks) == [])
-      self.tableLocks = [];
+    delete this.tableLocks[tli];
+    if (_.compact(this.tableLocks) == [])
+      this.tableLocks = [];
     
     tli = null;
   };
   
   var conn;
-  var oldrestart = options.restart || function() {
-    (conn ? conn.rollback() : Promise.resolve()).then(function() {
-      self.startTransaction.apply(self, args);
+  var oldrestart = options.restart || (() => {
+    (conn ? conn.rollback() : Promise.resolve()).then(() => {
+      this.startTransaction.apply(this, args);
     });
-  };
+  });
   
-  var restart = function() {
+  var restart = () => {
     cleanTLEntry();
     return oldrestart.apply(this, arguments);
   };
   
-  return self.getConnection(readonly, restart).then(function(conn_) {
+  return this.getConnection(readonly, restart).then(conn_ => {
     conn = conn_;
     
     var oldCommit = conn.commit, oldRollback = conn.rollback;
-    conn.commit = function(v) {
+    conn.commit = v => {
       cleanTLEntry();
-      return Promise.resolve(oldCommit.call(conn, true)).then(_.constant(v));
+      return Promise.resolve(oldCommit.call(conn, true)).then(() => v);
     };
     
-    conn.commitWithoutRelease = function(v) {
+    conn.commitWithoutRelease = v => {
       cleanTLEntry();
-      return Promise.resolve(oldCommit.call(conn, false)).then(_.constant(v));
+      return Promise.resolve(oldCommit.call(conn, false)).then(() => v);
     };
     
-    conn.rollback = function() {
+    conn.rollback = () => {
       cleanTLEntry();
       return oldRollback.apply(conn, arguments);
     };
     
-    conn.rollbackAndThrow = function(e) {
-      return conn.rollback().then(function() {
+    conn.rollbackAndThrow = e => {
+      return conn.rollback().then(() => {
         throw e;
       });
     };
@@ -603,13 +594,13 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
     init += ';';
     
     return conn.query(init);
-  }).then(function() {
+  }).then(() => {
     // install timer to notify in case that the transaction gets 'lost'
-    notifyTimer = setTimeout(function() {
+    notifyTimer = setTimeout(() => {
       if (tli === null)
         return;
       
-      self.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(self.tableLocks[tli])));
+      this.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
     }, 90000);
     
     return conn;

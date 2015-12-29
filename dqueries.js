@@ -38,13 +38,12 @@ class DelayedQueries extends buscomponent.BusComponent {
 }
 
 DelayedQueries.prototype.onBusConnect = function() {
-  var self = this;
   var ctx = new qctx.QContext({parentComponent: this});
   
-  this.on('stock-update', function(ev) {
-    if (self.neededStocks['s-'+ev.stockid]) {
-      _.each(self.neededStocks['s-'+ev.stockid], function(entryid) {
-        self.checkAndExecute(ctx, self.queries[entryid]);
+  this.on('stock-update', ev => {
+    if (this.neededStocks['s-'+ev.stockid]) {
+      _.each(this.neededStocks['s-'+ev.stockid], entryid => {
+        return this.checkAndExecute(ctx, this.queries[entryid]);
       });
     }
   });
@@ -58,7 +57,7 @@ DelayedQueries.prototype.onBusConnect = function() {
  * @function busreq~neededStocksDQ
  */
 DelayedQueries.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ', [], function() {
-  var neededIDs = _.chain(this.neededStocks).keys().map(function(stocktextid) {
+  var neededIDs = _.chain(this.neededStocks).keys().map(stocktextid => {
     return stocktextid.substr(2); // strip s- prefix
   }).value();
   
@@ -75,14 +74,12 @@ DelayedQueries.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ'
  * @function module:dqueries~DelayedQueries#checkAndExecute
  */
 DelayedQueries.prototype.checkAndExecute = function(ctx, query) {
-  var self = this;
-  
   if (ctx.getProperty('readonly'))
     return;
   
-  return query.check(ctx).then(function(condmatch) {
+  return query.check(ctx).then(condmatch => {
     if (condmatch)
-      return self.executeQuery(query);
+      return this.executeQuery(query);
   });
 };
 
@@ -93,19 +90,17 @@ DelayedQueries.prototype.checkAndExecute = function(ctx, query) {
  * @function module:dqueries~DelayedQueries#loadDelayedQueries
  */
 DelayedQueries.prototype.loadDelayedQueries = function() {
-  var self = this;
-  
   debug('Load delayed queries');
   
-  var ctx = new qctx.QContext({parentComponent: self});
+  var ctx = new qctx.QContext({parentComponent: this});
   
-  return ctx.query('SELECT * FROM dqueries').then(function(r) {
-    return Promise.all(r.map(function(res) {
+  return ctx.query('SELECT * FROM dqueries').then(r => {
+    return Promise.all(r.map(res => {
       res.query = JSON.parse(res.query);
       res.userinfo = JSON.parse(res.userinfo);
       res.accessinfo = Access.fromJSON(res.accessinfo);
       
-      return self.addQuery(ctx, res);
+      return this.addQuery(ctx, res);
     }));
   });
 };
@@ -121,8 +116,8 @@ DelayedQueries.prototype.loadDelayedQueries = function() {
 DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquery-list', function(query, ctx) {
   return { code: 'dquery-list-success', 
     results: _.chain(this.queries).values()
-      .filter(function(q) { return q.userinfo.uid == ctx.user.uid; })
-      .map(function(q) { return _.omit(q, 'userinfo', 'accessinfo'); })
+      .filter(q => (q.userinfo.uid == ctx.user.uid))
+      .map(q => _.omit(q, 'userinfo', 'accessinfo'))
       .value()
   };
 });
@@ -143,7 +138,7 @@ DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquer
   debug('Remove dquery', queryid);
   
   if (this.queries[queryid] && this.queries[queryid].userinfo.uid == ctx.user.uid) {
-    return this.removeQuery(this.queries[queryid], ctx).then(function() {
+    return this.removeQuery(this.queries[queryid], ctx).then(() => {
       return { code: 'dquery-remove-success' };
     });
   } else {
@@ -167,22 +162,20 @@ DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquer
  * @function c2s~dquery
  */
 DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquery', function(query, ctx) {
-  var self = this;
-  
   debug('Add dquery', query.condition);
   
   var qstr = null;
-  self.parseCondition(query.condition);
+  this.parseCondition(query.condition);
   
   try {
     qstr = JSON.stringify(query.query);
   } catch (e) {
-    self.emitError(e);
-    throw new self.FormatError();
+    this.emitError(e);
+    throw new this.FormatError();
   }
   
   if (this.queryTypes.indexOf(query.query.type) == -1)
-    throw new self.SoTradeClientError('unknown-query-type');
+    throw new this.SoTradeClientError('unknown-query-type');
   
   var userinfo = _.clone(ctx.user);
   assert.ok(!userinfo.pwsalt);
@@ -191,13 +184,13 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
   delete userinfo.clientstorage;
   
   return ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
-    [String(query.condition), qstr, JSON.stringify(userinfo), ctx.access.toJSON()]).then(function(r) {
+    [String(query.condition), qstr, JSON.stringify(userinfo), ctx.access.toJSON()]).then(r => {
     query.queryid = r.insertId;
     query.userinfo = ctx.user;
     query.accessinfo = ctx.access;
     
-    return self.addQuery(ctx, query);
-  }).then(function() {
+    return this.addQuery(ctx, query);
+  }).then(() => {
     return { code: 'dquery-success', 'queryid': query.queryid };
   });
 });
@@ -210,16 +203,14 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
  * @function c2s~dquery-checkall
  */
 DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dquery-checkall', function(query, ctx) {
-  var self = this;
-  
   debug('Check all dqueries');
   
   if (!ctx.access.has('dqueries'))
-    throw new self.PermissionDenied();
+    throw new this.PermissionDenied();
   
-  return Promise.all(_.chain(self.queries).values().map(function(q) {
-    return self.checkAndExecute(ctx, q);
-  }).value()).then(function() {
+  return Promise.all(_.chain(this.queries).values().map(q => {
+    return this.checkAndExecute(ctx, q);
+  }).value()).then(() => {
     return { code: 'dquery-checkall-success' };
   });
 });
@@ -289,16 +280,14 @@ DelayedQueries.prototype.addNeededStock = function(queryid, stocktextid) {
  * @function module:dqueries~DelayedQueries#parseCondition
  */
 DelayedQueries.prototype.parseCondition = function(str) {
-  var self = this;
-  
   var clauses = str.split('∧');
   var cchecks = [];
   var stocks = [];
-  _.each(clauses, function(cl) {
+  _.each(clauses, cl => {
     cl = cl.trim();
     var terms = cl.split(/[<>]/);
     if (terms.length != 2)
-      throw new self.FormatError('condition clause must contain exactly one < or > expression');
+      throw new this.FormatError('condition clause must contain exactly one < or > expression');
     
     var lt = cl.indexOf('<') != -1;
     var lhs = terms[0].trim();
@@ -307,30 +296,30 @@ DelayedQueries.prototype.parseCondition = function(str) {
     var value = parseFloat(rhs);
     switch (variable[0]) {
       case 'time':
-        cchecks.push(function(ctx) {
+        cchecks.push(ctx => {
           var t = Date.now()/1000;
           return lt ? t < value : t > value;
         });
         break;
       case 'stock':
         if (variable.length != 3)
-          throw new self.FormatError('expecting level 3 nesting for stock variable');
+          throw new this.FormatError('expecting level 3 nesting for stock variable');
         var stocktextid = String(variable[1]);
         var fieldname = variable[2];
         if (_.indexOf(stocks, stocktextid) == -1)
           stocks.push(stocktextid);
         switch(fieldname) {
           case 'exchange-open':
-            cchecks.push(function(ctx) {
-              return ctx.query('SELECT exchange FROM stocks WHERE stocktextid = ?', [stocktextid]).then(function(r) {
+            cchecks.push(ctx => {
+              return ctx.query('SELECT exchange FROM stocks WHERE stocktextid = ?', [stocktextid]).then(r => {
                 if (r.length == 0)
                   return false;
                 
-                return self.getServerConfig().then(function(cfg) {
+                return this.getServerConfig().then(cfg => {
                   assert.ok(cfg);
                   
-                  return self.request({name: 'stockExchangeIsOpen', sxname: r[0].exchange, cfg: cfg});
-                }).then(function(isOpen) {
+                  return this.request({name: 'stockExchangeIsOpen', sxname: r[0].exchange, cfg: cfg});
+                }).then(isOpen => {
                   return lt ? isOpen < value : isOpen > value;
                 });
               });
@@ -338,10 +327,10 @@ DelayedQueries.prototype.parseCondition = function(str) {
             break;
           default:
             if (!/^\w+$/.test(fieldname))
-              throw new self.FormatError('bad fieldname');
-            cchecks.push(function(ctx) {
+              throw new this.FormatError('bad fieldname');
+            cchecks.push(ctx => {
               return ctx.query('SELECT ' + fieldname + ' FROM stocks WHERE stocktextid = ?',
-                [String(stocktextid)]).then(function(r) {
+                [String(stocktextid)]).then(r => {
                 return r.length > 0 && (lt ? r[0][fieldname] < value : r[0][fieldname] > value);
               });
             });
@@ -349,19 +338,14 @@ DelayedQueries.prototype.parseCondition = function(str) {
         }
         break;
       default:
-        throw new self.FormatError('unknown variable type');
+        throw new this.FormatError('unknown variable type');
     }
   });
   
   return {
-    check: function(ctx) {
-      var count = 0;
-      
-      return Promise.all(cchecks.map(function(check) {
-        return check(ctx);
-      })).then(function(allCheckResults) {
-        return allCheckResults.reduce(function(a, b) { return a && b; });
-      });
+    check: ctx => {
+      return Promise.all(cchecks.map(check => check(ctx)))
+        .then(allCheckResults => allCheckResults.reduce((a, b) => a && b));
     },
     neededStocks: stocks
   };
@@ -385,28 +369,26 @@ DelayedQueries.prototype.parseCondition = function(str) {
  * @function module:dqueries~DelayedQueries#executeQuery
  */
 DelayedQueries.prototype.executeQuery = function(query) {
-  var self = this;
-  
   debug('Execute dquery', query.queryid);
   
-  var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: self});
+  var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: this});
   query.query._isDelayed = true;
   
   if (query.executionPromise)
     return query.executionPromise;
   
-  assert.strictEqual(self.queries[query.queryid], query);
+  assert.strictEqual(this.queries[query.queryid], query);
   
-  return query.executionPromise = self.request({
+  return query.executionPromise = this.request({
     name: 'client-' + query.query.type,
     query: query.query,
     ctx: ctx
-  }).catch(function (e) {
+  }).catch(e => {
     if (typeof e.toJSON !== 'function')
       throw e;
     
     return e.toJSON();
-  }).then(function(result) {
+  }).then(result => {
     debug('Executed dquery', query.queryid, result.code);
     var json = query.query.dquerydata || {};
     json.result = result.code;
@@ -418,9 +400,7 @@ DelayedQueries.prototype.executeQuery = function(query) {
         'srcuser': query.userinfo.uid,
         'json': json,
         'noFollowers': true
-      }).then(function() {
-        return self.removeQuery(query, ctx);
-      });
+      }).then(() => this.removeQuery(query, ctx));
     } else {
       delete query.executionPromise;
     }
@@ -436,14 +416,12 @@ DelayedQueries.prototype.executeQuery = function(query) {
  * @function module:dqueries~DelayedQueries#removeQuery
  */
 DelayedQueries.prototype.removeQuery = function(query, ctx) {
-  var self = this;
-  
-  return ctx.query('DELETE FROM dqueries WHERE queryid = ?', [parseInt(query.queryid)]).then(function() {
-    delete self.queries[query.queryid];
-    _.each(query.neededStocks, function(stock) {
-      self.neededStocks['s-'+stock] = _.without(self.neededStocks['s-'+stock], query.queryid);
-      if (self.neededStocks['s-'+stock].length == 0)
-        delete self.neededStocks['s-'+stock];
+  return ctx.query('DELETE FROM dqueries WHERE queryid = ?', [parseInt(query.queryid)]).then(() => {
+    delete this.queries[query.queryid];
+    _.each(query.neededStocks, stock => {
+      this.neededStocks['s-'+stock] = _.without(this.neededStocks['s-'+stock], query.queryid);
+      if (this.neededStocks['s-'+stock].length == 0)
+        delete this.neededStocks['s-'+stock];
     });
   });
 };

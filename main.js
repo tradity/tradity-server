@@ -250,52 +250,48 @@ Main.prototype.registerWorker = function(w) {
 };
 
 Main.prototype.forkBackgroundWorker = function() {
-  var self = this;
-  
-  debug('Forking new background worker', self.useCluster);
-  if (!self.useCluster)
-    return self.newNonClusterWorker(true, null);
+  debug('Forking new background worker', this.useCluster);
+  if (!this.useCluster)
+    return this.newNonClusterWorker(true, null);
   
   var bw = cluster.fork();
   var sentSBW = false;
 
-  self.workers.push(bw);
+  this.workers.push(bw);
 
-  return self.registerWorker(bw).then(function() {
-    bw.on('message', function(msg) {
+  return this.registerWorker(bw).then(() => {
+    bw.on('message', msg => {
       if (msg.cmd == 'startRequest' && !sentSBW) {
         sentSBW = true;
         
         debug('Sending SBW to', bw.process.pid);
-        bw.send({cmd: 'startBackgroundWorker'});
+        return bw.send({cmd: 'startBackgroundWorker'});
       }
     });
-  }).then(function() {
-    self.bwpid = bw.process.pid;
-    assert.ok(self.bwpid);
+  }).then(() => {
+    this.bwpid = bw.process.pid;
+    assert.ok(this.bwpid);
     
-    return self.bwpid;
+    return this.bwpid;
   });
 };
 
 Main.prototype.forkStandardWorker = function() {
-  var self = this;
-  
-  debug('Forking new standard worker', self.useCluster);
-  if (!self.useCluster)
-    return self.newNonClusterWorker(false, self.getFreePort(process.pid));
+  debug('Forking new standard worker', this.useCluster);
+  if (!this.useCluster)
+    return this.newNonClusterWorker(false, this.getFreePort(process.pid));
   
   var w = cluster.fork();
   var sentSSW = false;
   
-  self.workers.push(w);
+  this.workers.push(w);
   
-  w.on('online', function() {
-    self.registerWorker(w, function() {
-      w.on('message', function(msg) {
+  return w.on('online', () => {
+    this.registerWorker(w, () => {
+      w.on('message', msg => {
         if (msg.cmd == 'startRequest' && !sentSSW) {
           sentSSW = true;
-          var port = self.getFreePort(w.process.pid);
+          var port = this.getFreePort(w.process.pid);
           
           debug('Sending SSW[', port, '] to', w.process.pid);
           
@@ -310,29 +306,27 @@ Main.prototype.forkStandardWorker = function() {
 };
 
 Main.prototype.startMaster = function() {
-  var self = this;
-  
-  return Promise.resolve().then(function() {
+  return Promise.resolve().then(() => {
     var workerStartedPromises = [];
     
-    if (self.getServerConfig().startBackgroundWorker)
-      workerStartedPromises.push(Promise.resolve().then(self.forkBackgroundWorker.bind(self)));
+    if (this.getServerConfig().startBackgroundWorker)
+      workerStartedPromises.push(Promise.resolve().then(() => this.forkBackgroundWorker()));
     
-    for (var i = 0; i < self.getServerConfig().wsports.length; ++i) 
-      workerStartedPromises.push(Promise.resolve().then(self.forkStandardWorker.bind(self)));
+    for (var i = 0; i < this.getServerConfig().wsports.length; ++i) 
+      workerStartedPromises.push(Promise.resolve().then(() => this.forkStandardWorker()));
     
     debug('Starting workers', process.pid, workerStartedPromises.length + ' workers');
     
     return Promise.all(workerStartedPromises);
-  }).then(function() {
+  }).then(() => {
     debug('All workers started', process.pid);
     
     var shuttingDown = false;
-    self.mainBus.on('globalShutdown', function() { self.mainBus.emitLocal('localShutdown'); });
-    self.mainBus.on('localShutdown', function() { shuttingDown = true; });
+    this.mainBus.on('globalShutdown', () => this.mainBus.emitLocal('localShutdown'));
+    this.mainBus.on('localShutdown', () => { shuttingDown = true; });
     
-    cluster.on('exit', function(worker, code, signal) {
-      self.workers = _.filter(self.workers, function(w) { w.process.pid != worker.process.pid; });
+    cluster.on('exit', (worker, code, signal) => {
+      this.workers = _.filter(this.workers, w => (w.process.pid != worker.process.pid));
       
       var shouldRestart = !shuttingDown;
       
@@ -344,10 +338,10 @@ Main.prototype.startMaster = function() {
       if (!shuttingDown) {
         debug('respawning');
         
-        if (worker.process.pid == self.bwpid)
-          self.forkBackgroundWorker();
+        if (worker.process.pid == this.bwpid)
+          return this.forkBackgroundWorker();
         else 
-          self.forkStandardWorker();
+          return this.forkStandardWorker();
       } else {
         setTimeout(function() {
           process.exit(0);
@@ -355,73 +349,69 @@ Main.prototype.startMaster = function() {
       }
     });
     
-    return self.connectToSocketIORemotes().then(() => {
+    return this.connectToSocketIORemotes().then(() => {
       debug('Connected to socket.io remotes', process.pid);
     });
   });
 };
 
 Main.prototype.worker = function() {
-  var self = this;
+  if (!this.useCluster)
+    return this.startWorker();
   
-  if (!self.useCluster)
-    return self.startWorker();
-  
-  var startRequestInterval = setInterval(function() {
-    if (!self.hasReceivedStartCommand) {
+  var startRequestInterval = setInterval(() => {
+    if (!this.hasReceivedStartCommand) {
       debug('Requesting start commands', process.pid);
       process.send({cmd: 'startRequest'});
     }
   }, 250);
   
-  process.on('message', function(msg) {
-    if (self.hasReceivedStartCommand)
+  process.on('message', msg => {
+    if (this.hasReceivedStartCommand)
       return;
     
     if (msg.cmd == 'startBackgroundWorker') {
       debug('received SBW', process.pid);
       
-      self.isBackgroundWorker = true;
+      this.isBackgroundWorker = true;
     } else if (msg.cmd == 'startStandardWorker') {
       assert.ok(msg.port);
       
       debug('received SSW', process.pid, msg.port);
-      self.port = msg.port;
-      self.isBackgroundWorker = false;
+      this.port = msg.port;
+      this.isBackgroundWorker = false;
     } else {
       return;
     }
     
-    self.hasReceivedStartCommand = true;
+    this.hasReceivedStartCommand = true;
     clearInterval(startRequestInterval);
     
-    return self.startWorker();
+    return this.startWorker();
   });
 };
 
 Main.prototype.startWorker = function() {
-  var self = this;
-  
-  var componentsForLoading = self.basicComponents
-    .concat(self.isBackgroundWorker ? self.bwComponents : self.regularComponents);
+  var componentsForLoading = this.basicComponents
+    .concat(this.isBackgroundWorker ? this.bwComponents : this.regularComponents);
   
   debug('loading', process.pid);
   var stserver;
-  return self.loadComponents(componentsForLoading).then(function() {
+  return this.loadComponents(componentsForLoading).then(() => {
     var server = require('./server.js');
-    stserver = new server.SoTradeServer({isBackgroundWorker: self.isBackgroundWorker});
+    stserver = new server.SoTradeServer({isBackgroundWorker: this.isBackgroundWorker});
     
-    return stserver.setBus(self.mainBus, 'serverMaster');
-  }).then(function() {
+    return stserver.setBus(this.mainBus, 'serverMaster');
+  }).then(() => {
     debug('loaded', process.pid);
     
-    if (self.isBackgroundWorker) {
+    if (this.isBackgroundWorker) {
       debug('BW started at', process.pid, 'connecting to remotes...');
-      return self.connectToSocketIORemotes().then(function() {
+      return this.connectToSocketIORemotes().then(() => {
         debug('BW connected to remotes', process.pid);
       });
     } else {
-      return stserver.start(self.port).then(() => {
+      return stserver.start(this.port).then(() => {
         debug('Server started!', process.pid);
       });
     }
@@ -437,20 +427,18 @@ Main.prototype.connectToSocketIORemotes = function() {
 };
 
 Main.prototype.connectToSocketIORemote = function(remote) {
-  var self = this;
-  
   debug('Connecting to socket.io remote', process.pid, remote.url);
-  var sslOpts = remote.ssl || self.getServerConfig().ssl;
+  var sslOpts = remote.ssl || this.getServerConfig().ssl;
   var socket = new sotradeClient.SoTradeConnection({
     url: remote.url,
     socketopts: {
       transports: ['websocket'],
       agent: sslOpts && /^(https|wss)/.test(remote.url) ? new https.Agent(sslOpts) : null
     },
-    serverConfig: self.getServerConfig()
+    serverConfig: this.getServerConfig()
   });
 
-  self.mainBus.on('localShutdown', function() {
+  this.mainBus.on('localShutdown', () => {
     if (socket) {
       socket.raw().io.reconnectionAttempts(0);
       socket.raw().close();
@@ -459,34 +447,32 @@ Main.prototype.connectToSocketIORemote = function(remote) {
     socket = null;
   });
   
-  return socket.once('server-config').then(function() {
+  return socket.once('server-config').then(() => {
     debug('Received server-config from remote', process.pid, remote.url);
     
     return socket.emit('init-bus-transport', {
       weight: remote.weight
     });
-  }).then(function(r) {
+  }).then(r => {
     debug('init-bus-transport returned', process.pid, r.code);
     
     if (r.code == 'init-bus-transport-success')
-      return self.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
+      return this.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
     else
-      return self.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
+      return this.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
   });
 };
 
 Main.prototype.loadComponents = function(componentsForLoading) {
-  var self = this;
-  
-  return Promise.all(componentsForLoading.map(function(componentName) {
+  return Promise.all(componentsForLoading.map(componentName => {
     var component = require(componentName);
     
-    return Promise.all(_.map(component, function(componentClass) {
+    return Promise.all(_.map(component, componentClass => {
       if (!componentClass || !componentClass.prototype.setBus)
         return Promise.resolve();
       
       var componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
-      return new componentClass().setBus(self.mainBus, componentID);
+      return new componentClass().setBus(this.mainBus, componentID);
     }));
   }));
 };

@@ -10,7 +10,7 @@ describe('schools', function() {
   var socket, user;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -22,7 +22,7 @@ describe('schools', function() {
   var getOwnSchool = function() {
     return socket.emit('get-user-info', {
       lookfor: '$self'
-    }).then(function(res) {
+    }).then(res => {
       assert.equal(res.code, 'get-user-info-success');
       assert.ok(res.result.schools);
       assert.ok(res.result.schools.length > 0);
@@ -34,13 +34,13 @@ describe('schools', function() {
     it('Should return information on a given school', function() {
       var school;
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result);
         assert.ok(res.result.name);
@@ -49,7 +49,7 @@ describe('schools', function() {
         return socket.emit('school-exists', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-exists-success');
         assert.ok(res.exists);
         assert.equal(res.path, school.path);
@@ -61,7 +61,7 @@ describe('schools', function() {
     it('Should indicate whether a school exists', function() {
       return socket.emit('school-exists', {
         lookfor: '/nonexistent'
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-exists-success');
         assert.ok(!res.exists);
       });
@@ -73,14 +73,14 @@ describe('schools', function() {
     it('Requires school admin privileges', function() {
       var school;
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return socket.emit('school-change-description', {
           schoolid: school.schoolid,
           descpage: 'Bla bla bla'
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'permission-denied');
       });
     });
@@ -89,7 +89,7 @@ describe('schools', function() {
       var school;
       var descpage = 'Blahlahblah';
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return socket.emit('school-change-description', {
@@ -97,13 +97,13 @@ describe('schools', function() {
           schoolid: school.schoolid,
           descpage: descpage
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-change-description-success');
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.equal(res.result.descpage, descpage);
       });
@@ -114,7 +114,7 @@ describe('schools', function() {
     it('Should toggle admin status', function() {
       var school;
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return socket.emit('school-change-member-status', {
@@ -123,13 +123,13 @@ describe('schools', function() {
           status: 'admin',
           uid: user.uid
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-change-member-status-success');
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result.admins);
         assert.ok(res.result.admins.length > 0);
@@ -140,13 +140,13 @@ describe('schools', function() {
           status: 'member',
           uid: user.uid
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-change-member-status-success');
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result.admins);
         assert.equal(_.pluck(res.result.admins, 'adminid').indexOf(user.uid), -1);
@@ -160,13 +160,13 @@ describe('schools', function() {
       var eventid;
       var origCommentText = 'Stupid text';
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result);
         assert.ok(res.result.eventid);
@@ -176,13 +176,13 @@ describe('schools', function() {
           eventid: eventid,
           comment: origCommentText
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'comment-success');
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result);
         
@@ -190,7 +190,7 @@ describe('schools', function() {
         assert.ok(comments);
         assert.ok(comments.length > 0);
         
-        var comment = comments.sort(function(a, b) { return b.time - a.time; })[0]; // most recent comment
+        var comment = comments.sort((a, b) => { return b.time - a.time; })[0]; // most recent comment
         assert.equal(comment.comment, origCommentText);
         
         return socket.emit('school-delete-comment', {
@@ -198,13 +198,13 @@ describe('schools', function() {
           schoolid: school.schoolid,
           commentid: comment.commentid
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-delete-comment-success');
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result);
         
@@ -212,7 +212,7 @@ describe('schools', function() {
         assert.ok(comments);
         assert.ok(comments.length > 0);
         
-        var comment = comments.sort(function(a, b) { return b.time - a.time; })[0]; // most recent comment
+        var comment = comments.sort((a, b) => { return b.time - a.time; })[0]; // most recent comment
         assert.ok(comment.cstate == 'gdeleted');
       })
     });
@@ -223,7 +223,7 @@ describe('schools', function() {
     it('Should remove the current user from their group', function() {
       var school;
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return socket.emit('school-kick-user', {
@@ -231,31 +231,31 @@ describe('schools', function() {
           uid: user.uid,
           schoolid: school.schoolid
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-kick-user-success');
         
         return socket.emit('get-user-info', {
           lookfor: '$self',
           noCache: true, __sign__: true
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-user-info-success');
         assert.ok(res.result.schools);
         assert.equal(res.result.schools.length, 0);
         
         return socket.emit('get-own-options');
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-own-options-success');
         res.result.school = school.schoolid;
         
         return socket.emit('change-options', res.result);
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'reg-success');
         return socket.emit('get-user-info', {
           lookfor: '$self',
           noCache: true, __sign__: true
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-user-info-success');
         assert.ok(res.result.schools);
         assert.ok(res.result.schools.length > 0);
@@ -271,7 +271,7 @@ describe('schools', function() {
           schoolname: 'Doublé',
           schoolpath: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'create-school-already-exists');
       });
     });
@@ -281,7 +281,7 @@ describe('schools', function() {
         __sign__: true,
         schoolname: 'Nonexistent Students of the World',
         schoolpath: '/nonexistent/nsotw'
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'create-school-missing-parent');
       });
     });
@@ -291,19 +291,19 @@ describe('schools', function() {
       return socket.emit('create-school', {
         __sign__: true,
         schoolname: 'S' + Date.now(),
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'create-school-success');
         path = res.path;
         
         return socket.emit('school-exists', {
           lookfor: path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'school-exists-success');
         assert.ok(res.exists);
         
         return socket.emit('list-schools');
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'list-schools-success');
         assert.ok(res.result);
         assert.notEqual(_.pluck(res.result, 'path').indexOf(path), -1);
@@ -328,13 +328,13 @@ describe('schools', function() {
           mime: 'image/jpeg',
           name: 'bob.jpg'
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'publish-success');
         
         return socket.emit('get-school-info', {
           lookfor: school.path
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result.banner);
       });
@@ -353,14 +353,14 @@ describe('schools', function() {
           email: null,
           schoolid: school.schoolid
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'create-invite-link-success');
         assert.ok(res.key);
         
         return socket.emit('get-invitekey-info', {
           invitekey: res.key
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-invitekey-info-success');
         assert.ok(res.result);
         assert.equal(res.result.schoolid, school.schoolid);

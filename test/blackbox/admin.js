@@ -5,6 +5,8 @@ const _ = require('lodash');
 const sha256 = require('../../lib/sha256.js');
 const commonUtil = require('tradity-connection');
 const testHelpers = require('./test-helpers.js');
+const promiseUtil = require('../../lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 describe('admin', function() {
   let user, socket;
@@ -52,6 +54,24 @@ describe('admin', function() {
       });
     });
     
+    it('Should fail for impersonating invalid users', function() {
+      return socket.emit('impersonate-user', {
+        __sign__: true,
+        uid: 'ABC'
+      }).then(result => {
+        assert.equal(result.code, 'permission-denied');
+      });
+    });
+    
+    it('Should fail for impersonating nonexistent users', function() {
+      return socket.emit('impersonate-user', {
+        __sign__: true,
+        uid: -1
+      }).then(result => {
+        assert.equal(result.code, 'impersonate-user-notfound');
+      });
+    });
+    
     it('Should leave the session untouched when impersonating the active user', function() {
       return socket.emit('impersonate-user', {
         __sign__: true,
@@ -73,6 +93,15 @@ describe('admin', function() {
   });
   
   describe('change-user-email', function() {
+    it('Should fail for invalid user ids', function() {
+      return socket.emit('change-user-email', {
+        __sign__: true,
+        uid: 'Banana'
+      }).then(result => {
+        assert.equal(result.code, 'format-error');
+      });
+    });
+    
     it('Should be able to change the active user’s mail address', function() {
       const email = 'nonexistent' + parseInt(Math.random() * 100000) + '@invalid.invalid';
       
@@ -167,6 +196,17 @@ describe('admin', function() {
   });
   
   describe('rename-school', function() {
+    it('Should fail for nonexistent schools', function() {
+      return socket.emit('rename-school', {
+        __sign__: true,
+        schoolid: -1,
+        schoolname: 'SCHOOL 42',
+        schoolpath: '/abcdef'
+      }).then(res => {
+        assert.equal(res.code, 'rename-school-notfound');
+      });
+    });
+    
     it('Should change the name of a school', function() {
       let school;
       
@@ -188,6 +228,25 @@ describe('admin', function() {
           schoolid: school.schoolid,
           schoolname: 'SCHOOL 42',
           schoolpath: '/' + sha256(school.path)
+        });
+      }).then(res => {
+        assert.equal(res.code, 'rename-school-success');
+        
+        // rename again without really changing the school path
+        return socket.emit('rename-school', {
+          __sign__: true,
+          schoolid: school.schoolid,
+          schoolname: 'SCHOOL 42',
+          schoolpath: '/' + sha256(school.path)
+        });
+      }).then(res => {
+        assert.equal(res.code, 'rename-school-already-exists');
+        
+        // do not give a school path this time
+        return socket.emit('rename-school', {
+          __sign__: true,
+          schoolid: school.schoolid,
+          schoolname: 'SCHOOL 42'
         });
       }).then(res => {
         assert.equal(res.code, 'rename-school-success');
@@ -218,7 +277,7 @@ describe('admin', function() {
           
           return res.schoolid;
         });
-      })).spread((id1_, id2_) => {
+      })).then(spread((id1_, id2_) => {
         id1 = id1_, id2 = id2_;
         
         return socket.emit('join-schools', {
@@ -226,7 +285,7 @@ describe('admin', function() {
           masterschool: id1,
           subschool: id2
         });
-      }).then(res => {
+      })).then(res => {
         assert.equal(res.code, 'join-schools-success');
         
         return socket.emit('list-schools');

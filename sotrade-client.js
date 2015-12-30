@@ -54,7 +54,7 @@ function NodeSoTradeConnection (opt) {
   if (typeof opt.logDevCheck == 'undefined')
     opt.logDevCheck = true;
   
-  const ownVersion = 'SOTS0';
+  let ownVersion = 'SOTS0';
   try {
     ownVersion = require('./buildstamp.js');
   } catch(e) {

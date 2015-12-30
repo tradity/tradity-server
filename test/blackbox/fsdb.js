@@ -6,6 +6,7 @@ const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 const cfg = require('../../config.js').config();
 const promiseUtil = require('../../lib/promise-util.js');
+const readFile = promiseUtil.ncall(fs.readFile);
 
 if (!testHelpers.testPerformance)
 describe('fsdb', function() {
@@ -23,7 +24,7 @@ describe('fsdb', function() {
 
   describe('publish', function() {
     it('Should publish files', function() {
-      return promiseUtil.nfcall(fs.readFile)('res/bob.jpg').then(data => {
+      return readFile('res/bob.jpg').then(data => {
         return socket.emit('publish', {
           base64: true,
           content: data.toString('base64'),

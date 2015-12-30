@@ -5,6 +5,7 @@ const fs = require('fs');
 const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 const promiseUtil = require('../../lib/promise-util.js');
+const readFile = promiseUtil.ncall(fs.readFile);
 
 describe('schools', function() {
   let socket, user;
@@ -318,7 +319,7 @@ describe('schools', function() {
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return promiseUtil.nfcall(fs.readFile)('res/bob.jpg');
+        return readFile('res/bob.jpg');
       }).then(data => {
         return socket.emit('school-publish-banner', {
           __sign__: true,

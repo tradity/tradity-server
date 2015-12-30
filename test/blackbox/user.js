@@ -3,6 +3,8 @@
 const assert = require('assert');
 const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
+const promiseUtil = require('../../lib/promise-util.js');
+const spread = promiseUtil.spread;
 
 describe('user', function() {
   let socket, user;
@@ -58,13 +60,13 @@ describe('user', function() {
         lookfor: user.uid,
         nohistory: true,
         noCache: true, __sign__: true
-      })]).spread(function(byName, byID) {
+      })]).then(spread((byName, byID) => {
         assert.equal(byName.code, 'get-user-info-success');
         assert.equal(byID.code, 'get-user-info-success');
         assert.equal(byName.result.name, byID.result.name);
         assert.equal(byName.result.totalvalue, byID.result.totalvalue);
         assert.equal(byName.result.lstockid, byID.result.lstockid);
-      });
+      }));
     });
   });
   

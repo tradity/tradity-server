@@ -18,13 +18,11 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
   }
 
   _makeQuoteRequestFetch(stocklist) {
-    var self = this;
-    
     debug('Fetching stocks from table', stocklist.length);
-    return self.ctx.query('SELECT * FROM stocks WHERE stocktextid IN (' +
-      _.map(stocklist, _.constant('?')).join(',') + ')', stocklist).then(function(results) {
+    return this.ctx.query('SELECT * FROM stocks WHERE stocktextid IN (' +
+      _.map(stocklist, _.constant('?')).join(',') + ')', stocklist).then(results => {
       
-      return _.map(results, function(record) {
+      return _.map(results, record => {
         record.isin = record.stocktextid;
         record.symbol = record.isin;
         record.failure = null;
@@ -40,7 +38,7 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
         record.last = (record.ask + record.bid)/2.0;
         record.lastTradePrice = record.last;
         
-        return self._handleRecord(record, false);
+        return this._handleRecord(record, false);
       });
     });
   }

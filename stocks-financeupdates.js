@@ -74,7 +74,7 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
     { name: 'users_finance', alias: 'f', mode: 'w' },
     { name: 'stocks', alias: 's', mode: 'r' },
     { name: 'transactionlog', mode: 'w' }
-  ]).then(function(conn) {
+  ]).then(conn => {
     return conn.query('SELECT ' +
       'ds.depotentryid AS dsid, s.stocktextid, ' +
       wprovFees + ' AS wfees, ' + wprovMax + ' AS wmax, ' +
@@ -84,8 +84,8 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
       'FROM depot_stocks AS ds JOIN stocks AS s ON s.stockid = ds.stockid ' +
       'JOIN users_finance AS f ON ds.uid = f.uid ' +
       'JOIN users_finance AS l ON s.leader = l.uid AND f.uid != l.uid')
-    .then(function(dsr) {
-    return Promise.all(dsr.map(function(entry) {
+    .then(dsr => {
+    return Promise.all(dsr.map(entry => {
       assert.ok(entry.wfees >= 0);
       assert.ok(entry.lfees <= 0);
       entry.wfees = parseInt(entry.wfees);
@@ -104,16 +104,16 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
           bid: entry.bid,
           depot_amount: entry.amount
         })])
-      ).then(function() {
+      ).then(() => {
       return conn.query('UPDATE depot_stocks AS ds SET ' +
         'provision_hwm = ?, wprov_sum = wprov_sum + ?, ' +
         'provision_lwm = ?, lprov_sum = lprov_sum + ? ' +
         'WHERE depotentryid = ?', [entry.wmax, entry.wfees, entry.lmin, entry.lfees, entry.dsid]);
-      }).then(function() {
+      }).then(() => {
       return conn.query('UPDATE users_finance AS f SET freemoney = freemoney - ?, totalvalue = totalvalue - ? ' +
         'WHERE uid = ?',
         [totalfees, totalfees, entry.fid]);
-      }).then(function() {
+      }).then(() => {
       return conn.query('UPDATE users_finance AS l SET freemoney = freemoney + ?, totalvalue = totalvalue + ?, ' +
         'wprov_sum = wprov_sum + ?, lprov_sum = lprov_sum + ? ' +
         'WHERE uid = ?',
@@ -147,21 +147,19 @@ function identityMatrix(n) {
  * @function busreq~updateLeaderMatrix
  */
 StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('updateLeaderMatrix', ['ctx'], function(ctx) {
-  var self = this;
-  
   var lmuStart = Date.now();
   var conn, users, res_static, cfg;
   
   debug('Update leader matrix');
   
   return Promise.all([
-    self.getServerConfig(),
+    this.getServerConfig(),
     ctx.startTransaction({
       depot_stocks: { alias: 'ds', mode: 'r' },
       users_finance: { mode: 'w' },
       stocks: { alias: 's', mode: 'w' }
     })
-  ]).then(spread(function (cfg_, conn_) {
+  ]).then(spread((cfg_, conn_) => {
     cfg = cfg_;
     conn = conn_;
     
@@ -179,7 +177,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
       conn.query('SELECT s.leader AS luid, ds.uid AS fuid, ds.amount AS amount ' +
         'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.stockid = ds.stockid')
     ]);
-  })).then(spread(function(users, res_static, res_static2, res_leader) {
+  })).then(spread((users, res_static, res_static2, res_leader) => {
     res_static = res_static.concat(res_static2);
     users = _.uniq(_.pluck(users, 'uid'));
     
@@ -235,8 +233,8 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
         cuidToIndex[cusers[k]] = k;
       
       var A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
-      var B = _.map(_.range(n), function() { return [0.0, 0.0]; });
-      var prov_sum = _.map(_.range(n), function() { return [0.0]; });
+      var B = _.map(_.range(n), () => [0.0, 0.0]);
+      var prov_sum = _.map(_.range(n), () => [0.0]);
       
       for (var k = 0; k < cusers.length; ++k) {
         var uid = cusers[k];
@@ -278,7 +276,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
       var sgesvST = Date.now();
       var res = lapack.sgesv(A, B);
       if (!res)
-        return self.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
+        return this.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
       
       var sgesvET = Date.now();
       sgesvTotalTime += sgesvET - sgesvST;
@@ -310,16 +308,16 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
     
     var lmuComputationsComplete = Date.now();
     var res;
-    return conn.query(updateQuery, updateParams).then(function() {
+    return conn.query(updateQuery, updateParams).then(() => {
       return conn.commitWithoutRelease();
-    }).then(function() {
+    }).then(() => {
       return conn.query('SELECT stocktextid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
         'FROM stocks JOIN users ON leader = users.uid WHERE leader IS NOT NULL',
           [users[i]]);
-    }).then(function(res_) {
+    }).then(res_ => {
       res = res_;
       return conn.release();
-    }).then(function() {
+    }).then(() => {
       var lmuEnd = Date.now();
       console.log('lmu timing: ' +
         presgesvTotalTime + ' ms pre-sgesv total, ' +
@@ -329,9 +327,9 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
         (lmuFetchData - lmuStart) + ' ms fetching, ' +
         (lmuEnd - lmuComputationsComplete) + ' ms writing');
       
-      return _.each(res, function(r) {
+      return _.each(res, r => {
         r.stockid = r.stocktextid; // backwards compatibility
-        self.emitGlobal('stock-update', r);
+        this.emitGlobal('stock-update', r);
       });
     });
   }));

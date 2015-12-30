@@ -35,17 +35,15 @@ class AbstractLoader extends promiseUtil.EventEmitter {
   };
 
   _makeQuoteRequest(stocklist) {
-    var self = this;
-    
     var cachedResults = [];
-    stocklist = _.filter(stocklist, function(stockid) {
-      var cv = self.cache['s-' + stockid];
+    stocklist = _.filter(stocklist, stockid => {
+      var cv = this.cache['s-' + stockid];
       if (cv) {
-        if (cv.fetchTime > Date.now() - self.cacheTime) {
-          cachedResults.push(self._handleRecord(cv, true));
+        if (cv.fetchTime > Date.now() - this.cacheTime) {
+          cachedResults.push(this._handleRecord(cv, true));
           return false;
         } else {
-          delete self.cache['s-' + stockid];
+          delete this.cache['s-' + stockid];
         }
       }
       
@@ -57,40 +55,38 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     
     // split stocklist into groups of maximum length maxlen
     // and flatten the resulting chunked array of records
-    var chunkedStocklist = _.chunk(stocklist, self.maxlen);
+    var chunkedStocklist = _.chunk(stocklist, this.maxlen);
     
     debug('Fetching stock list', stocklist.length, chunkedStocklist.length + ' chunks');
     
-    return Promise.all(chunkedStocklist.map(function(chunk) {
-      return self._makeQuoteRequestFetch(chunk);
-    })).then(function(recordListChunks) {
+    return Promise.all(chunkedStocklist.map(chunk => {
+      return this._makeQuoteRequestFetch(chunk);
+    })).then(recordListChunks => {
       var fetchedRecordList = _.flatten(recordListChunks);
       
       var receivedStocks = [];
-      _.each(fetchedRecordList, function(record) {
+      _.each(fetchedRecordList, record => {
         if (record.isin) receivedStocks.push(record.isin);
         if (record.wkn)  receivedStocks.push(record.wkn);
       });
       
       var notReceivedStocks = _.difference(stocklist, receivedStocks);
-      _.each(notReceivedStocks, function(failedName) {
-        self._handleRecord({failure: failedName}, false);
+      _.each(notReceivedStocks, failedName => {
+        this._handleRecord({failure: failedName}, false);
       });
       
-      return fetchedRecordList.concat(cachedResults).filter(function(record) {
+      return fetchedRecordList.concat(cachedResults).filter(record => {
         return !record.failure;
       });
     });
   }
 
   loadQuotesList(stocklist, filter) {
-    var self = this;
-    
     filter = filter || _.constant(true);
     
-    return Promise.resolve().then(function() {
-      return self._makeQuoteRequest(stocklist);
-    }).then(function(records) {
+    return Promise.resolve().then(() => {
+      return this._makeQuoteRequest(stocklist);
+    }).then(records => {
       return _.filter(records, filter);
     });
   }

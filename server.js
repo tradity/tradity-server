@@ -76,29 +76,28 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
   if (typeof gc === 'function')
     gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
   
-  var self = this;
   var ret = {
     pid: process.pid,
     hostname: os.hostname(),
-    isBackgroundWorker: self.info.isBackgroundWorker,
-    creationTime: self.creationTime,
-    clients: _.map(self.clients, function(x) { return x.stats(); }),
-    bus: self.bus.stats(),
-    msgCount: self.msgCount,
-    msgLZMACount: self.msgLZMACount,
-    connectionCount: self.connectionCount,
-    deadQueryCount: self.deadQueryCount,
-    deadQueryCompressionInfo: self.deadQueryCompressionInfo,
-    deadQueryLZMACount: self.deadQueryCompressionInfo.supported.lzma, // backwards compatibility
-    deadQueryLZMAUsedCount: self.deadQueryCompressionInfo.used.lzma, // backwards compatibility
+    isBackgroundWorker: this.info.isBackgroundWorker,
+    creationTime: this.creationTime,
+    clients: _.map(this.clients, x => x.stats()),
+    bus: this.bus.stats(),
+    msgCount: this.msgCount,
+    msgLZMACount: this.msgLZMACount,
+    connectionCount: this.connectionCount,
+    deadQueryCount: this.deadQueryCount,
+    deadQueryCompressionInfo: this.deadQueryCompressionInfo,
+    deadQueryLZMACount: this.deadQueryCompressionInfo.supported.lzma, // backwards compatibility
+    deadQueryLZMAUsedCount: this.deadQueryCompressionInfo.used.lzma, // backwards compatibility
     now: Date.now(),
     qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
   };
   
   return Promise.all([
-    self.request({name: 'get-readability-mode'}),
-    self.request({name: 'dbUsageStatistics'})
-  ]).then(spread(function(readonlyReply, dbstats) {
+    this.request({name: 'get-readability-mode'}),
+    this.request({name: 'dbUsageStatistics'})
+  ]).then(spread((readonlyReply, dbstats) => {
     ret.readonly = readonlyReply.readonly;
     ret.dbstats = dbstats;
     
@@ -118,26 +117,25 @@ SoTradeServer.prototype.start = function(port) {
   assert.ok(port);
   debug('Start listening', port);
   
-  var self = this;
   var cfg;
   
-  return self.getServerConfig().then(function(cfg_) {
+  return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     
     if (cfg.protocol == 'https')
-      self.httpServer = https.createServer(cfg.http);
+      this.httpServer = https.createServer(cfg.http);
     else
-      self.httpServer = http.createServer();
+      this.httpServer = http.createServer();
     
-    self.httpServer.on('request', _.bind(self.handleHTTPRequest, self));
+    this.httpServer.on('request', (req, res) => this.handleHTTPRequest(req, res));
     
-    return self.listen(port, cfg.wshost);
-  }).then(function() {
-    self.io = sio.listen(self.httpServer, _.bind(cfg.configureSocketIO, self)(sio, cfg));
-    self.io.adapter(busAdapter(self.bus));
+    return this.listen(port, cfg.wshost);
+  }).then(() => {
+    this.io = sio.listen(this.httpServer, cfg.configureSocketIO(sio, cfg));
+    this.io.adapter(busAdapter(this.bus));
     debug('socket.io set up', process.pid, 'port ' + port);
     
-    self.io.sockets.on('connection', _.bind(self.handleConnection, self));
+    this.io.sockets.on('connection', socket => this.handleConnection(socket));
   });
 };
 
@@ -154,46 +152,43 @@ SoTradeServer.prototype.start = function(port) {
 SoTradeServer.prototype.listen = function(port, host) {
   assert.ok(port);
   
-  var self = this;
   var deferred = Promise.defer();
   
   var listenSuccess = false;
   
-  var listenHandler = function() {
-    self.httpServer.on('error', function(e) {
-      return self.emitError(e);
-    });
+  var listenHandler = () => {
+    this.httpServer.on('error', e => this.emitError(e));
     
     listenSuccess = true;
     deferred.resolve();
   };
   
-  self.httpServer.once('error', function(e) {
+  this.httpServer.once('error', e => {
     if (listenSuccess) // only handle pre-listen errors
       return;
     
-    self.httpServer.removeListener('listening', listenHandler);
+    this.httpServer.removeListener('listening', listenHandler);
     
     if (e.code != 'EADDRINUSE')
       return deferred.reject(e);
     
     console.log(process.pid, 'has address in use on', port, host);
-    deferred.resolve(promiseUtil.delay(500).then(function() {
+    deferred.resolve(promiseUtil.delay(500).then(() => {
       try {
-        self.httpServer.close();
+        this.httpServer.close();
       } catch(e2) {
         console.warn(e2);
       }
       
-      return self.listen(port, host);
+      return this.listen(port, host);
     }));
   });
   
-  self.httpServer.addListener('listening', listenHandler);
+  this.httpServer.addListener('listening', listenHandler);
   
-  process.nextTick(function() {
+  process.nextTick(() => {
     debug('listening', process.pid, 'port ' + port, 'host ' + host);
-    self.httpServer.listen(port, host);
+    this.httpServer.listen(port, host);
   });
   
   return deferred.promise;
@@ -216,12 +211,13 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
   }
   
   if (loc.pathname.match(/^(\/dynamic)?\/?statistics/)) {
-    return this.request({name: 'gatherPublicStatistics'}).then(function(result) {
+    return this.request({name: 'gatherPublicStatistics'}).then(result => {
       res.writeHead(200, {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*', 'Cache-Control': 
         'max-age=500'
       });
+      
       res.end(JSON.stringify(result));
     });
   }
@@ -230,7 +226,7 @@ SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
     request: req,
     result: res,
     requestURL: loc
-  }).then(function(isBeingHandled) {
+  }).then(isBeingHandled => {
     if (!isBeingHandled) {
       res.writeHead(404, {'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*'});
       res.end('Hi (not really found)!');
@@ -267,7 +263,7 @@ SoTradeServer.prototype.handleConnection = function(socket) {
 SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id'], function(id) {
   debug('Remove connection', id);
   
-  var removeClient = _.find(this.clients, function(client) { return client.cdid == id; });
+  var removeClient = _.find(this.clients, client => client.cdid == id);
   
   if (removeClient) {
     this.clients = _.without(this.clients, removeClient);

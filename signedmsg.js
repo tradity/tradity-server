@@ -35,10 +35,8 @@ class SignedMessaging extends buscomponent.BusComponent {
 }
 
 SignedMessaging.prototype.onBusConnect = function() {
-  var self = this;
-  
-  return self.getServerConfig().then(function(cfg) {
-    self.useConfig(cfg);
+  return this.getServerConfig().then(cfg => {
+    return this.useConfig(cfg);
   });
 };
 
@@ -51,10 +49,10 @@ SignedMessaging.prototype.onBusConnect = function() {
 SignedMessaging.prototype.useConfig = function(cfg) {
   assert.ok(cfg.privateKey);
   this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
-  this.publicKeys = cfg.publicKeys.map(function(pkfile) {
+  this.publicKeys = cfg.publicKeys.map(pkfile => {
     return fs.readFileSync(pkfile, {encoding: 'utf-8'})
-    .replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, function(s) { return '\0' + s; }).split(/\0/).map(function(s) { return s.trim(); });
-  }).reduce(function(a, b) { return a.concat(b); });
+    .replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, s => '\0' + s).split(/\0/).map(s => s.trim());
+  }).reduce((a, b) => a.concat(b));
   this.algorithm = cfg.signatureAlgorithm || this.algorithm;
   
   debug('Loaded keys', this.publicKeys.length + ' public keys', this.algorithm);
@@ -72,18 +70,16 @@ SignedMessaging.prototype.useConfig = function(cfg) {
  * @function busreq~createSignedMessage
  */
 SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg'], function(msg) {
-  var self = this;
   var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
   var sign = crypto.createSign('RSA-SHA256');
   
-  var deferred = Promise.defer();
-  assert.ok(self.privateKey);
-  sign.end(string, null, function() {
-    var signed = string + '~' + sign.sign(self.privateKey, 'base64');
-    deferred.resolve(signed);
+  return new Promise((resolve, reject) => {
+    assert.ok(this.privateKey);
+    sign.end(string, null, () => {
+      var signed = string + '~' + sign.sign(this.privateKey, 'base64');
+      return resolve(signed);
+    });
   });
-  
-  return deferred.promise;
 });
 
 /**
@@ -102,45 +98,42 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
 SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage',
   ['msg', 'maxAge'], function(msg, maxAge) 
 {
-  var self = this;
-  
   var msg_ = msg.split('~');
   if (msg_.length != 2)
     return null;
   
   var string = msg_[0], signature = msg_[1];
-  var deferred = Promise.defer();
   
-  function verifySingleKey (i) {
-    if (i == self.publicKeys.length)
-      return deferred.resolve(null); // no key matched
-    
-    var pubkey = self.publicKeys[i];
-    var verify = crypto.createVerify('RSA-SHA256');
-    
-    return verify.end(string, null, function() {
-      if (verify.verify(pubkey, signature, 'base64')) {
-        debug('Could verify signed message using public key', i);
-        
-        // move current public key to first position (lru caching)
-        self.publicKeys.splice(0, 0, self.publicKeys.splice(i, 1)[0]);
-        
-        var stringparsed = string.split('#');
-        var objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
-        
-        if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
-          return deferred.resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
-        else
-          debug('Message max age was exceeded');
-      }
+  return new Promise((resolve, reject) => {
+    const verifySingleKey = i => {
+      if (i == this.publicKeys.length)
+        return resolve(null); // no key matched
       
-      verifySingleKey(i+1); // try next key
-    });
-  }
-  
-  verifySingleKey(0);
-  
-  return deferred.promise;
+      var pubkey = this.publicKeys[i];
+      var verify = crypto.createVerify('RSA-SHA256');
+      
+      return verify.end(string, null, () => {
+        if (verify.verify(pubkey, signature, 'base64')) {
+          debug('Could verify signed message using public key', i);
+          
+          // move current public key to first position (lru caching)
+          this.publicKeys.splice(0, 0, this.publicKeys.splice(i, 1)[0]);
+          
+          var stringparsed = string.split('#');
+          var objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
+          
+          if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
+            return resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
+          else
+            debug('Message max age was exceeded');
+        }
+        
+        verifySingleKey(i+1); // try next key
+      });
+    };
+    
+    verifySingleKey(0);
+  });
 });
 
 exports.SignedMessaging = SignedMessaging;

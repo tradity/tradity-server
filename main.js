@@ -214,7 +214,7 @@ Main.prototype.getFreePort = function(pid) {
   if (this.useCluster) {
     // free all ports assigned to dead workers first
     var pids = _.chain(this.workers).pluck('process').pluck('pid').value();
-    this.assignedPorts = _.filter(this.assignedPorts, function(p) { return pids.indexOf(p.pid) != -1; });
+    this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) != -1);
   }
   
   var freePorts = _.difference(this.getServerConfig().wsports, _.pluck(this.assignedPorts, 'port'));
@@ -326,7 +326,7 @@ Main.prototype.startMaster = function() {
     this.mainBus.on('localShutdown', () => { shuttingDown = true; });
     
     cluster.on('exit', (worker, code, signal) => {
-      this.workers = _.filter(this.workers, w => (w.process.pid != worker.process.pid));
+      this.workers = this.workers.filter(w => (w.process.pid != worker.process.pid));
       
       var shouldRestart = !shuttingDown;
       

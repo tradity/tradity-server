@@ -123,7 +123,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
     lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
     
     return ctx.query('SELECT * FROM achievements ' +
-      'WHERE uid = ? AND achname IN (' + _.map(lookfor, () => '?').join(',') + ')',
+      'WHERE uid = ? AND achname IN (' + lookfor.map(() => '?').join(',') + ')',
       [uid].splice(0).concat(lookfor));
   }).then(userAchievements => {
     userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).object().value();
@@ -188,11 +188,11 @@ Achievements.prototype.registerObservers = function(achievementEntry) {
 
   return _.each(achievementEntry.fireOn, (checkCallback, eventName) => {
     this.on(eventName, (data) => {
-      return Promise.resolve(_.bind(checkCallback, achievementEntry)(data, ctx)).then(userIDs => {
+      return Promise.resolve(checkCallback.call(achievementEntry, data, ctx)).then(userIDs => {
         assert.ok(userIDs);
         assert.notEqual(typeof userIDs.length, 'undefined');
         
-        return Promise.all(_.map(userIDs, uid => {
+        return Promise.all(userIDs.map(uid => {
           return this.checkAchievement(achievementEntry, new qctx.QContext({user: {uid: uid}, parentComponent: this}));
         }));
       });
@@ -208,7 +208,7 @@ Achievements.prototype.registerObservers = function(achievementEntry) {
  * @function module:achievements~Achievements#registerAchievements
  */
 Achievements.prototype.registerAchievements = function(list) {
-  list = _.map(list, achievementEntry => {
+  list = list.map(achievementEntry => {
     var e = _.defaults(achievementEntry, {
       requireAchievementInfo: [],
       prereqAchievements: [],
@@ -222,7 +222,7 @@ Achievements.prototype.registerAchievements = function(list) {
   
   this.achievementList = this.achievementList.concat(list);
   
-  _.each(list, achievementEntry => {
+  list.forEach(achievementEntry => {
     assert.notStrictEqual(achievementEntry.version, null);
     
     this.registerObservers(achievementEntry);
@@ -238,8 +238,8 @@ Achievements.prototype.registerAchievements = function(list) {
  * @function module:achievements~Achievements#markClientAchievements
  */
 Achievements.prototype.markClientAchievements = function() {
-  _.each(this.achievementList, ach => {
-    ach.isClientAchievement = (this.clientAchievements.indexOf(ach.name) != -1);
+  return this.achievementList.map(ach => {
+    return ach.isClientAchievement = (this.clientAchievements.indexOf(ach.name) != -1);
   });
 };
 

@@ -36,7 +36,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
 
   _makeQuoteRequest(stocklist) {
     var cachedResults = [];
-    stocklist = _.filter(stocklist, stockid => {
+    stocklist = stocklist.filter(stockid => {
       var cv = this.cache['s-' + stockid];
       if (cv) {
         if (cv.fetchTime > Date.now() - this.cacheTime) {
@@ -65,30 +65,26 @@ class AbstractLoader extends promiseUtil.EventEmitter {
       var fetchedRecordList = _.flatten(recordListChunks);
       
       var receivedStocks = [];
-      _.each(fetchedRecordList, record => {
+      fetchedRecordList.forEach(record => {
         if (record.isin) receivedStocks.push(record.isin);
         if (record.wkn)  receivedStocks.push(record.wkn);
       });
       
       var notReceivedStocks = _.difference(stocklist, receivedStocks);
-      _.each(notReceivedStocks, failedName => {
-        this._handleRecord({failure: failedName}, false);
+      notReceivedStocks.forEach(failedName => {
+        return this._handleRecord({failure: failedName}, false);
       });
       
-      return fetchedRecordList.concat(cachedResults).filter(record => {
-        return !record.failure;
-      });
+      return fetchedRecordList.concat(cachedResults).filter(record => !record.failure);
     });
   }
 
   loadQuotesList(stocklist, filter) {
-    filter = filter || _.constant(true);
+    filter = filter || (() => true);
     
     return Promise.resolve().then(() => {
       return this._makeQuoteRequest(stocklist);
-    }).then(records => {
-      return _.filter(records, filter);
-    });
+    }).then(records => records.filter(filter));
   }
 
   request(url, attemptsLeft) {

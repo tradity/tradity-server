@@ -327,9 +327,9 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
         (lmuFetchData - lmuStart) + ' ms fetching, ' +
         (lmuEnd - lmuComputationsComplete) + ' ms writing');
       
-      return _.each(res, r => {
+      return res.map(r => {
         r.stockid = r.stocktextid; // backwards compatibility
-        this.emitGlobal('stock-update', r);
+        return this.emitGlobal('stock-update', r);
       });
     });
   }));

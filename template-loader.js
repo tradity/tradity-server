@@ -59,10 +59,10 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
     if (!t)
       throw new Error('Template not found: ' + template);
     
-    _.chain(variables).keys().each(function(e) {
+    Object.keys(variables).forEach(e => {
       var r = new RegExp('\\$\\{' + e + '\\}', 'g');
       t = t.replace(r, variables[e]);
-    }).value();
+    });
     
     var unresolved = t.match(/\$\{([^\}]*)\}/);
     if (unresolved)

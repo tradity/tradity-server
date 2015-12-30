@@ -43,7 +43,7 @@ function _reqpriv (required, f) {
     if (ctx.user === null || !ctx.access.has(requiredPermission))
       throw new this.PermissionDenied();
     else
-      return _.bind(f, this)(query, ctx, xdata);
+      return f.call(this, query, ctx, xdata);
   };
 }
 

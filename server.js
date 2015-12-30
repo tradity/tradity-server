@@ -81,7 +81,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
     hostname: os.hostname(),
     isBackgroundWorker: this.info.isBackgroundWorker,
     creationTime: this.creationTime,
-    clients: _.map(this.clients, x => x.stats()),
+    clients: this.clients.map(x => x.stats()),
     bus: this.bus.stats(),
     msgCount: this.msgCount,
     msgLZMACount: this.msgLZMACount,

@@ -280,7 +280,7 @@ Stocks.prototype.updateStockValues = function(ctx) {
   }).then(dqNeededStocks => {
     stocklist = _.union(stocklist, dqNeededStocks);
     
-    stocklist = _.filter(stocklist, s => !this.leaderStockTextIDFormat.test(s));
+    stocklist = stocklist.filter(s => !this.leaderStockTextIDFormat.test(s));
     
     if (stocklist.length > 0)
       return this.quoteLoader.loadQuotesList(stocklist, rec => this.stocksFilter(cfg, rec));
@@ -430,7 +430,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     
     return this.quoteLoader.loadQuotesList(_.uniq(externalStocksIDs), rec => this.stocksFilter(cfg, rec));
   })).then(externalResults => {
-    var results = _.union(localResults, _.map(externalResults, r => {
+    var results = _.union(localResults, externalResults.map(r => {
       return {
         'stockid': r.symbol, /* backwards compatibility */
         'stocktextid': r.symbol,
@@ -453,9 +453,9 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     var symbols = _.pluck(results, 'stocktextid');
     
     if (symbols.length > 0 && !ctx.getProperty('readonly')) {
-      symbols = _.map(symbols, escape);
+      symbols = symbols.map(escape);
       ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
-        'WHERE stocktextid IN (' + _.map(symbols, () => '?').join(',') + ')', symbols);
+        'WHERE stocktextid IN (' + symbols.map(() => '?').join(',') + ')', symbols);
     }
     
     return { code: 'stock-search-success', results: results };
@@ -490,7 +490,7 @@ Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen
   var closetime = Date.parse(sxdata.close).getTime();
   var now = new Date();
   
-  var res = now.getTime() >= opentime && now.getTime() < closetime && _.indexOf(sxdata.days, now.getUTCDay()) != -1;
+  var res = now.getTime() >= opentime && now.getTime() < closetime && sxdata.days.indexOf(now.getUTCDay()) != -1;
   
   return res;
 });

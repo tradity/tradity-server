@@ -50,7 +50,7 @@ var assert = require('assert');
 var AchievementList = [];
 
 var tradeCountAchievements = {1: 100, 2: 0, 5: 250, 10: 350, 25: 500, 50: 700, 100: 1000, 250: 1200};
-var tcaKeys = _.keys(tradeCountAchievements);
+var tcaKeys = Object.keys(tradeCountAchievements);
 
 for (var i = 0; i < tcaKeys.length; ++i) {
   (function() {
@@ -73,7 +73,7 @@ for (var i = 0; i < tcaKeys.length; ++i) {
 }
 
 var followerTradeCountAchievements = {1: 200, 5: 400, 25: 750, 50: 1250};
-var ftcaKeys = _.keys(followerTradeCountAchievements);
+var ftcaKeys = Object.keys(followerTradeCountAchievements);
 
 for (var i = 0; i < ftcaKeys.length; ++i) {
   (function() {
@@ -96,7 +96,7 @@ for (var i = 0; i < ftcaKeys.length; ++i) {
 }
 
 var leaderTradeCountAchievements = {1: 200, 5: 400, 10: 750, 50: 1250};
-var ltcaKeys = _.keys(leaderTradeCountAchievements);
+var ltcaKeys = Object.keys(leaderTradeCountAchievements);
 
 for (var i = 0; i < ltcaKeys.length; ++i) {
   (function() {
@@ -120,7 +120,7 @@ for (var i = 0; i < ltcaKeys.length; ++i) {
 
 /*
 var referralCountAchievements = {1: 100, 3: 200, 5: 300, 10: 500, 20: 750, 30: 1000, 50: 1500, 75: 2000, 100: 2500, 222: 3333};
-var rcaKeys = _.keys(referralCountAchievements);
+var rcaKeys = Object.keys(referralCountAchievements);
 
 for (var i = 0; i < rcaKeys.length; ++i) {
   (function() {

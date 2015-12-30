@@ -716,7 +716,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     /* do some validation on the schools array.
      * this is not necessary; however, it may help catch bugs long 
      * before they actually do a lot of harm. */
-    var levelArray = _.map(schools, s => { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
+    var levelArray = schools.map(s => { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
     if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
       return this.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
     

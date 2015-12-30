@@ -448,7 +448,7 @@ QContext.prototype.getConnection = function(readonly, restart) {
     
     /* return wrapper object for better debugging, no semantic change */
     var conn_ = {
-      release: _.bind(conn.release, conn),
+      release: () => conn.release(),
       query: (query, args) => {
         this.debug('Executing query [bound]', query, args);
         return conn.query(query, args);
@@ -561,7 +561,7 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
       });
     };
     
-    var tables = _.keys(tablelocks);
+    var tables = Object.keys(tablelocks);
     var init = 'SET autocommit = 0; ';
     
     init += 'SET TRANSACTION ISOLATION LEVEL ' + ({
@@ -660,7 +660,7 @@ QContext.prototype.getStatistics = function(recurse) {
   rv.creationStack = this.creationStack;
   
   if (recurse)
-    rv.childContexts = _.map(this.childContexts, function(c) { return c.getStatistics(true); });
+    rv.childContexts = this.childContexts.map(c => c.getStatistics(true));
   
   return rv;
 };

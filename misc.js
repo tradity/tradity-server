@@ -150,7 +150,7 @@ Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-
   return ctx.startTransaction({httpresources: 'w'}).then(function(conn_) {
     conn = conn_;
     return promiseUtil.delay(5 * 60000);
-  }).then(_.bind(conn.commit, conn));
+  }).then(() => conn.commit());
 });
 
 /**

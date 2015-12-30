@@ -57,11 +57,9 @@ DelayedQueries.prototype.onBusConnect = function() {
  * @function busreq~neededStocksDQ
  */
 DelayedQueries.prototype.getNeededStocks = buscomponent.provide('neededStocksDQ', [], function() {
-  var neededIDs = _.chain(this.neededStocks).keys().map(stocktextid => {
+  return Object.keys(this.neededStocks).map(stocktextid => {
     return stocktextid.substr(2); // strip s- prefix
-  }).value();
-  
-  return neededIDs;
+  });
 });
 
 /**
@@ -234,7 +232,7 @@ DelayedQueries.prototype.addQuery = function(ctx, query) {
   var entryid = String(query.queryid);
   assert.ok(!this.queries[entryid]);
   this.queries[entryid] = query;
-  _.each(query.neededStocks, _.bind(this.addNeededStock, this, query.queryid));
+  query.neededStocks.forEach(stocktextid => this.addNeededStock(query.queryid, stocktextid));
   return this.checkAndExecute(ctx, query);
 };
 
@@ -248,7 +246,7 @@ DelayedQueries.prototype.addQuery = function(ctx, query) {
  */
 DelayedQueries.prototype.addNeededStock = function(queryid, stocktextid) {
   if (this.neededStocks['s-'+stocktextid]) {
-    assert.equal(_.indexOf(this.neededStocks['s-'+stocktextid], queryid), -1);
+    assert.equal(this.neededStocks['s-'+stocktextid].indexOf(queryid), -1);
     this.neededStocks['s-'+stocktextid].push(queryid);
   } else {
     this.neededStocks['s-'+stocktextid] = [queryid];
@@ -283,7 +281,7 @@ DelayedQueries.prototype.parseCondition = function(str) {
   var clauses = str.split('∧');
   var cchecks = [];
   var stocks = [];
-  _.each(clauses, cl => {
+  clauses.forEach(cl => {
     cl = cl.trim();
     var terms = cl.split(/[<>]/);
     if (terms.length != 2)
@@ -306,7 +304,7 @@ DelayedQueries.prototype.parseCondition = function(str) {
           throw new this.FormatError('expecting level 3 nesting for stock variable');
         var stocktextid = String(variable[1]);
         var fieldname = variable[2];
-        if (_.indexOf(stocks, stocktextid) == -1)
+        if (stocks.indexOf(stocktextid) == -1)
           stocks.push(stocktextid);
         switch(fieldname) {
           case 'exchange-open':
@@ -418,7 +416,7 @@ DelayedQueries.prototype.executeQuery = function(query) {
 DelayedQueries.prototype.removeQuery = function(query, ctx) {
   return ctx.query('DELETE FROM dqueries WHERE queryid = ?', [parseInt(query.queryid)]).then(() => {
     delete this.queries[query.queryid];
-    _.each(query.neededStocks, stock => {
+    query.neededStocks.forEach(stock => {
       this.neededStocks['s-'+stock] = _.without(this.neededStocks['s-'+stock], query.queryid);
       if (this.neededStocks['s-'+stock].length == 0)
         delete this.neededStocks['s-'+stock];

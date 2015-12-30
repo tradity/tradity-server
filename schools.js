@@ -549,9 +549,9 @@ Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', fu
 Schools.prototype.publishBanner = buscomponent.provideQT('client-school-publish-banner', function(query, ctx) {
   query.role = 'schools.banner';
   
-  return _reqschooladm(_.bind((query, ctx) => {
+  return _reqschooladm((query, ctx) => {
     return this.request({name: 'client-publish', query: query, ctx: ctx, groupassoc: query.schoolid});
-  }, this), false, this)(query, ctx);
+  }, false, this)(query, ctx);
 });
 
 /**
@@ -572,9 +572,9 @@ Schools.prototype.publishBanner = buscomponent.provideQT('client-school-publish-
  * @function c2s~create-invite-link
  */
 Schools.prototype.createInviteLink = buscomponent.provideQT('client-create-invite-link', function(query, ctx) {
-  return _reqschooladm(_.bind((query, ctx) => {
+  return _reqschooladm((query, ctx) => {
     return this.request({name: 'createInviteLink', query: query, ctx: ctx});
-  }, this), true, this)(query, ctx);
+  }, true, this)(query, ctx);
 });
 
 exports.Schools = Schools;

@@ -171,7 +171,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
     'LEFT JOIN schools ON schools.schoolid = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
     'WHERE events_users.uid = ? AND events.time >= ? ORDER BY events.time DESC LIMIT ?',
     [ctx.user.uid, since, count]).then(r => {
-    return _.chain(r).map(ev => {
+    return r.map(ev => {
       if (ev.json) {
         var json = JSON.parse(ev.json);
         if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid != ev.srcuser)
@@ -195,7 +195,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
       
       delete ev.json;
       return ev;
-    }).reject(ev => !ev).value();
+    }).filter(ev => ev); /* filter out false-y results */
   });
 });
 

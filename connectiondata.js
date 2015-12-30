@@ -74,8 +74,8 @@ class ConnectionData extends buscomponent.BusComponent {
     this.ctx.addProperty({name: 'remoteClientSoftware', value: null});
     this.ctx.addProperty({name: 'compressionSupport', value: {}});
     this.ctx.addProperty({name: 'isBusTransport', value: false});
-    this.ctx.debugHandlers.push(_.bind(this.dbgHandler, this));
-    this.ctx.errorHandlers.push(_.bind(this.ISEHandler, this));
+    this.ctx.debugHandlers.push(args => this.dbgHandler(args));
+    this.ctx.errorHandlers.push(err => this.ISEHandler(err));
     
     this.queryCount = 0;
     this.queryCompressionInfo = {
@@ -88,10 +88,10 @@ class ConnectionData extends buscomponent.BusComponent {
       current: 1
     };
     
-    this.query_ = _.bind(this.queryHandler, this);
-    this.disconnected_ = _.bind(this.disconnectedHandler, this);
+    this.query_ = query => this.queryHandler(query);
+    this.disconnected_ = () => this.disconnectedHandler();
     
-    socket.on('error', _.bind(this.emitError, this));
+    socket.on('error', e => this.emitError(e));
     socket.on('query', this.query_);
     socket.on('disconnect', this.disconnected_);
     
@@ -193,7 +193,7 @@ ConnectionData.prototype.fetchEvents = function(query) {
     if (evlist.length == 0)
       return;
     
-    _.each(evlist, ev => {
+    evlist.forEach(ev => {
       this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
     });
 

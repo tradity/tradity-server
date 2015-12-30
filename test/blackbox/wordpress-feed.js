@@ -1,15 +1,15 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const _ = require('lodash');
+const testHelpers = require('./test-helpers.js');
 
 if (!testHelpers.testPerformance)
 describe('wordpress-feed', function() {
-  var socket, user;
+  let socket, user;
   
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -22,7 +22,7 @@ describe('wordpress-feed', function() {
     it('Should work', function() {
       return socket.emit('process-wordpress-feed', {
         __sign__: true
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'process-wordpress-feed-success');
       });
     });
@@ -30,7 +30,7 @@ describe('wordpress-feed', function() {
   
   describe('add-wordpress-feed', function() {
     it('Should add a wordpress feed entry which can later be removed', function() {
-      var endpoint = 'https://example.com/' + Date.now();
+      const endpoint = 'https://example.com/' + Date.now();
       
       return socket.emit('add-wordpress-feed', {
         __sign__: true,
@@ -38,14 +38,14 @@ describe('wordpress-feed', function() {
         category: null,
         schoolid: null,
         bloguser: user.uid
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'add-wordpress-feed-success');
         
         return socket.emit('list-wordpress-feeds');
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'list-wordpress-feeds-success');
         
-        var recentEntry = res.results.filter(function(blog) {
+        const recentEntry = res.results.filter(function(blog) {
           return blog.endpoint == endpoint;
         })[0];
         
@@ -54,11 +54,11 @@ describe('wordpress-feed', function() {
         return socket.emit('remove-wordpress-feed', {
           blogid: recentEntry.blogid
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'remove-wordpress-feed-success');
         
         return socket.emit('list-wordpress-feeds');
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'list-wordpress-feeds-success');
         
         assert.equal(_.pluck(res.results, 'endpoint').indexOf(endpoint), -1);

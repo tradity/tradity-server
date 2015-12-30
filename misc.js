@@ -1,11 +1,11 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var buscomponent = require('./stbuscomponent.js');
-var qctx = require('./qctx.js');
-var debug = require('debug')('sotrade:misc');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const buscomponent = require('./stbuscomponent.js');
+const qctx = require('./qctx.js');
+const debug = require('debug')('sotrade:misc');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -33,7 +33,7 @@ class Misc extends buscomponent.BusComponent {
 Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', function(query, ctx) {
   assert.ok(ctx.user);
   
-  var r = _.clone(ctx.user);
+  const r = _.clone(ctx.user);
   assert.ok(!r.pwsalt);
   assert.ok(!r.pwhash);
   r.id = r.uid; // backwards compatibility
@@ -48,8 +48,9 @@ Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', 
  * @function c2s~set-clientstorage
  */
 Misc.prototype.setClientStorage = buscomponent.provideQT('client-set-clientstorage', function(query, ctx) {
+  let storage;
   try {
-    var storage = new Buffer(query.storage);
+    storage = new Buffer(query.storage);
   } catch (e) {
     throw new this.FormatError(e);
   }
@@ -102,8 +103,8 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
     throw new this.PermissionDenied();
   
   debug('Creating artificial deadlock');
-  var conn1, conn2, id;
-  var deferred = Promise.defer();
+  let conn1, conn2, id;
+  const deferred = Promise.defer();
   
   return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))').then(function() {
     return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)');
@@ -120,13 +121,13 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
   }).then(function(conn2_) {
     conn2 = conn2_;
     return conn1.query('UPDATE deadlocktest SET value = 1 WHERE id = ?', [id]);
-  }).then(function() {
+  }).then(() => {
     return conn2.query('UPDATE deadlocktest SET value = 2 WHERE id = ?', [id+1]);
-  }).then(function() {
+  }).then(() => {
     return conn1.query('UPDATE deadlocktest SET value = 3 WHERE id = ?', [id+1]);
-  }).then(function() {
+  }).then(() => {
     return conn2.query('UPDATE deadlocktest SET value = 4 WHERE id = ?', [id]);
-  }).then(function() {
+  }).then(() => {
     return deferred.promise;
   });
 });
@@ -146,7 +147,7 @@ Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-
   
   debug('Creating artificial stale lock');
   
-  var conn;
+  let conn;
   return ctx.startTransaction({httpresources: 'w'}).then(function(conn_) {
     conn = conn_;
     return promiseUtil.delay(5 * 60000);
@@ -199,7 +200,7 @@ Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-db
  * @function busreq~gatherPublicStatistics
  */
 Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatistics', [], function() {
-  var ctx = new qctx.QContext({parentComponent: this});
+  const ctx = new qctx.QContext({parentComponent: this});
 
   return Promise.all([
     ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL'),
@@ -215,5 +216,3 @@ Misc.prototype.gatherPublicStatistics = buscomponent.provide('gatherPublicStatis
 });
 
 exports.Misc = Misc;
-
-})();

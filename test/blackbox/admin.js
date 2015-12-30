@@ -1,17 +1,17 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var Q = require('q');
-var sha256 = require('../../lib/sha256.js');
-var commonUtil = require('tradity-connection');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const _ = require('lodash');
+const Q = require('q');
+const sha256 = require('../../lib/sha256.js');
+const commonUtil = require('tradity-connection');
+const testHelpers = require('./test-helpers.js');
 
 describe('admin', function() {
-  var user, socket;
+  let user, socket;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       user = data.user;
       socket = data.socket;
     });
@@ -23,17 +23,17 @@ describe('admin', function() {
   describe('list-all-users', function() {
     if (!testHelpers.testPerformance)
     it('Should fail for non-admin users', function() {
-      return socket.emit('list-all-users').then(function(result) {
+      return socket.emit('list-all-users').then(result => {
         assert.equal(result.code, 'permission-denied');
       });
     });
     
     it('Should provide a list of all users', function() {
-      return socket.emit('list-all-users', { __sign__: true }).then(function(result) {
+      return socket.emit('list-all-users', { __sign__: true }).then(result => {
         assert.equal(result.code, 'list-all-users-success');
         
         assert.ok(result.results.length > 0);
-        var ownUserEntry = result.results.filter(function(listedUser) {
+        const ownUserEntry = result.results.filter(listedUser => {
           return listedUser.name === user.name;
         })[0];
         
@@ -48,7 +48,7 @@ describe('admin', function() {
   if (!testHelpers.testPerformance)
   describe('impersonate-user', function() {
     it('Should fail for non-admin users', function() {
-      return socket.emit('impersonate-user').then(function(result) {
+      return socket.emit('impersonate-user').then(result => {
         assert.equal(result.code, 'permission-denied');
       });
     });
@@ -57,14 +57,14 @@ describe('admin', function() {
       return socket.emit('impersonate-user', {
         __sign__: true,
         uid: user.uid
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'impersonate-user-success');
         
         return socket.emit('get-user-info', {
           lookfor: '$self',
           noCache: true, __sign__: true
         });
-      }).then(function(userInfo) {
+      }).then(userInfo => {
         assert.equal(userInfo.code, 'get-user-info-success');
         
         assert.strictEqual(userInfo.result.uid, user.uid);
@@ -75,14 +75,14 @@ describe('admin', function() {
   
   describe('change-user-email', function() {
     it('Should be able to change the active user’s mail address', function() {
-      var email = 'nonexistent' + parseInt(Math.random() * 100000) + '@invalid.invalid';
+      const email = 'nonexistent' + parseInt(Math.random() * 100000) + '@invalid.invalid';
       
       return socket.emit('change-user-email', {
         __sign__: true,
         uid: user.uid,
         emailverif: 1,
         email: email
-      }).then(function(result) {
+      }).then(result => {
         user.email = email;
         assert.equal(result.code, 'change-user-email-success');
       });
@@ -91,13 +91,13 @@ describe('admin', function() {
   
   describe('change-comment-text', function() {
     it('Should be able to change the text of a recently made comment', function() {
-      var newCommentText = '<a>New comment</a>';
-      var newCState = 'Banananana';
+      const newCommentText = '<a>New comment</a>';
+      const newCState = 'Banananana';
       
       return socket.emit('get-user-info', {
         lookfor: '$self',
         noCache: true, __sign__: true
-      }).then(function(userInfo) {
+      }).then(userInfo => {
         assert.equal(userInfo.code, 'get-user-info-success');
         assert.ok(userInfo.result.registerevent);
         
@@ -105,14 +105,14 @@ describe('admin', function() {
           eventid: userInfo.result.registerevent,
           comment: 'Old comment'
         });
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'comment-success');
         
         return socket.emit('get-user-info', {
           lookfor: '$self',
           noCache: true, __sign__: true
         });
-      }).then(function(userInfo) {
+      }).then(userInfo => {
         assert.equal(userInfo.code, 'get-user-info-success');
         
         assert.ok(userInfo.pinboard);
@@ -125,14 +125,14 @@ describe('admin', function() {
           commentid: userInfo.pinboard[0].commentid,
           cstate: newCState
         });
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'change-comment-text-success');
         
         return socket.emit('get-user-info', {
           lookfor: '$self',
           noCache: true, __sign__: true
         });
-      }).then(function(userInfo) {
+      }).then(userInfo => {
         assert.equal(userInfo.code, 'get-user-info-success');
         
         assert.ok(userInfo.pinboard);
@@ -147,7 +147,7 @@ describe('admin', function() {
     it('Should remove the sticky flag from all moderator notifications', function() {
       return socket.emit('notify-unstick-all', {
         __sign__: true
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'notify-unstick-all-success');
       });
     });
@@ -159,7 +159,7 @@ describe('admin', function() {
         __sign__: true,
         content: 'DON’T PANIC',
         sticky: 1,
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'notify-all-success');
         
         return socket.once('mod-notification');
@@ -169,13 +169,11 @@ describe('admin', function() {
   
   describe('rename-school', function() {
     it('Should change the name of a school', function() {
-      var school;
+      let school;
       
-      return socket.emit('list-schools').then(function(res) {
+      return socket.emit('list-schools').then(res => {
         assert.ok(res.result.length > 0);
-        school = res.result.filter(function(s) {
-          return commonUtil.parentPath(s) == '/';
-        })[0];
+        school = res.result.filter(s => commonUtil.parentPath(s) == '/')[0];
         
         return socket.emit('rename-school', {
           __sign__: true,
@@ -183,7 +181,7 @@ describe('admin', function() {
           schoolname: 'SCHOOL 42',
           schoolpath: '/nonexistent/invalidPath'
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'rename-school-notfound');
         
         return socket.emit('rename-school', {
@@ -192,7 +190,7 @@ describe('admin', function() {
           schoolname: 'SCHOOL 42',
           schoolpath: '/' + sha256(school.path)
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'rename-school-success');
       });
     });
@@ -200,19 +198,20 @@ describe('admin', function() {
   
   describe('join-schools', function() {
     it('Should merge two schools together', function() {
-      var prefix = 'S' + Date.now(), id1, id2;
+      const prefix = 'S' + Date.now();
+      let id1, id2;
       
-      return Q.all([prefix + 'Aj', prefix + 'Bj'].map(function(name) {
+      return Q.all([prefix + 'Aj', prefix + 'Bj'].map(name => {
         return socket.emit('create-school', {
           __sign__: true,
           schoolname: name,
-        }).then(function(res) {
+        }).then(res => {
           assert.equal(res.code, 'create-school-success');
           
           return socket.emit('school-exists', {
             lookfor: res.path
           });
-        }).then(function(res) {
+        }).then(res => {
           assert.equal(res.code, 'school-exists-success');
           assert.ok(res.exists);
           assert.ok(res.path);
@@ -220,7 +219,7 @@ describe('admin', function() {
           
           return res.schoolid;
         });
-      })).spread(function(id1_, id2_) {
+      })).spread((id1_, id2_) => {
         id1 = id1_, id2 = id2_;
         
         return socket.emit('join-schools', {
@@ -228,11 +227,11 @@ describe('admin', function() {
           masterschool: id1,
           subschool: id2
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'join-schools-success');
         
         return socket.emit('list-schools');
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'list-schools-success');
         assert.ok(res.result);
         assert.notEqual(_.pluck(res.result, 'schoolid').indexOf(id1), -1);
@@ -241,19 +240,19 @@ describe('admin', function() {
     });
     
     it('Should fail if one of the schools does not exist', function() {
-      return socket.emit('list-schools').then(function(res) {
+      return socket.emit('list-schools').then(res => {
         assert.equal(res.code, 'list-schools-success');
         assert.ok(res.result);
         
-        var existentIDs = _.pluck(res.result, 'schoolid');
-        var nonexistentID = (Math.max.apply(Math, existentIDs) || 0) + 1;
+        const existentIDs = _.pluck(res.result, 'schoolid');
+        const nonexistentID = (Math.max.apply(Math, existentIDs) || 0) + 1;
         
         return socket.emit('join-schools', {
           __sign__: true,
           masterschool: nonexistentID,
           subschool: nonexistentID + 1,
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'join-schools-notfound');
       });
     });
@@ -261,12 +260,12 @@ describe('admin', function() {
   
   describe('get-followers', function() {
     it('Should provide a list of followers', function() {
-      var leader;
-      var amount = 7;
+      let leader;
+      const amount = 7;
       
       return socket.emit('list-all-users', {
         __sign__: true
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'list-all-users-success');
         
         assert.ok(result.results.length > 0);
@@ -280,18 +279,18 @@ describe('admin', function() {
           leader: leader.uid,
           forceNow: true
         });
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'stock-buy-success');
         
         return socket.emit('get-followers', {
           __sign__: true,
           uid: leader.uid
         });
-      }).then(function(result) {
+      }).then(result => {
         assert.equal(result.code, 'get-followers-success');
         assert.ok(result.results.length > 0);
         
-        var ownUserFollowerEntry = result.results.filter(function(follower) {
+        const ownUserFollowerEntry = result.results.filter(function(follower) {
           return follower.uid == user.uid;
         })[0];
         
@@ -304,7 +303,7 @@ describe('admin', function() {
   if (!testHelpers.testPerformance)
   describe('get-server-statistics', function() {
     it('Should return a list of servers', function() {
-      return socket.emit('get-server-statistics', { __sign__: true }).then(function(res) {
+      return socket.emit('get-server-statistics', { __sign__: true }).then(res => {
         assert.equal(res.code, 'get-server-statistics-success');
         assert.ok(res.servers.length > 0);
       });
@@ -314,9 +313,9 @@ describe('admin', function() {
   if (!testHelpers.testPerformance)
   describe('get-ticks-statistics', function() {
     it('Should return a timeline of tick statistics', function() {
-      return socket.emit('prod', { __sign__: true }).then(function() {
+      return socket.emit('prod', { __sign__: true }).then(() => {
         return socket.emit('get-ticks-statistics', { __sign__: true });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-ticks-statistics-success');
         assert.ok(res.results.length > 0);
         assert.ok(res.results[0].timeindex);

@@ -1,18 +1,18 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var crypto = require('crypto');
-var assert = require('assert');
-var validator = require('validator');
-var genders = require('genders');
-var LoginIPCheck = require('./lib/loginIPCheck.js');
-var sha256 = require('./lib/sha256.js');
-var Cache = require('./lib/minicache.js').Cache;
-var buscomponent = require('./stbuscomponent.js');
-var Access = require('./access.js').Access;
-var qctx = require('./qctx.js');
-var debug = require('debug')('sotrade:user');
+const _ = require('lodash');
+const util = require('util');
+const crypto = require('crypto');
+const assert = require('assert');
+const validator = require('validator');
+const genders = require('genders');
+const LoginIPCheck = require('./lib/loginIPCheck.js');
+const sha256 = require('./lib/sha256.js');
+const Cache = require('./lib/minicache.js').Cache;
+const buscomponent = require('./stbuscomponent.js');
+const Access = require('./access.js').Access;
+const qctx = require('./qctx.js');
+const debug = require('debug')('sotrade:user');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 require('datejs');
@@ -61,8 +61,7 @@ class User extends buscomponent.BusComponent {
  * @function module:user~User#generatePWKey
  */
 User.prototype.generatePWKey = function(pw) {
-  var pwsalt;
-  var iterations;
+  let pwsalt, iterations;
   
   return randomBytes(32).then(pwsalt_ => {
     pwsalt = pwsalt_;
@@ -118,9 +117,9 @@ User.prototype.verifyPassword = function(pwdata, pw) {
   if (pwdata.algorithm === 'SHA256')
     return Promise.resolve(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
   
-  var pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
+  const pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
   if (pbkdf2Match) {
-    var iterations = parseInt(pbkdf2Match[1]);
+    const iterations = parseInt(pbkdf2Match[1]);
     
     return this.getServerConfig().then(cfg => {
       if (iterations < cfg.passwords.pbkdf2MinIterations)
@@ -178,7 +177,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
   
   debug('Prepare register email', data.email);
   
-  var loginResp, key;
+  let loginResp, key;
   return this.login({
     name: data.email,
     stayloggedin: true,
@@ -195,7 +194,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
   }).then(res => {
     return this.getServerConfig();
   }).then(cfg => {
-    var url = cfg.varReplace(cfg.regurl
+    const url = cfg.varReplace(cfg.regurl
       .replace(/\{\$key\}/g, key)
       .replace(/\{\$uid\}/g, ctx.user.uid));
     
@@ -236,16 +235,16 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
  */
 User.prototype.login = buscomponent.provide('client-login', 
   ['query', 'ctx', 'xdata', 'useTransaction', 'ignorePassword'], function(query, ctx, xdata, useTransaction, ignorePassword) {
-  var name = String(query.name);
-  var pw = String(query.pw);
-  var key, uid;
+  const name = String(query.name);
+  const pw = String(query.pw);
+  let key, uid;
   
   debug('Login', xdata.remoteip, name, useTransaction, ignorePassword);
   
   return Promise.resolve()/*this.getLoginIPCheck().then(check => {
     return check.check(xdata.remoteip);
   })*/.then(() => {
-    var query = 'SELECT passwords.*, users.email_verif ' +
+    const query = 'SELECT passwords.*, users.email_verif ' +
       'FROM passwords ' +
       'JOIN users ON users.uid = passwords.uid ' +
       'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
@@ -267,7 +266,7 @@ User.prototype.login = buscomponent.provide('client-login',
     
     /* if there is an user with a verified e-mail address
      * do not allow other users with the same e-mail address to log in */
-    var haveVerifiedEMail = _.any(_.pluck(res, 'email_verif'));
+    const haveVerifiedEMail = _.any(_.pluck(res, 'email_verif'));
     
     return res.map(r => {
       return (foundUser => {
@@ -312,13 +311,13 @@ User.prototype.login = buscomponent.provide('client-login',
     key = buf.toString('hex');
     return this.getServerConfig();
   }).then(cfg => {
+    const today = parseInt(Date.now() / 86400);
     if (ctx.getProperty('readonly')) {
       key = key.substr(0, 6);
-      var today = parseInt(Date.now() / 86400);
       
       debug('Sign session key', xdata.remoteip, name, uid, today);
       
-      var ret;
+      let ret;
       return this.request({
         name: 'createSignedMessage',
         msg: {
@@ -478,11 +477,11 @@ User.prototype.logout = buscomponent.provideWQT('client-logout', function(query,
  * @function c2s~get-ranking
  */
 User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', function(query, ctx) {
-  var likestringWhere = '';
-  var likestringUnit = [];
-  var cacheKey;
+  let likestringWhere = '';
+  let likestringUnit = [];
+  let cacheKey;
   
-  var join = 'FROM users AS u ' +
+  const join = 'FROM users AS u ' +
     'JOIN users_data ON users_data.uid = u.uid ' +
     'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
     'LEFT JOIN schools AS c ON sm.schoolid = c.schoolid ' +
@@ -495,7 +494,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
     likestringWhere += ' AND email_verif != 0 ';
 
   if (query.search) {
-    var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
+    const likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
     likestringWhere += 'AND ((u.name LIKE ?) OR (realnamepublish != 0 AND (giv_name LIKE ? OR fam_name LIKE ?))) ';
     likestringUnit.push(likestring, likestring, likestring);
   }
@@ -515,11 +514,11 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
       return ISAResult.ok;
     });
   }).then(schoolAdminResult => {
-    var fullData = schoolAdminResult.ok;
+    const fullData = schoolAdminResult.ok;
     
     query.since = parseInt(query.since) || 0;
     query.upto = parseInt(query.upto) || 'now';
-    var now = Date.now();
+    const now = Date.now();
     
     cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
     if (this.cache.has(cacheKey))
@@ -620,10 +619,10 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
  * @function c2s~get-user-info
  */
 User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', function(query, ctx) {
-  var cfg, xuser;
+  let cfg, xuser;
   
-  var cacheable = !(ctx.access.has('caching') && query.noCache);
-  var resultCacheKey = '';
+  let resultCacheKey = '';
+  const cacheable = !(ctx.access.has('caching') && query.noCache);
   
   query.nohistory = !!query.nohistory;
   
@@ -633,7 +632,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     if (query.lookfor == '$self' && ctx.user)
       query.lookfor = ctx.user.uid;
     
-    var columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.uid ? [
+    const columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.uid ? [
       'u.*', 'ud.*', 'uf.*',
     ] : [
       'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
@@ -655,7 +654,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
       'day_va.totalvalue  AS daystarttotalvalue'
     ]).join(', ');
     
-    var lookfor, lookforColumn;
+    let lookfor, lookforColumn;
     if (parseInt(query.lookfor) == query.lookfor) {
       lookfor = parseInt(query.lookfor);
       lookforColumn = 'uid';
@@ -665,7 +664,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     }
     
     resultCacheKey += 'get-user-info-result:' + columns.length;
-    var cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
+    const cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
     if (this.cache.has(cacheKey) && cacheable)
       return this.cache.use(cacheKey);
     
@@ -697,7 +696,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     delete xuser.pwhash;
     delete xuser.pwsalt;
   }).then(() => {
-    var cacheKey2 = 'get-user-info2:' + xuser.lstockid + ':' + xuser.dschoolid;
+    const cacheKey2 = 'get-user-info2:' + xuser.lstockid + ':' + xuser.dschoolid;
     if (this.cache.has(cacheKey2) && cacheable)
       return this.cache.use(cacheKey2);
     
@@ -716,25 +715,25 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     /* do some validation on the schools array.
      * this is not necessary; however, it may help catch bugs long 
      * before they actually do a lot of harm. */
-    var levelArray = schools.map(s => { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
+    const levelArray = schools.map(s => { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
     if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
       return this.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
     
     /* backwards compatibility */
-    for (var i = 0; i < schools.length; ++i)
+    for (let i = 0; i < schools.length; ++i)
       schools[i].id = schools[i].schoolid;
     
     xuser.schools = schools;
     
-    var result = {
+    const result = {
       code: 'get-user-info-success', 
       result: xuser
     };
     
     resultCacheKey += ':' + xuser.uid + ':' + query.nohistory;
     
-    var viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
-    var cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
+    const viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
+    const cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
     
     if (query.nohistory)
       return result;
@@ -844,8 +843,9 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
  * @function c2s~emailverif
  */
 User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', function(query, ctx, xdata) {
-  var uid = parseInt(query.uid), email;
-  var key = String(query.key);
+  const uid = parseInt(query.uid);
+  const key = String(query.key);
+  let email;
   
   if (uid != query.uid)
     throw new this.FormatError();
@@ -908,8 +908,8 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
   if (!user)
     return Promise.resolve();
   
-  var now = Date.now();
-  var lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
+  const now = Date.now();
+  const lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
   
   if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly') || !user) {
     // don't update things yet
@@ -917,7 +917,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
     
     return Promise.resolve();
   } else {
-    var ticks = ctx.getProperty('pendingTicks');
+    const ticks = ctx.getProperty('pendingTicks');
     ctx.setProperty('pendingTicks', 0);
     ctx.setProperty('lastSessionUpdate', now);
     
@@ -943,7 +943,7 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
  * @function busreq~loadSessionUser
  */
 User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx'], function(key, ctx) {
-  var signedLogin = (key[0] == ':');
+  const signedLogin = (key[0] == ':');
   
   return Promise.resolve().then(() => {
     if (!signedLogin)
@@ -954,7 +954,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
       name: 'verifySignedMessage',
       msg: key.substr(1),
     }).then(msg => {
-      var today = parseInt(Date.now() / 86400);
+      const today = parseInt(Date.now() / 86400);
       if (!msg || msg.date <= today - 1) // message at least 24 hours old
         return null;
       
@@ -982,7 +982,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
         return null;
       
       assert.equal(res.length, 1);
-      var user = res[0];
+      const user = res[0];
       /* backwards compatibility */
       user.id = user.uid;
       user.school = user.schoolid;
@@ -1167,10 +1167,10 @@ User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', f
 User.prototype.updateUser = function(query, type, ctx, xdata) {
   debug('Update user', type, ctx.user && ctx.user.uid);
   
-  var betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
+  const betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
   
-  var res, uid, cfg;
-  var gainUIDCBs = [];
+  let res, uid, cfg;
+  let gainUIDCBs = [];
   
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
@@ -1233,7 +1233,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
       if (parseInt(query.school) == query.school || !query.school)
         throw new this.SoTradeClientError('reg-unknown-school');
       
-      var possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
+      const possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
       
       return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [possibleSchoolPath]).then(psRes => {
         assert.equal(psRes.length, 1);
@@ -1263,7 +1263,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
     if (res && res.insertId) {
       // in case school was created
       
-      var schoolid = res.insertId;
+      const schoolid = res.insertId;
       query.school = schoolid;
       
       gainUIDCBs.push(() => {
@@ -1339,7 +1339,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
         return ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
       });
     } else {
-      var inv = {};
+      const inv = {};
       return Promise.resolve().then(() => {
         if (query.betakey)
           return conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
@@ -1444,7 +1444,7 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
     }).then(() => {
       return this.request({name: 'sellAll', query: query, ctx: ctx});
     }).then(() => {
-      var val = cfg.defaultStartingMoney / 1000;
+      const val = cfg.defaultStartingMoney / 1000;
       
       return Promise.all([
         ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
@@ -1480,9 +1480,9 @@ User.prototype.listGenders = buscomponent.provideQT('client-list-genders', funct
     /* if something went wrong, everything still is just fine */
     return [];
   }).then(stats => {
-    var genderRanking = _.pluck(stats, 'gender').slice(0, 4);
+    const genderRanking = _.pluck(stats, 'gender').slice(0, 4);
     genders.genders = _.sortBy(genders.genders, gender => {
-      var rankingIndex = genderRanking.indexOf(gender);
+      let rankingIndex = genderRanking.indexOf(gender);
       if (rankingIndex == -1)
         rankingIndex = Infinity;
       return [rankingIndex, gender];
@@ -1512,7 +1512,8 @@ User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset',
   if (ctx.user)
     throw new this.SoTradeClientError('already-logged-in');
   
-  var name = String(query.name), pw, u;
+  const name = String(query.name);
+  let pw, u;
   
   debug('Reset password', name);
   
@@ -1581,8 +1582,8 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
   
   debug('Create invite link for', ctx.user.uid, query.email, query.schoolid);
   
-  var sendKeyToCaller = ctx.access.has('userdb');
-  var key, url, cfg;
+  let sendKeyToCaller = ctx.access.has('userdb');
+  let key, url, cfg;
   
   if (query.schoolid && parseInt(query.schoolid) != query.schoolid)
     throw new this.FormatError();
@@ -1636,5 +1637,3 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
 });
 
 exports.User = User;
-
-})();

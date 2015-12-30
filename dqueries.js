@@ -1,12 +1,12 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var qctx = require('./qctx.js');
-var Access = require('./access.js').Access;
-var buscomponent = require('./stbuscomponent.js');
-var debug = require('debug')('sotrade:dqueries');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const qctx = require('./qctx.js');
+const Access = require('./access.js').Access;
+const buscomponent = require('./stbuscomponent.js');
+const debug = require('debug')('sotrade:dqueries');
 
 /**
  * Provides infrastructure for delaying queries until certain conditions are met.
@@ -38,7 +38,7 @@ class DelayedQueries extends buscomponent.BusComponent {
 }
 
 DelayedQueries.prototype.onBusConnect = function() {
-  var ctx = new qctx.QContext({parentComponent: this});
+  const ctx = new qctx.QContext({parentComponent: this});
   
   this.on('stock-update', ev => {
     if (this.neededStocks['s-'+ev.stockid]) {
@@ -90,7 +90,7 @@ DelayedQueries.prototype.checkAndExecute = function(ctx, query) {
 DelayedQueries.prototype.loadDelayedQueries = function() {
   debug('Load delayed queries');
   
-  var ctx = new qctx.QContext({parentComponent: this});
+  const ctx = new qctx.QContext({parentComponent: this});
   
   return ctx.query('SELECT * FROM dqueries').then(r => {
     return Promise.all(r.map(res => {
@@ -131,7 +131,7 @@ DelayedQueries.prototype.listDelayQueries = buscomponent.provideQT('client-dquer
  * @function c2s~dquery-remove
  */
 DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquery-remove', function(query, ctx) {
-  var queryid = query.queryid;
+  const queryid = query.queryid;
   
   debug('Remove dquery', queryid);
   
@@ -162,7 +162,7 @@ DelayedQueries.prototype.removeQueryUser = buscomponent.provideWQT('client-dquer
 DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquery', function(query, ctx) {
   debug('Add dquery', query.condition);
   
-  var qstr = null;
+  let qstr = null;
   this.parseCondition(query.condition);
   
   try {
@@ -175,7 +175,7 @@ DelayedQueries.prototype.addDelayedQuery = buscomponent.provideWQT('client-dquer
   if (this.queryTypes.indexOf(query.query.type) == -1)
     throw new this.SoTradeClientError('unknown-query-type');
   
-  var userinfo = _.clone(ctx.user);
+  const userinfo = _.clone(ctx.user);
   assert.ok(!userinfo.pwsalt);
   assert.ok(!userinfo.pwhash);
   delete userinfo.clientopt;
@@ -224,12 +224,12 @@ DelayedQueries.prototype.checkAllDQueries = buscomponent.provideWQT('client-dque
 DelayedQueries.prototype.addQuery = function(ctx, query) {
   assert.ok(query);
 
-  var cond = this.parseCondition(query.condition);
+  const cond = this.parseCondition(query.condition);
   
   query.check = cond.check;
   query.neededStocks = cond.neededStocks;
   
-  var entryid = String(query.queryid);
+  const entryid = String(query.queryid);
   assert.ok(!this.queries[entryid]);
   this.queries[entryid] = query;
   query.neededStocks.forEach(stocktextid => this.addNeededStock(query.queryid, stocktextid));
@@ -278,32 +278,32 @@ DelayedQueries.prototype.addNeededStock = function(queryid, stocktextid) {
  * @function module:dqueries~DelayedQueries#parseCondition
  */
 DelayedQueries.prototype.parseCondition = function(str) {
-  var clauses = str.split('∧');
-  var cchecks = [];
-  var stocks = [];
+  const clauses = str.split('∧');
+  const cchecks = [];
+  const stocks = [];
   clauses.forEach(cl => {
     cl = cl.trim();
-    var terms = cl.split(/[<>]/);
+    const terms = cl.split(/[<>]/);
     if (terms.length != 2)
       throw new this.FormatError('condition clause must contain exactly one < or > expression');
     
-    var lt = cl.indexOf('<') != -1;
-    var lhs = terms[0].trim();
-    var rhs = terms[1].trim();
-    var variable = lhs.split(/::/);
-    var value = parseFloat(rhs);
+    const lt = cl.indexOf('<') != -1;
+    const lhs = terms[0].trim();
+    const rhs = terms[1].trim();
+    const variable = lhs.split(/::/);
+    const value = parseFloat(rhs);
     switch (variable[0]) {
       case 'time':
         cchecks.push(ctx => {
-          var t = Date.now()/1000;
+          const t = Date.now()/1000;
           return lt ? t < value : t > value;
         });
         break;
       case 'stock':
         if (variable.length != 3)
           throw new this.FormatError('expecting level 3 nesting for stock variable');
-        var stocktextid = String(variable[1]);
-        var fieldname = variable[2];
+        const stocktextid = String(variable[1]);
+        const fieldname = variable[2];
         if (stocks.indexOf(stocktextid) == -1)
           stocks.push(stocktextid);
         switch(fieldname) {
@@ -369,7 +369,7 @@ DelayedQueries.prototype.parseCondition = function(str) {
 DelayedQueries.prototype.executeQuery = function(query) {
   debug('Execute dquery', query.queryid);
   
-  var ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: this});
+  const ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: this});
   query.query._isDelayed = true;
   
   if (query.executionPromise)
@@ -388,7 +388,7 @@ DelayedQueries.prototype.executeQuery = function(query) {
     return e.toJSON();
   }).then(result => {
     debug('Executed dquery', query.queryid, result.code);
-    var json = query.query.dquerydata || {};
+    const json = query.query.dquerydata || {};
     json.result = result.code;
     
     if (!query.query.retainUntilCode || query.query.retainUntilCode == result.code) {
@@ -433,17 +433,15 @@ DelayedQueries.prototype.removeQuery = function(query, ctx) {
  * @function module:dqueries~DelayedQueries#removeQuery
  */
 DelayedQueries.prototype.resetUser = buscomponent.provide('dqueriesResetUser', ['ctx'], function(ctx) {
-  var toBeDeleted = [];
-  for (var queryid in this.queries) {
-    var q = this.queries[queryid];
+  const toBeDeleted = [];
+  for (let queryid in this.queries) {
+    const q = this.queries[queryid];
     if (q.userinfo.uid == ctx.user.uid || (q.query.leader == ctx.user.uid))
       toBeDeleted.push(q);
   }
   
-  for (var i = 0; i < toBeDeleted.length; ++i)
+  for (let i = 0; i < toBeDeleted.length; ++i)
     this.removeQuery(toBeDeleted[i], ctx);
 });
 
 exports.DelayedQueries = DelayedQueries;
-})();
-

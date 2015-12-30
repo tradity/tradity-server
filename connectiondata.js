@@ -1,15 +1,15 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var lzma = require('lzma-native');
-var util = require('util');
-var assert = require('assert');
-var commonUtil = require('tradity-connection');
-var debug = require('debug')('sotrade:conn');
-var buscomponent = require('./stbuscomponent.js');
-var dt = require('./bus/directtransport.js');
-var qctx = require('./qctx.js');
-var Access = require('./access.js').Access;
+const _ = require('lodash');
+const lzma = require('lzma-native');
+const util = require('util');
+const assert = require('assert');
+const commonUtil = require('tradity-connection');
+const debug = require('debug')('sotrade:conn');
+const buscomponent = require('./stbuscomponent.js');
+const dt = require('./bus/directtransport.js');
+const qctx = require('./qctx.js');
+const Access = require('./access.js').Access;
 const promiseUtil = require('./lib/promise-util.js');
 
 /**
@@ -52,7 +52,7 @@ class ConnectionData extends buscomponent.BusComponent {
   constructor(socket) {
     super();
     
-    var now = Date.now();
+    const now = Date.now();
     
     this.ctx = new qctx.QContext();
     this.hsheaders = _.omit(socket.handshake.headers, ['authorization', 'proxy-authorization']);
@@ -103,7 +103,7 @@ ConnectionData.prototype.onBusConnect = function() {
   return this.ctx.setBusFromParent(this).then(() => {
     return this.getServerConfig();
   }).then(cfg => {
-    var clientconfig = _.pick(cfg, cfg.clientconfig);
+    const clientconfig = _.pick(cfg, cfg.clientconfig);
     clientconfig.busid = this.bus.id;
     clientconfig.pid = process.pid;
     
@@ -266,7 +266,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
   assert.ok(this.bus);
   
   return this.getServerConfig().then(cfg => {
-    var curUnixTime = Date.now();
+    const curUnixTime = Date.now();
     if (curUnixTime > this.lastInfoPush + cfg.infopushMinDelta) {
       this.lastInfoPush = curUnixTime;
       
@@ -328,7 +328,7 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
  * @function module:connectiondata~ConnectionData#response
  */
 ConnectionData.prototype.response = function(data) {
-  var res = this.wrapForReply(data).then(r => {
+  const res = this.wrapForReply(data).then(r => {
     if (!this.socket)
       debug('Lost socket while compiling response', this.cdid);
     
@@ -411,14 +411,14 @@ ConnectionData.prototype.queryHandler = function(query) {
         return {query: null, masterAuthorization: false};
     });
   }).then(queryInfo => {
-    var masterAuthorization = queryInfo.masterAuthorization;
-    var query = queryInfo.query;
+    const masterAuthorization = queryInfo.masterAuthorization;
+    const query = queryInfo.query;
     
     if (!query)
       return;
     
     debug('Received query of type', this.cdid, this.bus && this.bus.id, query.type, query.id);
-    var recvTime = Date.now();
+    const recvTime = Date.now();
     
     this.queryCount++;
     if (query.lzma && !query.csupp)
@@ -429,7 +429,7 @@ ConnectionData.prototype.queryHandler = function(query) {
     
     query.csupp = query.csupp || {};
     
-    for (var i in query.csupp)
+    for (let i in query.csupp)
       this.queryCompressionInfo.supported[i] += 1;
     
     this.ctx.setProperty('remoteProtocolVersion', 
@@ -439,7 +439,7 @@ ConnectionData.prototype.queryHandler = function(query) {
       (query.cs ? String(query.cs) ||
       this.ctx.getProperty('remoteClientSoftware') : 'NULL0'));
     
-    var hadUser = !!this.ctx.user;
+    const hadUser = !!this.ctx.user;
     
     assert.ok(this.bus);
     assert.ok(this.socket);
@@ -451,7 +451,7 @@ ConnectionData.prototype.queryHandler = function(query) {
         return;
       }
       
-      var access = new Access();
+      const access = new Access();
       if (user != null) 
         access.update(Access.fromJSON(user.access));
       
@@ -565,15 +565,15 @@ ConnectionData.prototype.queryHandler = function(query) {
         
         this.unansweredCount--;
         
-        var now = Date.now();
+        const now = Date.now();
         result['is-reply-to'] = query.id;
         result['_t_sdone'] = now;
         result['_t_srecv'] = recvTime;
         
-        var extra = result.extra;
+        const extra = result.extra;
         delete result.extra;
         
-        var finalizingPromises = [];
+        const finalizingPromises = [];
         if (extra == 'repush' && this.bus && this.socket) {
           this.lastInfoPush = 0;
           
@@ -662,11 +662,11 @@ ConnectionData.prototype.wrapForReply = function(obj) {
       this.ctx.setProperty('remoteClientSoftware', null);
     }
     
-    var compressionThreshold = 20480;
-    var splitCompressable = null;
-    var csupp = this.ctx.getProperty('compressionSupport');
+    const compressionThreshold = 20480;
+    const csupp = this.ctx.getProperty('compressionSupport');
+    let splitCompressable = null;
     
-    var stringify = (o) => {
+    const stringify = (o) => {
       try {
         return JSON.stringify(o, (key, value) => {
           // since Node v0.12, JSON.stringify does not convert
@@ -686,8 +686,8 @@ ConnectionData.prototype.wrapForReply = function(obj) {
       }
     }
     
-    var compressable, noncompressable = '';
-    var cc = null;
+    let compressable, noncompressable = '';
+    let cc = null;
     
     if (csupp.s && obj.cc__) {
       cc = obj.cc__;
@@ -701,14 +701,14 @@ ConnectionData.prototype.wrapForReply = function(obj) {
     
     delete obj.cc__;
     
-    var s  = stringify(compressable);
-    var sn = stringify(noncompressable);
+    const s  = stringify(compressable);
+    const sn = stringify(noncompressable);
     
     if (csupp.s && csupp.lzma && noncompressable) {
       this.queryCompressionInfo.used.s += 1;
       this.queryCompressionInfo.used.lzma += 1;
       
-      var ckey = cc.key + ':compressed';
+      const ckey = cc.key + ':compressed';
       return Promise.resolve().then(() => {
         if (cc.cache.has(ckey))
           return cc.cache.use(ckey);
@@ -749,5 +749,3 @@ ConnectionData.prototype.wrapForReply = function(obj) {
 };
 
 exports.ConnectionData = ConnectionData;
-
-})();

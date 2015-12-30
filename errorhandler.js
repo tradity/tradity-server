@@ -1,12 +1,12 @@
 "use strict";
 
-var _ = require('lodash');
-var fs = require('fs');
-var util = require('util');
-var PSemaphore = require('promise-semaphore');
-var ratelimit = require('promise-ratelimit');
-var buscomponent = require('./stbuscomponent.js');
-var debug = require('debug')('sotrade:error');
+const _ = require('lodash');
+const fs = require('fs');
+const util = require('util');
+const PSemaphore = require('promise-semaphore');
+const ratelimit = require('promise-ratelimit');
+const buscomponent = require('./stbuscomponent.js');
+const debug = require('debug')('sotrade:error');
 const promiseUtil = require('./lib/promise-util.js');
 
 /**
@@ -48,8 +48,8 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
   
   debug('Error', e);
   
-  var cfg, longErrorText;
-  var catchstack = new Error().stack; // current stack
+  let cfg, longErrorText;
+  const catchstack = new Error().stack; // current stack
   
   this.getServerConfig().catch(e2 => {
     console.error('Could not get server config due to', e2);
@@ -86,7 +86,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
           return promiseUtil.ncall(fs.appendFile)(cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
       }).then(() => {
         if (cfg && cfg.mail) {
-          var opt = _.clone(cfg.mail['errorBase']);
+          const opt = _.clone(cfg.mail['errorBase']);
           opt.text = longErrorText;
           return this.request({name: 'sendMail', mailtype: 'error', opt: opt});
         } else {

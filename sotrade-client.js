@@ -1,26 +1,26 @@
-(function () { "use strict";
+"use strict";
 
-var commonAPI = require('tradity-connection');
-var sio = require('socket.io-client');
-var fs = require('fs');
-var https = require('https');
-var _ = require('lodash');
+const commonAPI = require('tradity-connection');
+const sio = require('socket.io-client');
+const fs = require('fs');
+const https = require('https');
+const _ = require('lodash');
 const debug = require('debug')('sotrade:s-client');
 
 function NodeSoTradeConnection (opt) {
   opt = opt || {};
   
-  var cfg = opt.serverConfig || require('./config.js').config();
+  const cfg = opt.serverConfig || require('./config.js').config();
   
   if (!opt.url) {
-    var port = cfg.wsporte || cfg.wsports[parseInt(Math.random() * cfg.wsports.length)];
+    const port = cfg.wsporte || cfg.wsports[parseInt(Math.random() * cfg.wsports.length)];
     opt.url = cfg.protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + port;
   }
   
   try {
     if (!opt.messageSigner) {
-      var SignedMessaging = require('./signedmsg.js').SignedMessaging;
-      var smdb = new SignedMessaging();
+      const SignedMessaging = require('./signedmsg.js').SignedMessaging;
+      const smdb = new SignedMessaging();
       smdb.useConfig(cfg);
       opt.messageSigner = smdb;
     }
@@ -34,7 +34,7 @@ function NodeSoTradeConnection (opt) {
     console.error(e);
   }
   
-  var socketopts = opt.socketopts || {};
+  const socketopts = opt.socketopts || {};
   if (!socketopts.transports)
     socketopts.transports = ['websocket'];
   if (socketopts.multiplex !== true)
@@ -43,7 +43,7 @@ function NodeSoTradeConnection (opt) {
   if (/^(https|wss)/.test(opt.url))
     socketopts.agent = new https.Agent(cfg.ssl);
   
-  var url = opt.url;
+  const url = opt.url;
   if (url && !opt.connect) {
     opt.connect = function() {
       debug('Connecting', url, socketopts);
@@ -54,7 +54,7 @@ function NodeSoTradeConnection (opt) {
   if (typeof opt.logDevCheck == 'undefined')
     opt.logDevCheck = true;
   
-  var ownVersion = 'SOTS0';
+  const ownVersion = 'SOTS0';
   try {
     ownVersion = require('./buildstamp.js');
   } catch(e) {
@@ -67,5 +67,3 @@ function NodeSoTradeConnection (opt) {
 };
 
 exports.SoTradeConnection = NodeSoTradeConnection;
-
-})();

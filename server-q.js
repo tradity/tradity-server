@@ -1,30 +1,30 @@
 #!/usr/bin/env node
-(function () { "use strict";
+"use strict";
 
 Error.stackTraceLimit = Infinity;
 
-var fs = require('fs');
-var https = require('https');
-var assert = require('assert');
-var util = require('util');
-var _ = require('lodash');
+const fs = require('fs');
+const https = require('https');
+const assert = require('assert');
+const util = require('util');
+const _ = require('lodash');
 
-var cfg = require('./config.js').config();
-var sotradeClient = require('./sotrade-client.js');
+const cfg = require('./config.js').config();
+const sotradeClient = require('./sotrade-client.js');
 
-var options = process.argv.splice(2);
+const options = process.argv.splice(2);
 
 assert.ok(options.length > 0);
 
-var query = {
+const query = {
   type: options[0],
   id: 'server-q-query'
 };
 
-for (var i = 1; i < options.length; ++i) {
-  var p = options[i].match(/^-{0,2}([\w_-]+)=(.*)$/);
+for (let i = 1; i < options.length; ++i) {
+  const p = options[i].match(/^-{0,2}([\w_-]+)=(.*)$/);
   
-  var value = p[2];
+  let value = p[2];
   if (value == 'false') value = false;
   if (value == 'true')  value = true;
   if (value == 'null')  value = null;
@@ -34,8 +34,8 @@ for (var i = 1; i < options.length; ++i) {
   query[p[1]] = value;
 }
 
-var protocol = cfg.protocol;
-var socket = new sotradeClient.SoTradeConnection({
+const protocol = cfg.protocol;
+const socket = new sotradeClient.SoTradeConnection({
   url: query.wsurl || (protocol + '://' +
     (query.wshost || cfg.wshoste || cfg.wshost) + ':' +
     (query.wsport || cfg.wsporte || cfg.wsports[0])),
@@ -53,7 +53,7 @@ socket.once('server-config').then(function() {
   return socket.emit(query.type, query);
 }).then(function(data) {
   if (query.resultPath) {
-    var path = String(query.resultPath).split('.');
+    const path = String(query.resultPath).split('.');
     
     console.log(_.reduce(path, _.result, data));
   }
@@ -61,5 +61,3 @@ socket.once('server-config').then(function() {
   if (!query.lurk)
     process.exit(0);
 }).catch(e => console.trace(e));
-
-})();

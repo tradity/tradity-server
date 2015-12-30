@@ -1,15 +1,15 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var Q = require('q');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const _ = require('lodash');
+const Q = require('q');
+const testHelpers = require('./test-helpers.js');
 
 describe('stocks', function() {
-  var socket, user;
+  let socket, user;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -17,13 +17,13 @@ describe('stocks', function() {
   
   beforeEach(function() {
     /* do standard reset, then clear depot */
-    return testHelpers.standardReset().then(function() {
+    return testHelpers.standardReset().then(() => {
       return socket.emit('list-own-depot');
-    }).then(function(data) {
+    }).then(data => {
       assert.equal(data.code, 'list-own-depot-success');
       assert.ok(data.results);
       
-      return Q.all(data.results.map(function(r) {
+      return Q.all(data.results.map(r => {
         return socket.emit('stock-buy', {
           __sign__: true,
           amount: -r.amount,
@@ -39,13 +39,13 @@ describe('stocks', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
   
-  var standardISIN = 'DE000BAY0017';
-  var umlautNameISIN = 'DE0005565204';
+  const standardISIN = 'DE000BAY0017';
+  const umlautNameISIN = 'DE0005565204';
 
   if (!testHelpers.testPerformance)
   describe('prod', function() {
     it('Works', function() {
-      return socket.emit('prod').then(function(res) {
+      return socket.emit('prod').then(res => {
         assert.equal(res.code, 'prod-ready');
       });
     });
@@ -58,7 +58,7 @@ describe('stocks', function() {
       }).then(res => {
         assert.equal(res.code, 'stock-search-success');
         assert.equal(res.results.length, 1);
-        var stockinfo = res.results[0];
+        const stockinfo = res.results[0];
         
         assert.ok(stockinfo);
         assert.strictEqual(stockinfo.stockid, standardISIN);
@@ -75,7 +75,7 @@ describe('stocks', function() {
       }).then(res => {
         assert.equal(res.code, 'stock-search-success');
         assert.equal(res.results.length, 1);
-        var stockinfo = res.results[0];
+        const stockinfo = res.results[0];
         
         assert.ok(stockinfo);
         assert.strictEqual(stockinfo.stockid, umlautNameISIN);
@@ -91,7 +91,7 @@ describe('stocks', function() {
       }).then(res => {
         assert.equal(res.code, 'stock-search-success');
         assert.equal(res.results.length, 1);
-        var stockinfo = res.results[0];
+        const stockinfo = res.results[0];
         
         assert.ok(stockinfo);
         assert.strictEqual(stockinfo.leader, user.uid);
@@ -103,7 +103,7 @@ describe('stocks', function() {
   
   describe('stock-buy', function() {
     it('Can buy and sell stocks via forceNow', function() {
-      var amount = 5;
+      const amount = 5;
       
       /* clear depot first */
       return socket.emit('stock-buy', {
@@ -117,9 +117,9 @@ describe('stocks', function() {
         assert.equal(res.code, 'stock-buy-success');
         
         return socket.once('trade');
-      }).then(function() {
+      }).then(() => {
         return socket.emit('list-own-depot');
-      }).then(function(data) {
+      }).then(data => {
         assert.equal(data.code, 'list-own-depot-success');
         assert.ok(data.results);
         assert.equal(data.results.length, 1);
@@ -139,9 +139,9 @@ describe('stocks', function() {
               res.code == 'stock-buy-not-enough-stocks');
         
         return socket.once('trade');
-      }).then(function() {
+      }).then(() => {
         return socket.emit('list-own-depot');
-      }).then(function(data) {
+      }).then(data => {
         assert.equal(data.code, 'list-own-depot-success');
         assert.ok(data.results);
         assert.equal(data.results.length, 0);
@@ -154,11 +154,11 @@ describe('stocks', function() {
           leader: null,
           forceNow: true
         });
-      }).then(function(data) {
+      }).then(data => {
         assert.equal(data.code, 'stock-buy-not-enough-stocks');
         
         return socket.emit('list-transactions');
-      }).then(function(data) {
+      }).then(data => {
         assert.equal(data.code, 'list-transactions-success');
         assert.ok(data.results);
         assert.ok(data.results.length > 0);

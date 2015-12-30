@@ -1,18 +1,18 @@
 'use strict';
 
-var setup = require('./test-setup.js');
-var sotradeClient = require('../../sotrade-client.js');
-var sha256 = require('../../lib/sha256.js');
-var main = require('../../main.js');
-var _ = require('lodash');
-var Q = require('q');
-var fs = require('fs');
-var assert = require('assert');
+const setup = require('./test-setup.js');
+const sotradeClient = require('../../sotrade-client.js');
+const sha256 = require('../../lib/sha256.js');
+const main = require('../../main.js');
+const _ = require('lodash');
+const Q = require('q');
+const fs = require('fs');
+const assert = require('assert');
 
-var testPerformance = process.env.SOTRADE_PROFILE_PERFORMANCE;
-var timingFile = process.env.SOTRADE_TIMING_FILE;
+const testPerformance = process.env.SOTRADE_PROFILE_PERFORMANCE;
+const timingFile = process.env.SOTRADE_TIMING_FILE;
 
-var startServer = _.memoize(function() {
+const startServer = _.memoize(function() {
   return setup.setupDatabase().then(() => {
     return setup.generateKeys();
   }).then(() => {
@@ -29,21 +29,21 @@ var startServer = _.memoize(function() {
   });
 });
 
-var getSocket = _.memoize(function() {
+const getSocket = _.memoize(function() {
   return startServer().then(() => {
-    var socket = new sotradeClient.SoTradeConnection({
+    const socket = new sotradeClient.SoTradeConnection({
       noSignByDefault: true,
       logDevCheck: false
     });
     
     if (testPerformance && timingFile) {
       socket.on('*', data => {
-        var dt = data._dt;
+        const dt = data._dt;
         
         if (!dt)
           return; // probably an event
         
-        var fields = [
+        const fields = [
           Date.now(),
           dt.cdelta,
           dt.sdelta,
@@ -66,20 +66,20 @@ var getSocket = _.memoize(function() {
   });
 });
 
-var getTestUser = _.memoize(function() {
-  var name = 'mm' + Date.now() * (process.pid | 0x100) + String(parseInt(Math.random() * 1000));
-  var password = sha256(name).substr(0, 12);
-  var email = name + '@invalid.invalid';
-  var uid = null;
-  var gender;
+const getTestUser = _.memoize(function() {
+  const name = 'mm' + Date.now() * (process.pid | 0x100) + String(parseInt(Math.random() * 1000));
+  const password = sha256(name).substr(0, 12);
+  const email = name + '@invalid.invalid';
+  let uid = null;
+  let gender;
   
-  var schoolid = 'MegaMusterschule' + parseInt(Date.now() / 100000);
-  var schoolname = schoolid;
+  const schoolid = 'MegaMusterschule' + parseInt(Date.now() / 100000);
+  const schoolname = schoolid;
   
   return getSocket().then(socket => {
     return socket.emit('list-schools').then(data => {
       assert.equal(data.code, 'list-schools-success');
-      for (var i = 0; i < data.result.length; ++i) {
+      for (let i = 0; i < data.result.length; ++i) {
         assert.ok(data.result[i].banner === null || typeof data.result[i].banner == 'string');
         
         if (data.result[i].name == schoolid) {
@@ -142,8 +142,8 @@ var getTestUser = _.memoize(function() {
   });
 });
 
-var standardSetup = function() {
-  var socket;
+const standardSetup = function() {
+  let socket;
   
   return getSocket().then(socket_ => {
     socket = socket_;
@@ -153,11 +153,11 @@ var standardSetup = function() {
   });
 };
 
-var standardTeardown = function() {
+const standardTeardown = function() {
   return getSocket().then(socket => socket.raw().disconnect());
 };
 
-var standardReset = function() {
+const standardReset = function() {
   return getSocket().then(socket => {
     return getTestUser().then(user => {
       if (testPerformance)
@@ -176,11 +176,11 @@ var standardReset = function() {
   });
 };
 
-var bufferEqual = function(a, b) {
+const bufferEqual = function(a, b) {
   if (a.length != b.length)
     return false;
   
-  for (var i = 0; i < a.length; ++i)
+  for (let i = 0; i < a.length; ++i)
     if (a[i] != b[i])
       return false;
   

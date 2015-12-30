@@ -1,10 +1,10 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var buscomponent = require('./stbuscomponent.js');
-var debug = require('debug')('sotrade:feed');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const buscomponent = require('./stbuscomponent.js');
+const debug = require('debug')('sotrade:feed');
 
 /**
  * Provides interfaces to the user feeds and event tables
@@ -58,22 +58,22 @@ FeedController.prototype.feed = buscomponent.provide('feed',
   assert.ok(data.type.length);
   assert.equal(data.srcuser, parseInt(data.srcuser));
   
-  var json = JSON.stringify(data.json ? data.json : {});
+  const json = JSON.stringify(data.json ? data.json : {});
   data = _.extend(data, data.json);
   
   conn = conn || ctx; // both db connections and QContexts expose .query()
   
-  var eventid;
+  let eventid;
   return conn.query('INSERT INTO events(`type`, targetid, time, srcuser, json) VALUES (?, ?, ?, ?, ?)',
     [String(data.type), data.targetid ? parseInt(data.targetid) : null,
     data.time ? data.time : parseInt(Date.now() / 1000), parseInt(data.srcuser), json]).then(r => {
     eventid = r.insertId;
     onEventId(eventid);
     
-    var query, params, subselects;
+    let query, params, subselects;
     
     if (!data.everyone) {
-      var additional = data.feedusers && data.feedusers.slice(0) || [];
+      const additional = data.feedusers && data.feedusers.slice(0) || [];
       if (additional.indexOf(data.srcuser) == -1)
         additional.push(data.srcuser);
       
@@ -108,7 +108,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
         params.push(eventid, data.feedchat);
       }
        
-      for (var i = 0; i < additional.length; ++i) {
+      for (let i = 0; i < additional.length; ++i) {
         if (parseInt(additional[i]) != additional[i])
           return this.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
         
@@ -139,7 +139,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
  * @function busreq~feedFetchEvents
  */
 FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx) {
-  var since = 0, count = 10000;
+  let since = 0, count = 10000;
   if (query) {
     if (parseInt(query.since) == query.since)
       since = parseInt(query.since);
@@ -173,14 +173,14 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
     [ctx.user.uid, since, count]).then(r => {
     return r.map(ev => {
       if (ev.json) {
-        var json = JSON.parse(ev.json);
+        const json = JSON.parse(ev.json);
         if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid != ev.srcuser)
           return null;
         ev = _.extend(ev, json);
       }
       
       if (ev.postjson) {
-        var postjson = JSON.parse(ev.postjson);
+        const postjson = JSON.parse(ev.postjson);
         
         // move type to wptype so it does not override the event type
         postjson.wptype = postjson.type;
@@ -234,10 +234,10 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
   if (!query.comment || parseInt(query.eventid) != query.eventid)
     throw new this.FormatError();
   
-  var feedschool = null;
-  var feedchat = null;
-  var feedusers = [];
-  var noFollowers = false;
+  let feedschool = null;
+  let feedchat = null;
+  let feedusers = [];
+  let noFollowers = false;
   
   return ctx.query('SELECT events.type, events.targetid, oh.uid AS trader FROM events ' +
     'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ? LOCK IN SHARE MODE',
@@ -245,7 +245,7 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
     if (res.length == 0)
       throw new this.SoTradeClientError('comment-notfound');
     
-    var r = res[0];
+    const r = res[0];
     
     switch (r.type) {
       case 'user-register':
@@ -286,5 +286,3 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
 });
 
 exports.FeedController = FeedController;
-
-})();

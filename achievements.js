@@ -1,11 +1,11 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var qctx = require('./qctx.js');
-var debug = require('debug')('sotrade:achievements');
-var buscomponent = require('./stbuscomponent.js');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const qctx = require('./qctx.js');
+const debug = require('debug')('sotrade:achievements');
+const buscomponent = require('./stbuscomponent.js');
 
 /**
  * Achievement checking and awarding system.
@@ -104,7 +104,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
   if (!ctx.user)
     return;
   
-  var uid = ctx.user.uid;
+  let uid = ctx.user.uid;
   debug('Checking achievement for user', achievementEntry.name, uid);
   
   assert.equal(uid, parseInt(uid));
@@ -112,14 +112,14 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
   
   uid = parseInt(uid);
   
-  var cfg;
+  let cfg;
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     
     if (userAchievements_)
       return userAchievements_;
     
-    var lookfor = achievementEntry.requireAchievementInfo;
+    let lookfor = achievementEntry.requireAchievementInfo;
     lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
     
     return ctx.query('SELECT * FROM achievements ' +
@@ -129,7 +129,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
     userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).object().value();
     
     if (userAchievements[achievementEntry.name]) {
-      var dbver = userAchievements[achievementEntry.name].version;
+      const dbver = userAchievements[achievementEntry.name].version;
       if (dbver > achievementEntry.version)
         this.emitError(new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
       
@@ -184,7 +184,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
  * @function module:achievements~Achievements#registerObservers
  */
 Achievements.prototype.registerObservers = function(achievementEntry) {
-  var ctx = new qctx.QContext({parentComponent: this});
+  const ctx = new qctx.QContext({parentComponent: this});
 
   return _.each(achievementEntry.fireOn, (checkCallback, eventName) => {
     this.on(eventName, (data) => {
@@ -209,7 +209,7 @@ Achievements.prototype.registerObservers = function(achievementEntry) {
  */
 Achievements.prototype.registerAchievements = function(list) {
   list = list.map(achievementEntry => {
-    var e = _.defaults(achievementEntry, {
+    const e = _.defaults(achievementEntry, {
       requireAchievementInfo: [],
       prereqAchievements: [],
       implicatingAchievements: []
@@ -270,7 +270,7 @@ Achievements.prototype.listAchievements = buscomponent.provideQT('client-list-al
 Achievements.prototype.getDailyLoginCertificate = buscomponent.provideWQT('client-get-daily-login-certificate',
   function(query, ctx)
 {
-  var today = new Date().toJSON().substr(0, 10);
+  let today = new Date().toJSON().substr(0, 10);
   
   if (query.today) {
     if (!ctx.access.has('achievements'))
@@ -331,7 +331,7 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
  * @function c2s~dl-achievement
  */
 Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-achievement', function(query, ctx) {
-  var uid = ctx.user.uid;
+  const uid = ctx.user.uid;
   
   if (!query.certs || !query.certs.map)
     throw new this.FormatError();
@@ -345,14 +345,14 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
       });
     }));
   }).then(verifiedCerts => {
-    var dates = verifiedCerts
+    const dates = verifiedCerts
       .filter(c => { return c && c.uid == uid && c.certType == 'wasOnline'; })
       .map(c => { return new Date(c.date); })
       .sort((a, b) => { return a.getTime() - b.getTime(); }); // ascending sort
     
-    var currentStreak = 1;
-    var longestStreak = 1;
-    for (var i = 1; i < dates.length; ++i) {
+    let currentStreak = 1;
+    let longestStreak = 1;
+    for (let i = 1; i < dates.length; ++i) {
       // not beautiful, but works
       if (dates[i].getTime() - dates[i-1].getTime() == 86400000)
         ++currentStreak;
@@ -373,5 +373,3 @@ Achievements.prototype.clientDLAchievement = buscomponent.provideWQT('client-dl-
 });
 
 exports.Achievements = Achievements;
-
-})();

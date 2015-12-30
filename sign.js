@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+"use strict";
 
-var SignedMessaging = require('./signedmsg.js').SignedMessaging;
-var cfg = require('./config.js').config();
+const SignedMessaging = require('./signedmsg.js').SignedMessaging;
+const cfg = require('./config.js').config();
 
-var smdb = new SignedMessaging();
+const smdb = new SignedMessaging();
 smdb.useConfig(cfg);
 
 if (process.argv.length < 2) {

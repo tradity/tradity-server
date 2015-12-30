@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-var SignedMessaging = require('./signedmsg.js').SignedMessaging;
-var cfg = require('./config.js').config();
+"use strict";
+const SignedMessaging = require('./signedmsg.js').SignedMessaging;
+const cfg = require('./config.js').config();
 
-var smdb = new SignedMessaging();
+const smdb = new SignedMessaging();
 smdb.useConfig(cfg);
 
 if (process.argv.length < 2) {
@@ -11,6 +12,6 @@ if (process.argv.length < 2) {
   process.exit(0);
 }
 
-smdb.verifySignedMessage(process.argv[2], null).then(function(msg) {
+smdb.verifySignedMessage(process.argv[2], null).then(msg => {
   console.log(JSON.stringify(msg));
 }).catch(e => console.trace(e));

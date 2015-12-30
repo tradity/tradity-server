@@ -1,4 +1,4 @@
-(function () { "use strict";
+"use strict";
 
 const Adapter = require('socket.io-adapter');
 const _ = require('lodash');
@@ -35,5 +35,3 @@ function busAdapter(bus, prefix) {
 }
 
 exports.busAdapter = busAdapter;
-
-})();

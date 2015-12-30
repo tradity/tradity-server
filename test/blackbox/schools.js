@@ -1,13 +1,13 @@
 'use strict';
 
-var assert = require('assert');
-var fs = require('fs');
-var _ = require('lodash');
-var Q = require('q');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const fs = require('fs');
+const _ = require('lodash');
+const Q = require('q');
+const testHelpers = require('./test-helpers.js');
 
 describe('schools', function() {
-  var socket, user;
+  let socket, user;
 
   before(function() {
     return testHelpers.standardSetup().then(data => {
@@ -19,7 +19,7 @@ describe('schools', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  var getOwnSchool = function() {
+  const getOwnSchool = function() {
     return socket.emit('get-user-info', {
       lookfor: '$self'
     }).then(res => {
@@ -32,7 +32,7 @@ describe('schools', function() {
 
   describe('get-school-info', function() {
     it('Should return information on a given school', function() {
-      var school;
+      let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
@@ -71,7 +71,7 @@ describe('schools', function() {
   describe('school-change-description', function() {
     if (!testHelpers.testPerformance)
     it('Requires school admin privileges', function() {
-      var school;
+      let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
@@ -86,8 +86,8 @@ describe('schools', function() {
     });
     
     it('Should change a school’s description text', function() {
-      var school;
-      var descpage = 'Blahlahblah';
+      let school;
+      const descpage = 'Blahlahblah';
       
       return getOwnSchool().then(school_ => {
         school = school_;
@@ -265,7 +265,7 @@ describe('schools', function() {
   
   describe('create-school', function() {
     it('Should refuse to create already-existing schools', function() {
-      return getOwnSchool().then(function(school) {
+      return getOwnSchool().then(school => {
         return socket.emit('create-school', {
           __sign__: true,
           schoolname: 'Doublé',
@@ -315,11 +315,11 @@ describe('schools', function() {
     it('Should provide schools with banners', function() {
       var school;
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return Q.nfcall(fs.readFile, 'res/bob.jpg');
-      }).then(function(data) {
+      }).then(data => {
         return socket.emit('school-publish-banner', {
           __sign__: true,
           base64: true,
@@ -345,7 +345,7 @@ describe('schools', function() {
     it('Should assign school IDs to invitation links', function() {
       var school;
       
-      return getOwnSchool().then(function(school_) {
+      return getOwnSchool().then(school_ => {
         school = school_;
         
         return socket.emit('create-invite-link', {

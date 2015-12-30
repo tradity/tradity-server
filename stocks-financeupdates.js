@@ -1,12 +1,12 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var lapack = require('lapack');
-var UnionFind = require('unionfind');
-var assert = require('assert');
-var debug = require('debug')('sotrade:stocks-fu');
-var buscomponent = require('./stbuscomponent.js');
+const _ = require('lodash');
+const util = require('util');
+const lapack = require('lapack');
+const UnionFind = require('unionfind');
+const assert = require('assert');
+const debug = require('debug')('sotrade:stocks-fu');
+const buscomponent = require('./stbuscomponent.js');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -31,12 +31,12 @@ class StocksFinanceUpdates extends buscomponent.BusComponent {
   }
 }
 
-var wprovMax = 'GREATEST(ds.provision_hwm, s.bid)';
-var wprovΔ = '(('+wprovMax+' - ds.provision_hwm) * ds.amount)';
-var wprovFees = '(('+wprovΔ+' * l.wprovision) / 100)';
-var lprovMin = 'LEAST(ds.provision_lwm, s.bid)';
-var lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
-var lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
+const wprovMax = 'GREATEST(ds.provision_hwm, s.bid)';
+const wprovΔ = '(('+wprovMax+' - ds.provision_hwm) * ds.amount)';
+const wprovFees = '(('+wprovΔ+' * l.wprovision) / 100)';
+const lprovMin = 'LEAST(ds.provision_lwm, s.bid)';
+const lprovΔ = '(('+lprovMin+' - ds.provision_lwm) * ds.amount)';
+const lprovFees = '(('+lprovΔ+' * l.lprovision) / 100)';
 
 /**
  * Update all provision values in the user finance fields.
@@ -91,8 +91,8 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
       entry.wfees = parseInt(entry.wfees);
       entry.lfees = parseInt(entry.lfees);
       
-      var dsid = entry.dsid;
-      var totalfees = entry.wfees + entry.lfees;
+      const dsid = entry.dsid;
+      const totalfees = entry.wfees + entry.lfees;
       
       return (Math.abs(totalfees) < 1 ? Promise.resolve() : 
       conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
@@ -125,11 +125,11 @@ StocksFinanceUpdates.prototype.updateProvisions = buscomponent.provide('updatePr
 });
 
 function identityMatrix(n) {
-  var A = [];
-  for (var i = 0; i < n; ++i) {
-    var row = [];
+  const A = [];
+  for (let i = 0; i < n; ++i) {
+    const row = [];
     A.push(row);
-    for (var j = 0; j < n; ++j)
+    for (let j = 0; j < n; ++j)
       row[j] = (i == j ? 1.0 : 0.0);
   }
   
@@ -147,8 +147,8 @@ function identityMatrix(n) {
  * @function busreq~updateLeaderMatrix
  */
 StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('updateLeaderMatrix', ['ctx'], function(ctx) {
-  var lmuStart = Date.now();
-  var conn, users, res_static, cfg;
+  const lmuStart = Date.now();
+  let conn, users, res_static, cfg;
   
   debug('Update leader matrix');
   
@@ -181,18 +181,18 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
     res_static = res_static.concat(res_static2);
     users = _.uniq(_.pluck(users, 'uid'));
     
-    var lmuFetchData = Date.now();
+    const lmuFetchData = Date.now();
     
-    var uidToIndex = [];
-    for (var k = 0; k < users.length; ++k)
+    let uidToIndex = [];
+    for (let k = 0; k < users.length; ++k)
       uidToIndex[users[k]] = k;
     
-    var uidToResStaticIndex = [];
-    for (var k = 0; k < res_static.length; ++k)
+    let uidToResStaticIndex = [];
+    for (let k = 0; k < res_static.length; ++k)
       uidToResStaticIndex[res_static[k].uid] = k;
       
-    var followerToResLeaderIndices = [];
-    for (var k = 0; k < res_leader.length; ++k) {
+    let followerToResLeaderIndices = [];
+    for (let k = 0; k < res_leader.length; ++k) {
       var fuid = res_leader[k].fuid;
       if (followerToResLeaderIndices[fuid])
         followerToResLeaderIndices[fuid].push(k);
@@ -204,12 +204,12 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
       return;
     
     // find connected components
-    var uf = new UnionFind(users.length);
-    for (var i = 0; i < res_leader.length; ++i)
+    const uf = new UnionFind(users.length);
+    for (let i = 0; i < res_leader.length; ++i)
       uf.union(uidToIndex[res_leader[i].luid], uidToIndex[res_leader[i].fuid]);
     
-    var components = {};
-    for (var i = 0; i < users.length; ++i) {
+    const components = {};
+    for (let i = 0; i < users.length; ++i) {
       if (!components[uf.find(i)])
         components[uf.find(i)] = [users[i]];
       else
@@ -218,31 +218,30 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
     
     debug('Found components', Object.keys(components).length, users.length + ' users');
     
-    var sgesvTotalTime = 0, presgesvTotalTime = 0, postsgesvTotalTime = 0;
-    var updateQuery = '';
-    var updateParams = [];
+    let sgesvTotalTime = 0, presgesvTotalTime = 0, postsgesvTotalTime = 0;
+    let updateQuery = '';
+    let updateParams = [];
     
-    for (var ci_ in components) {
-      var componentStartTime = Date.now();
-      var ci = ci_;
-      var cusers = components[ci];
-      var n = cusers.length;
+    for (let ci in components) {
+      const componentStartTime = Date.now();
+      const cusers = components[ci];
+      const n = cusers.length;
       
-      var cuidToIndex = {};
-      for (var k = 0; k < cusers.length; ++k)
+      const cuidToIndex = {};
+      for (let k = 0; k < cusers.length; ++k)
         cuidToIndex[cusers[k]] = k;
       
-      var A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
-      var B = _.map(_.range(n), () => [0.0, 0.0]);
-      var prov_sum = _.map(_.range(n), () => [0.0]);
+      const A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
+      const B = _.map(_.range(n), () => [0.0, 0.0]);
+      const prov_sum = _.map(_.range(n), () => [0.0]);
       
-      for (var k = 0; k < cusers.length; ++k) {
-        var uid = cusers[k];
+      for (let k = 0; k < cusers.length; ++k) {
+        const uid = cusers[k];
         
         // res_static
         {
-          var r = res_static[uidToResStaticIndex[uid]];
-          var localIndex = cuidToIndex[uid];
+          const r = res_static[uidToResStaticIndex[uid]];
+          const localIndex = cuidToIndex[uid];
           
           assert.strictEqual(r.uid, uid);
           assert.ok(localIndex < n);
@@ -258,13 +257,13 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
         }
         
         // res_leader (is indexed by follwer uid)
-        var rlIndices = followerToResLeaderIndices[uid];
+        const rlIndices = followerToResLeaderIndices[uid];
         
-        if (rlIndices) for (var j = 0; j < rlIndices.length; ++j) {
-          var r = res_leader[rlIndices[j]];
+        if (rlIndices) for (let j = 0; j < rlIndices.length; ++j) {
+          const r = res_leader[rlIndices[j]];
           
           assert.equal(r.fuid, uid); // the follower part is already known
-          var l = cuidToIndex[r.luid]; // find leader uid
+          const l = cuidToIndex[r.luid]; // find leader uid
           
           // the leader MUST be in the same connected component
           assert.notEqual(typeof l, 'undefined');
@@ -273,27 +272,27 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
         }
       }
       
-      var sgesvST = Date.now();
-      var res = lapack.sgesv(A, B);
+      const sgesvST = Date.now();
+      const res = lapack.sgesv(A, B);
       if (!res)
         return this.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
       
-      var sgesvET = Date.now();
+      const sgesvET = Date.now();
       sgesvTotalTime += sgesvET - sgesvST;
       presgesvTotalTime += sgesvST - componentStartTime;
       
-      var X =  _.pluck(res.X, 0);
-      var Xa = _.pluck(res.X, 1);
+      const X =  _.pluck(res.X, 0);
+      const Xa = _.pluck(res.X, 1);
 
-      for (var i = 0; i < n; ++i) {
+      for (let i = 0; i < n; ++i) {
         assert.notStrictEqual(X[i],  null);
         assert.notStrictEqual(Xa[i], null);
         assert.equal(X[i],  X[i]);
         assert.equal(Xa[i], Xa[i]);
         assert.ok(cusers[i]);
         
-        var lv  = X[i] / 100;
-        var lva = Math.max(Xa[i] / 100, 10000);
+        const lv  = X[i] / 100;
+        const lva = Math.max(Xa[i] / 100, 10000);
         
         updateQuery += 'UPDATE stocks AS s SET lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), pieces = ? WHERE leader = ?;';
         updateParams.push((lv + lva)/2.0, lva, lv, lv < 10000 ? 0 : 100000000, cusers[i]);
@@ -302,23 +301,22 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
         
       }
       
-      var componentEndTime = Date.now();
+      const componentEndTime = Date.now();
       postsgesvTotalTime += componentEndTime - sgesvET;
     }
     
-    var lmuComputationsComplete = Date.now();
-    var res;
+    const lmuComputationsComplete = Date.now();
+    let res;
     return conn.query(updateQuery, updateParams).then(() => {
       return conn.commitWithoutRelease();
     }).then(() => {
       return conn.query('SELECT stocktextid, lastvalue, ask, bid, stocks.name AS name, leader, users.name AS leadername ' +
-        'FROM stocks JOIN users ON leader = users.uid WHERE leader IS NOT NULL',
-          [users[i]]);
+        'FROM stocks JOIN users ON leader = users.uid WHERE leader IS NOT NULL');
     }).then(res_ => {
       res = res_;
       return conn.release();
     }).then(() => {
-      var lmuEnd = Date.now();
+      const lmuEnd = Date.now();
       console.log('lmu timing: ' +
         presgesvTotalTime + ' ms pre-sgesv total, ' +
         sgesvTotalTime + ' ms sgesv total, ' +
@@ -336,5 +334,3 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
 });
 
 exports.StocksFinanceUpdates = StocksFinanceUpdates;
-
-})();

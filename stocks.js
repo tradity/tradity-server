@@ -1,12 +1,12 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var validator = require('validator');
-var debug = require('debug')('sotrade:stocks');
-var qctx = require('./qctx.js');
-var buscomponent = require('./stbuscomponent.js');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const validator = require('validator');
+const debug = require('debug')('sotrade:stocks');
+const qctx = require('./qctx.js');
+const buscomponent = require('./stbuscomponent.js');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 require('datejs');
@@ -39,7 +39,7 @@ Stocks.prototype.onBusConnect = function() {
     
     this.quoteLoader = ql;
     
-    var ctx = new qctx.QContext({parentComponent: this});
+    const ctx = new qctx.QContext({parentComponent: this});
     
     this.quoteLoader.on('record', rec => {
       return Promise.resolve().then(() => {
@@ -108,7 +108,7 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
   if (ctx.getProperty('readonly'))
     return;
     
-  var rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET, usicST;
+  let rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET, usicST;
   rcbST = Date.now();
   
   return this.cleanUpUnusedStocks(ctx).then(() => {
@@ -191,7 +191,7 @@ Stocks.prototype.updateRankingInformation = function(ctx) {
 Stocks.prototype.updateValueHistory = function(ctx) {
   debug('Update value history');
   
-  var copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
+  const copyFields = 'totalvalue, wprov_sum, lprov_sum, fperf_bought, fperf_cur, fperf_sold, operf_bought, operf_cur, operf_sold';
   return ctx.query('INSERT INTO tickshistory (ticks, time) ' +
     'SELECT value, UNIX_TIMESTAMP() FROM globalvars WHERE name="ticks"').then(() => {
     return ctx.query('DROP TEMPORARY TABLE IF EXISTS users_dindex; ' +
@@ -267,8 +267,8 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
 Stocks.prototype.updateStockValues = function(ctx) {
   debug('Update stock values');
   
-  var stocklist = [];
-  var cfg;
+  let stocklist = [];
+  let cfg;
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     return ctx.query('SELECT * FROM stocks ' +
@@ -327,7 +327,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
     if (ctx.getProperty('readonly'))
       return;
     
-    var knownStockIDs;
+    let knownStockIDs;
     
     // on duplicate key is likely to be somewhat slower than other options
     // -> check whether we already know the primary key
@@ -335,9 +335,9 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
       knownStockIDs = knownStockIDs_;
       return knownStockIDs[rec.symbol]; // might be a promise from INSERT INTO
     }).then(ksid => {
-      var updateQueryString = 'lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), ' +
+      const updateQueryString = 'lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), ' +
         'name = IF(LENGTH(name) >= ?, name, ?), exchange = ?, pieces = ? ';
-      var updateParams = [rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
+      const updateParams = [rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
         rec.name.length, rec.name, rec.exchange, rec.pieces];
       
       if (typeof ksid == 'number') {
@@ -394,20 +394,20 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
  * @function c2s~stock-search
  */
 Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx) {
-  var str = String(query.name);
+  let str = String(query.name);
   if (!str || str.length < 3)
     throw new this.SoTradeClientError('stock-search-too-short');
   
   str = str.trim();
   
-  var leadertest = str.match(this.leaderStockTextIDFormat);
-  var lid = -1;
+  const leadertest = str.match(this.leaderStockTextIDFormat);
+  let lid = -1;
   if (leadertest !== null)
     lid = leadertest[1];
   
-  var xstr = '%' + str.replace(/%/g, '\\%') + '%';
+  const xstr = '%' + str.replace(/%/g, '\\%') + '%';
   
-  var localResults;
+  let localResults;
   return Promise.all([
     this.getServerConfig(),
     ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
@@ -422,7 +422,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
       [xstr, xstr])
   ]).then(spread((cfg, localResults_, externalStocks) => {
     localResults = localResults_;
-    var externalStocksIDs = _.pluck(externalStocks, 'stocktextid');
+    const externalStocksIDs = _.pluck(externalStocks, 'stocktextid');
 
     // ISIN or WKN
     if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str))
@@ -430,7 +430,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     
     return this.quoteLoader.loadQuotesList(_.uniq(externalStocksIDs), rec => this.stocksFilter(cfg, rec));
   })).then(externalResults => {
-    var results = _.union(localResults, externalResults.map(r => {
+    let results = _.union(localResults, externalResults.map(r => {
       return {
         'stockid': r.symbol, /* backwards compatibility */
         'stocktextid': r.symbol,
@@ -450,7 +450,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     debug('Search for stock', str, localResults.length + ' local', externalResults.length + ' external', results.length + ' unique');
     
     results = _.uniq(results, false, r => r.stocktextid);
-    var symbols = _.pluck(results, 'stocktextid');
+    let symbols = _.pluck(results, 'stocktextid');
     
     if (symbols.length > 0 && !ctx.getProperty('readonly')) {
       symbols = symbols.map(escape);
@@ -480,17 +480,17 @@ Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen
   assert.ok(sxname);
   assert.ok(cfg);
   
-  var sxdata = cfg.stockExchanges[sxname];
+  const sxdata = cfg.stockExchanges[sxname];
   if (!sxdata) {
     this.emitError(new Error('Unknown SX: ' + sxname));
     return false;
   }
 
-  var opentime = Date.parse(sxdata.open).getTime();
-  var closetime = Date.parse(sxdata.close).getTime();
-  var now = new Date();
+  const opentime = Date.parse(sxdata.open).getTime();
+  const closetime = Date.parse(sxdata.close).getTime();
+  const now = new Date();
   
-  var res = now.getTime() >= opentime && now.getTime() < closetime && sxdata.days.indexOf(now.getUTCDay()) != -1;
+  const res = now.getTime() >= opentime && now.getTime() < closetime && sxdata.days.indexOf(now.getUTCDay()) != -1;
   
   return res;
 });
@@ -513,7 +513,7 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
     'WHERE s.leader = ?', [ctx.user.uid]).then(depotEntries => {
     
     return Promise.all(depotEntries.map(depotentry => {
-      var newCtx = new qctx.QContext({
+      const newCtx = new qctx.QContext({
         parentComponent: this,
         user: {uid: depotentry.uid},
         access: ctx.access
@@ -614,8 +614,8 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
   if (ctx.getProperty('readonly'))
     throw new this.SoTradeClientError('server-readonly');
   
-  var conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
-  var fee, oh_res = null, tradeID = null, perffull = null, forceNow;
+  let conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
+  let fee, oh_res = null, tradeID = null, perffull = null, forceNow;
   
   /*
    * We try to check the conditions for performing the trade without using
@@ -636,7 +636,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     if (opt.skipTest || opt.testOnly)
       return { code: 'stock-buy-success', skippedTest: true }; // [sic]
     
-    var modifiedOptions = _.clone(opt);
+    const modifiedOptions = _.clone(opt);
     modifiedOptions.testOnly = true;
     return this.buyStock(query, ctx, modifiedOptions); // may throw exception!
   }).then(result => {
@@ -732,7 +732,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     if (price > ures[0].freemoney && price >= 0)
       throw new this.SoTradeClientError('stock-buy-out-of-money');
     
-    var tradedToday = ohr[0].amount || 0;
+    const tradedToday = ohr[0].amount || 0;
     
     if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSingleStockShare'] && price >= 0 &&
         !ctx.access.has('stocks'))
@@ -754,13 +754,13 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     oh_res = oh_res_;
     
     if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0))) {
-      var wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
-      var lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
+      const wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
+      const lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
 
       if (wprovPay < 0) wprovPay = 0;
       if (lprovPay > 0) lprovPay = 0;
       
-      var totalprovPay = wprovPay + lprovPay;
+      const totalprovPay = wprovPay + lprovPay;
       
       return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) ' + 
         'VALUES (?, "provision", ?, ?, ?, ?, UNIX_TIMESTAMP(), ?)',
@@ -798,8 +798,8 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
   }).then(() => {
     tradeID = oh_res.insertId;
     
-    var perfn = r.leader ? 'fperf' : 'operf';
-    var perfv = amount >= 0 ? 'bought' : 'sold';
+    const perfn = r.leader ? 'fperf' : 'operf';
+    const perfv = amount >= 0 ? 'bought' : 'sold';
     perffull = perfn + '_' + perfv;
     
     return conn.query('INSERT INTO transactionlog (orderid, type, stocktextid, a_user, p_user, amount, time, json) VALUES ' + 
@@ -885,7 +885,7 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
     'WHERE ds.uid = ? AND amount != 0',
     [ctx.user.uid]).then(results => {
     /* backwards compatibility */
-    for (var i = 0; i < results.length; ++i)
+    for (let i = 0; i < results.length; ++i)
       results[i].stockid = results[i].stocktextid;
     
     return { code: 'list-own-depot-success', 'results': results };
@@ -929,7 +929,7 @@ Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transact
     'LEFT JOIN users AS p ON p.uid = t.p_user ' +
     'LEFT JOIN stocks AS s ON s.stocktextid = t.stocktextid ' +
     'WHERE t.a_user = ? OR t.p_user = ? ', [ctx.user.uid, ctx.user.uid]).then(results => {
-    for (var i = 0; i < results.length; ++i)
+    for (let i = 0; i < results.length; ++i)
       results[i].json = results[i].json ? JSON.parse(results[i].json) : {};
 
     return { code: 'list-transactions-success',  results: results  };
@@ -950,7 +950,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
   if (parseInt(query.tradeid) != query.tradeid)
     throw new this.FormatError();
   
-  var r;
+  let r;
   return Promise.all([
     this.getServerConfig(),
     ctx.query('SELECT oh.* ,s.*, u.name, events.eventid AS eventid, trader.delayorderhist FROM orderhistory AS oh ' +
@@ -1008,7 +1008,7 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
  * @function c2s~list-popular-stocks
  */
 Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx) {
-  var days = parseInt(query.days);
+  const days = parseInt(query.days);
   
   return this.getServerConfig().then(cfg => {
     if (days != days || (days > cfg.popularStocksDays && !ctx.access.has('stocks')))
@@ -1022,7 +1022,7 @@ Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
       'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days]);
   }).then(popular => {
     /* backwards compatibility */
-    for (var i = 0; i < popular.length; ++i)
+    for (let i = 0; i < popular.length; ++i)
       popular[i].stockid = popular[i].stocktextid;
     
     return { code: 'list-popular-stocks-success', 'results': popular };
@@ -1030,5 +1030,3 @@ Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
 });
 
 exports.Stocks = Stocks;
-
-})();

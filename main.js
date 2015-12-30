@@ -1,24 +1,24 @@
 #!/usr/bin/env node
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var assert = require('assert');
-var fs = require('fs');
-var https = require('https');
-var cluster = require('cluster');
-var util = require('util');
+const _ = require('lodash');
+const assert = require('assert');
+const fs = require('fs');
+const https = require('https');
+const cluster = require('cluster');
+const util = require('util');
 
-var qctx = require('./qctx.js');
-var cfg = require('./config.js').config();
-var bus = require('./bus/bus.js');
-var buscomponent = require('./stbuscomponent.js');
-var pt = require('./bus/processtransport.js');
-var dt = require('./bus/directtransport.js');
-var sotradeClient = require('./sotrade-client.js');
+const qctx = require('./qctx.js');
+const cfg = require('./config.js').config();
+const bus = require('./bus/bus.js');
+const buscomponent = require('./stbuscomponent.js');
+const pt = require('./bus/processtransport.js');
+const dt = require('./bus/directtransport.js');
+const sotradeClient = require('./sotrade-client.js');
 const promiseUtil = require('./lib/promise-util.js');
-var debug = require('debug')('sotrade:main');
+const debug = require('debug')('sotrade:main');
 
-var achievementList = require('./achievement-list.js');
+const achievementList = require('./achievement-list.js');
 
 /**
  * Main entry point of this software.
@@ -130,16 +130,16 @@ Main.prototype.changeReadabilityMode = buscomponent.listener('change-readability
 
 Main.prototype.setupStockLoaders = function() {
   // setup stock loaders
-  var stockLoaders = {};
-  for (var i in cfg.stockloaders) {
+  const stockLoaders = {};
+  for (let i in cfg.stockloaders) {
     if (!cfg.stockloaders[i] || !cfg.stockloaders[i].path)
       continue;
     
-    var stockloaderConfig = _.clone(cfg.stockloaders[i]);
+    const stockloaderConfig = _.clone(cfg.stockloaders[i]);
     stockloaderConfig.userAgent = cfg.userAgent;
     stockloaderConfig.ctx = this.managerCTX.clone();
     
-    var slModule = require(stockloaderConfig.path);
+    const slModule = require(stockloaderConfig.path);
     stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
     stockLoaders[i].on('error', function(e) { this.emitError(e); });
   }
@@ -185,10 +185,10 @@ Main.prototype.start = function() {
       }, 250);
     });
     
-    for (var i = 0; i < this.shutdownSignals.length; ++i)
+    for (let i = 0; i < this.shutdownSignals.length; ++i)
       process.on(this.shutdownSignals[i], () => { this.emitLocal('globalShutdown'); });
 
-    var cfg = this.getServerConfig();
+    const cfg = this.getServerConfig();
     
     return this.setupStockLoaders();
   }).then(() => {
@@ -213,23 +213,23 @@ Main.prototype.start = function() {
 Main.prototype.getFreePort = function(pid) {
   if (this.useCluster) {
     // free all ports assigned to dead workers first
-    var pids = _.chain(this.workers).pluck('process').pluck('pid').value();
+    const pids = _.chain(this.workers).pluck('process').pluck('pid').value();
     this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) != -1);
   }
   
-  var freePorts = _.difference(this.getServerConfig().wsports, _.pluck(this.assignedPorts, 'port'));
+  const freePorts = _.difference(this.getServerConfig().wsports, _.pluck(this.assignedPorts, 'port'));
   assert.ok(freePorts.length > 0);
   this.assignedPorts.push({pid: pid, port: freePorts[0]});
   return freePorts[0];
 };
 
 Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
-  var ev = new promiseUtil.EventEmitter();
-  var toMaster = new dt.DirectTransport(ev, 1, true);
-  var toWorker = new dt.DirectTransport(ev, 1, true);
+  const ev = new promiseUtil.EventEmitter();
+  const toMaster = new dt.DirectTransport(ev, 1, true);
+  const toWorker = new dt.DirectTransport(ev, 1, true);
   
   assert.ok(isBackgroundWorker || port);
-  var m = new Main({
+  const m = new Main({
     isBackgroundWorker: isBackgroundWorker,
     isWorker: true,
     transportToMaster: toMaster,
@@ -254,8 +254,8 @@ Main.prototype.forkBackgroundWorker = function() {
   if (!this.useCluster)
     return this.newNonClusterWorker(true, null);
   
-  var bw = cluster.fork();
-  var sentSBW = false;
+  const bw = cluster.fork();
+  const sentSBW = false;
 
   this.workers.push(bw);
 
@@ -281,8 +281,8 @@ Main.prototype.forkStandardWorker = function() {
   if (!this.useCluster)
     return this.newNonClusterWorker(false, this.getFreePort(process.pid));
   
-  var w = cluster.fork();
-  var sentSSW = false;
+  const w = cluster.fork();
+  let sentSSW = false;
   
   this.workers.push(w);
   
@@ -291,7 +291,7 @@ Main.prototype.forkStandardWorker = function() {
       w.on('message', msg => {
         if (msg.cmd == 'startRequest' && !sentSSW) {
           sentSSW = true;
-          var port = this.getFreePort(w.process.pid);
+          const port = this.getFreePort(w.process.pid);
           
           debug('Sending SSW[', port, '] to', w.process.pid);
           
@@ -307,12 +307,12 @@ Main.prototype.forkStandardWorker = function() {
 
 Main.prototype.startMaster = function() {
   return Promise.resolve().then(() => {
-    var workerStartedPromises = [];
+    const workerStartedPromises = [];
     
     if (this.getServerConfig().startBackgroundWorker)
       workerStartedPromises.push(Promise.resolve().then(() => this.forkBackgroundWorker()));
     
-    for (var i = 0; i < this.getServerConfig().wsports.length; ++i) 
+    for (let i = 0; i < this.getServerConfig().wsports.length; ++i) 
       workerStartedPromises.push(Promise.resolve().then(() => this.forkStandardWorker()));
     
     debug('Starting workers', process.pid, workerStartedPromises.length + ' workers');
@@ -321,14 +321,14 @@ Main.prototype.startMaster = function() {
   }).then(() => {
     debug('All workers started', process.pid);
     
-    var shuttingDown = false;
+    const shuttingDown = false;
     this.mainBus.on('globalShutdown', () => this.mainBus.emitLocal('localShutdown'));
     this.mainBus.on('localShutdown', () => { shuttingDown = true; });
     
     cluster.on('exit', (worker, code, signal) => {
       this.workers = this.workers.filter(w => (w.process.pid != worker.process.pid));
       
-      var shouldRestart = !shuttingDown;
+      const shouldRestart = !shuttingDown;
       
       if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
         shouldRestart = false;
@@ -359,7 +359,7 @@ Main.prototype.worker = function() {
   if (!this.useCluster)
     return this.startWorker();
   
-  var startRequestInterval = setInterval(() => {
+  const startRequestInterval = setInterval(() => {
     if (!this.hasReceivedStartCommand) {
       debug('Requesting start commands', process.pid);
       process.send({cmd: 'startRequest'});
@@ -392,17 +392,17 @@ Main.prototype.worker = function() {
 };
 
 Main.prototype.startWorker = function() {
-  var componentsForLoading = this.basicComponents
+  const componentsForLoading = this.basicComponents
     .concat(this.isBackgroundWorker ? this.bwComponents : this.regularComponents);
   
   debug('loading', process.pid);
-  var stserver;
+  
   return this.loadComponents(componentsForLoading).then(() => {
-    var server = require('./server.js');
-    stserver = new server.SoTradeServer({isBackgroundWorker: this.isBackgroundWorker});
+    const server = require('./server.js');
+    const stserver = new server.SoTradeServer({isBackgroundWorker: this.isBackgroundWorker});
     
-    return stserver.setBus(this.mainBus, 'serverMaster');
-  }).then(() => {
+    return stserver.setBus(this.mainBus, 'serverMaster').then(() => stserver);
+  }).then(stserver => {
     debug('loaded', process.pid);
     
     if (this.isBackgroundWorker) {
@@ -428,8 +428,8 @@ Main.prototype.connectToSocketIORemotes = function() {
 
 Main.prototype.connectToSocketIORemote = function(remote) {
   debug('Connecting to socket.io remote', process.pid, remote.url);
-  var sslOpts = remote.ssl || this.getServerConfig().ssl;
-  var socket = new sotradeClient.SoTradeConnection({
+  const sslOpts = remote.ssl || this.getServerConfig().ssl;
+  const socket = new sotradeClient.SoTradeConnection({
     url: remote.url,
     socketopts: {
       transports: ['websocket'],
@@ -465,13 +465,13 @@ Main.prototype.connectToSocketIORemote = function(remote) {
 
 Main.prototype.loadComponents = function(componentsForLoading) {
   return Promise.all(componentsForLoading.map(componentName => {
-    var component = require(componentName);
+    const component = require(componentName);
     
     return Promise.all(_.map(component, componentClass => {
       if (!componentClass || !componentClass.prototype.setBus)
         return Promise.resolve();
       
-      var componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
+      const componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
       return new componentClass().setBus(this.mainBus, componentID);
     }));
   }));
@@ -485,5 +485,3 @@ exports.Main = Main;
 
 if (require.main === module)
   new Main().start();
-
-})();

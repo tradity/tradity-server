@@ -1,15 +1,15 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var Q = require('q');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const _ = require('lodash');
+const Q = require('q');
+const testHelpers = require('./test-helpers.js');
 
 describe('user', function() {
-  var socket, user;
+  let socket, user;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -36,7 +36,7 @@ describe('user', function() {
     it('Should return a valuehistory without .nohistory', function() {
       return socket.emit('prod', {
         __sign__: true
-      }).then(function() {
+      }).then(() => {
         return socket.emit('get-user-info', {
           lookfor: user.name,
           noCache: true, __sign__: true
@@ -71,7 +71,7 @@ describe('user', function() {
   
   describe('get-ranking', function() {
     it('Should return a list of all users', function() {
-      return socket.emit('get-ranking').then(function(res) {
+      return socket.emit('get-ranking').then(res => {
         assert.equal(res.code, 'get-ranking-success');
         assert.ok(res.result);
         assert.ok(res.result.length > 0);

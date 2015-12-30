@@ -1,18 +1,18 @@
 'use strict';
 
-var assert = require('assert');
-var fs = require('fs');
-var _ = require('lodash');
-var Q = require('q');
-var testHelpers = require('./test-helpers.js');
-var cfg = require('../../config.js').config();
+const assert = require('assert');
+const fs = require('fs');
+const _ = require('lodash');
+const Q = require('q');
+const testHelpers = require('./test-helpers.js');
+const cfg = require('../../config.js').config();
 
 if (!testHelpers.testPerformance)
 describe('fsdb', function() {
-  var socket, user;
+  let socket, user;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -23,7 +23,7 @@ describe('fsdb', function() {
 
   describe('publish', function() {
     it('Should publish files', function() {
-      return Q.nfcall(fs.readFile, 'res/bob.jpg').then(function(data) {
+      return Q.nfcall(fs.readFile, 'res/bob.jpg').then(data => {
         return socket.emit('publish', {
           base64: true,
           content: data.toString('base64'),
@@ -31,23 +31,23 @@ describe('fsdb', function() {
           mime: 'image/jpeg',
           name: 'bob.jpg'
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'publish-success');
         
         return socket.once('file-publish');
-      }).then(function() {
+      }).then(() => {
         return socket.emit('get-user-info', {
           lookfor: '$self',
           noCache: true, __sign__: true,
           nohistory: true
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'get-user-info-success');
         assert.ok(res.result.profilepic);
         
-        var externalURI = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0] + res.result.profilepic;
+        const externalURI = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0] + res.result.profilepic;
         
-        var deferred = Q.defer();
+        const deferred = Q.defer();
         
         require(cfg.protocol).get(externalURI, function(res) {
           deferred.resolve(res.statusCode);
@@ -56,7 +56,7 @@ describe('fsdb', function() {
         });
         
         return deferred.promise;
-      }).then(function(status) {
+      }).then(status => {
         assert.equal(status, 200);
       });
     });

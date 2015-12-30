@@ -1,10 +1,10 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var buscomponent = require('./stbuscomponent.js');
-var debug = require('debug')('sotrade:watchlist');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const buscomponent = require('./stbuscomponent.js');
+const debug = require('debug')('sotrade:watchlist');
 
 /**
  * Provides methods for loading and changing user watchlists.
@@ -48,28 +48,26 @@ class Watchlist extends buscomponent.BusComponent {
  * @function c2s~watchlist-add
  */
 Watchlist.prototype.watchlistAdd = buscomponent.provideTXQT('client-watchlist-add', function(query, ctx) {
-  var self = this;
-  
-  var uid, res;
+  let uid, res;
   
   debug('watchlist-add', query.stockid, ctx.user.uid);
   
   return ctx.query('SELECT stockid, stocktextid, users.uid AS uid, users.name, bid FROM stocks ' +
     'LEFT JOIN users ON users.uid = stocks.leader WHERE stocks.stockid = ? OR stocks.stocktextid = ? LOCK IN SHARE MODE',
-    [String(query.stockid), String(query.stockid)]).then(function(res_) {
+    [String(query.stockid), String(query.stockid)]).then(res_ => {
     res = res_;
     if (res.length == 0)
-      throw new self.SoTradeClientError('watchlist-add-notfound');
+      throw new this.SoTradeClientError('watchlist-add-notfound');
     
     uid = res[0].uid;
     if (uid == ctx.user.uid)
-      throw new self.SoTradeClientError('watchlist-add-self');
+      throw new this.SoTradeClientError('watchlist-add-self');
     
     return ctx.query('REPLACE INTO watchlists ' +
       '(watcher, watchstarttime, watchstartvalue, watched) '+
       'VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
       [ctx.user.uid, res[0].bid, res[0].stockid]);
-  }).then(function(r) {
+  }).then(r => {
     if (r.affectedRows != 1) // REPLACE INTO did not add a new entry
       return { code: 'watchlist-add-success' };
     
@@ -85,7 +83,7 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideTXQT('client-watchlist-ad
       },
       feedusers: uid ? [uid] : []
     });
-  }).then(function() {
+  }).then(() => {
     return { code: 'watchlist-add-success' };
   });
 });
@@ -112,14 +110,14 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideTXQT('client-watchlist-ad
 Watchlist.prototype.watchlistRemove = buscomponent.provideWQT('client-watchlist-remove', function(query, ctx) {
   debug('watchlist-remove', query.stockid, ctx.user.uid);
   
-  return ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.uid, String(query.stockid)]).then(function() {
+  return ctx.query('DELETE FROM watchlists WHERE watcher = ? AND watched = ?', [ctx.user.uid, String(query.stockid)]).then(() => {
     return ctx.feed({
       type: 'watch-remove',
       targetid: null,
       srcuser: ctx.user.uid,
       json: { watched: String(query.stockid) }
     });
-  }).then(function() {
+  }).then(() => {
     return { code: 'watchlist-remove-success' };
   });
 });
@@ -160,9 +158,9 @@ Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-sho
     'LEFT JOIN users ON users.uid = s.leader ' +
     'LEFT JOIN watchlists AS rw ON rw.watched = rs.stockid AND rw.watcher = s.leader ' +
     'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
-    'WHERE w.watcher = ?', [ctx.user.uid]).then(function(res) {
+    'WHERE w.watcher = ?', [ctx.user.uid]).then(res => {
     /* backwards compatibility */
-    for (var i = 0; i < res.length; ++i) {
+    for (let i = 0; i < res.length; ++i) {
       res[i].id = res[i].stockid;
     }
     
@@ -171,5 +169,3 @@ Watchlist.prototype.watchlistShow = buscomponent.provideQT('client-watchlist-sho
 });
 
 exports.Watchlist = Watchlist;
-
-})();

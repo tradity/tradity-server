@@ -1,11 +1,11 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var buscomponent = require('./stbuscomponent.js');
-var templates = require('./templates-compiled.js');
-var debug = require('debug')('sotrade:template-loader');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const buscomponent = require('./stbuscomponent.js');
+const templates = require('./templates-compiled.js');
+const debug = require('debug')('sotrade:template-loader');
 
 /**
  * Provides methods for reading in template files.
@@ -43,28 +43,26 @@ class TemplateLoader extends buscomponent.BusComponent {
 TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
   ['template', 'lang', 'variables'],
   function(template, lang, variables)
-{
-  var self = this;
-  
+{ 
   debug('Read template', template, lang, variables);
   
-  return self.getServerConfig().then(function(cfg) {
+  return this.getServerConfig().then(cfg => {
     variables = variables || {};
     
-    var t = templates[lang] && templates[lang][template];
+    let t = templates[lang] && templates[lang][template];
     
-    for (var i = 0; !t && i < cfg.languages.length; ++i)
+    for (let i = 0; !t && i < cfg.languages.length; ++i)
       t = templates[cfg.languages[i].id][template];
     
     if (!t)
       throw new Error('Template not found: ' + template);
     
     Object.keys(variables).forEach(e => {
-      var r = new RegExp('\\$\\{' + e + '\\}', 'g');
+      const r = new RegExp('\\$\\{' + e + '\\}', 'g');
       t = t.replace(r, variables[e]);
     });
     
-    var unresolved = t.match(/\$\{([^\}]*)\}/);
+    const unresolved = t.match(/\$\{([^\}]*)\}/);
     if (unresolved)
       throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
     
@@ -87,24 +85,24 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
 TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate',
   ['template', 'lang', 'variables'], function(template, lang, variables) {
   return this.readTemplate(template, lang, variables).then(function(t) {
-    var headerend = t.indexOf('\n\n');
+    const headerend = t.indexOf('\n\n');
     
-    var headers = t.substr(0, headerend).split('\n');
-    var body = t.substr(headerend + 2);
+    const headers = t.substr(0, headerend).split('\n');
+    const body = t.substr(headerend + 2);
     
-    var opt = {
+    const opt = {
       headers: {
         'X-SoTrade-Lang': lang
       }
     };
     
-    for (var i = 0; i < headers.length; ++i) {
-      var h = headers[i];
-      var headerNameEnd = h.indexOf(':');
-      var headerName = h.substr(0, headerNameEnd).trim();
-      var headerValue = h.substr(headerNameEnd + 1).trim();
+    for (let i = 0; i < headers.length; ++i) {
+      const h = headers[i];
+      const headerNameEnd = h.indexOf(':');
+      const headerName = h.substr(0, headerNameEnd).trim();
+      const headerValue = h.substr(headerNameEnd + 1).trim();
       
-      var camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase(); }).replace(/-/g, '');
+      const camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase(); }).replace(/-/g, '');
       
       if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) != -1)
         opt[camelCaseHeaderName] = headerValue;
@@ -119,6 +117,3 @@ TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemp
 });
 
 exports.TemplateLoader = TemplateLoader;
-
-})();
-

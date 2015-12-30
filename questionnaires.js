@@ -1,10 +1,10 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var buscomponent = require('./stbuscomponent.js');
-var debug = require('debug')('sotrade:questionnaires');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const buscomponent = require('./stbuscomponent.js');
+const debug = require('debug')('sotrade:questionnaires');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -39,8 +39,8 @@ class Questionnaires extends buscomponent.BusComponent {
  * @function c2s~list-questionnaires
  */
 Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-list-questionnaires', function(query, ctx) {
-  var questionnaires = this.loadQuestionnaires(ctx);
-  var uid = (ctx.user && ctx.user.uid) || null;
+  const questionnaires = this.loadQuestionnaires(ctx);
+  const uid = (ctx.user && ctx.user.uid) || null;
   
   return Promise.all([
     questionnaires,
@@ -52,7 +52,7 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
         'WHERE uid = ? AND qn_result_sets.questionnaire_id = qn_questionnaires.questionnaire_id) = 0 '
       ), uid === null ? [] : [uid])
     ]).then(spread(function(questionnaires, res) {
-    var ids = _.pluck(res, 'questionnaire_id');
+    const ids = _.pluck(res, 'questionnaire_id');
     
     return {
       code: 'list-questionnaires-success',
@@ -82,29 +82,29 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
   if (!query.results || !query.results.length)
     throw new this.FormatError();
   
-  var resultsQuery = [];
-  var resultsArguments = [];
+  const resultsQuery = [];
+  const resultsArguments = [];
   
   return this.loadQuestionnaires(ctx).then(questionnaires => {
     if (!questionnaires.hasOwnProperty(query.questionnaire))
       throw new this.SoTradeClientError('save-questionnaire-unknown-questionnaire');
     
-    var questionnaire = questionnaires[query.questionnaire][query.fill_language];
+    const questionnaire = questionnaires[query.questionnaire][query.fill_language];
     
     if (!questionnaire)
       throw new this.SoTradeClientError('save-questionnaire-unknown-questionnaire');
     
     assert.ok(questionnaire.questionnaire_id);
     
-    var answeredQuestions = _.pluck(query.results, 'question');
-    var availableQuestions = _.pluck(questionnaire.questions, 'question_id');
+    const answeredQuestions = _.pluck(query.results, 'question');
+    const availableQuestions = _.pluck(questionnaire.questions, 'question_id');
     
     if (_.xor(answeredQuestions, availableQuestions).length > 0)
       throw new this.SoTradeClientError('save-questionnaire-incomplete');
     
-    for (var i = 0; i < query.results.length; ++i) {
-      var answers = query.results[i].answers;
-      var question = questionnaire.questions.filter(qn => {
+    for (let i = 0; i < query.results.length; ++i) {
+      const answers = query.results[i].answers;
+      const question = questionnaire.questions.filter(qn => {
         return qn.question_id == query.results[i].question;
       })[0];
       
@@ -115,8 +115,8 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
           'Invalid number of answers for question ' + question.question_id +
           ' (' + JSON.stringify(question) + ')');
       
-      var chosenAnswers = _.pluck(answers, 'answer');
-      var availableAnswers = _.pluck(question.answers, 'answer_id');
+      const chosenAnswers = _.pluck(answers, 'answer');
+      const availableAnswers = _.pluck(question.answers, 'answer_id');
       
       if (_.difference(chosenAnswers, availableAnswers).length > 0)
         throw new this.SoTradeClientError('save-questionnaire-invalid',
@@ -124,7 +124,7 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
           JSON.stringify(_.difference(chosenAnswers, availableAnswers)) +
           ' (' + JSON.stringify(question) + ')');
       
-      for (var j = 0; j < answers.length; ++j) {
+      for (let j = 0; j < answers.length; ++j) {
         resultsQuery.push('(%resultSetID%,?,?,?)');
         resultsArguments.push(question.question_id, answers[j].answer, answers[j].answer_freetext || null);
       }
@@ -134,7 +134,7 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
       'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?)',
       [questionnaire.questionnaire_id, ctx.user.uid, query.fill_time, query.fill_language]);
   }).then(res => {
-    var resultSetID = parseInt(res.insertId);
+    const resultSetID = parseInt(res.insertId);
     
     return ctx.query('INSERT INTO qn_results (result_set_id, question_id, answer_id, answer_text) VALUES ' +
       resultsQuery.join(',').replace(/%resultSetID%/g, resultSetID), resultsArguments);
@@ -154,10 +154,10 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
   if (this.questionnaires)
     return this.questionnaires;
   
-  var loadQuestionnaire, loadQuestion, loadAnswer, groupByLanguage;
+  let loadQuestionnaire, loadQuestion, loadAnswer, groupByLanguage;
   
   groupByLanguage = listWithLangAttribute => {
-    var ret = _.groupBy(listWithLangAttribute, 'language');
+    const ret = _.groupBy(listWithLangAttribute, 'language');
     return _.mapValues(ret, list => _.omit(list[0], 'language'));
   };
   
@@ -220,5 +220,3 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
 };
 
 exports.Questionnaires = Questionnaires;
-
-})();

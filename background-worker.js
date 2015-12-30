@@ -1,11 +1,11 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var buscomponent = require('./stbuscomponent.js');
-var PSemaphore = require('promise-semaphore');
-var debug = require('debug')('sotrade:bw');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const buscomponent = require('./stbuscomponent.js');
+const PSemaphore = require('promise-semaphore');
+const debug = require('debug')('sotrade:bw');
 
 /**
  * Provides an entry point for client-induced regular cleanup
@@ -46,7 +46,7 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
   if (ctx.access.has('server') == -1)
     throw new this.SoTradeClientError('prod-not-allowed');
   
-  var starttime, userdbtime;
+  let starttime, userdbtime;
   
   return this.sem.add(() => {
     starttime = Date.now();
@@ -61,5 +61,3 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
 });
 
 exports.BackgroundWorker = BackgroundWorker;
-
-})();

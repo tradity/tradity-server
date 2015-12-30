@@ -1,15 +1,15 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var Q = require('q');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const _ = require('lodash');
+const Q = require('q');
+const testHelpers = require('./test-helpers.js');
 
 describe('chats', function() {
-  var socket, user;
+  let socket, user;
 
   before(function() {
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -23,18 +23,18 @@ describe('chats', function() {
       return socket.emit('chat-get', {
         failOnMissing: true,
         endpoints: [ user.uid, user.uid + 1 ]
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'chat-get-notfound');
       });
     });
     
     it('Should create chats when appropiate and return identical ones later', function() {
-      var endpoints, chatid, laterAddedUser;
-      var chatMessageContent = 'Hi!';
+      let endpoints, chatid, laterAddedUser;
+      const chatMessageContent = 'Hi!';
       
       return socket.emit('list-all-users', {
         __sign__: true,
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'list-all-users-success');
         
         endpoints = _.pluck(res.results.slice(0, 3), 'uid');
@@ -43,7 +43,7 @@ describe('chats', function() {
         return socket.emit('chat-get', {
           endpoints: endpoints
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'chat-get-success');
         assert.ok(res.chat);
         assert.ok(res.chat.chatstartevent);
@@ -53,13 +53,13 @@ describe('chats', function() {
           eventid: res.chat.chatstartevent,
           comment: chatMessageContent
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'comment-success');
         
         return socket.emit('chat-get', {
           endpoints: endpoints
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'chat-get-success');
         assert.ok(res.chat);
         assert.equal(res.chat.chatid, chatid);
@@ -70,13 +70,13 @@ describe('chats', function() {
           chatid: chatid,
           uid: laterAddedUser
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'chat-adduser-success');
         
         return socket.emit('chat-get', {
           endpoints: endpoints.concat([laterAddedUser])
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'chat-get-success');
         assert.ok(res.chat);
         assert.equal(res.chat.chatid, chatid);
@@ -84,13 +84,13 @@ describe('chats', function() {
         return socket.emit('chat-get', {
           endpoints: endpoints
         });
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'chat-get-success');
         assert.ok(res.chat);
         assert.notEqual(res.chat.chatid, chatid);
         
         return socket.emit('list-all-chats');
-      }).then(function(res) {
+      }).then(res => {
         assert.equal(res.code, 'list-all-chats-success');
         assert.ok(res.chats[chatid]);
         

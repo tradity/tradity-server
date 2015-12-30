@@ -1,9 +1,9 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var testHelpers = require('./test-helpers.js');
-var socket, user;
+const assert = require('assert');
+const _ = require('lodash');
+const testHelpers = require('./test-helpers.js');
+let socket, user;
 
 before(function() {
   return testHelpers.standardSetup().then(data => {

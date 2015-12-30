@@ -1,11 +1,11 @@
-(function () { "use strict";
+"use strict";
 
-var commonUtil = require('tradity-connection');
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var debug = require('debug')('sotrade:admin');
-var buscomponent = require('./stbuscomponent.js');
+const commonUtil = require('tradity-connection');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const debug = require('debug')('sotrade:admin');
+const buscomponent = require('./stbuscomponent.js');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -37,7 +37,7 @@ class Admin extends buscomponent.BusComponent {
  * @function module:admin~_reqpriv
  */
 function _reqpriv (required, f) {
-  var requiredPermission = required;
+  const requiredPermission = required;
   
   return function(query, ctx, xdata) {
     if (ctx.user === null || !ctx.access.has(requiredPermission))
@@ -144,7 +144,7 @@ Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-u
       throw new this.SoTradeClientError('impersonate-user-notfound');
   
     return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid]);
-  }).then(function() {
+  }).then(() => {
     return { code: 'impersonate-user-success', extra: 'repush' };
   });
 }));
@@ -160,7 +160,7 @@ Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-u
  * @function c2s~delete-user
  */
 Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
-  var uid = parseInt(query.uid);
+  const uid = parseInt(query.uid);
   if (uid != uid) // NaN
     throw new this.FormatError();
   
@@ -275,7 +275,7 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
       'srcuser': ctx.user.uid,
       'everyone': true
     });
-  }).then(function() {
+  }).then(() => {
     return { code: 'notify-all-success' };
   });
 }));
@@ -297,7 +297,7 @@ Admin.prototype.notifyAll = buscomponent.provideWQT('client-notify-all', _reqpri
 Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', _reqpriv('schooldb', function(query, ctx) {
   query.schoolpath = String(query.schoolpath || '/').toLowerCase();
   
-  var oldpath;
+  let oldpath;
   return ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.schoolid)]).then(r => {
     if (r.length == 0)
       throw new this.SoTradeClientError('rename-school-notfound');
@@ -320,13 +320,13 @@ Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', 
     
     return ctx.query('UPDATE schools SET name = ? WHERE schoolid = ?',
       [String(query.schoolname), parseInt(query.schoolid)]);
-  }).then(function() {
+  }).then(() => {
     if (query.schoolpath == '/')
       return;
       
     return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ? OR path = ?',
       [query.schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
-  }).then(function() {
+  }).then(() => {
     return { code: 'rename-school-success' };
   });
 }));
@@ -373,7 +373,7 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
         
         if (ssr[0].c > 0)
           throw new this.SoTradeClientError('join-schools-delete-nosubschools');
-      }).then(function() {
+      }).then(() => {
         return Promise.all([
           ctx.query('DELETE FROM schoolmembers WHERE schoolid = ?', [query.subschool]),
           ctx.query('DELETE FROM feedblogs WHERE schoolid = ?', [query.subschool]),
@@ -396,7 +396,7 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
     }
   })).then(function() {
     return ctx.query('DELETE FROM schools WHERE schoolid = ?', [query.subschool]);
-  }).then(function() {
+  }).then(() => {
     return { code: 'join-schools-success' };
   });
 }));
@@ -423,7 +423,7 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
     'WHERE s.leader = ?', [parseInt(query.uid)]).then(res => {
     
     /* backwards compatibility */
-    for (var i = 0; i < res.length; ++i)
+    for (let i = 0; i < res.length; ++i)
       res[i].id = res[i].uid;
     
     return { code: 'get-followers-success', results: res };
@@ -462,11 +462,11 @@ Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-
  * @function c2s~get-ticks-statistics
  */
 Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-statistics', _reqpriv('userdb', function(query, ctx) {
-  var now = Math.floor(Date.now() / 1000);
-  var todayStart = now - now % 86400;
-  var ndays = parseInt(query.ndays) || 365;
-  var timespanStart = todayStart - ndays * 86400;
-  var dt = 300;
+  const now = Math.floor(Date.now() / 1000);
+  const todayStart = now - now % 86400;
+  const ndays = parseInt(query.ndays) || 365;
+  const timespanStart = todayStart - ndays * 86400;
+  const dt = 300;
   
   debug('Fetching ticks statistics');
   
@@ -480,5 +480,3 @@ Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-st
 }));
 
 exports.Admin = Admin;
-
-})();

@@ -1,13 +1,13 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var request = require('request');
-var debug = require('debug')('sotrade:stockloader');
+const _ = require('lodash');
+const util = require('util');
+const request = require('request');
+const debug = require('debug')('sotrade:stockloader');
 const promiseUtil = require('../lib/promise-util.js');
 
-var MAXLEN_DEFAULT = 196;
-var CACHE_TIME_DEFAULT = 25000;
+const MAXLEN_DEFAULT = 196;
+const CACHE_TIME_DEFAULT = 25000;
 
 class AbstractLoader extends promiseUtil.EventEmitter {
   constructor(opt) {
@@ -35,9 +35,9 @@ class AbstractLoader extends promiseUtil.EventEmitter {
   };
 
   _makeQuoteRequest(stocklist) {
-    var cachedResults = [];
+    let cachedResults = [];
     stocklist = stocklist.filter(stockid => {
-      var cv = this.cache['s-' + stockid];
+      const cv = this.cache['s-' + stockid];
       if (cv) {
         if (cv.fetchTime > Date.now() - this.cacheTime) {
           cachedResults.push(this._handleRecord(cv, true));
@@ -55,22 +55,22 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     
     // split stocklist into groups of maximum length maxlen
     // and flatten the resulting chunked array of records
-    var chunkedStocklist = _.chunk(stocklist, this.maxlen);
+    const chunkedStocklist = _.chunk(stocklist, this.maxlen);
     
     debug('Fetching stock list', stocklist.length, chunkedStocklist.length + ' chunks');
     
     return Promise.all(chunkedStocklist.map(chunk => {
       return this._makeQuoteRequestFetch(chunk);
     })).then(recordListChunks => {
-      var fetchedRecordList = _.flatten(recordListChunks);
+      const fetchedRecordList = _.flatten(recordListChunks);
       
-      var receivedStocks = [];
+      const receivedStocks = [];
       fetchedRecordList.forEach(record => {
         if (record.isin) receivedStocks.push(record.isin);
         if (record.wkn)  receivedStocks.push(record.wkn);
       });
       
-      var notReceivedStocks = _.difference(stocklist, receivedStocks);
+      const notReceivedStocks = _.difference(stocklist, receivedStocks);
       notReceivedStocks.forEach(failedName => {
         return this._handleRecord({failure: failedName}, false);
       });
@@ -117,5 +117,3 @@ class AbstractLoader extends promiseUtil.EventEmitter {
 }
 
 exports.AbstractLoader = AbstractLoader;
-
-})();

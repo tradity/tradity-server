@@ -1,12 +1,12 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var buscomponent = require('./stbuscomponent.js');
-var deepupdate = require('./lib/deepupdate.js');
-var debug = require('debug')('sotrade:db');
-var debugSQL = require('debug')('sotrade:db:SQL');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const buscomponent = require('./stbuscomponent.js');
+const deepupdate = require('./lib/deepupdate.js');
+const debug = require('debug')('sotrade:db');
+const debugSQL = require('debug')('sotrade:db:SQL');
 const promiseUtil = require('./lib/promise-util.js');
 
 /**
@@ -58,10 +58,10 @@ Database.prototype._init = function() {
     this.rConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
     this.writableNodes = [];
     
-    for (var i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
-      var id = cfg.db.clusterOptions.order[i];
+    for (let i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
+      const id = cfg.db.clusterOptions.order[i];
       assert.ok(cfg.db.cluster[id]);
-      var opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
+      const opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
       
       if (opt.ssl === 'default')
         opt.ssl = cfg.ssl || {};
@@ -148,7 +148,7 @@ Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [
 Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly'],
   buscomponent.needsInit(function(query, args, readonly)
 {
-  var origArgs = arguments;
+  const origArgs = arguments;
   
   if (typeof readonly !== 'boolean')
     readonly = (query.trim().indexOf('SELECT') == 0);
@@ -175,16 +175,16 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
  * @function module:dbbackend~Database#_getConnection
  */
 Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly) {
-  var pool = readonly ? this.rConnectionPool : this.wConnectionPool;
+  const pool = readonly ? this.rConnectionPool : this.wConnectionPool;
   assert.ok(pool);
   
   return promiseUtil.ncall(pool.getConnection.bind(pool))().then(conn => {
     this.openConnections++;
   
     assert.ok(conn);
-    var id = this.id++;
+    const id = this.id++;
     
-    var release = () => {
+    const release = () => {
       this.openConnections--;
       
       if (this.openConnections == 0 && this.isShuttingDown)
@@ -193,16 +193,16 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
       return conn.release();
     };
     
-    var query = (q, args) => {
+    const query = (q, args) => {
       this.queryCount++;
       
-      var rollback = () => {
+      const rollback = () => {
         if (!readonly)
           return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
       };
       
-      var deferred = Promise.defer();
-      var startTime = Date.now();
+      const deferred = Promise.defer();
+      const startTime = Date.now();
       conn.query(q, args, (err, res) => {
         debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
           (res && typeof res.length != 'undefined' ? res.length + ' results' :
@@ -218,7 +218,7 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
           return deferred.resolve(Promise.resolve().then(restart));
         }
         
-        var exception = null;
+        let exception = null;
         
         if (!err) {
           try {
@@ -238,8 +238,8 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
           
           if (err) {
             // query-related error
-            var datajson = JSON.stringify(args);
-            var querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
+            const datajson = JSON.stringify(args);
+            const querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
           
             this.emitError(q ? new Error(
               err + '\nCaused by ' + querydesc
@@ -298,5 +298,3 @@ Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
 });
 
 exports.Database = Database;
-
-})();

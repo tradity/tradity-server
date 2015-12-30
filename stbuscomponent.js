@@ -1,9 +1,9 @@
-(function () { "use strict";
+"use strict";
 
-var util = require('util');
-var _ = require('lodash');
+const util = require('util');
+const _ = require('lodash');
 
-var buscomponent = require('./bus/buscomponent.js');
+const buscomponent = require('./bus/buscomponent.js');
 
 /**
  * Provides Tradity-specific extensions to the general {@link module:buscomponent} module
@@ -41,7 +41,7 @@ function txwrap(tables, options, fn) {
   
   return function() {
     // fn(query, ctx[, xdata, …])
-    var ctx = arguments[1];
+    let ctx = arguments[1];
     ctx = ctx.clone().enterTransactionOnQuery(tables, options);
     arguments[1] = ctx;
     
@@ -53,7 +53,7 @@ exports.provide   = buscomponent.provide;
 exports.listener  = buscomponent.listener;
 exports.needsInit = buscomponent.needsInit;
 
-var provide = buscomponent.provide;
+const provide = buscomponent.provide;
 
 function provideW(name, args, fn) {
   fn.needsWriting = true;
@@ -77,7 +77,7 @@ exports.provideTXQT = provideTXQT;
 
 // inheriting from Error is pretty ugly
 function SoTradeClientError(code, msg) {
-  var tmp = Error.call(this, code);
+  const tmp = Error.call(this, code);
   tmp.name = this.name = 'SoTradeClientError';
   this.message = msg || tmp.message;
   this.code = code;
@@ -87,7 +87,7 @@ function SoTradeClientError(code, msg) {
   return this;
 };
 
-var IntermediateInheritor = function() {};
+const IntermediateInheritor = function() {};
 IntermediateInheritor.prototype = Error.prototype;
 SoTradeClientError.prototype = new IntermediateInheritor();
 
@@ -112,4 +112,3 @@ util.inherits(FormatError, SoTradeClientError);
 STBusComponent.prototype.FormatError = FormatError;
 
 exports.BusComponent = STBusComponent;
-})();

@@ -1,15 +1,15 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var http = require('http');
-var https = require('https');
-var assert = require('assert');
-var sha256 = require('./lib/sha256.js');
-var deepupdate = require('./lib/deepupdate.js');
-var qctx = require('./qctx.js');
-var buscomponent = require('./stbuscomponent.js');
-var debug = require('debug')('sotrade:fsdb');
+const _ = require('lodash');
+const util = require('util');
+const http = require('http');
+const https = require('https');
+const assert = require('assert');
+const sha256 = require('./lib/sha256.js');
+const deepupdate = require('./lib/deepupdate.js');
+const qctx = require('./qctx.js');
+const buscomponent = require('./stbuscomponent.js');
+const debug = require('debug')('sotrade:fsdb');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -42,15 +42,15 @@ class FileStorage extends buscomponent.BusComponent {
  * @function busreq~handleFSDBRequest
  */
 FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['request', 'result', 'requestURL'], function(req, res, reqURL) {
-  var ctx = new qctx.QContext({parentComponent: this});
+  const ctx = new qctx.QContext({parentComponent: this});
   return this.getServerConfig().then(cfg => {
   
-  var fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
+  const fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
   
   if (!fsmatch)
     return false;
   
-  var filename = fsmatch[fsmatch.length - 1];
+  const filename = fsmatch[fsmatch.length - 1];
   
   debug('Requested file', filename);
   
@@ -63,9 +63,9 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
     
     assert.equal(rows.length, 1);
     
-    var r = rows[0];
+    const r = rows[0];
     
-    var headers = {
+    const headers = {
       'Date': new Date().toString(),
       'Access-Control-Allow-Origin': '*',
       'X-Sotrade-Hash': r.hash,
@@ -77,11 +77,11 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
     };
     
     return (r.proxy ? cont => {
-      var proxyURL = r.content.toString('utf8');
+      const proxyURL = r.content.toString('utf8');
       
-      var httpx = proxyURL.match(/^https/) ? https : http;
-      var preq = httpx.request(proxyURL, pres => {
-        var pheaders = _.pick(pres.headers, 'cache-control', 'expires', 'last-modified', 'source-age', 'content-type');
+      const httpx = proxyURL.match(/^https/) ? https : http;
+      const preq = httpx.request(proxyURL, pres => {
+        const pheaders = _.pick(pres.headers, 'cache-control', 'expires', 'last-modified', 'source-age', 'content-type');
         
         _.each(pheaders, (value, key) => {
           headers[key.replace(/(-|^)\w/g, w => w.toUpperCase())] = value;
@@ -163,8 +163,8 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   if (ctx.getProperty('readonly'))
     throw new this.SoTradeClientError('server-readonly');
   
-  var content = query.content;
-  var uniqrole, filehash, filename, url, content;
+  let content = query.content;
+  let uniqrole, filehash, filename, url;
   
   debug('Upload file', query.mime, query.role);
   
@@ -182,7 +182,7 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   
   return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
     [ctx.user ? ctx.user.uid : null]).then(res => {
-    var total = uniqrole ? 0 : res[0].total;
+    const total = uniqrole ? 0 : res[0].total;
     
     if (!ctx.access.has('filesystem')) {
       if (content.length + total > cfg.fsdb.userquota)
@@ -191,20 +191,20 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
         throw new this.SoTradeClientError('publish-inacceptable-role');
         
       if (query.proxy) {
-        var hasRequiredAccess = false;
+        let hasRequiredAccess = false;
         
-        for (var i = 0; i < cfg.fsdb.allowProxyURIs.length && !hasRequiredAccess; ++i) {
-          var p = cfg.fsdb.allowProxyURIs[i];
+        for (let i = 0; i < cfg.fsdb.allowProxyURIs.length && !hasRequiredAccess; ++i) {
+          const p = cfg.fsdb.allowProxyURIs[i];
           assert.ok(p.regex);
           assert.ok(p.requireAccess);
           
-          var match = query.content.match(p.regex);
+          const match = query.content.match(p.regex);
           if (match) {
             if (typeof p.requireAccess == 'function') {
               hasRequiredAccess = p.requireAccess(ctx, match);
             } else {
               hasRequiredAccess = p.requireAccess.length == 0;
-              for (var i = 0; i < p.requireAccess.length; ++i) {
+              for (let i = 0; i < p.requireAccess.length; ++i) {
                 if (ctx.access.has(p.requireAccess[i])) {
                   hasRequiredAccess = true;
                   break;
@@ -233,11 +233,11 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
     groupassoc = parseInt(groupassoc) == groupassoc ? parseInt(groupassoc) : null;
     
     if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
-      var sql = 'DELETE FROM httpresources WHERE role = ? ';
-      var dataarr = [String(query.role)];
+      let sql = 'DELETE FROM httpresources WHERE role = ? ';
+      let dataarr = [String(query.role)];
       
-      for (var i = 0; i < uniqrole.length; ++i) {
-        var fieldname = uniqrole[i];
+      for (let i = 0; i < uniqrole.length; ++i) {
+        const fieldname = uniqrole[i];
         sql += 'AND `' + fieldname + '` = ? ';
         
         switch (fieldname) {
@@ -270,5 +270,3 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
 });
 
 exports.FileStorage = FileStorage;
-
-})();

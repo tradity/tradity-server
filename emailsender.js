@@ -1,15 +1,15 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var nodemailer = require('nodemailer');
-var commonUtil = require('tradity-connection');
-var debug = require('debug')('sotrade:emailsender');
-var sha256 = require('./lib/sha256.js');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const nodemailer = require('nodemailer');
+const commonUtil = require('tradity-connection');
+const debug = require('debug')('sotrade:emailsender');
+const sha256 = require('./lib/sha256.js');
 const promiseUtil = require('./lib/promise-util.js');
-var buscomponent = require('./stbuscomponent.js');
-var qctx = require('./qctx.js');
+const buscomponent = require('./stbuscomponent.js');
+const qctx = require('./qctx.js');
 
 /**
  * Provides methods for sending e-mails.
@@ -34,7 +34,7 @@ class Mailer extends buscomponent.BusComponent {
 
 Mailer.prototype._init = function() {
   return this.getServerConfig().then(cfg => {
-    var transportModule = require(cfg.mail.transport);
+    const transportModule = require(cfg.mail.transport);
     this.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
     this.inited = true;
   });
@@ -108,7 +108,7 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
   
   debug('Email bounced', query.messageId);
   
-  var mail;
+  let mail;
   return ctx.startTransaction().then(conn => {
     return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
       [String(query.messageId)]).then(r => {
@@ -157,7 +157,7 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
   ['opt', 'ctx', 'template', 'mailtype', 'uid'],
   buscomponent.needsInit(function(opt, ctx, template, mailtype, uid)
 {
-  var shortId;
+  let shortId;
   
   assert.ok(this.mailer);
   
@@ -192,6 +192,3 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
 }));
 
 exports.Mailer = Mailer;
-
-})();
-

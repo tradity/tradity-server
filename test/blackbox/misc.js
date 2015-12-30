@@ -1,12 +1,12 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var Q = require('q');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const _ = require('lodash');
+const Q = require('q');
+const testHelpers = require('./test-helpers.js');
 
 describe('misc', function() {
-  var socket, user;
+  let socket, user;
 
   before(function() {
     return testHelpers.standardSetup().then(data => {
@@ -31,7 +31,7 @@ describe('misc', function() {
   
   describe('set-client-storage', function() {
     it('Should save information in arbitrary Buffers', function() {
-      var buf = new Buffer(_.range(0, 256));
+      const buf = new Buffer(_.range(0, 256));
       
       return socket.emit('set-clientstorage', {
         storage: buf

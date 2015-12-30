@@ -1,12 +1,12 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var fs = require('fs');
-var crypto = require('crypto');
-var assert = require('assert');
-var debug = require('debug')('sotrade:signedmsg');
-var buscomponent = require('./stbuscomponent.js');
+const _ = require('lodash');
+const util = require('util');
+const fs = require('fs');
+const crypto = require('crypto');
+const assert = require('assert');
+const debug = require('debug')('sotrade:signedmsg');
+const buscomponent = require('./stbuscomponent.js');
 
 /**
  * Provides methods for signing and verifying messages
@@ -70,13 +70,13 @@ SignedMessaging.prototype.useConfig = function(cfg) {
  * @function busreq~createSignedMessage
  */
 SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg'], function(msg) {
-  var string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
-  var sign = crypto.createSign('RSA-SHA256');
+  const string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
+  const sign = crypto.createSign('RSA-SHA256');
   
   return new Promise((resolve, reject) => {
     assert.ok(this.privateKey);
     sign.end(string, null, () => {
-      var signed = string + '~' + sign.sign(this.privateKey, 'base64');
+      const signed = string + '~' + sign.sign(this.privateKey, 'base64');
       return resolve(signed);
     });
   });
@@ -98,19 +98,19 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
 SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage',
   ['msg', 'maxAge'], function(msg, maxAge) 
 {
-  var msg_ = msg.split('~');
+  const msg_ = msg.split('~');
   if (msg_.length != 2)
     return null;
   
-  var string = msg_[0], signature = msg_[1];
+  const string = msg_[0], signature = msg_[1];
   
   return new Promise((resolve, reject) => {
     const verifySingleKey = i => {
       if (i == this.publicKeys.length)
         return resolve(null); // no key matched
       
-      var pubkey = this.publicKeys[i];
-      var verify = crypto.createVerify('RSA-SHA256');
+      const pubkey = this.publicKeys[i];
+      const verify = crypto.createVerify('RSA-SHA256');
       
       return verify.end(string, null, () => {
         if (verify.verify(pubkey, signature, 'base64')) {
@@ -119,8 +119,8 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
           // move current public key to first position (lru caching)
           this.publicKeys.splice(0, 0, this.publicKeys.splice(i, 1)[0]);
           
-          var stringparsed = string.split('#');
-          var objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
+          const stringparsed = string.split('#');
+          const objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
           
           if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
             return resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
@@ -140,7 +140,7 @@ exports.SignedMessaging = SignedMessaging;
 
 /* small test script */
 if (require.main === module) {
-  var smdb = new SignedMessaging();
+  const smdb = new SignedMessaging();
   smdb.privateKey = '-----BEGIN RSA PRIVATE KEY-----\n' +
   'MIIEogIBAAKCAQEA1+x4pXKTYzlg7kb6dpQ0TX8HhDF7L6G0Jg0whCy6ssCZgLKX\n' +
   'a5t/Fp0Zv1SI7DzUVswCyxHs2Yi/tBE8Vw+PAltsC127I2uabReueCaEFfOs4e+7\n' +
@@ -181,7 +181,7 @@ if (require.main === module) {
     '-----END PUBLIC KEY-----'
   ];
   
-  var message = {
+  const message = {
     apeWants: 'BANANA'
   };
   
@@ -192,5 +192,3 @@ if (require.main === module) {
     console.log('message.apeWants =', message.apeWants);
   });
 }
-
-})();

@@ -1,11 +1,11 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var debug = require('debug')('sotrade:chats');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const debug = require('debug')('sotrade:chats');
 
-var buscomponent = require('./stbuscomponent.js');
+const buscomponent = require('./stbuscomponent.js');
 
 /**
  * Provides methods for in-game chat messaging.
@@ -69,8 +69,8 @@ class Chats extends buscomponent.BusComponent {
  * @function c2s~chat-get
  */
 Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx) {
-  var whereString = '';
-  var params = [];
+  let whereString = '';
+  let params = [];
   
   if (!query.endpoints || !query.endpoints.length) {
     if (!query.chatid || parseInt(query.chatid) != query.chatid)
@@ -83,8 +83,8 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
       throw new this.FormatError();
     
     var containsOwnChats = false;
-    for (var i = 0; i < query.endpoints.length; ++i) {
-      var uid = query.endpoints[i];
+    for (let i = 0; i < query.endpoints.length; ++i) {
+      const uid = query.endpoints[i];
       containsOwnChats = containsOwnChats || (uid == ctx.user.uid);
       if (parseInt(uid) != uid)
         throw new this.FormatError();
@@ -93,8 +93,8 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
     if (!containsOwnChats && ctx.user)
       query.endpoints.push(ctx.user.uid);
     
-    var endpointsList = query.endpoints.join(',');
-    var numEndpoints = query.endpoints.length;
+    const endpointsList = query.endpoints.join(',');
+    const numEndpoints = query.endpoints.length;
     
     whereString += 
       ' (SELECT COUNT(*) FROM chatmembers AS cm JOIN users ON users.uid = cm.uid WHERE cm.chatid = c.chatid ' +
@@ -104,7 +104,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
     params.push(numEndpoints, numEndpoints);
   }
   
-  var chatid, chat;
+  let chatid, chat;
   return ctx.query('SELECT chatid, eventid AS chatstartevent ' + 
     'FROM chats AS c ' +
     'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
@@ -128,9 +128,9 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
       return ctx.query('INSERT INTO chats(creator) VALUE(?)', [ctx.user.uid]).then(res => {
         chatid = res.insertId;
         
-        var members = [];
-        var memberValues = [];
-        for (var i = 0; i < query.endpoints.length; ++i) {
+        const members = [];
+        const memberValues = [];
+        for (let i = 0; i < query.endpoints.length; ++i) {
           members.push('(?, ?, UNIX_TIMESTAMP())');
           memberValues.push(res.insertId);
           memberValues.push(String(query.endpoints[i]));
@@ -177,8 +177,8 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
     assert.ok(endpoints.length > 0);
     chat.endpoints = endpoints;
     
-    var ownChatsIsEndpoint = false;
-    for (var i = 0; i < chat.endpoints.length; ++i) {
+    let ownChatsIsEndpoint = false;
+    for (let i = 0; i < chat.endpoints.length; ++i) {
       if (chat.endpoints[i].uid == ctx.user.uid) {
         ownChatsIsEndpoint = true;
         break;
@@ -231,7 +231,7 @@ Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', 
   if (parseInt(query.uid) != query.uid || parseInt(query.chatid) != query.chatid)
     throw new this.FormatError();
   
-  var username, chat;
+  let username, chat;
   
   return ctx.query('SELECT name FROM users WHERE uid = ? LOCK IN SHARE MODE', [query.uid]).then(res => {
     if (res.length == 0)
@@ -245,7 +245,7 @@ Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', 
       failOnMissing: true
     }, ctx);
   }).then(getChatsResult => {
-    var status = getChatsResult.code;
+    const status = getChatsResult.code;
     switch (status) {
       case 'chat-get-notfound':
         throw new this.SoTradeClientError('chat-adduser-chat-notfound');
@@ -259,7 +259,7 @@ Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', 
     
     return ctx.query('INSERT INTO chatmembers (chatid, uid) VALUES (?, ?)', [query.chatid, query.uid]);
   }).then(r => {
-    var feedusers = _.pluck(chat.endpoints, 'uid');
+    const feedusers = _.pluck(chat.endpoints, 'uid');
     feedusers.push(query.uid);
     
     return ctx.feed({
@@ -293,9 +293,9 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
     'JOIN users AS creator_u ON c.creator = creator_u.uid ' +
     'JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" ' +
     'WHERE cmi.uid = ?', [ctx.user.uid]).then(res => {
-    var ret = {};
+    const ret = {};
     
-    for (var i = 0; i < res.length; ++i) {
+    for (let i = 0; i < res.length; ++i) {
       if (!ret[res[i].chatid]) {
         ret[res[i].chatid] = _.pick(res[i], 'chatid', 'creator', 'creatorname', 'chatstartevent');
         ret[res[i].chatid].members = [];
@@ -314,5 +314,3 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
 });
 
 exports.Chats = Chats;
-
-})();

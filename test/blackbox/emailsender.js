@@ -1,11 +1,11 @@
 'use strict';
 
-var assert = require('assert');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const testHelpers = require('./test-helpers.js');
 
 if (!testHelpers.testPerformance)
 describe('emailsender', function() {
-  var socket, user;
+  let socket, user;
 
   before(function() {
     return testHelpers.standardSetup().then(data => {

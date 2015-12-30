@@ -1,22 +1,21 @@
 'use strict';
 
-var assert = require('assert');
-var _ = require('lodash');
-var testHelpers = require('./test-helpers.js');
+const assert = require('assert');
+const _ = require('lodash');
+const testHelpers = require('./test-helpers.js');
 
 describe('questionnaires', function() {
-  var socket, user;
-  var random;
+  let socket, user, random;
   
   before(function() {
-    var seed = Math.random();
+    const seed = Math.random();
     
     random = function() {
-      var x = Math.sin(seed++) * 100000;
+      const x = Math.sin(seed++) * 100000;
       return x - Math.floor(x);
     };
     
-    return testHelpers.standardSetup().then(function(data) {
+    return testHelpers.standardSetup().then(data => {
       socket = data.socket;
       user = data.user;
     });
@@ -27,7 +26,7 @@ describe('questionnaires', function() {
 
   describe('list-questionnaires', function() {
     it('Should return a list of questionnaires', function() {
-      return socket.emit('list-questionnaires').then(function(res) {
+      return socket.emit('list-questionnaires').then(res => {
         assert.equal(res.code, 'list-questionnaires-success');
       });
     });
@@ -35,29 +34,29 @@ describe('questionnaires', function() {
   
   describe('save-questionnaire-feed', function() {
     it('Should save a questionnaire’s results', function() {
-      return socket.emit('list-questionnaires').then(function(data) {
+      return socket.emit('list-questionnaires').then(data => {
         assert.equal(data.code, 'list-questionnaires-success');
         
-        var startTime = Date.now();
+        const startTime = Date.now();
         
-        var questionnaireIDs = Object.keys(data.questionnaires);
+        const questionnaireIDs = Object.keys(data.questionnaires);
         if (questionnaireIDs.length == 0)
           return;
         
-        var questionnaireLangs = data.questionnaires[questionnaireIDs[parseInt(random() * questionnaireIDs.length)]];
-        var languages = Object.keys(questionnaireLangs).filter(function(s) { return s != 'questionnaire_id'; });
+        const questionnaireLangs = data.questionnaires[questionnaireIDs[parseInt(random() * questionnaireIDs.length)]];
+        const languages = Object.keys(questionnaireLangs).filter(function(s) { return s != 'questionnaire_id'; });
         assert.ok(languages.length > 0);
         
-        var lang = languages[parseInt(random() * languages.length)];
+        const lang = languages[parseInt(random() * languages.length)];
         
-        var questionnaire = questionnaireLangs[lang];
+        const questionnaire = questionnaireLangs[lang];
         assert.ok(questionnaire);
         assert.equal(questionnaire.questionnaire_id, questionnaireLangs.questionnaire_id);
         assert.ok(questionnaire.qtext);
         assert.ok(questionnaire.questions);
         assert.ok(questionnaire.questions.length > 0);
         
-        var results = questionnaire.questions.map(function(qn) {
+        const results = questionnaire.questions.map(function(qn) {
           assert.ok(qn.qtext);
           assert.equal(typeof qn.question_id, 'number');
           assert.equal(typeof qn.order, 'number');
@@ -68,7 +67,7 @@ describe('questionnaires', function() {
             assert.equal(typeof answer.order, 'number');
           });
           
-          var answerSet;
+          let answerSet;
           
           if (qn.question_multiple_answers) {
             answerSet = qn.answers.filter(function(answer) {
@@ -81,7 +80,7 @@ describe('questionnaires', function() {
           return {
             question: qn.question_id,
             answers: answerSet.map(function(answer) {
-              var ret = { answer: answer.answer_id };
+              const ret = { answer: answer.answer_id };
               if (answer.answer_freetext)
                 ret.text = 'Banana';
               return ret;
@@ -94,11 +93,11 @@ describe('questionnaires', function() {
           questionnaire: questionnaire.questionnaire_id,
           fill_time: Date.now() - startTime,
           fill_language: lang
-        }).then(function(data) {
+        }).then(data => {
           assert.equal(data.code, 'save-questionnaire-success');
           
           return socket.emit('list-questionnaires');
-        }).then(function(data) {
+        }).then(data => {
           assert.equal(data.code, 'list-questionnaires-success');
           
           assert.equal(Object.keys(data.questionnaires).map(parseInt).indexOf(questionnaire.questionnaire_id), -1);

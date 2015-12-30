@@ -1,11 +1,11 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var WP = require('wordpress-rest-api');
-var buscomponent = require('./stbuscomponent.js');
-var debug = require('debug')('sotrade:wordpress-feed');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const WP = require('wordpress-rest-api');
+const buscomponent = require('./stbuscomponent.js');
+const debug = require('debug')('sotrade:wordpress-feed');
 
 /**
  * Provides methods for reading posts from a wordpress blog
@@ -49,8 +49,8 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
     'WHERE feedblogs.active ' +
     'GROUP BY blogid FOR UPDATE').then(function(res) {
     return Promise.all(res.map(function(bloginfo) {
-      var wp = new WP({endpoint: bloginfo.endpoint});
-      var catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
+      const wp = new WP({endpoint: bloginfo.endpoint});
+      const catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
       
       debug('Fetching blog posts', bloginfo.endpoint, bloginfo.category);
       
@@ -81,7 +81,7 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
         }));
       });
     }));
-  }).then(function() {
+  }).then(() => {
     debug('Done processing feeds');
     return { code: 'process-wordpress-feed-success' };
   });
@@ -131,39 +131,37 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
  * @function c2s~add-wordpress-feed
  */
 WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-wordpress-feed', function(query, ctx) {
-  var self = this;
-  
   if (ctx.access.has('wordpress') == -1)
-    throw new self.PermissionDenied();
+    throw new this.PermissionDenied();
     
   query.schoolid = query.schoolid ? parseInt(query.schoolid) : null;
   query.category = query.category ? String(query.category) : null;
   
   if (query.schoolid != query.schoolid)
-    throw new self.FormatError();
+    throw new this.FormatError();
   
   debug('Add feed', query.schoolid, query.category);
   
-  return ctx.query('SELECT endpoint, bloguser FROM feedblogs WHERE schoolid IS NULL LIMIT 1').then(function(res) {
+  return ctx.query('SELECT endpoint, bloguser FROM feedblogs WHERE schoolid IS NULL LIMIT 1').then(res => {
     if (res.length > 0) {
       assert.ok(res[0].endpoint);
       assert.ok(parseInt(res[0].bloguser) == res[0].bloguser);
     }
     
     if ((!query.endpoint || query.bloguser == null) && res.length == 0) {
-      throw new self.SoTradeClientError('add-wordpress-feed-missingdata');
+      throw new this.SoTradeClientError('add-wordpress-feed-missingdata');
     }
     
     query.endpoint = query.endpoint ? String(query.endpoint) : res[0].endpoint;
     query.bloguser = query.bloguser != null ? parseInt(query.bloguser) : res[0].bloguser;
     if (query.bloguser != query.bloguser)
-      throw new self.FormatError();
+      throw new this.FormatError();
     
     debug('Insert feed', query.schoolid, query.category, query.endpoint, query.bloguser);
     
     return ctx.query('INSERT INTO feedblogs (endpoint, category, schoolid, bloguser, active) VALUES(?, ?, ?, ?, 1)',
       [query.endpoint, query.category, query.schoolid, query.bloguser]);
-  }).then(function() {
+  }).then(() => {
     return { code: 'add-wordpress-feed-success' };
   });
 });
@@ -196,5 +194,3 @@ WordpressFeed.prototype.removeWordpressFeed = buscomponent.provideWQT('client-re
 });
 
 exports.WordpressFeed = WordpressFeed;
-
-})();

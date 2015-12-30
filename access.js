@@ -34,7 +34,7 @@ class Access {
    * @function module:access~Access#clone
    */
   clone() {
-    var a = new Access();
+    const a = new Access();
     a.areas = this.areas.slice();
     a.hasAnyAccess = this.hasAnyAccess;
     return a;
@@ -96,7 +96,7 @@ class Access {
     if (otherAccess.hasAnyAccess)
       this.grant('*');
     
-    for (var i = 0; i < otherAccess.areas.length; ++i)
+    for (let i = 0; i < otherAccess.areas.length; ++i)
       this.grant(otherAccess.areas[i]);
   }
 
@@ -145,7 +145,7 @@ class Access {
     if (area == '*')
       return this.dropAny();
     
-    var index;
+    let index;
     while ((index = this.areas.indexOf(area)) != -1)
       this.areas.splice(index, 1);
   }
@@ -185,17 +185,17 @@ class Access {
  * @function module:access~Access.fromJSON
  */
 Access.fromJSON = function(j) {
-  var a = new Access();
+  const a = new Access();
   if (!j)
     return a;
     
   if (j.trim() == '*') {
     a.grant('*');
   } else {
-    var p = JSON.parse(j);
+    const p = JSON.parse(j);
     
     // note that this can handle both an array and the "*" string!
-    for (var i = 0; i < p.length; ++i) 
+    for (let i = 0; i < p.length; ++i) 
       a.grant(p[i]);
   }
   

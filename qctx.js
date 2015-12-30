@@ -1,12 +1,12 @@
-(function () { "use strict";
+"use strict";
 
-var Access = require('./access.js').Access;
-var util = require('util');
-var assert = require('assert');
-var weak = require('weak');
-var buscomponent = require('./stbuscomponent.js');
-var _ = require('lodash');
-var debug = require('debug')('sotrade:qctx');
+const Access = require('./access.js').Access;
+const util = require('util');
+const assert = require('assert');
+const weak = require('weak');
+const buscomponent = require('./stbuscomponent.js');
+const _ = require('lodash');
+const debug = require('debug')('sotrade:qctx');
 
 /**
  * Provides the {@link module:qctx~QContext} object.
@@ -65,7 +65,7 @@ class QContext extends buscomponent.BusComponent {
     this.startTransactionOnQuery = null;
     this.contextTransaction = null;
     
-    var parentQCtx = null;
+    let parentQCtx = null;
     
     if (obj.parentComponent) {
       if (obj.isQContext)
@@ -115,7 +115,7 @@ QContext.getMasterQueryContext = function() {
  * @function module:qctx~QContext#clone
  */
 QContext.prototype.clone = function() {
-  var c = new QContext({
+  const c = new QContext({
     user: this.user,
     access: this.access.clone(),
     parentComponent: this
@@ -136,9 +136,9 @@ QContext.prototype.clone = function() {
  * @function module:qctx~QContext#getChildContexts
  */
 QContext.prototype.getChildContexts = function() {
-  var rv = [];
+  const rv = [];
   
-  for (var i = 0; i < this.childContexts.length; ++i) {
+  for (let i = 0; i < this.childContexts.length; ++i) {
     if (weak.isDead(this.childContexts[i]))
       delete this.childContexts[i];
     else
@@ -191,7 +191,7 @@ QContext.prototype.toJSON = function() {
  */
 exports.fromJSON =
 QContext.fromJSON = function(j, parentComponent) {
-  var ctx = new QContext({parentComponent: parentComponent});
+  const ctx = new QContext({parentComponent: parentComponent});
   if (!j)
     return ctx;
   
@@ -257,7 +257,7 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
   if (!this.hasProperty(name))
     throw new Error('Property ' + name + ' not defined yet');
   
-  var requiredAccess = this.properties[name].access;
+  const requiredAccess = this.properties[name].access;
   if (!requiredAccess) {
     hasAccess = true;
   } else if (typeof requiredAccess == 'string') {
@@ -282,9 +282,9 @@ QContext.prototype.setProperty = function(name, value, hasAccess) {
  * @function module:qctx~QContext#feed
  */
 QContext.prototype.feed = function(data) {
-  var conn = data.conn || this.contextTransaction || null;
+  let conn = data.conn || this.contextTransaction || null;
+  const onEventId = data.onEventId || (() => {});
   delete data.conn;
-  var onEventId = data.onEventId || (() => {});
   delete data.onEventId;
   
   var release = null;
@@ -313,7 +313,7 @@ QContext.prototype.feed = function(data) {
 };
 
 QContext.prototype.txwrap = function(fn) {
-  var self = this;
+  const self = this;
   
   assert.ok(self.startTransactionOnQuery);
   assert.ok(!self.contextTransaction);
@@ -343,7 +343,7 @@ QContext.prototype.enterTransactionOnQuery = function(tables, options) {
 };
 
 QContext.prototype.commit = function() {
-  var args = arguments;
+  const args = arguments;
   
   if (!this.contextTransaction)
     return Promise.resolve();
@@ -354,7 +354,7 @@ QContext.prototype.commit = function() {
 };
 
 QContext.prototype.rollback = function() {
-  var args = arguments;
+  const args = arguments;
   
   if (!this.contextTransaction)
     return Promise.resolve();
@@ -576,7 +576,7 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
     else
       init += 'LOCK TABLES ';
     
-    for (var i = 0; i < tables.length; ++i) {
+    for (let i = 0; i < tables.length; ++i) {
       var name = tables[i];
       var mode = tablelocks[name].mode || tablelocks[name];
       var alias = tablelocks[name].alias;
@@ -616,7 +616,7 @@ QContext.prototype.debug = function() {
   if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled'))
     return;
   
-  for (var i = 0; i < this.debugHandlers.length; ++i)
+  for (let i = 0; i < this.debugHandlers.length; ++i)
     this.debugHandlers[i](Array.prototype.slice.call(arguments));
 };
 
@@ -629,7 +629,7 @@ QContext.prototype.debug = function() {
 QContext.prototype.emitError = function(e) {
   this.debug('Caught error', e);
   
-  for (var i = 0; i < this.errorHandlers.length; ++i)
+  for (let i = 0; i < this.errorHandlers.length; ++i)
     this.errorHandlers[i](e);
   
   QContext.super_.prototype.emitError.call(this, e);
@@ -648,7 +648,7 @@ QContext.prototype.getStatistics = function(recurse) {
   
   var rv = {};
   
-  for (var i in this.properties)
+  for (let i in this.properties)
     rv[i] = this.properties[i].value;
   
   rv.tableLocks = _.compact(this.tableLocks);
@@ -677,5 +677,3 @@ function getStack() {
   
   return stack;
 }
-
-})();

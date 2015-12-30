@@ -1,18 +1,18 @@
-(function () { "use strict";
+"use strict";
 
-var _ = require('lodash');
-var os = require('os');
-var util = require('util');
-var assert = require('assert');
-var http = require('http');
-var https = require('https');
-var url = require('url');
-var sio = require('socket.io');
-var debug = require('debug')('sotrade:server');
-var busAdapter = require('./bus/socket.io-bus.js').busAdapter;
-var buscomponent = require('./stbuscomponent.js');
-var qctx = require('./qctx.js');
-var ConnectionData = require('./connectiondata.js').ConnectionData;
+const _ = require('lodash');
+const os = require('os');
+const util = require('util');
+const assert = require('assert');
+const http = require('http');
+const https = require('https');
+const url = require('url');
+const sio = require('socket.io');
+const debug = require('debug')('sotrade:server');
+const busAdapter = require('./bus/socket.io-bus.js').busAdapter;
+const buscomponent = require('./stbuscomponent.js');
+const qctx = require('./qctx.js');
+const ConnectionData = require('./connectiondata.js').ConnectionData;
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -76,7 +76,7 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
   if (typeof gc === 'function')
     gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
   
-  var ret = {
+  const ret = {
     pid: process.pid,
     hostname: os.hostname(),
     isBackgroundWorker: this.info.isBackgroundWorker,
@@ -117,7 +117,7 @@ SoTradeServer.prototype.start = function(port) {
   assert.ok(port);
   debug('Start listening', port);
   
-  var cfg;
+  let cfg;
   
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
@@ -152,11 +152,11 @@ SoTradeServer.prototype.start = function(port) {
 SoTradeServer.prototype.listen = function(port, host) {
   assert.ok(port);
   
-  var deferred = Promise.defer();
+  const deferred = Promise.defer();
   
-  var listenSuccess = false;
+  let listenSuccess = false;
   
-  var listenHandler = () => {
+  const listenHandler = () => {
     this.httpServer.on('error', e => this.emitError(e));
     
     listenSuccess = true;
@@ -203,7 +203,7 @@ SoTradeServer.prototype.listen = function(port, host) {
 SoTradeServer.prototype.handleHTTPRequest = function(req, res) {
   debug('HTTP Request', req.url);
   
-  var loc = url.parse(req.url, true);
+  const loc = url.parse(req.url, true);
   if (loc.pathname.match(/^(\/dynamic)?\/?ping/)) {
     res.writeHead(200, {'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*'});
     res.end('pong');
@@ -247,7 +247,7 @@ SoTradeServer.prototype.handleConnection = function(socket) {
   
   this.connectionCount++;
   
-  var d = new ConnectionData(socket);
+  const d = new ConnectionData(socket);
   assert.ok(d.cdid);
   d.setBus(this.bus, 'cdata-' + d.cdid);
   this.clients.push(d);
@@ -263,15 +263,15 @@ SoTradeServer.prototype.handleConnection = function(socket) {
 SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id'], function(id) {
   debug('Remove connection', id);
   
-  var removeClient = _.find(this.clients, client => client.cdid == id);
+  const removeClient = _.find(this.clients, client => client.cdid == id);
   
   if (removeClient) {
     this.clients = _.without(this.clients, removeClient);
     this.deadQueryCount          += removeClient.queryCount;
     
-    for (var i in removeClient.queryCompressionInfo.supported)
+    for (let i in removeClient.queryCompressionInfo.supported)
       this.deadQueryCompressionInfo.supported[i] += removeClient.queryCompressionInfo.supported[i];
-    for (var i in removeClient.queryCompressionInfo.used)
+    for (let i in removeClient.queryCompressionInfo.used)
       this.deadQueryCompressionInfo.used[i] += removeClient.queryCompressionInfo.used[i];
   }
   
@@ -314,5 +314,3 @@ SoTradeServer.prototype.dummyListener = buscomponent.listener(['push-events'], f
 });
 
 exports.SoTradeServer = SoTradeServer;
-
-})();

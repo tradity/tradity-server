@@ -1,12 +1,12 @@
-(function () { "use strict";
+"use strict";
 
-var commonUtil = require('tradity-connection');
-var deepupdate = require('./lib/deepupdate.js');
-var _ = require('lodash');
-var util = require('util');
-var assert = require('assert');
-var debug = require('debug')('sotrade:schools');
-var buscomponent = require('./stbuscomponent.js');
+const commonUtil = require('tradity-connection');
+const deepupdate = require('./lib/deepupdate.js');
+const _ = require('lodash');
+const util = require('util');
+const assert = require('assert');
+const debug = require('debug')('sotrade:schools');
+const buscomponent = require('./stbuscomponent.js');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -49,12 +49,12 @@ function _reqschooladm (f, soft, scdb, status) {
   soft = soft || false;
   
   return function(query, ctx) {
-    var forward = () => { return f.call(this, query, ctx); };
+    const forward = () => { return f.call(this, query, ctx); };
     
     if (soft && !query.schoolid)
       return forward();
     
-    var lsa = null;
+    let lsa = null;
     if (this && this.bus) lsa = this;
     if (scdb && scdb.bus) lsa = scdb;
     
@@ -107,7 +107,7 @@ Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 
     status = status || ['admin', 'xadmin'];
     
     return this.loadSchoolAdmins(schoolid, ctx).then(admins => {
-      var isAdmin = (admins.filter(a => {
+      const isAdmin = (admins.filter(a => {
         return status.indexOf(a.status) != -1 && a.adminid == ctx.user.uid;
       }).length > 0);
       return {ok: isAdmin, schoolid: isAdmin ? schoolid : null};
@@ -145,7 +145,7 @@ Schools.prototype.loadSchoolAdmins = function(schoolid, ctx) {
  * @function module:schools~Schools#loadSchoolInfo
  */
 Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
-  var s;
+  let s;
   return ctx.query('SELECT schools.schoolid, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
     'FROM schools ' +
     'LEFT JOIN events ON events.targetid = schools.schoolid AND events.type = "school-create" ' +
@@ -188,7 +188,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
         'WHERE feedblogs.schoolid = ?',
         [s.schoolid]).then(blogposts => {
           return blogposts.map(post => {
-            var expost = _.extend(post, JSON.parse(post.postjson))
+            const expost = _.extend(post, JSON.parse(post.postjson))
             delete expost.postjson;
             return expost;
           });
@@ -228,7 +228,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
     s.feedblogs = feedblogs;
     
     /* backwards compatibility */
-    for (var i = 0; i < s.popularStocks.length; ++i)
+    for (let i = 0; i < s.popularStocks.length; ++i)
       s.popularStocks[i].stockid = s.popularStocks[i].stocktextid;
     
     assert.ok(typeof parentResult.code == 'undefined' || parentResult.code == 'get-school-info-success');
@@ -504,15 +504,15 @@ Schools.prototype.createSchool = buscomponent.provideTXQT('client-create-school'
 Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', function(query, ctx) {
   query.parentPath = String(query.parentPath || '').toLowerCase();
   
-  var where = 'WHERE 1 ';
-  var params = [];
+  let where = 'WHERE 1 ';
+  let params = [];
   if (query.parentPath) {
     where = 'AND p.path LIKE ? OR p.path = ? ';
     params.push(query.parentPath + '/%', query.parentPath);
   }
   
   if (query.search) {
-    var likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
+    const likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
     
     where += 'AND (p.name LIKE ? OR p.path LIKE ?) ';
     params.push(likestring, likestring);
@@ -527,7 +527,7 @@ Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', fu
     'GROUP BY p.schoolid', params).then(results => {
     
     /* backwards compatibility */
-    for (var i = 0; i < results.length; ++i)
+    for (let i = 0; i < results.length; ++i)
       results[i].id = results[i].schoolid;
     
     return { code: 'list-schools-success', 'result': results };
@@ -578,5 +578,3 @@ Schools.prototype.createInviteLink = buscomponent.provideQT('client-create-invit
 });
 
 exports.Schools = Schools;
-
-})();

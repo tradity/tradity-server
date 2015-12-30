@@ -1,34 +1,33 @@
 #!/usr/bin/env node
-
-(function () { "use strict";
+"use strict";
 
 Error.stackTraceLimit = Infinity;
 
-var debug = require('debug')('sotrade:mailbounce');
-var minimist = require('minimist');
-var MailParser = new require('mailparser').MailParser;
-var sotradeClient = require('./sotrade-client.js');
-var socket = new sotradeClient.SoTradeConnection({ logDevCheck: false });
+const debug = require('debug')('sotrade:mailbounce');
+const minimist = require('minimist');
+const MailParser = new require('mailparser').MailParser;
+const sotradeClient = require('./sotrade-client.js');
+const socket = new sotradeClient.SoTradeConnection({ logDevCheck: false });
 
-var mail = null, serverConfigReceived = false, notifying = false;
-var diagnostic_code = '', messageId = '';
+let mail = null, serverConfigReceived = false, notifying = false;
+let diagnostic_code = '', messageId = '';
 
 function notifyServer() {
   debug('Notifying server', diagnostic_code, messageId);
   
   notifying = true;
-  return socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(function() {
+  return socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(() => {
     process.exit(0);
   });
 }
 
-var mailparser = new MailParser();
-var options = minimist(process.argv.slice(2), {
+const mailparser = new MailParser();
+const options = minimist(process.argv.slice(2), {
   boolean: ['raw']
 });
 
 function handleMail(mail) {
-  var attachments = mail.attachments;
+  const attachments = mail.attachments;
   
   if (options.raw) {
     messageId = mail.headers['message-id'].replace(/^<|@.+$/g, '');
@@ -43,14 +42,14 @@ function handleMail(mail) {
   if (!attachments || !attachments.length)
     return process.exit(0);
   
-  for (var i = 0; i < attachments.length; ++i) (function() {
-    var attachment = attachments[i];
+  for (let i = 0; i < attachments.length; ++i) {
+    const attachment = attachments[i];
     
-    var attachmentParser = new MailParser();
+    const attachmentParser = new MailParser();
     
     attachmentParser.on('end', function(attachmentContent) {
       if (attachment.contentType == 'message/delivery-status') {
-        var dsParser = new MailParser();
+        const dsParser = new MailParser();
         
         dsParser.on('end', function(dsContent) {
           diagnostic_code = dsContent.headers['diagnostic-code'] || '[Unknown failure]';
@@ -69,7 +68,7 @@ function handleMail(mail) {
     });
     
     attachmentParser.end(attachment.content);
-  })();
+  };
   
   setTimeout(function() {
     if (!notifying)
@@ -94,6 +93,3 @@ socket.once('server-config').then(function() {
   if (mail)
     handleMail(mail);
 });
-
-})();
-

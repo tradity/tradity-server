@@ -2,7 +2,6 @@
 
 const assert = require('assert');
 const _ = require('lodash');
-const Q = require('q');
 const testHelpers = require('./test-helpers.js');
 
 describe('achievements', function() {
@@ -41,6 +40,14 @@ describe('achievements', function() {
         assert.ok(result.cert);
       });
     });
+    
+    it('Should fail with permission-denied when specifiying date', function() {
+      return socket.emit('get-daily-login-certificate', {
+        today: '2015-12-31'
+      }).then(result => {
+        assert.equal(result.code, 'permission-denied');
+      });
+    });
   });
   
   describe('achievement', function() {
@@ -49,6 +56,14 @@ describe('achievements', function() {
         name: 'NONEXISTENT_ACHIEVEMENT'
       }).then(result => {
         assert.equal(result.code, 'achievement-unknown-name');
+      });
+    });
+    
+    it('Should fail for empty achievement names', function() {
+      return socket.emit('achievement', {
+        name: ''
+      }).then(result => {
+        assert.equal(result.code, 'format-error');
       });
     });
     
@@ -88,18 +103,16 @@ describe('achievements', function() {
   
   describe('dl-achievement', function() {
     it('Should register achievements for being logged in multiple days in a row', function() {
-      const N = 10;
-      
       return _.range(2, 10).map(N => {
         return () => {
           const now = Date.now();
           
           // compute dates of the previous 10 days
-          const dates = _.map(_.range(0, N), x => {
+          const dates = _.range(0, N).map(x => {
             return new Date(now - x * 86400 * 1000).toJSON().substr(0, 10);
           });
           
-          return Q.all(dates.map(date => {
+          return Promise.all(dates.map(date => {
             return socket.emit('get-daily-login-certificate', {
               __sign__: true,
               today: date
@@ -127,7 +140,48 @@ describe('achievements', function() {
             assert.ok(achievementNames.indexOf('DAILY_LOGIN_DAYS_' + N) != -1);
           });
         };
-      }).reduce(Q.when, Q());
+      }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve());
+    });
+    
+    it('Should fail when no certificates are given', function() {
+      return socket.emit('dl-achievement').then(result => {
+        assert.equal(result.code, 'format-error');
+      });
+    });
+    
+    it('Should fail when invalid certificates are given', function() {
+      return socket.emit('dl-achievement', {
+        certs: ['XXX']
+      }).then(result => {
+        assert.strictEqual(result.code, 'dl-achievement-success');
+        assert.strictEqual(result.streak, 1);
+      });
+    });
+    
+    it('Should register achievements for being logged in multiple days in a row', function() {
+      const now = Date.now();
+      
+      const dates = [2,3,4,6,7].map(x => {
+        return new Date(now - x * 86400 * 1000).toJSON().substr(0, 10);
+      });
+      
+      return Promise.all(dates.map(date => {
+        return socket.emit('get-daily-login-certificate', {
+          __sign__: true,
+          today: date
+        }).then(result => {
+          assert.equal(result.code, 'get-daily-login-certificate-success');
+          
+          return result.cert;
+        });
+      })).then(certs => {
+        return socket.emit('dl-achievement', {
+          certs: certs
+        });
+      }).then(result => {
+        assert.strictEqual(result.code, 'dl-achievement-success');
+        assert.strictEqual(result.streak, 3);
+      });
     });
   });
 });

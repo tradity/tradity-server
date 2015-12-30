@@ -3,9 +3,9 @@
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
-const Q = require('q');
 const testHelpers = require('./test-helpers.js');
 const cfg = require('../../config.js').config();
+const promiseUtil = require('../../lib/promise-util.js');
 
 if (!testHelpers.testPerformance)
 describe('fsdb', function() {
@@ -23,7 +23,7 @@ describe('fsdb', function() {
 
   describe('publish', function() {
     it('Should publish files', function() {
-      return Q.nfcall(fs.readFile, 'res/bob.jpg').then(data => {
+      return promiseUtil.nfcall(fs.readFile)('res/bob.jpg').then(data => {
         return socket.emit('publish', {
           base64: true,
           content: data.toString('base64'),
@@ -47,7 +47,7 @@ describe('fsdb', function() {
         
         const externalURI = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0] + res.result.profilepic;
         
-        const deferred = Q.defer();
+        const deferred = Promise.defer();
         
         require(cfg.protocol).get(externalURI, function(res) {
           deferred.resolve(res.statusCode);

@@ -1,9 +1,8 @@
 'use strict';
 
-var assert = require('assert');
-var Q = require('q');
-var _ = require('lodash');
-var LoginIPCheck = require('../../lib/loginIPCheck.js');
+const assert = require('assert');
+const _ = require('lodash');
+const LoginIPCheck = require('../../lib/loginIPCheck.js');
 
 function mean(a) {
   return _.sum(a) / a.length;
@@ -11,9 +10,9 @@ function mean(a) {
 
 function cov(a, b) {
   assert.strictEqual(a.length, b.length);
-  var N = a.length;
+  const N = a.length;
   
-  var Ea = mean(a), Eb = mean(b);
+  const Ea = mean(a), Eb = mean(b);
   
   return 1/(N - 1) * _.sum(_.range(N), function(i) {
     return (a[i] - Ea) * (b[i] - Eb);
@@ -30,45 +29,45 @@ function stddev(a) {
 
 describe('loginIPCheck', function() {
   it('should increase waiting time with the number of login attempts', function() {
-    var check = new LoginIPCheck({
+    const check = new LoginIPCheck({
       base: 2,
       baseWait: 10
     });
     
-    var deltas = [];
-    var N = 7;
+    const deltas = [];
+    const N = 7;
     
-    var prev = Date.now();
-    return _.range(N).map(function() {
-      return function() {
-        var now = Date.now();
+    let prev = Date.now();
+    return _.range(N).map(() => {
+      return () => {
+        const now = Date.now();
         deltas.push(Math.log(now - prev));
         prev = now;
         
         return check.check('1:2:3::4');
       };
-    }).reduce(Q.when, Q()).then(function() {
-      var r = correlation(deltas.slice(1), _.range(N-1));
+    }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve(null)).then(() => {
+      const r = correlation(deltas.slice(1), _.range(N-1));
       assert.ok(r > 0.5, 'Correlation was only ' + r);
     });
   });
   
   it('should respect the minimum and maximum waiting time', function() {
-    var maxWait = 100, minWait = 80;
+    const maxWait = 100, minWait = 80;
     
-    var check = new LoginIPCheck({
+    const check = new LoginIPCheck({
       base: 2,
       baseWait: minWait / 2,
       minWait: minWait,
       maxWait: maxWait
     });
     
-    var N = 7;
+    const N = 7;
     
-    var prev = Date.now();
-    return _.range(N).map(function(i) {
+    let prev = Date.now();
+    return _.range(N).map(i => {
       return function() {
-        var now = Date.now();
+        const now = Date.now();
         
         assert.ok(i == 0 || now - prev <= maxWait * 1.5);
         assert.ok(i == 0 || now - prev >= minWait);
@@ -77,39 +76,39 @@ describe('loginIPCheck', function() {
         
         return check.check('1.2.3.4');
       };
-    }).reduce(Q.when, Q());
+    }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve(null));
   });
   
   it('should flush old infos', function() {
-    var check = new LoginIPCheck({
+    const check = new LoginIPCheck({
       base: 2,
       baseWait: 10,
       flushTimeout: 5
     });
     
-    var deltas = [];
-    var N = 7;
+    const deltas = [];
+    const N = 7;
     
-    var prev = Date.now();
-    return _.range(N).map(function() {
-      return function() {
-        var now = Date.now();
+    let prev = Date.now();
+    return _.range(N).map(() => {
+      return () => {
+        const now = Date.now();
         deltas.push(Math.log(now - prev));
         prev = now;
         
         return check.check('1:2:3::4');
       };
-    }).reduce(Q.when, Q()).then(function() {
+    }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve(null)).then(function() {
       deltas.shift();
       
-      var relStddev = stddev(deltas) / mean(deltas);
+      const relStddev = stddev(deltas) / mean(deltas);
       
       assert.ok(relStddev < 0.1, 'Unexpected relative stddev was ' + relStddev);
     });
   });
   
   it('should return a string representation via .toString()', function() {
-    var check = new LoginIPCheck();
+    const check = new LoginIPCheck();
     assert.ok(check.toString());
   });
 });

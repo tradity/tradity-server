@@ -2,7 +2,6 @@
 
 const assert = require('assert');
 const _ = require('lodash');
-const Q = require('q');
 const testHelpers = require('./test-helpers.js');
 
 describe('misc', function() {

@@ -2,8 +2,8 @@
 
 const assert = require('assert');
 const _ = require('lodash');
-const Q = require('q');
 const testHelpers = require('./test-helpers.js');
+const promiseUtil = require('../../lib/promise-util.js');
 
 describe('dqueries', function() {
   let socket;
@@ -25,9 +25,9 @@ describe('dqueries', function() {
       }).then(res => {
         assert.equal(res.code, 'dquery-success');
         
-        return Q.delay(10000);
+        return promiseUtil.delay(10000);
       }).then(() => {
-        return Q.all([
+        return Promise.all([
           socket.once('dquery-exec'),
           socket.emit('dquery-checkall', { __sign__: true })
         ]);

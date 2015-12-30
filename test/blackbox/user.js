@@ -2,7 +2,6 @@
 
 const assert = require('assert');
 const _ = require('lodash');
-const Q = require('q');
 const testHelpers = require('./test-helpers.js');
 
 describe('user', function() {
@@ -51,7 +50,7 @@ describe('user', function() {
     });
     
     it('Should be able to search by name and by ID', function() {
-      return Q.all([socket.emit('get-user-info', {
+      return Promise.all([socket.emit('get-user-info', {
         lookfor: user.name,
         nohistory: true,
         noCache: true, __sign__: true

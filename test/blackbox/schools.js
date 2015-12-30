@@ -3,8 +3,8 @@
 const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
-const Q = require('q');
 const testHelpers = require('./test-helpers.js');
+const promiseUtil = require('../../lib/promise-util.js');
 
 describe('schools', function() {
   let socket, user;
@@ -318,7 +318,7 @@ describe('schools', function() {
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return Q.nfcall(fs.readFile, 'res/bob.jpg');
+        return promiseUtil.nfcall(fs.readFile)('res/bob.jpg');
       }).then(data => {
         return socket.emit('school-publish-banner', {
           __sign__: true,

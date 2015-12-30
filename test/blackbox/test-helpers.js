@@ -5,7 +5,6 @@ const sotradeClient = require('../../sotrade-client.js');
 const sha256 = require('../../lib/sha256.js');
 const main = require('../../main.js');
 const _ = require('lodash');
-const Q = require('q');
 const fs = require('fs');
 const assert = require('assert');
 

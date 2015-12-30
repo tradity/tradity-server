@@ -2,7 +2,6 @@
 
 require('../common.js');
 const cfg = require('../../config.js').config();
-const Q = require('q');
 const assert = require('assert');
 const fs = require('fs');
 const lzma = require('lzma-native');
@@ -29,7 +28,7 @@ const streamMultiPipe = function(streams) {
 
 const setupDatabase = function() {
   if (process.env.SOTRADE_TEST_SKIP_DB_SETUP)
-    return Q();
+    return Promise.resolve();
 
   console.error("Setting up database...");
   
@@ -56,7 +55,7 @@ const setupDatabase = function() {
   
   sqlSetupStream.pipe(mysqlRunner.stdin);
   
-  const deferred = Q.defer();
+  const deferred = Promise.defer();
   
   mysqlRunner.on('close', code => {
     fs.unlinkSync(mysqlConfigFilename);
@@ -72,7 +71,7 @@ const setupDatabase = function() {
 };
 
 const generateKeys = function() {
-  const deferred = Q.defer();
+  const deferred = Promise.defer();
   
   console.error("Generating keys...");
   

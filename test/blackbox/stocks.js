@@ -2,7 +2,6 @@
 
 const assert = require('assert');
 const _ = require('lodash');
-const Q = require('q');
 const testHelpers = require('./test-helpers.js');
 
 describe('stocks', function() {
@@ -23,7 +22,7 @@ describe('stocks', function() {
       assert.equal(data.code, 'list-own-depot-success');
       assert.ok(data.results);
       
-      return Q.all(data.results.map(r => {
+      return Promise.all(data.results.map(r => {
         return socket.emit('stock-buy', {
           __sign__: true,
           amount: -r.amount,

@@ -2,7 +2,6 @@
 
 const assert = require('assert');
 const _ = require('lodash');
-const Q = require('q');
 const sha256 = require('../../lib/sha256.js');
 const commonUtil = require('tradity-connection');
 const testHelpers = require('./test-helpers.js');
@@ -201,7 +200,7 @@ describe('admin', function() {
       const prefix = 'S' + Date.now();
       let id1, id2;
       
-      return Q.all([prefix + 'Aj', prefix + 'Bj'].map(name => {
+      return Promise.all([prefix + 'Aj', prefix + 'Bj'].map(name => {
         return socket.emit('create-school', {
           __sign__: true,
           schoolname: name,

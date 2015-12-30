@@ -4,12 +4,11 @@ const assert = require('assert');
 const mocks = require('./mocks.js');
 
 const events = require('events');
-const Q = require('q');
 const ConnectionData = require('../../connectiondata.js').ConnectionData;
 
-describe('ConnectionData', () => {
-  it('Should request feedFetchEvents upon receiving push-events', () => {
-    const deferred = Q.defer();
+describe('ConnectionData', function() {
+  it('Should request feedFetchEvents upon receiving push-events', function() {
+    const deferred = Promise.defer();
     let ffeCount = 0;
     
     return mocks.fakeBus({
@@ -41,7 +40,7 @@ describe('ConnectionData', () => {
         });
       }
 
-      return Q.all([fakeConnection(), fakeConnection()]).then(() => {
+      return Promise.all([fakeConnection(), fakeConnection()]).then(() => {
         bus.manager.emitGlobal('push-events');
       });
     }).then(() => deferred.promise);

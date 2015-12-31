@@ -12,8 +12,9 @@
   },
   "main": "main.js",
   "devDependencies": {
-    "mocha": "*",
     "istanbul": "*",
+    "jshint": "^2.8.0",
+    "mocha": "*",
     "nodemailer-sendmail-transport": "~1.0.0"
   },
   "dependencies": {
@@ -28,8 +29,8 @@
     "mailparser": "~0.5.0",
     "minimist": "~1.2.0",
     "mysql": "~2.10.0",
-    "nodemailer": "~1.10.0",
-    "nodemailer-smtp-pool": "~1.1.1",
+    "nodemailer": "~1.11.0",
+    "nodemailer-smtp-pool": "~1.2.0",
     "object-hash": "^1.0.0",
     "promise-events": "~0.1.0",
     "promise-semaphore": ">=0.2.4",

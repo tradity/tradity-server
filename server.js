@@ -8,7 +8,6 @@ const https = require('https');
 const url = require('url');
 const sio = require('socket.io');
 const debug = require('debug')('sotrade:server');
-const busAdapter = require('./bus/socket.io-bus.js').busAdapter;
 const buscomponent = require('./stbuscomponent.js');
 const qctx = require('./qctx.js');
 const ConnectionData = require('./connectiondata.js').ConnectionData;
@@ -133,7 +132,6 @@ SoTradeServer.prototype.start = function(port) {
     return this.listen(port, cfg.wshost);
   }).then(() => {
     this.io = sio.listen(this.httpServer, cfg.configureSocketIO(sio, cfg));
-    this.io.adapter(busAdapter(this.bus));
     debug('socket.io set up', process.pid, 'port ' + port);
     
     this.io.sockets.on('connection', socket => this.handleConnection(socket));

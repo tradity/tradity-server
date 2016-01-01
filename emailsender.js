@@ -1,7 +1,5 @@
 "use strict";
 
-const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const nodemailer = require('nodemailer');
 const commonUtil = require('tradity-connection');
@@ -100,11 +98,13 @@ Mailer.prototype.sendTemplateMail = buscomponent.provide('sendTemplateMail',
 Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['query', 'internal', 'ctx'],
   function(query, internal, ctx)
 {
-  if (!ctx)
+  if (!ctx) {
     ctx = new qctx.QContext({parentComponent: this});
+  }
   
-  if (!internal && !ctx.access.has('email-bounces'))
+  if (!internal && !ctx.access.has('email-bounces')) {
     throw new this.PermissionDenied();
+  }
   
   debug('Email bounced', query.messageId);
   
@@ -112,8 +112,9 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
   return ctx.startTransaction().then(conn => {
     return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
       [String(query.messageId)]).then(r => {
-      if (r.length == 0)
+      if (r.length === 0) {
         throw new this.SoTradeClientError('email-bounced-notfound');
+      }
       
       assert.equal(r.length, 1);
       mail = r[0];
@@ -123,8 +124,9 @@ Mailer.prototype.emailBounced = buscomponent.provideW('client-email-bounced', ['
       return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
         [String(query.diagnostic_code || ''), mail.mailid]);
     }).then(() => {
-      if (!mail)
+      if (!mail) {
         return;
+      }
       
       return ctx.feed({
         'type': 'email-bounced',
@@ -162,12 +164,15 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
   assert.ok(this.mailer);
   
   return this.getServerConfig().then(cfg => {
-    var origTo = opt.to;
+    const origTo = opt.to;
     
-    if (cfg.mail.forceTo)
+    if (cfg.mail.forceTo) {
       opt.to = cfg.mail.forceTo;
-    if (cfg.mail.forceFrom)
+    }
+    
+    if (cfg.mail.forceFrom) {
       opt.from = cfg.mail.forceFrom;
+    }
     
     shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
     opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
@@ -181,13 +186,15 @@ Mailer.prototype.sendMail = buscomponent.provide('sendMail',
   }).then(() => {
     return promiseUtil.ncall(this.mailer.sendMail.bind(this.mailer))(opt);
   }).then(status => {
-    if (status && status.rejected && status.rejected.length > 0)
+    if (status && status.rejected && status.rejected.length > 0) {
       this.emailBounced({messageId: shortId}, true, ctx);
+    }
   }, err => {
     this.emailBounced({messageId: shortId}, true, ctx);
       
-    if (err)
+    if (err) {
       return this.emitError(err);
+    }
   });
 }));
 

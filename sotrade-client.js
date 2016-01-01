@@ -2,9 +2,7 @@
 
 const commonAPI = require('tradity-connection');
 const sio = require('socket.io-client');
-const fs = require('fs');
 const https = require('https');
-const _ = require('lodash');
 const debug = require('debug')('sotrade:s-client');
 
 function NodeSoTradeConnection (opt) {
@@ -35,13 +33,17 @@ function NodeSoTradeConnection (opt) {
   }
   
   const socketopts = opt.socketopts || {};
-  if (!socketopts.transports)
+  if (!socketopts.transports) {
     socketopts.transports = ['websocket'];
-  if (socketopts.multiplex !== true)
-    socketopts.multiplex = false;
+  }
   
-  if (/^(https|wss)/.test(opt.url))
+  if (socketopts.multiplex !== true) {
+    socketopts.multiplex = false;
+  }
+  
+  if (/^(https|wss)/.test(opt.url)) {
     socketopts.agent = new https.Agent(cfg.ssl);
+  }
   
   const url = opt.url;
   if (url && !opt.connect) {
@@ -51,8 +53,9 @@ function NodeSoTradeConnection (opt) {
     };
   }
   
-  if (typeof opt.logDevCheck == 'undefined')
+  if (typeof opt.logDevCheck === 'undefined') {
     opt.logDevCheck = true;
+  }
   
   let ownVersion = 'SOTS0';
   try {
@@ -64,6 +67,6 @@ function NodeSoTradeConnection (opt) {
   opt.clientSoftwareVersion = opt.clientSoftwareVersion || ownVersion;
   debug('Setting up connection', opt.url);
   return new commonAPI.SoTradeConnection(opt);
-};
+}
 
 exports.SoTradeConnection = NodeSoTradeConnection;

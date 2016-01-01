@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const os = require('os');
 const crypto = require('crypto');
@@ -48,7 +47,7 @@ class BusDescription {
       hostname: this.hostname,
       pid: this.pid,
       lastInfoTime: this.lastInfoTime
-    }
+    };
   }
 }
 
@@ -82,8 +81,9 @@ class BusGraph extends promiseUtil.EventEmitter {
   }
   
   get dijkstra() {
-    if (this._dijkstra)
+    if (this._dijkstra) {
       return this._dijkstra;
+    }
     
     this._dijkstra = this.c.elements().dijkstra(this.ownNode, edge => edge.data().weight);
     
@@ -94,8 +94,9 @@ class BusGraph extends promiseUtil.EventEmitter {
   }
   
   get localNodes () {
-    if (this._localNodes)
+    if (this._localNodes) {
       return this._localNodes;
+    }
     
     // select all nodes + local edges, take our connected component and out of these the nodes
     this._localNodes = this.c.filter('node, edge[?isLocal]')
@@ -112,8 +113,9 @@ class BusGraph extends promiseUtil.EventEmitter {
   }
   
   get hash () {
-    if (this._hash)
+    if (this._hash) {
       return this._hash;
+    }
     
     this._hash = this.c.gHash();
     return this.hash;
@@ -198,14 +200,13 @@ class BusGraph extends promiseUtil.EventEmitter {
       this.c.remove(this.c.getElementById(edge));
     }
     
-    const rEdgesAfterRemove = this.c.getElementById(busnode.id).edgesWith(this.c.elements()).map(e => e.id());
-    
     // localization can be supressed, e. g. because we just received an initial node info
     // and the edge that keeps the graph connected is yet to be added
     // (localizing refers to taking only the current connected component)
     return Promise.resolve().then(() => {
-      if (!doNotLocalize)
+      if (!doNotLocalize) {
         return this.localize();
+      }
     }).then(() => {
     // fail early in case we cannot use one of our own edges as a transport
       this.ownNode.edgesWith(this.c.elements()).forEach(e => {
@@ -286,7 +287,7 @@ class BusGraph extends promiseUtil.EventEmitter {
         // determine all nodes accepting our eventType
         const possibleTargetNodes = this.getNodes(eventTypeFilter);
         
-        if (possibleTargetNodes.length == 0) {
+        if (possibleTargetNodes.length === 0) {
           scope = [];
           break;
         }
@@ -335,8 +336,9 @@ class BusTransport extends promiseUtil.EventEmitter {
   }
   
   init(bus) {
-    if (this.initedPromise)
+    if (this.initedPromise) {
       return this.initedPromise;
+    }
     
     assert.ok(bus);
     this.bus = bus;
@@ -351,11 +353,13 @@ class BusTransport extends promiseUtil.EventEmitter {
       this.on('bus::handshakeSYN', data => {
         debugTransport('Transport SYN', this.bus.id, this.edgeId, data.id, data.edgeId);
         
-        if (data.id == this.bus.id)
+        if (data.id === this.bus.id) {
           return;
+        }
         
-        if (data.edgeId < this.edgeId)
+        if (data.edgeId < this.edgeId) {
           this.edgeId = data.edgeId; // take minimum
+        }
         
         return this.emit('bus::handshakeSYNACK', {id: this.bus.id, edgeId: this.edgeId})
           .then(() => this.bus.emitBusNodeInfo([this], true));
@@ -364,11 +368,13 @@ class BusTransport extends promiseUtil.EventEmitter {
       this.on('bus::handshakeSYNACK', data => {
         debugTransport('Transport SYN/ACK', this.bus.id, this.edgeId, data.id, data.edgeId);
         
-        if (data.id == this.bus.id)
+        if (data.id === this.bus.id) {
           return;
+        }
         
-        if (data.edgeId < this.edgeId)
+        if (data.edgeId < this.edgeId) {
           this.edgeId = data.edgeId; // take minimum
+        }
         
         return this.bus.emitBusNodeInfo([this], true);
       })
@@ -396,7 +402,7 @@ class BusTransport extends promiseUtil.EventEmitter {
       target: this.target,
       id: this.id,
       msgCount: this.msgCount
-    }
+    };
   }
 }
 
@@ -427,8 +433,9 @@ class Bus extends promiseUtil.EventEmitter {
   }
   
   init() {
-    if (this.initedPromise)
+    if (this.initedPromise) {
       return this.initedPromise;
+    }
     
     return this.initedPromise = Promise.all([
       this.on('newListener', this.newListener),
@@ -438,8 +445,9 @@ class Bus extends promiseUtil.EventEmitter {
       this.busGraph.on('updated', () => {
         // inform response waiters that nodes may have been removed and are therefore not able to answer requests
         for (let w of this.responseWaiters.values()) {
-          if (w.handleResponse)
+          if (w.handleResponse) {
             w.handleResponse(null);
+          }
         }
       })
     ])).then(() => {
@@ -462,7 +470,7 @@ class Bus extends promiseUtil.EventEmitter {
   
   removeListener(event) {
     debugEvents('Remove listener', this.id, event);
-    if (this.listeners(event).length == 0) {
+    if (this.listeners(event).length === 0) {
       this.handledEvents.delete(event);
       
       return this.emitBusNodeInfoSoon();
@@ -471,8 +479,9 @@ class Bus extends promiseUtil.EventEmitter {
   
   nodeInfoHandler(data) {
     debugNetwork('Received nodeInfo', this.id);
-    if (!Buffer.isBuffer(data))
+    if (!Buffer.isBuffer(data)) {
       data = new Buffer(data);
+    }
     
     return inflate(data).then((data) => {
       try {
@@ -485,8 +494,9 @@ class Bus extends promiseUtil.EventEmitter {
       assert.ok(data.graph);
       assert.ok(data.handledEvents && _.isArray(data.handledEvents));
       
-      if (data.id == this.id)
+      if (data.id === this.id) {
         return;
+      }
       
       debugNetwork('Parsed nodeInfo', this.id + ' <- ' + data.id);
       
@@ -516,8 +526,9 @@ class Bus extends promiseUtil.EventEmitter {
   }
   
   emitBusNodeInfoSoon() {
-    if (this.busNodeInfoEmittingPromise)
+    if (this.busNodeInfoEmittingPromise) {
       return this.busNodeInfoEmittingPromise;
+    }
     
     debugNetwork('emitBusNodeInfoSoon', this.id);
     
@@ -571,14 +582,16 @@ class Bus extends promiseUtil.EventEmitter {
     
     return transport.init(this).then(() => Promise.all([
       transport.on('bus::nodeInfoInitial', data => { // ~ ACK after SYN-ACK
-        if (!Buffer.isBuffer(data))
+        if (!Buffer.isBuffer(data)) {
           data = new Buffer(data);
+        }
         
         return inflate(data).then(data => {
           data = JSON.parse(data);
           assert.ok(data.id);
-          if (data.id == this.id)
+          if (data.id === this.id) {
             return null;
+          }
           
           debugTransport('Received initial bus node info', this.id, transport.edgeId, data.id);
           assert.ok(this.connectingTransports.size > 0);
@@ -619,8 +632,9 @@ class Bus extends promiseUtil.EventEmitter {
       
       transport.on('bus::packet', (p) => {
         assert.ok(p.immediateSender.id);
-        if (p.immediateSender.id == this.id) // comes directly from .emit()
+        if (p.immediateSender.id === this.id) { // comes directly from .emit()
           return;
+        }
         
         transport.msgCount++;
         
@@ -628,7 +642,7 @@ class Bus extends promiseUtil.EventEmitter {
       }),
       
       transport.on('disconnect', (reason) => {
-        debugTransport('Received transport disconnect', this.id, transport.edgeId);
+        debugTransport('Received transport disconnect', this.id, transport.edgeId, reason);
         this.connectingTransports.delete(transport);
         
         this.busGraph.removeTransport(transport.id);
@@ -648,8 +662,9 @@ class Bus extends promiseUtil.EventEmitter {
     return this.busGraph.mergeRemoteGraph(busnode, doNotLocalize).then((changed) => {
       debugNetwork('Handled transport node info', this.id, busnode.id, doNotLocalize, this.busGraph.stats());
       
-      if (changed)
+      if (changed) {
         return;
+      }
       
       debugNetwork('Scheduling bus node info after graph change', this.id, this.busGraph.hash);
       this.emitBusNodeInfoSoon();
@@ -664,10 +679,10 @@ class Bus extends promiseUtil.EventEmitter {
     packet = _.clone(packet);
     this.msgCount++;
     
-    const hasAlreadySeen = packet.seenBy.indexOf(this.id) != -1;
+    const hasAlreadySeen = packet.seenBy.indexOf(this.id) !== -1;
     if (hasAlreadySeen ||
         (packet.immediateSender &&
-          packet.immediateSender.graphHash != this.busGraph.hash))
+          packet.immediateSender.graphHash !== this.busGraph.hash))
     {
       // in the case of hasAlreadySeen == true:
       // how did we end up here? chances are, some node to which
@@ -698,7 +713,7 @@ class Bus extends promiseUtil.EventEmitter {
       assert.ok(_.isString(recpId));
       assert.ok(packet.seenBy.length > 0);
       
-      if (recpId == this.id) {
+      if (recpId === this.id) {
         // defer handling, since we might be receiving a message which invalidates the bus graph
         packetIsForThis = true;
         return;
@@ -737,10 +752,11 @@ class Bus extends promiseUtil.EventEmitter {
       assert.ok(nextTransport);
       assert.ok(nextTransport.emit);
       
-      if (nextTransports[nextTransport.id])
+      if (nextTransports[nextTransport.id]) {
         nextTransports[nextTransport.id].recipients.push(recpId);
-      else
+      } else {
         nextTransports[nextTransport.id] = {transport: nextTransport, recipients: [recpId]};
+      }
     })).then(() => Promise.all(Object.keys(nextTransports).map(i => {
       const transport = nextTransports[i].transport;
       const packet_ = _.clone(packet);
@@ -750,8 +766,9 @@ class Bus extends promiseUtil.EventEmitter {
       transport.msgCount++;
       return transport.emit('bus::packet', packet_);
     }))).then(() => {
-      if (packetIsForThis)
+      if (packetIsForThis) {
         return this.handleIncomingPacket(packet);
+      }
     });
   }
 
@@ -820,10 +837,11 @@ class Bus extends promiseUtil.EventEmitter {
 
   emit(name, data) {
     // do not propagate events provided by EventEmitter
-    if (name == 'newListener' || name == 'removeListener')
+    if (name === 'newListener' || name === 'removeListener') {
       return super.emit(name, data);
-    else
+    } else {
       return this.emitGlobal(name, data);
+    }
   }
 
   emitGlobal(name, data) {
@@ -854,8 +872,9 @@ class Bus extends promiseUtil.EventEmitter {
       type: 'event'
     }, 'event');
     
-    if (recipients.length != 0)
+    if (recipients.length !== 0) {
       return this.handleBusPacket(packet);
+    }
   }
 
   request(req) {
@@ -894,9 +913,9 @@ class Bus extends promiseUtil.EventEmitter {
     
     // scope is now array of target ids
     assert.ok(_.isArray(recipients));
-    assert.ok(_.difference(recipients, this.listAllIds()).length == 0);
+    assert.equal(_.difference(recipients, this.listAllIds()).length, 0);
     
-    if (recipients.length == 0) {
+    if (recipients.length === 0) {
       const e = new Error('Nonexistent event/request type: ' + req.name);
       e.nonexistentType = true;
       return Promise.reject(e);
@@ -916,8 +935,9 @@ class Bus extends promiseUtil.EventEmitter {
         if (responsePacket !== null) {
           assert.ok(responsePacket.sender);
           
-          if (responsePacket.state === 'failure')
+          if (responsePacket.state === 'failure') {
             return deferred.reject(responsePacket.result);
+          }
           
           responsePackets.push(responsePacket);
           
@@ -925,15 +945,16 @@ class Bus extends promiseUtil.EventEmitter {
         }
         
         // all responses in?
-        if (responsePackets.length != availableRecipients.length) 
+        if (responsePackets.length !== availableRecipients.length) {
           return; // wait until they are
+        }
         
         this.responseWaiters.delete(requestId);
         
-        if (scope == 'nearest') {
+        if (scope === 'nearest') {
           // re-send in case the packet got lost (disconnect or similar)
-          if (responsePackets.length == 0 ||
-              responsePackets[0].result.length == 0) {
+          if (responsePackets.length === 0 ||
+              responsePackets[0].result.length === 0) {
               debugEvents('Re-sending request due to missing answer', this.id, req.name, requestId, scope, recipients);
             return this.requestScoped(req, scope);
           }
@@ -947,7 +968,7 @@ class Bus extends promiseUtil.EventEmitter {
         }
       },
       
-      unanswered: resp => {
+      unanswered: () => {
         return _.difference(recipients, _.map(responsePackets, e => e.sender));
       }
     });
@@ -960,7 +981,7 @@ class Bus extends promiseUtil.EventEmitter {
       requestId: requestId,
       recipients: recipients,
       type: 'request',
-      singleResponse: scope == 'nearest'
+      singleResponse: scope === 'nearest'
     }, 'request')).then(() => deferred.promise);
   }
 
@@ -1045,9 +1066,9 @@ cytoscape('core', 'union', function(g2) {
   
   const edges = (j1.elements.edges || []).concat(j2.elements.edges || []);
   const nodes = (j1.elements.nodes || []).concat(j2.elements.nodes || [])
-    .sort((a, b) => { // sort in descending order of lastInfoTime
+    .sort((a, b) => // sort in descending order of lastInfoTime
       b.data.desc.lastInfoTime - a.data.desc.lastInfoTime
-    });
+    );
   
   const lists = [nodes, edges];
   const ids = {};

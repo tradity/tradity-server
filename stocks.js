@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const validator = require('validator');
 const debug = require('debug')('sotrade:stocks');
@@ -80,7 +79,7 @@ Stocks.prototype.updateStockIDCache = function(ctx) {
  * @function module:stocks~Stocks#stocksFilter
  */
 Stocks.prototype.stocksFilter = function(cfg, rec) {
-  return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name == cfg.requireCurrency;
+  return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name === cfg.requireCurrency;
 };
 
 /**
@@ -105,8 +104,9 @@ Stocks.prototype.stocksFilter = function(cfg, rec) {
  * @function busreq~regularCallbackStocks
  */
 Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks', ['query', 'ctx'], function(query, ctx) {
-  if (ctx.getProperty('readonly'))
+  if (ctx.getProperty('readonly')) {
     return;
+  }
     
   let rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET, usicST;
   rcbST = Date.now();
@@ -120,8 +120,9 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
   }).then(() => {
     ulmET = Date.now();
     
-    if (query.provisions)
+    if (query.provisions) {
       return this.request({name: 'updateProvisions', ctx: ctx});
+    }
   }).then(() => {
     upET = Date.now();
     return this.updateRankingInformation(ctx);
@@ -245,9 +246,8 @@ Stocks.prototype.weeklyCallback = function(ctx) {
 Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
   debug('Clean up unused stocks');
   
-  return this.getServerConfig().then(cfg => {
-    return ctx.query('DELETE FROM depot_stocks WHERE amount = 0');
-  }).then(() => {
+  return ctx.query('DELETE FROM depot_stocks WHERE amount = 0')
+  .then(() => {
     return ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() WHERE ' +
       '(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.stockid) != 0 ' +
       'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched  = stocks.stockid) != 0 ' +
@@ -275,15 +275,16 @@ Stocks.prototype.updateStockValues = function(ctx) {
       'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
     [cfg.lrutimeLimit, cfg.refetchLimit]);
   }).then(res => {
-    stocklist = _.pluck(res, 'stocktextid')
+    stocklist = _.pluck(res, 'stocktextid');
     return this.request({name: 'neededStocksDQ'});
   }).then(dqNeededStocks => {
     stocklist = _.union(stocklist, dqNeededStocks);
     
     stocklist = stocklist.filter(s => !this.leaderStockTextIDFormat.test(s));
     
-    if (stocklist.length > 0)
+    if (stocklist.length > 0) {
       return this.quoteLoader.loadQuotesList(stocklist, rec => this.stocksFilter(cfg, rec));
+    }
   });
 };
 
@@ -314,18 +315,21 @@ Stocks.prototype.updateStockValues = function(ctx) {
  * @function module:stocks~Stocks#updateRecord
  */
 Stocks.prototype.updateRecord = function(ctx, rec) {
-  if (rec.failure)
+  if (rec.failure) {
     return;
+  }
   
   assert.notEqual(rec.lastTradePrice, null);
-  if (rec.lastTradePrice == 0) // happens with API sometimes.
+  if (rec.lastTradePrice === 0) { // happens with API sometimes.
     return;
+  }
   
   assert.notStrictEqual(rec.pieces, null);
   
   return Promise.resolve().then(() => {
-    if (ctx.getProperty('readonly'))
+    if (ctx.getProperty('readonly')) {
       return;
+    }
     
     let knownStockIDs;
     
@@ -340,7 +344,7 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
       const updateParams = [rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
         rec.name.length, rec.name, rec.exchange, rec.pieces];
       
-      if (typeof ksid == 'number') {
+      if (typeof ksid === 'number') {
         return ctx.query('UPDATE stocks SET ' + updateQueryString +
           'WHERE stockid = ?', updateParams.concat([ksid]));
       } else {
@@ -352,8 +356,9 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
           'UPDATE ' + updateQueryString,
           [rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
           rec.name, rec.exchange, rec.pieces].concat(updateParams)).then(function(res) {
-            if (res.affectedRows == 1) // insert took place
+            if (res.affectedRows === 1) { // insert took place
               return knownStockIDs[rec.symbol] = res.insertId;
+            }
             
             // no insert -> look the id up
             return ctx.query('SELECT stockid FROM stocks WHERE stocktextid = ?', [rec.symbol], res => {
@@ -395,15 +400,17 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
  */
 Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', function(query, ctx) {
   let str = String(query.name);
-  if (!str || str.length < 3)
+  if (!str || str.length < 3) {
     throw new this.SoTradeClientError('stock-search-too-short');
+  }
   
   str = str.trim();
   
   const leadertest = str.match(this.leaderStockTextIDFormat);
   let lid = -1;
-  if (leadertest !== null)
+  if (leadertest !== null) {
     lid = leadertest[1];
+  }
   
   const xstr = '%' + str.replace(/%/g, '\\%') + '%';
   
@@ -425,8 +432,9 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     const externalStocksIDs = _.pluck(externalStocks, 'stocktextid');
 
     // ISIN or WKN
-    if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str))
+    if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str)) {
       externalStocksIDs.push(str.toUpperCase());
+    }
     
     return this.quoteLoader.loadQuotesList(_.uniq(externalStocksIDs), rec => this.stocksFilter(cfg, rec));
   })).then(externalResults => {
@@ -453,7 +461,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     let symbols = _.pluck(results, 'stocktextid');
     
     if (symbols.length > 0 && !ctx.getProperty('readonly')) {
-      symbols = symbols.map(escape);
+      symbols = symbols.map(encodeURIComponent);
       ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
         'WHERE stocktextid IN (' + symbols.map(() => '?').join(',') + ')', symbols);
     }
@@ -490,7 +498,7 @@ Stocks.prototype.stockExchangeIsOpen = buscomponent.provide('stockExchangeIsOpen
   const closetime = Date.parse(sxdata.close).getTime();
   const now = new Date();
   
-  const res = now.getTime() >= opentime && now.getTime() < closetime && sxdata.days.indexOf(now.getUTCDay()) != -1;
+  const res = now.getTime() >= opentime && now.getTime() < closetime && sxdata.days.indexOf(now.getUTCDay()) !== -1;
   
   return res;
 });
@@ -611,8 +619,9 @@ Stocks.prototype.sellAll = buscomponent.provideWQT('sellAll', function(query, ct
  */
 Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
   ['query', 'ctx', 'opt'], function(query, ctx, opt) {
-  if (ctx.getProperty('readonly'))
+  if (ctx.getProperty('readonly')) {
     throw new this.SoTradeClientError('server-readonly');
+  }
   
   let conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
   let fee, oh_res = null, tradeID = null, perffull = null, forceNow;
@@ -633,20 +642,23 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     
-    if (opt.skipTest || opt.testOnly)
+    if (opt.skipTest || opt.testOnly) {
       return { code: 'stock-buy-success', skippedTest: true }; // [sic]
+    }
     
     const modifiedOptions = _.clone(opt);
     modifiedOptions.testOnly = true;
     return this.buyStock(query, ctx, modifiedOptions); // may throw exception!
   }).then(result => {
+    assert.strictEqual(result.code, 'stock-buy-success'); // everything else should have thrown
     assert.ok(ctx.user);
     assert.ok(ctx.access);
     
-    if (query.leader != null)
+    if (query.leader !== null) {
       query.stocktextid = '__LEADER_' + query.leader + '__';
-    else if (query.stockid && typeof query.stocktextid == 'undefined')
+    } else if (query.stockid && typeof query.stocktextid === 'undefined') {
       query.stocktextid = String(query.stockid); // backwards compatibility
+    }
     
     if (opt.testOnly) {
       return {
@@ -671,8 +683,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
       'LEFT JOIN users_finance AS l ON stocks.leader = l.uid AND depot_stocks.uid != l.uid ' +
       'WHERE stocks.stocktextid = ? FOR UPDATE', [ctx.user.uid, String(query.stocktextid)]);
   }).then(res => {
-    if (res.length == 0 || res[0].lastvalue == 0)
+    if (res.length === 0 || res[0].lastvalue === 0) {
       throw new this.SoTradeClientError('stock-buy-stock-not-found');
+    }
     
     assert.equal(res.length, 1);
     
@@ -680,11 +693,12 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     
     hadDepotStocksEntry = (r.amount !== null);
     
-    if (r.money === null)  r.money = 0;
-    if (r.amount === null) r.amount = 0;
+    if (r.money === null)  { r.money = 0; }
+    if (r.amount === null) { r.amount = 0; }
     
-    if (this.leaderStockTextIDFormat.test(query.stocktextid) && !ctx.access.has('email_verif') && !opt.forceNow)
+    if (this.leaderStockTextIDFormat.test(query.stocktextid) && !ctx.access.has('email_verif') && !opt.forceNow) {
       throw new this.SoTradeClientError('stock-buy-email-not-verif');
+    }
     
     forceNow = opt.forceNow || (ctx.access.has('stocks') && query.forceNow);
     
@@ -706,8 +720,9 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     }
     
     amount = parseInt(query.amount);
-    if (amount < -r.amount || amount != amount)
+    if (amount < -r.amount || amount !== amount) {
       throw new this.SoTradeClientError('stock-buy-not-enough-stocks');
+    }
     
     ta_value = amount > 0 ? r.ask : r.bid;
     
@@ -729,21 +744,25 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     assert.equal(ohr.length, 1);
     
     price = amount * ta_value;
-    if (price > ures[0].freemoney && price >= 0)
+    if (price > ures[0].freemoney && price >= 0) {
       throw new this.SoTradeClientError('stock-buy-out-of-money');
+    }
     
     const tradedToday = ohr[0].amount || 0;
     
     if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSingleStockShare'] && price >= 0 &&
-        !ctx.access.has('stocks'))
+        !ctx.access.has('stocks')) {
       throw new this.SoTradeClientError('stock-buy-single-paper-share-exceed');
+    }
     
-    if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow)
+    if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
       throw new this.SoTradeClientError('stock-buy-over-pieces-limit');
+    }
     
     // point of no return
-    if (opt.testOnly)
+    if (opt.testOnly) {
       throw { code: 'stock-buy-success', testOnly: true };
+    }
     
     fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
     
@@ -754,11 +773,11 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     oh_res = oh_res_;
     
     if (amount <= 0 && ((r.hwmdiff && r.hwmdiff > 0) || (r.lwmdiff && r.lwmdiff < 0))) {
-      const wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
-      const lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
+      let wprovPay = r.hwmdiff * -amount * r.wprovision / 100.0;
+      let lprovPay = r.lwmdiff * -amount * r.lprovision / 100.0;
 
-      if (wprovPay < 0) wprovPay = 0;
-      if (lprovPay > 0) lprovPay = 0;
+      if (wprovPay < 0) { wprovPay = 0; }
+      if (lprovPay > 0) { lprovPay = 0; }
       
       const totalprovPay = wprovPay + lprovPay;
       
@@ -834,10 +853,11 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     return { code: 'stock-buy-success', fee: fee, tradeid: tradeID, extra: 'repush' };
   }).catch(err => {
     return (conn ? conn.rollback() : Promise.resolve()).then(() => {
-      if (err.code == 'stock-buy-success')
+      if (err.code === 'stock-buy-success') {
         return err; // for testOnly runs
-      else
+      } else {
         throw err; // re-throw
+      }
     });
   });
 });
@@ -885,8 +905,9 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
     'WHERE ds.uid = ? AND amount != 0',
     [ctx.user.uid]).then(results => {
     /* backwards compatibility */
-    for (let i = 0; i < results.length; ++i)
+    for (let i = 0; i < results.length; ++i) {
       results[i].stockid = results[i].stocktextid;
+    }
     
     return { code: 'list-own-depot-success', 'results': results };
   });
@@ -929,8 +950,9 @@ Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transact
     'LEFT JOIN users AS p ON p.uid = t.p_user ' +
     'LEFT JOIN stocks AS s ON s.stocktextid = t.stocktextid ' +
     'WHERE t.a_user = ? OR t.p_user = ? ', [ctx.user.uid, ctx.user.uid]).then(results => {
-    for (let i = 0; i < results.length; ++i)
+    for (let i = 0; i < results.length; ++i) {
       results[i].json = results[i].json ? JSON.parse(results[i].json) : {};
+    }
 
     return { code: 'list-transactions-success',  results: results  };
   });
@@ -947,8 +969,10 @@ Stocks.prototype.listTransactions = buscomponent.provideQT('client-list-transact
  * @function c2s~get-trade-info
  */
 Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', function(query, ctx) {
-  if (parseInt(query.tradeid) != query.tradeid)
+  const tradeid = parseInt(query.tradeid);
+  if (tradeid !== tradeid) {
     throw new this.FormatError();
+  }
   
   let r;
   return Promise.all([
@@ -957,14 +981,20 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
       'LEFT JOIN stocks AS s ON s.leader = oh.leader ' +
       'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid ' +
       'LEFT JOIN users AS u ON u.uid = oh.leader ' +
-      'LEFT JOIN users AS trader ON trader.uid = oh.uid WHERE oh.orderid = ?', [parseInt(query.tradeid)])
+      'LEFT JOIN users AS trader ON trader.uid = oh.uid WHERE oh.orderid = ?', [tradeid])
   ]).then(spread((cfg, oh_res) => {
-    if (oh_res.length == 0)
+    if (oh_res.length === 0) {
       throw new this.SoTradeClientError('get-trade-info-notfound');
+    }
+    
     r = oh_res[0];
     
-    if (r.uid != ctx.user.uid && !!r.delayorderhist && (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) && !ctx.access.has('stocks'))
+    if (r.uid !== ctx.user.uid &&
+        !!r.delayorderhist &&
+        (Date.now()/1000 - r.buytime < cfg.delayOrderHistTime) &&
+        !ctx.access.has('stocks')) {
       throw new this.SoTradeClientError('get-trade-delayed-history');
+    }
     
     r.userid = r.uid; // backwards compatibility
     assert.equal(r.uid, parseInt(r.uid));
@@ -1008,11 +1038,12 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
  * @function c2s~list-popular-stocks
  */
 Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular-stocks', function(query, ctx) {
-  const days = parseInt(query.days);
+  let days = parseInt(query.days);
   
   return this.getServerConfig().then(cfg => {
-    if (days != days || (days > cfg.popularStocksDays && !ctx.access.has('stocks')))
+    if (days !== days || (days > cfg.popularStocksDays && !ctx.access.has('stocks'))) {
       days = cfg.popularStocksDays;
+    }
     
     return ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
       'SUM(ABS(money)) AS moneysum, ' +
@@ -1022,8 +1053,9 @@ Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
       'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days]);
   }).then(popular => {
     /* backwards compatibility */
-    for (let i = 0; i < popular.length; ++i)
+    for (let i = 0; i < popular.length; ++i) {
       popular[i].stockid = popular[i].stocktextid;
+    }
     
     return { code: 'list-popular-stocks-success', 'results': popular };
   });

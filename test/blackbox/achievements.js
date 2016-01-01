@@ -96,7 +96,7 @@ describe('achievements', function() {
         
         const achievementNames = userInfo.achievements.map(ach => ach.achname);
         
-        assert.ok(achievementNames.indexOf(clientAchievementName) != -1);
+        assert.notStrictEqual(achievementNames.indexOf(clientAchievementName), -1);
       });
     });
   });
@@ -137,7 +137,7 @@ describe('achievements', function() {
             
             const achievementNames = userInfo.achievements.map(ach => ach.achname);
             
-            assert.ok(achievementNames.indexOf('DAILY_LOGIN_DAYS_' + N) != -1);
+            assert.notStrictEqual(achievementNames.indexOf('DAILY_LOGIN_DAYS_' + N), -1);
           });
         };
       }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve());

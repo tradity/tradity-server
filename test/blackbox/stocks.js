@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 
 describe('stocks', function() {
@@ -41,14 +40,17 @@ describe('stocks', function() {
   const standardISIN = 'DE000BAY0017';
   const umlautNameISIN = 'DE0005565204';
 
-  if (!testHelpers.testPerformance)
+  if (!testHelpers.testPerformance) {
   describe('prod', function() {
     it('Works', function() {
-      return socket.emit('prod').then(res => {
+      return socket.emit('prod', {
+        __sign__: true
+      }).then(res => {
         assert.equal(res.code, 'prod-ready');
       });
     });
   });
+  }
   
   describe('stock-search', function() {
     it('Returns information based on the ISIN', function() {
@@ -134,8 +136,8 @@ describe('stocks', function() {
           forceNow: true
         });
       }).then(res => {
-        assert.ok(res.code == 'stock-buy-success' ||
-              res.code == 'stock-buy-not-enough-stocks');
+        assert.ok(res.code === 'stock-buy-success' ||
+                  res.code === 'stock-buy-not-enough-stocks');
         
         return socket.once('trade');
       }).then(() => {

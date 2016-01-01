@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const buscomponent = require('./stbuscomponent.js');
 const debug = require('debug')('sotrade:questionnaires');
@@ -74,55 +73,64 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
  * @function c2s~save-questionnaire
  */
 Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-save-questionnaire', function(query, ctx) {
-  if (parseInt(query.questionnaire) != query.questionnaire || parseInt(query.fill_time) != query.fill_time)
-    throw new self.FormatError();
+  const questionnaireId = parseInt(query.questionnaire);
+  const fill_time = parseInt(fill_time);
+  if (questionnaireId !== questionnaireId || fill_time !== fill_time) {
+    throw new this.FormatError();
+  }
   
   query.fill_language = String(query.fill_language);
   
-  if (!query.results || !query.results.length)
+  if (!query.results || !query.results.length) {
     throw new this.FormatError();
+  }
   
   const resultsQuery = [];
   const resultsArguments = [];
   
   return this.loadQuestionnaires(ctx).then(questionnaires => {
-    if (!questionnaires.hasOwnProperty(query.questionnaire))
+    if (!questionnaires.hasOwnProperty(questionnaireId)) {
       throw new this.SoTradeClientError('save-questionnaire-unknown-questionnaire');
+    }
     
-    const questionnaire = questionnaires[query.questionnaire][query.fill_language];
+    const questionnaire = questionnaires[questionnaireId][query.fill_language];
     
-    if (!questionnaire)
+    if (!questionnaire) {
       throw new this.SoTradeClientError('save-questionnaire-unknown-questionnaire');
+    }
     
     assert.ok(questionnaire.questionnaire_id);
     
     const answeredQuestions = _.pluck(query.results, 'question');
     const availableQuestions = _.pluck(questionnaire.questions, 'question_id');
     
-    if (_.xor(answeredQuestions, availableQuestions).length > 0)
+    if (_.xor(answeredQuestions, availableQuestions).length > 0) {
       throw new this.SoTradeClientError('save-questionnaire-incomplete');
+    }
     
     for (let i = 0; i < query.results.length; ++i) {
       const answers = query.results[i].answers;
       const question = questionnaire.questions.filter(qn => {
-        return qn.question_id == query.results[i].question;
+        return qn.question_id === query.results[i].question;
       })[0];
       
       assert.ok(question);
       
-      if (!answers || (answers.length != 1 && !question.question_multiple_answers))
+      if (!answers || (answers.length !== 1 && !question.question_multiple_answers)) {
         throw new this.SoTradeClientError('save-questionnaire-invalid',
           'Invalid number of answers for question ' + question.question_id +
           ' (' + JSON.stringify(question) + ')');
+      }
       
       const chosenAnswers = _.pluck(answers, 'answer');
       const availableAnswers = _.pluck(question.answers, 'answer_id');
       
-      if (_.difference(chosenAnswers, availableAnswers).length > 0)
+      if (_.difference(chosenAnswers, availableAnswers).length > 0) {
         throw new this.SoTradeClientError('save-questionnaire-invalid',
           'Invalid answer(s) for question ' + question.question_id + ': ' +
           JSON.stringify(_.difference(chosenAnswers, availableAnswers)) +
           ' (' + JSON.stringify(question) + ')');
+      }
       
       for (let j = 0; j < answers.length; ++j) {
         resultsQuery.push('(%resultSetID%,?,?,?)');
@@ -132,7 +140,7 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
     
     return ctx.query('INSERT INTO qn_result_sets (questionnaire_id, uid, submission_time, fill_time, fill_language)' + 
       'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?)',
-      [questionnaire.questionnaire_id, ctx.user.uid, query.fill_time, query.fill_language]);
+      [questionnaire.questionnaire_id, ctx.user.uid, fill_time, query.fill_language]);
   }).then(res => {
     const resultSetID = parseInt(res.insertId);
     
@@ -151,8 +159,9 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
  */
 Questionnaires.prototype.loadQuestionnaires = function(ctx) {
   debug('loadQuestionnaires', !!this.questionnaires);
-  if (this.questionnaires)
+  if (this.questionnaires) {
     return this.questionnaires;
+  }
   
   let loadQuestionnaire, loadQuestion, loadAnswer, groupByLanguage;
   

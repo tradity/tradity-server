@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const buscomponent = require('./stbuscomponent.js');
 const qctx = require('./qctx.js');
@@ -82,8 +81,9 @@ Misc.prototype.ping = buscomponent.provideQT('client-ping', function(query, ctx)
  * @function c2s~artificial-error
  */
 Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error', function(query, ctx) {
-  if (!ctx.access.has('server'))
+  if (!ctx.access.has('server')) {
     throw new this.PermissionDenied();
+  }
   
   debug('Creating artificial error');
   ctx.emitError(new Error('Client-induced non-failure'));
@@ -99,8 +99,9 @@ Misc.prototype.artificialError = buscomponent.provideQT('client-artificial-error
  * @function c2s~artificial-deadlock
  */
 Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-deadlock', function(query, ctx) {
-  if (!ctx.access.has('server'))
+  if (!ctx.access.has('server')) {
     throw new this.PermissionDenied();
+  }
   
   debug('Creating artificial deadlock');
   let conn1, conn2, id;
@@ -142,8 +143,9 @@ Misc.prototype.artificialDeadlock = buscomponent.provideWQT('client-artificial-d
  * @function c2s~artificial-stalelock
  */
 Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-stalelock', function(query, ctx) {
-  if (!ctx.access.has('server'))
+  if (!ctx.access.has('server')) {
     throw new this.PermissionDenied();
+  }
   
   debug('Creating artificial stale lock');
   
@@ -163,8 +165,9 @@ Misc.prototype.artificialStalelock = buscomponent.provideWQT('client-artificial-
  * @function c2s~force-readonly
  */
 Misc.prototype.forceReadonly = buscomponent.provideQT('client-force-readonly', function(query, ctx) {
-  if (!ctx.access.has('server'))
+  if (!ctx.access.has('server')) {
     throw new this.PermissionDenied();
+  }
   
   debug('Force into readability mode', query.readonly);
   
@@ -181,8 +184,9 @@ Misc.prototype.forceReadonly = buscomponent.provideQT('client-force-readonly', f
  * @function c2s~artificial-dberror
  */
 Misc.prototype.artificialDBError = buscomponent.provideWQT('client-artificial-dberror', function(query, ctx) {
-  if (!ctx.access.has('server'))
+  if (!ctx.access.has('server')) {
     throw new this.PermissionDenied();
+  }
   
   debug('Query with invalid SQL');
   

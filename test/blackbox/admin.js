@@ -22,12 +22,13 @@ describe('admin', function() {
   after(testHelpers.standardTeardown);
 
   describe('list-all-users', function() {
-    if (!testHelpers.testPerformance)
+    if (!testHelpers.testPerformance) {
     it('Should fail for non-admin users', function() {
       return socket.emit('list-all-users').then(result => {
         assert.equal(result.code, 'permission-denied');
       });
     });
+    }
     
     it('Should provide a list of all users', function() {
       return socket.emit('list-all-users', { __sign__: true }).then(result => {
@@ -46,7 +47,7 @@ describe('admin', function() {
     });
   });
   
-  if (!testHelpers.testPerformance)
+  if (!testHelpers.testPerformance) {
   describe('impersonate-user', function() {
     it('Should fail for non-admin users', function() {
       return socket.emit('impersonate-user').then(result => {
@@ -91,6 +92,7 @@ describe('admin', function() {
       });
     });
   });
+  }
   
   describe('change-user-email', function() {
     it('Should fail for invalid user ids', function() {
@@ -212,7 +214,7 @@ describe('admin', function() {
       
       return socket.emit('list-schools').then(res => {
         assert.ok(res.result.length > 0);
-        school = res.result.filter(s => commonUtil.parentPath(s) == '/')[0];
+        school = res.result.filter(s => commonUtil.parentPath(s) === '/')[0];
         
         return socket.emit('rename-school', {
           __sign__: true,
@@ -348,9 +350,7 @@ describe('admin', function() {
         assert.equal(result.code, 'get-followers-success');
         assert.ok(result.results.length > 0);
         
-        const ownUserFollowerEntry = result.results.filter(function(follower) {
-          return follower.uid == user.uid;
-        })[0];
+        const ownUserFollowerEntry = result.results.filter(follower => follower.uid === user.uid)[0];
         
         assert.ok(ownUserFollowerEntry);
         assert.equal(ownUserFollowerEntry.amount, amount);
@@ -358,17 +358,20 @@ describe('admin', function() {
     });
   });
   
-  if (!testHelpers.testPerformance)
+  if (!testHelpers.testPerformance) {
   describe('get-server-statistics', function() {
     it('Should return a list of servers', function() {
-      return socket.emit('get-server-statistics', { __sign__: true }).then(res => {
+      return socket.emit('get-server-statistics', {
+        __sign__: true
+      }).then(res => {
         assert.equal(res.code, 'get-server-statistics-success');
         assert.ok(res.servers.length > 0);
       });
     });
   });
+  } 
   
-  if (!testHelpers.testPerformance)
+  if (!testHelpers.testPerformance) {
   describe('get-ticks-statistics', function() {
     it('Should return a timeline of tick statistics', function() {
       return socket.emit('prod', { __sign__: true }).then(() => {
@@ -381,4 +384,5 @@ describe('admin', function() {
       });
     });
   });
+  }
 });

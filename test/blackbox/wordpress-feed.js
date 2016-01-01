@@ -4,7 +4,7 @@ const assert = require('assert');
 const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 
-if (!testHelpers.testPerformance)
+if (!testHelpers.testPerformance) {
 describe('wordpress-feed', function() {
   let socket, user;
   
@@ -46,7 +46,7 @@ describe('wordpress-feed', function() {
         assert.equal(res.code, 'list-wordpress-feeds-success');
         
         const recentEntry = res.results.filter(function(blog) {
-          return blog.endpoint == endpoint;
+          return blog.endpoint === endpoint;
         })[0];
         
         assert.ok(recentEntry);
@@ -66,3 +66,4 @@ describe('wordpress-feed', function() {
     });
   });
 });
+}

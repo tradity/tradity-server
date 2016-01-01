@@ -1,8 +1,5 @@
 "use strict";
 
-const _ = require('lodash');
-const util = require('util');
-const assert = require('assert');
 const buscomponent = require('./stbuscomponent.js');
 const templates = require('./templates-compiled.js');
 const debug = require('debug')('sotrade:template-loader');
@@ -51,11 +48,13 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
     
     let t = templates[lang] && templates[lang][template];
     
-    for (let i = 0; !t && i < cfg.languages.length; ++i)
+    for (let i = 0; !t && i < cfg.languages.length; ++i) {
       t = templates[cfg.languages[i].id][template];
+    }
     
-    if (!t)
+    if (!t) {
       throw new Error('Template not found: ' + template);
+    }
     
     Object.keys(variables).forEach(e => {
       const r = new RegExp('\\$\\{' + e + '\\}', 'g');
@@ -63,8 +62,9 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
     });
     
     const unresolved = t.match(/\$\{([^\}]*)\}/);
-    if (unresolved)
+    if (unresolved) {
       throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
+    }
     
     return t;
   });
@@ -104,10 +104,11 @@ TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemp
       
       const camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase(); }).replace(/-/g, '');
       
-      if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) != -1)
+      if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) !== -1) {
         opt[camelCaseHeaderName] = headerValue;
-      else
+      } else {
         opt.headers[headerName] = headerValue;
+      }
     }
     
     opt.html = body;

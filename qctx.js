@@ -1,7 +1,6 @@
 "use strict";
 
 const Access = require('./access.js').Access;
-const util = require('util');
 const assert = require('assert');
 const weak = require('weak');
 const buscomponent = require('./stbuscomponent.js');
@@ -68,14 +67,16 @@ class QContext extends buscomponent.BusComponent {
     let parentQCtx = null;
     
     if (obj.parentComponent) {
-      if (obj.isQContext)
+      if (obj.isQContext) {
         parentQCtx = obj.parentComponent;
+      }
       
       this.setBusFromParent(obj.parentComponent);
     }
     
-    if (!parentQCtx && !obj.isMasterQCTX)
+    if (!parentQCtx && !obj.isMasterQCTX) {
       parentQCtx = QContext.getMasterQueryContext();
+    }
     
     const ondestroy = _ctx => {
       if (_ctx.tableLocks.length > 0 || _ctx.openConnections.length > 0) {
@@ -92,8 +93,9 @@ class QContext extends buscomponent.BusComponent {
       }
     };
     
-    if (parentQCtx)
+    if (parentQCtx) {
       parentQCtx.childContexts.push(weak(this, ondestroy));
+    }
     
     this.addProperty({name: 'debugEnabled', value: false, access: 'server'});
   }
@@ -102,8 +104,9 @@ class QContext extends buscomponent.BusComponent {
 QContext.masterQueryContext = null;
 
 QContext.getMasterQueryContext = function() {
-  if (QContext.masterQueryContext)
+  if (QContext.masterQueryContext) {
     return QContext.masterQueryContext;
+  }
   
   QContext.masterQueryContext = new QContext({isMasterQCTX: true});
 };
@@ -139,10 +142,11 @@ QContext.prototype.getChildContexts = function() {
   const rv = [];
   
   for (let i = 0; i < this.childContexts.length; ++i) {
-    if (weak.isDead(this.childContexts[i]))
+    if (weak.isDead(this.childContexts[i])) {
       delete this.childContexts[i];
-    else
+    } else {
       rv.push(this.childContexts[i]);
+    }
   }
   
   // remove deleted indices
@@ -165,8 +169,9 @@ QContext.prototype.onBusConnect = function() {
 };
 
 QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
-  if (this.hasProperty('readonly'))
+  if (this.hasProperty('readonly')) {
     return this.setProperty('readonly', event.readonly);
+  }
 });
 
 /**
@@ -192,8 +197,9 @@ QContext.prototype.toJSON = function() {
 exports.fromJSON =
 QContext.fromJSON = function(j, parentComponent) {
   const ctx = new QContext({parentComponent: parentComponent});
-  if (!j)
+  if (!j) {
     return ctx;
+  }
   
   ctx.user = j.user || null;
   ctx.access = Access.fromJSON(j.access);
@@ -226,8 +232,9 @@ QContext.prototype.addProperty = function(propInfo) {
  * @function module:qctx~QContext#getProperty
  */
 QContext.prototype.getProperty = function(name) {
-  if (!this.hasProperty(name))
+  if (!this.hasProperty(name)) {
     return undefined;
+  }
   
   return this.properties[name].value;
 };
@@ -254,24 +261,26 @@ QContext.prototype.hasProperty = function(name) {
  * @function module:qctx~QContext#setProperty
  */
 QContext.prototype.setProperty = function(name, value, hasAccess) {
-  if (!this.hasProperty(name))
+  if (!this.hasProperty(name)) {
     throw new Error('Property ' + name + ' not defined yet');
+  }
   
   const requiredAccess = this.properties[name].access;
   if (!requiredAccess) {
     hasAccess = true;
-  } else if (typeof requiredAccess == 'string') {
+  } else if (typeof requiredAccess === 'string') {
     hasAccess = hasAccess || this.access.has(requiredAccess);
-  } else if (typeof requiredAccess == 'function') {
+  } else if (typeof requiredAccess === 'function') {
     hasAccess = hasAccess || requiredAccess(this);
   } else {
     throw new Error('Unknown access restriction ' + JSON.stringify(requiredAccess));
   }
   
-  if (hasAccess)
+  if (hasAccess) {
     this.properties[name].value = value;
-  else
+  } else {
     throw new Error('Access for changing property ' + name + ' not granted ' + requiredAccess);
+  }
 };
 
 /**
@@ -287,14 +296,15 @@ QContext.prototype.feed = function(data) {
   delete data.conn;
   delete data.onEventId;
   
-  var release = null;
+  let release = null;
   
   // keep in mind that self.contextTransaction may be a promise or null
   // use Promise.resolve(…) to clarify that before all else
   return Promise.resolve(conn).then(conn_ => {
     // connection is there? -> set conn to the resolved promise
-    if (conn_)
+    if (conn_) {
       return conn = conn_;
+    }
     
     return this.startTransaction().then(conn_ => {
       return conn = release = conn_;
@@ -303,11 +313,13 @@ QContext.prototype.feed = function(data) {
     return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn});
   }).then(retval => {
     // release is never a promise
-    if (release)
+    if (release) {
       return release.commit().then(() => retval);
+    }
   }).catch(e => {
-    if (release)
+    if (release) {
       return release.rollbackAndThrow(e);
+    }
     throw e;
   });
 };
@@ -345,8 +357,9 @@ QContext.prototype.enterTransactionOnQuery = function(tables, options) {
 QContext.prototype.commit = function() {
   const args = arguments;
   
-  if (!this.contextTransaction)
+  if (!this.contextTransaction) {
     return Promise.resolve();
+  }
   
   return Promise.resolve(this.contextTransaction).then(conn => {
     return conn.commit.apply(this, args);
@@ -356,8 +369,9 @@ QContext.prototype.commit = function() {
 QContext.prototype.rollback = function() {
   const args = arguments;
   
-  if (!this.contextTransaction)
+  if (!this.contextTransaction) {
     return Promise.resolve();
+  }
   
   return Promise.resolve(this.contextTransaction).then(conn => {
     return conn.rollback.apply(this, args);
@@ -378,8 +392,8 @@ QContext.prototype.rollbackAndThrow = function(e) {
  * @function module:qctx~QContext#query
  */
 QContext.prototype.query = function(query, args, readonly) {
-  var queryArgs = arguments;
-  var sToQ = this.startTransactionOnQuery;
+  const queryArgs = arguments;
+  const sToQ = this.startTransactionOnQuery;
   
   if (this.contextTransaction) {
     assert.ok(sToQ);
@@ -422,22 +436,25 @@ QContext.prototype.query = function(query, args, readonly) {
  * @function module:qctx~QContext#getConnection
  */
 QContext.prototype.getConnection = function(readonly, restart) {
-  var oci = this.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
-  var conn;
+  const oci = this.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
+  let conn;
   
-  var postTransaction = doRelease => {
+  const postTransaction = doRelease => {
     delete this.openConnections[oci];
-    if (_.compact(this.openConnections) == [])
+    if (_.compact(this.openConnections).length === 0) {
       this.openConnections = [];
+    }
     
-    if (typeof doRelease == 'undefined')
+    if (typeof doRelease === 'undefined') {
       doRelease = true;
+    }
     
-    if (doRelease)
+    if (doRelease) {
       return conn.release();
+    }
   };
   
-  var oldrestart = restart;
+  const oldrestart = restart;
   restart = () => {
     return Promise.resolve(postTransaction()).then(oldrestart);
   };
@@ -447,7 +464,7 @@ QContext.prototype.getConnection = function(readonly, restart) {
     assert.ok(conn);
     
     /* return wrapper object for better debugging, no semantic change */
-    var conn_ = {
+    conn_ = {
       release: () => conn.release(),
       query: (query, args) => {
         this.debug('Executing query [bound]', query, args);
@@ -493,45 +510,49 @@ QContext.prototype.getConnection = function(readonly, restart) {
  * @function module:qctx~QContext#startTransaction
  */
 QContext.prototype.startTransaction = function(tablelocks, options) {
-  var args = arguments;
+  const args = arguments;
   
   options = options || {};
   tablelocks = tablelocks || {};
   
-  var readonly = !!options.readonly;
+  const readonly = !!options.readonly;
   
-  var tli = null;
-  var notifyTimer = null;
+  let tli = null;
+  let notifyTimer = null;
   
-  if (tablelocks)
+  if (tablelocks) {
     tli = this.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
+  }
   
   debug('Starting transaction', tli);
-  var cleanTLEntry = () => {
+  const cleanTLEntry = () => {
     debug('Ended transaction', tli);
     
-    if (tli === null)
+    if (tli === null) {
       return;
+    }
     
-    if (notifyTimer)
+    if (notifyTimer) {
       clearTimeout(notifyTimer);
+    }
     
     notifyTimer = null;
     delete this.tableLocks[tli];
-    if (_.compact(this.tableLocks) == [])
+    if (_.compact(this.tableLocks).length === 0) {
       this.tableLocks = [];
+    }
     
     tli = null;
   };
   
-  var conn;
-  var oldrestart = options.restart || (() => {
+  let conn;
+  const oldrestart = options.restart || (() => {
     (conn ? conn.rollback() : Promise.resolve()).then(() => {
       this.startTransaction.apply(this, args);
     });
   });
   
-  var restart = () => {
+  const restart = () => {
     cleanTLEntry();
     return oldrestart.apply(this, arguments);
   };
@@ -539,7 +560,7 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
   return this.getConnection(readonly, restart).then(conn_ => {
     conn = conn_;
     
-    var oldCommit = conn.commit, oldRollback = conn.rollback;
+    const oldCommit = conn.commit, oldRollback = conn.rollback;
     conn.commit = v => {
       cleanTLEntry();
       return Promise.resolve(oldCommit.call(conn, true)).then(() => v);
@@ -561,8 +582,8 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
       });
     };
     
-    var tables = Object.keys(tablelocks);
-    var init = 'SET autocommit = 0; ';
+    const tables = Object.keys(tablelocks);
+    let init = 'SET autocommit = 0; ';
     
     init += 'SET TRANSACTION ISOLATION LEVEL ' + ({
       'RU': 'READ UNCOMMITTED',
@@ -571,24 +592,26 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
       'S': 'SERIALIZABLE'
     }[(options.isolationLevel || 'RC').toUpperCase()] || options.isolationLevel).toUpperCase() + '; ';
     
-    if (tables.length == 0)
+    if (tables.length === 0) {
       init += 'START TRANSACTION ';
-    else
+    } else {
       init += 'LOCK TABLES ';
+    }
     
     for (let i = 0; i < tables.length; ++i) {
-      var name = tables[i];
-      var mode = tablelocks[name].mode || tablelocks[name];
-      var alias = tablelocks[name].alias;
-      var tablename = tablelocks[name].name || name;
+      const name = tables[i];
+      const mode = tablelocks[name].mode || tablelocks[name];
+      const alias = tablelocks[name].alias;
+      const tablename = tablelocks[name].name || name;
       
-      mode = {'r': 'READ', 'w': 'WRITE'}[mode];
+      const modeString = {'r': 'READ', 'w': 'WRITE'}[mode];
       assert.ok(mode);
       
-      init += tablename + (alias ? ' AS ' + alias : '') + ' ' + mode;
+      init += tablename + (alias ? ' AS ' + alias : '') + ' ' + modeString;
       
-      if (i < tables.length - 1)
+      if (i < tables.length - 1) {
         init +=  ', ';
+      }
     }
     
     init += ';';
@@ -597,8 +620,9 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
   }).then(() => {
     // install timer to notify in case that the transaction gets 'lost'
     notifyTimer = setTimeout(() => {
-      if (tli === null)
+      if (tli === null) {
         return;
+      }
       
       this.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
     }, 90000);
@@ -613,11 +637,13 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
  * @function module:qctx~QContext#debug
  */
 QContext.prototype.debug = function() {
-  if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled'))
+  if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled')) {
     return;
+  }
   
-  for (let i = 0; i < this.debugHandlers.length; ++i)
+  for (let i = 0; i < this.debugHandlers.length; ++i) {
     this.debugHandlers[i](Array.prototype.slice.call(arguments));
+  }
 };
 
 /**
@@ -629,8 +655,9 @@ QContext.prototype.debug = function() {
 QContext.prototype.emitError = function(e) {
   this.debug('Caught error', e);
   
-  for (let i = 0; i < this.errorHandlers.length; ++i)
+  for (let i = 0; i < this.errorHandlers.length; ++i) {
     this.errorHandlers[i](e);
+  }
   
   QContext.super_.prototype.emitError.call(this, e);
 };
@@ -646,10 +673,11 @@ QContext.prototype.emitError = function(e) {
 QContext.prototype.getStatistics = function(recurse) {
   assert.ok(recurse === true || recurse === false);
   
-  var rv = {};
+  const rv = {};
   
-  for (let i in this.properties)
+  for (let i in this.properties) {
     rv[i] = this.properties[i].value;
+  }
   
   rv.tableLocks = _.compact(this.tableLocks);
   rv.openConnections = _.compact(this.openConnections);
@@ -659,8 +687,9 @@ QContext.prototype.getStatistics = function(recurse) {
   rv.creationTime = this.creationTime;
   rv.creationStack = this.creationStack;
   
-  if (recurse)
+  if (recurse) {
     rv.childContexts = this.childContexts.map(c => c.getStatistics(true));
+  }
   
   return rv;
 };
@@ -668,7 +697,7 @@ QContext.prototype.getStatistics = function(recurse) {
 exports.QContext = QContext;
 
 function getStack() {
-  var oldSTL, stack;
+  let oldSTL, stack;
   
   oldSTL = Error.stackTraceLimit;
   Error.stackTraceLimit = Math.max(40, oldSTL); // at least 40

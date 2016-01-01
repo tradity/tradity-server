@@ -24,7 +24,7 @@ class STBusComponent extends buscomponent.BusComponent {
 
   getServerConfig() {
     return this.request({name: 'getServerConfig'});
-  };
+  }
 }
 
 function txwrap(tables, options, fn) {
@@ -58,17 +58,18 @@ const provide = buscomponent.provide;
 function provideW(name, args, fn) {
   fn.needsWriting = true;
   
-  return provide(name, args, fn, function(data) {
-    if (data.ctx && data.ctx.getProperty('readonly'))
+  return provide(name, args, fn, data => {
+    if (data.ctx && data.ctx.getProperty('readonly')) {
       return { result: { code: 'server-readonly' }, prefiltered: true };
+    }
     
     return { prefiltered: false };
   });
-};
+}
 
-function provideQT(name, fn) { return provide(name, ['query', 'ctx', 'xdata'], fn); };
-function provideWQT(name, fn) { return provideW(name, ['query', 'ctx', 'xdata'], fn); };
-function provideTXQT(name, tables, options, fn) { return provideWQT(name, txwrap(tables, options, fn)); };
+function provideQT(name, fn) { return provide(name, ['query', 'ctx', 'xdata'], fn); }
+function provideWQT(name, fn) { return provideW(name, ['query', 'ctx', 'xdata'], fn); }
+function provideTXQT(name, tables, options, fn) { return provideWQT(name, txwrap(tables, options, fn)); }
 
 exports.provideW    = provideW;
 exports.provideQT   = provideQT;
@@ -85,7 +86,7 @@ function SoTradeClientError(code, msg) {
   this.isSotradeError = true;
   
   return this;
-};
+}
 
 const IntermediateInheritor = function() {};
 IntermediateInheritor.prototype = Error.prototype;

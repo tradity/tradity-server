@@ -1,7 +1,5 @@
 "use strict";
 
-const _ = require('lodash');
-const util = require('util');
 const fs = require('fs');
 const crypto = require('crypto');
 const assert = require('assert');
@@ -75,6 +73,8 @@ SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSign
   
   return new Promise((resolve, reject) => {
     assert.ok(this.privateKey);
+    sign.on('error', reject);
+    
     sign.end(string, null, () => {
       const signed = string + '~' + sign.sign(this.privateKey, 'base64');
       return resolve(signed);
@@ -99,18 +99,21 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
   ['msg', 'maxAge'], function(msg, maxAge) 
 {
   const msg_ = msg.split('~');
-  if (msg_.length != 2)
+  if (msg_.length !== 2) {
     return null;
+  }
   
   const string = msg_[0], signature = msg_[1];
   
   return new Promise((resolve, reject) => {
     const verifySingleKey = i => {
-      if (i == this.publicKeys.length)
+      if (i === this.publicKeys.length) {
         return resolve(null); // no key matched
+      }
       
       const pubkey = this.publicKeys[i];
       const verify = crypto.createVerify('RSA-SHA256');
+      verify.on('error', reject);
       
       return verify.end(string, null, () => {
         if (verify.verify(pubkey, signature, 'base64')) {
@@ -122,10 +125,11 @@ SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySign
           const stringparsed = string.split('#');
           const objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
           
-          if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000)
+          if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000) {
             return resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
-          else
+          } else {
             debug('Message max age was exceeded');
+          }
         }
         
         verifySingleKey(i+1); // try next key

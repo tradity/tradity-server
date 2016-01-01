@@ -33,63 +33,70 @@ function handleMail(mail) {
     messageId = mail.headers['message-id'].replace(/^<|@.+$/g, '');
     diagnostic_code = 'Raw return to mail bounce handler script';
     
-    if (!messageId)
+    if (!messageId) {
       return process.exit(0);
+    }
     
     return notifyServer();
   }
   
-  if (!attachments || !attachments.length)
+  if (!attachments || attachments.length === 0) {
     return process.exit(0);
+  }
   
   for (let i = 0; i < attachments.length; ++i) {
     const attachment = attachments[i];
     
     const attachmentParser = new MailParser();
     
-    attachmentParser.on('end', function(attachmentContent) {
-      if (attachment.contentType == 'message/delivery-status') {
+    attachmentParser.on('end', attachmentContent => {
+      if (attachment.contentType === 'message/delivery-status') {
         const dsParser = new MailParser();
         
-        dsParser.on('end', function(dsContent) {
+        dsParser.on('end', dsContent => {
           diagnostic_code = dsContent.headers['diagnostic-code'] || '[Unknown failure]';
           
-          if (messageId)
+          if (messageId) {
             return notifyServer();
+          }
         });
         
         dsParser.end(attachmentContent.text);
-      } else if (attachment.contentType == 'message/rfc822') {
+      } else if (attachment.contentType === 'message/rfc822') {
         messageId = attachmentContent.headers['message-id'].replace(/^<|@.+$/g, '');
         
-        if (diagnostic_code)
+        if (diagnostic_code) {
           return notifyServer();
+        }
       }
     });
     
     attachmentParser.end(attachment.content);
-  };
+  }
   
-  setTimeout(function() {
-    if (!notifying)
+  setTimeout(() => {
+    if (!notifying) {
       process.exit(0);
+    }
   }, 5000);
 }
 
-mailparser.on('end', function(mail_) {
+mailparser.on('end', mail_ => {
   debug('Have parsed mail');
   mail = mail_;
 
-  if (serverConfigReceived)
+  if (serverConfigReceived) {
     handleMail(mail);
+  }
 });
 
 process.stdin.pipe(mailparser);
 
-socket.once('server-config').then(function() {
+socket.once('server-config').then(() => {
   debug('Have server config');
   serverConfigReceived = true;
   
-  if (mail)
+  if (mail) {
     handleMail(mail);
+  }
 });

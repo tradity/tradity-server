@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 const promiseUtil = require('../../lib/promise-util.js');
 const spread = promiseUtil.spread;

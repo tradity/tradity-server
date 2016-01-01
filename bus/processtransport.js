@@ -2,7 +2,6 @@
 
 const _ = require('lodash');
 const assert = require('assert');
-const util = require('util');
 const bus = require('./bus.js');
 
 class ProcessTransport extends bus.Transport {
@@ -18,8 +17,9 @@ class ProcessTransport extends bus.Transport {
   init(bus) {
     return super.init(bus).then(() => Promise.all([
       this.processObject.on('message', msg => {
-        if (msg.type != 'tmsg')
+        if (msg.type !== 'tmsg') {
           return;
+        }
         
         return super.emit(msg.name, msg.data);
       }),

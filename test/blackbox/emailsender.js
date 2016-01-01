@@ -3,7 +3,7 @@
 const assert = require('assert');
 const testHelpers = require('./test-helpers.js');
 
-if (!testHelpers.testPerformance)
+if (!testHelpers.testPerformance) {
 describe('emailsender', function() {
   let socket, user;
 
@@ -28,3 +28,4 @@ describe('emailsender', function() {
     });
   });
 });
+}

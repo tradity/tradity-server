@@ -1,9 +1,6 @@
 "use strict";
 
 const assert = require('assert');
-const util = require('util');
-const _ = require('lodash');
-const config = require('../config.js');
 const abstractloader = require('./abstractloader.js');
 const debug = require('debug')('sotrade:stockloader:loopback');
 

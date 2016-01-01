@@ -1,14 +1,13 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 
 describe('questionnaires', function() {
   let socket, user, random;
   
   before(function() {
-    const seed = Math.random();
+    let seed = Math.random();
     
     random = function() {
       const x = Math.sin(seed++) * 100000;
@@ -40,11 +39,12 @@ describe('questionnaires', function() {
         const startTime = Date.now();
         
         const questionnaireIDs = Object.keys(data.questionnaires);
-        if (questionnaireIDs.length == 0)
+        if (questionnaireIDs.length === 0) {
           return;
+        }
         
         const questionnaireLangs = data.questionnaires[questionnaireIDs[parseInt(random() * questionnaireIDs.length)]];
-        const languages = Object.keys(questionnaireLangs).filter(function(s) { return s != 'questionnaire_id'; });
+        const languages = Object.keys(questionnaireLangs).filter(s => s !== 'questionnaire_id');
         assert.ok(languages.length > 0);
         
         const lang = languages[parseInt(random() * languages.length)];
@@ -70,19 +70,18 @@ describe('questionnaires', function() {
           let answerSet;
           
           if (qn.question_multiple_answers) {
-            answerSet = qn.answers.filter(function(answer) {
-              return random() < 0.5;
-            });
+            answerSet = qn.answers.filter(() => random() < 0.5);
           } else {
             answerSet = [qn.answers[parseInt(random() * qn.answers.length)]];
           }
           
           return {
             question: qn.question_id,
-            answers: answerSet.map(function(answer) {
+            answers: answerSet.map(answer => {
               const ret = { answer: answer.answer_id };
-              if (answer.answer_freetext)
+              if (answer.answer_freetext) {
                 ret.text = 'Banana';
+              }
               return ret;
             })
           };

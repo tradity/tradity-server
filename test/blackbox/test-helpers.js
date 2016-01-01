@@ -39,8 +39,9 @@ const getSocket = _.memoize(function() {
       socket.on('*', data => {
         const dt = data._dt;
         
-        if (!dt)
+        if (!dt) {
           return; // probably an event
+        }
         
         const fields = [
           Date.now(),
@@ -69,19 +70,18 @@ const getTestUser = _.memoize(function() {
   const name = 'mm' + Date.now() * (process.pid | 0x100) + String(parseInt(Math.random() * 1000));
   const password = sha256(name).substr(0, 12);
   const email = name + '@invalid.invalid';
-  let uid = null;
   let gender;
   
-  const schoolid = 'MegaMusterschule' + parseInt(Date.now() / 100000);
-  const schoolname = schoolid;
+  let schoolid = 'MegaMusterschule' + parseInt(Date.now() / 100000);
+  let schoolname = schoolid;
   
   return getSocket().then(socket => {
     return socket.emit('list-schools').then(data => {
       assert.equal(data.code, 'list-schools-success');
       for (let i = 0; i < data.result.length; ++i) {
-        assert.ok(data.result[i].banner === null || typeof data.result[i].banner == 'string');
+        assert.ok(data.result[i].banner === null || typeof data.result[i].banner === 'string');
         
-        if (data.result[i].name == schoolid) {
+        if (data.result[i].name === schoolid) {
           schoolid = data.result[i].id;
           break;
         }
@@ -137,7 +137,7 @@ const getTestUser = _.memoize(function() {
         schoolname: schoolname,
         schoolid: schoolid
       };
-    })
+    });
   });
 });
 
@@ -159,8 +159,9 @@ const standardTeardown = function() {
 const standardReset = function() {
   return getSocket().then(socket => {
     return getTestUser().then(user => {
-      if (testPerformance)
+      if (testPerformance) {
         return;
+      }
       
       return socket.emit('logout').then(() => {
         return socket.emit('login', { // login to reset privileges
@@ -176,15 +177,18 @@ const standardReset = function() {
 };
 
 const bufferEqual = function(a, b) {
-  if (a.length != b.length)
+  if (a.length !== b.length) {
     return false;
+  }
   
-  for (let i = 0; i < a.length; ++i)
-    if (a[i] != b[i])
+  for (let i = 0; i < a.length; ++i) {
+    if (a[i] !== b[i]) {
       return false;
+    }
+  }
   
   return true;
-}
+};
 
 exports.getSocket = getSocket;
 exports.getTestUser = getTestUser;

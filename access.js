@@ -52,8 +52,10 @@ class Access {
    * @function module:access~Access#toJSON
    */
   toJSON() {
-    if (this.hasAnyAccess)
+    if (this.hasAnyAccess) {
       return '["*"]';
+    }
+    
     return JSON.stringify(this.areas);
   }
 
@@ -67,8 +69,10 @@ class Access {
    * @function module:access~Access#toJSON
    */
   toArray() {
-    if (this.hasAnyAccess)
+    if (this.hasAnyAccess) {
       return ['*'];
+    }
+    
     return this.areas;
   }
 
@@ -82,7 +86,7 @@ class Access {
    * @function module:access~Access#has
    */
   has(area) {
-    return this.hasAnyAccess || (this.areas.indexOf(area) != -1);
+    return this.hasAnyAccess || (this.areas.indexOf(area) !== -1);
   }
 
   /**
@@ -93,11 +97,13 @@ class Access {
    * @function module:access~Access#update
    */
   update(otherAccess) {
-    if (otherAccess.hasAnyAccess)
+    if (otherAccess.hasAnyAccess) {
       this.grant('*');
+    }
     
-    for (let i = 0; i < otherAccess.areas.length; ++i)
+    for (let i = 0; i < otherAccess.areas.length; ++i) {
       this.grant(otherAccess.areas[i]);
+    }
   }
 
   /**
@@ -110,14 +116,17 @@ class Access {
    */
   grant(area) {
     area = area.trim();
-    if (!area)
+    if (!area) {
       return;
+    }
     
-    if (area == '*')
+    if (area === '*') {
       return this.grantAny();
+    }
     
-    if (this.areas.indexOf(area) == -1)
+    if (this.areas.indexOf(area) === -1) {
       this.areas.push(area);
+    }
   }
 
   /**
@@ -139,15 +148,18 @@ class Access {
    */
   drop(area) {
     area = area.trim();
-    if (!area)
+    if (!area) {
       return;
+    }
     
-    if (area == '*')
+    if (area === '*') {
       return this.dropAny();
+    }
     
     let index;
-    while ((index = this.areas.indexOf(area)) != -1)
+    while ((index = this.areas.indexOf(area)) !== -1) {
       this.areas.splice(index, 1);
+    }
   }
 
   /**
@@ -157,7 +169,7 @@ class Access {
    * 
    * @function module:access~Access#dropAny
    */
-  dropAny(area) {
+  dropAny() {
     this.hasAnyAccess = false;
   }
 
@@ -167,7 +179,7 @@ class Access {
    * 
    * @function module:access~Access#dropAall
    */
-  dropAll(area) {
+  dropAll() {
     this.dropAny();
     this.areas = [];
   }
@@ -186,17 +198,19 @@ class Access {
  */
 Access.fromJSON = function(j) {
   const a = new Access();
-  if (!j)
+  if (!j) {
     return a;
+  }
     
-  if (j.trim() == '*') {
+  if (j.trim() === '*') {
     a.grant('*');
   } else {
     const p = JSON.parse(j);
     
     // note that this can handle both an array and the "*" string!
-    for (let i = 0; i < p.length; ++i) 
+    for (let i = 0; i < p.length; ++i) {
       a.grant(p[i]);
+    }
   }
   
   return a;

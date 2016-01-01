@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const crypto = require('crypto');
 const assert = require('assert');
 const validator = require('validator');
@@ -42,8 +41,9 @@ class User extends buscomponent.BusComponent {
     
     this.loginIPCheck = null;
     this.getLoginIPCheck = function() {
-      if (this.loginIPCheck)
+      if (this.loginIPCheck) {
         return Promise.resolve(this.loginIPCheck);
+      }
       
       return this.loginIPCheck = this.getServerConfig().then(cfg => {
         return new LoginIPCheck(cfg.login);
@@ -114,16 +114,18 @@ User.prototype.generatePassword = function(pw, timeName, uid, conn) {
 User.prototype.verifyPassword = function(pwdata, pw) {
   debug('Verify password', pwdata.algorithm);
   
-  if (pwdata.algorithm === 'SHA256')
+  if (pwdata.algorithm === 'SHA256') {
     return Promise.resolve(pwdata.pwhash !== sha256(pwdata.pwsalt + pw));
+  }
   
   const pbkdf2Match = pwdata.algorithm.match(/^PBKDF2\|(\d+)$/);
   if (pbkdf2Match) {
     const iterations = parseInt(pbkdf2Match[1]);
     
     return this.getServerConfig().then(cfg => {
-      if (iterations < cfg.passwords.pbkdf2MinIterations)
+      if (iterations < cfg.passwords.pbkdf2MinIterations) {
         return false;
+      }
       
       return pbkdf2(String(pw), pwdata.pwsalt, 1 << iterations, 64).then(pwhash => {
         return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
@@ -191,7 +193,7 @@ User.prototype.sendRegisterEmail = function(data, ctx, xdata) {
     
     return ctx.query('INSERT INTO email_verifcodes (`uid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
       [ctx.user.uid, key]);
-  }).then(res => {
+  }).then(() => {
     return this.getServerConfig();
   }).then(cfg => {
     const url = cfg.varReplace(cfg.regurl
@@ -250,16 +252,18 @@ User.prototype.login = buscomponent.provide('client-login',
       'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
       'ORDER BY email_verif DESC, users.uid DESC, changetime DESC FOR UPDATE';
 
-    if (ctx.getProperty('readonly') || !useTransaction)
+    if (ctx.getProperty('readonly') || !useTransaction) {
       return ctx.query(query, [name, name]);
+    }
     
     return ctx.startTransaction().then(conn => {
       return conn.query(query, [name, name]).then(conn.commit, conn.rollbackAndThrow);
     });
   }).then(res => {
-    if (res.length == 0) {
-      if (!useTransaction)
+    if (res.length === 0) {
+      if (!useTransaction) {
         return this.login(query, ctx, xdata, true, ignorePassword);
+      }
       
       throw new this.SoTradeClientError('login-badname');
     }
@@ -270,14 +274,17 @@ User.prototype.login = buscomponent.provide('client-login',
     
     return res.map(r => {
       return (foundUser => {
-        if (foundUser !== null)
+        if (foundUser !== null) {
           return foundUser; // already found user id -> ok!
+        }
         
-        if (haveVerifiedEMail && !r.email_verif)
+        if (haveVerifiedEMail && !r.email_verif) {
           return null;
+        }
         
-        if (ignorePassword)
+        if (ignorePassword) {
           return r;
+        }
         
         return this.verifyPassword(r, pw).then(passwordOkay => {
           return passwordOkay ? r : null;
@@ -286,18 +293,20 @@ User.prototype.login = buscomponent.provide('client-login',
     }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve(null));
   }).then(r => {
     if (r === null) {
-      if (!useTransaction)
+      if (!useTransaction) {
         return this.login(query, ctx, xdata, true, ignorePassword);
+      }
       
       throw new this.SoTradeClientError('login-wrongpw');
     }
     
     uid = r.uid;
-    assert.ok(parseInt(r.pwid) == r.pwid);
-    assert.ok(parseInt(uid) == uid);
+    assert.equal(parseInt(r.pwid), r.pwid);
+    assert.equal(parseInt(uid), uid);
     
-    if (ctx.getProperty('readonly'))
+    if (ctx.getProperty('readonly')) {
       return;
+    }
     
     debug('Update passwords', xdata.remoteip, name, uid, r.pwid);
     return Promise.all([
@@ -481,7 +490,7 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
   let likestringUnit = [];
   let cacheKey;
   
-  const join = 'FROM users AS u ' +
+  let join = 'FROM users AS u ' +
     'JOIN users_data ON users_data.uid = u.uid ' +
     'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
     'LEFT JOIN schools AS c ON sm.schoolid = c.schoolid ' +
@@ -490,8 +499,9 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
     'JOIN valuehistory AS past_va ON past_va.uid = u.uid AND past_va.time = locator_va.min_t ' +
     'JOIN valuehistory AS now_va  ON  now_va.uid = u.uid AND  now_va.time = locator_va.max_t ';
   
-  if (!query.includeAll)
+  if (!query.includeAll) {
     likestringWhere += ' AND email_verif != 0 ';
+  }
 
   if (query.search) {
     const likestring = '%' + (String(query.search)).replace(/%/g, '\\%') + '%';
@@ -500,8 +510,9 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
   }
   
   return Promise.resolve().then(() => {
-    if (!query.schoolid)
+    if (!query.schoolid) {
       return ctx.access.has('userdb');
+    }
     
     join += 'JOIN schools AS p ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ';
     likestringWhere += 'AND (p.schoolid = ? OR p.path = ?) ';
@@ -521,10 +532,11 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
     const now = Date.now();
     
     cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
-    if (this.cache.has(cacheKey))
+    if (this.cache.has(cacheKey)) {
       return this.cache.use(cacheKey);
+    }
     
-    if (query.upto == 'now') {
+    if (query.upto === 'now') {
       // upto is rounded so that the SQL query cache will be used more effectively
       query.upto = parseInt(now / 20000) * 20;
     }
@@ -556,8 +568,6 @@ User.prototype.getRanking = buscomponent.provideQT('client-get-ranking', functio
         cache: this.cache
       }
     };
-    
-    return result;
   });
 });
 
@@ -629,10 +639,11 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
   
-    if (query.lookfor == '$self' && ctx.user)
+    if (query.lookfor === '$self' && ctx.user) {
       query.lookfor = ctx.user.uid;
+    }
     
-    const columns = (ctx.access.has('userdb') || query.lookfor == ctx.user.uid ? [
+    const columns = (ctx.access.has('userdb') || query.lookfor === ctx.user.uid ? [
       'u.*', 'ud.*', 'uf.*',
     ] : [
       'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
@@ -654,9 +665,8 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
       'day_va.totalvalue  AS daystarttotalvalue'
     ]).join(', ');
     
-    let lookfor, lookforColumn;
-    if (parseInt(query.lookfor) == query.lookfor) {
-      lookfor = parseInt(query.lookfor);
+    let lookfor = parseInt(query.lookfor), lookforColumn;
+    if (lookfor === lookfor) {
       lookforColumn = 'uid';
     } else {
       lookfor = String(query.lookfor);
@@ -665,8 +675,9 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     
     resultCacheKey += 'get-user-info-result:' + columns.length;
     const cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
-    if (this.cache.has(cacheKey) && cacheable)
+    if (this.cache.has(cacheKey) && cacheable) {
       return this.cache.use(cacheKey);
+    }
     
     return this.cache.add(cacheKey, 60000, ctx.query('SELECT ' + columns + ' FROM users AS u ' +
       'JOIN users_finance AS uf ON u.uid = uf.uid ' +
@@ -682,14 +693,16 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
       'WHERE u.' + lookforColumn + ' = ?',
       [Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
   }).then(users => {
-    if (users.length == 0)
+    if (users.length === 0) {
       throw new this.SoTradeClientError('get-user-info-notfound');
+    }
     
     xuser = users[0];
-    xuser.isSelf = (ctx.user && xuser.uid == ctx.user.uid);
-    if (xuser.isSelf) 
-      xuser.access = ctx.access.toArray();
     xuser.id = xuser.uid; // backwards compatibility
+    xuser.isSelf = (ctx.user && xuser.uid === ctx.user.uid);
+    if (xuser.isSelf) {
+      xuser.access = ctx.access.toArray();
+    }
     
     assert.ok(xuser.registerevent);
     
@@ -697,8 +710,9 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     delete xuser.pwsalt;
   }).then(() => {
     const cacheKey2 = 'get-user-info2:' + xuser.lstockid + ':' + xuser.dschoolid;
-    if (this.cache.has(cacheKey2) && cacheable)
+    if (this.cache.has(cacheKey2) && cacheable) {
       return this.cache.use(cacheKey2);
+    }
     
     return this.cache.add(cacheKey2, 60000, 
       Promise.all([
@@ -716,12 +730,14 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
      * this is not necessary; however, it may help catch bugs long 
      * before they actually do a lot of harm. */
     const levelArray = schools.map(s => { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
-    if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length != levelArray.length)
+    if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length !== levelArray.length) {
       return this.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
+    }
     
     /* backwards compatibility */
-    for (let i = 0; i < schools.length; ++i)
+    for (let i = 0; i < schools.length; ++i) {
       schools[i].id = schools[i].schoolid;
+    }
     
     xuser.schools = schools;
     
@@ -732,17 +748,19 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     
     resultCacheKey += ':' + xuser.uid + ':' + query.nohistory;
     
-    const viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid == ctx.user.uid || ctx.access.has('stocks'));
+    const viewDOHPermission = ctx.user && (!xuser.delayorderhist || xuser.uid === ctx.user.uid || ctx.access.has('stocks'));
     const cacheKey3 = 'get-user-info3:' + xuser.uid + ':' + viewDOHPermission;
     
-    if (query.nohistory)
+    if (query.nohistory) {
       return result;
+    }
     
     resultCacheKey += '/' + cacheKey3;
     
     return Promise.resolve().then(() => {
-      if (this.cache.has(cacheKey3) && cacheable)
+      if (this.cache.has(cacheKey3) && cacheable) {
         return this.cache.use(cacheKey3);
+      }
       
       return this.cache.add(cacheKey3, 120000, Promise.all([
         // orders
@@ -801,8 +819,9 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
  * @function busreq~regularCallbackUser
  */
 User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx'], function(query, ctx) {
-  if (ctx.getProperty('readonly'))
+  if (ctx.getProperty('readonly')) {
     return Promise.resolve();
+  }
   
   debug('Regular callback');
   
@@ -821,7 +840,7 @@ User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['q
       '(SELECT COUNT(*) FROM invitelink WHERE invitelink.schoolid = p.schoolid) = 0').then(schools => {
       return Promise.all(schools.filter(school => {
         return !Access.fromJSON(school.access).has('schooldb') &&
-          (school.path.replace(/[^\/]/g, '').length == 1 || (query && query.weekly));
+          (school.path.replace(/[^\/]/g, '').length === 1 || (query && query.weekly));
       }).map(school => {
         return ctx.query('DELETE FROM schools WHERE schoolid = ?', [school.schoolid]);
       }));
@@ -847,36 +866,41 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
   const key = String(query.key);
   let email;
   
-  if (uid != query.uid)
+  if (uid !== uid) {
     throw new this.FormatError();
+  }
   
   debug('Verify email', uid);
   
   return ctx.startTransaction().then(conn => {
     return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid])
     .then(res => {
-      if (res.length !== 1)
+      if (res.length !== 1) {
         throw new this.SoTradeClientError('email-verify-failure');
+      }
       
       email = res[0].email;
-      if (res[0].email_verif)
+      if (res[0].email_verif) {
         throw new this.SoTradeClientError('email-verify-already-verified');
+      }
       
       return conn.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ? FOR UPDATE', [uid, key]);
     }).then(res => {
       assert.equal(res.length, 1);
       
-      if (res[0].c < 1 && !ctx.access.has('userdb'))
+      if (res[0].c < 1 && !ctx.access.has('userdb')) {
         throw new this.SoTradeClientError('email-verify-failure');
+      }
       
       return conn.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ? LOCK IN SHARE MODE', [email, uid]);
     }).then(res => {
-      if (res[0].c > 0)
+      if (res[0].c > 0) {
         throw new this.SoTradeClientError('email-verify-other-already-verified');
+      }
     
       return conn.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
     }).then(() => {
-      return conn.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid])
+      return conn.query('UPDATE users SET email_verif = 1 WHERE uid = ?', [uid]);
     }).then(() => {
       ctx.access.grant('email_verif');
     }).then(conn.commit, conn.rollbackAndThrow);
@@ -905,8 +929,9 @@ User.prototype.emailVerify = buscomponent.provideWQT('client-emailverif', functi
 User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics',
   ['user', 'ctx', 'force'], function(user, ctx, force)
 {
-  if (!user)
+  if (!user) {
     return Promise.resolve();
+  }
   
   const now = Date.now();
   const lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
@@ -943,11 +968,12 @@ User.prototype.updateUserStatistics = buscomponent.provide('updateUserStatistics
  * @function busreq~loadSessionUser
  */
 User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key', 'ctx'], function(key, ctx) {
-  const signedLogin = (key[0] == ':');
+  const signedLogin = (key[0] === ':');
   
   return Promise.resolve().then(() => {
-    if (!signedLogin)
+    if (!signedLogin) {
       return {uid: null, key: key};
+    }
     
     // was signed login, e. g. during read-only period
     return this.request({
@@ -955,15 +981,17 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
       msg: key.substr(1),
     }).then(msg => {
       const today = parseInt(Date.now() / 86400);
-      if (!msg || msg.date <= today - 1) // message at least 24 hours old
+      if (!msg || msg.date <= today - 1) { // message at least 24 hours old
         return null;
+      }
       
       debug('Verified user in readonly mode', msg.uid);
       return {uid: msg.uid, key: msg.sid};
     });
   }).then(loginInfo => {
-    if (!loginInfo)
+    if (!loginInfo) {
       return null;
+    }
     
     return ctx.query('SELECT users.*, users_finance.*, users_data.*, users.uid AS uid, ' +
       (signedLogin ? '' : 'sessions.id AS sid, ') +
@@ -978,8 +1006,9 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
       (ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
       'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
     .then(res => {
-      if (res.length == 0)
+      if (res.length === 0) {
         return null;
+      }
       
       assert.equal(res.length, 1);
       const user = res[0];
@@ -987,7 +1016,7 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
       user.id = user.uid;
       user.school = user.schoolid;
       
-      assert.ok(user.uid == loginInfo.uid || loginInfo.uid === null);
+      assert.ok(user.uid === loginInfo.uid || loginInfo.uid === null);
       
       user.realnamepublish = !!user.realnamepublish;
       user.delayorderhist = !!user.delayorderhist;
@@ -998,8 +1027,9 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
         user.clientopt = {};
       }
       
-      if (signedLogin)
+      if (signedLogin) {
         user.sid = loginInfo.key;
+      }
       
       debug('Loaded user', user.uid);
       
@@ -1018,8 +1048,9 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
  * @function c2s~register
  */
 User.prototype.register = buscomponent.provideWQT('client-register', function(query, ctx, xdata) {
-  if (ctx.user !== null)
+  if (ctx.user !== null) {
     throw new this.SoTradeClientError('already-logged-in');
+  }
   
   return this.updateUser(query, 'register', ctx, xdata);
 });
@@ -1051,21 +1082,24 @@ User.prototype.changeOptions = buscomponent.provideWQT('client-change-options', 
  */
 User.prototype.validateUsername = buscomponent.provideQT('client-validate-username', function(query, ctx) {
   query.name = String(query.name);
+  let uid = parseInt(query.uid);
   
-  if (parseInt(query.uid) != query.uid)
-    query.uid = null;
+  if (uid !== uid) {
+    uid = null;
+  }
   
   if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
-    parseInt(query.name) == query.name) {
+    parseInt(query.name) === parseInt(query.name)) {
     throw new this.SoTradeClientError('reg-name-invalid-char');
   }
   
   return ctx.query('SELECT uid FROM users ' +
     'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
-    [query.name, query.uid]).then(res => {
+    [query.name, uid]).then(res => {
     
-    if (res.length > 0 && res[0].uid !== query.uid)
+    if (res.length > 0 && res[0].uid !== uid) {
       throw new this.SoTradeClientError('reg-name-already-present');
+    }
     
     return { code: 'validate-username-valid' };
   });
@@ -1085,19 +1119,23 @@ User.prototype.validateUsername = buscomponent.provideQT('client-validate-userna
  * @function c2s~validate-email
  */
 User.prototype.validateEMail = buscomponent.provideQT('client-validate-email', function(query, ctx) {
+  let uid = parseInt(query.uid);
   query.email = String(query.email);
   
-  if (parseInt(query.uid) != query.uid)
-    query.uid = null;
+  if (uid !== uid) {
+    uid = null;
+  }
   
-  if (!validator.isEmail(query.email))
+  if (!validator.isEmail(query.email)) {
     throw new this.SoTradeClientError('reg-invalid-email');
+  }
   
   return ctx.query('SELECT uid FROM users ' +
     'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
-    [query.email, query.uid]).then(res => {
-    if (res.length > 0 && res[0].uid !== query.uid)
+    [query.email, uid]).then(res => {
+    if (res.length > 0 && res[0].uid !== uid) {
       throw new this.SoTradeClientError('reg-email-already-present');
+    }
     
     return { code: 'validate-email-valid' };
   });
@@ -1169,24 +1207,27 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
   
   const betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
   
-  let res, uid, cfg;
+  let uid, cfg;
   let gainUIDCBs = [];
   
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     uid = ctx.user !== null ? ctx.user.uid : null;
-    if (!query.name || !query.email)
+    if (!query.name || !query.email) {
       throw new this.FormatError();
+    }
     
-    if ((query.password || type != 'change') && (!query.password || query.password.length < 5))
+    if ((query.password || type !== 'change') && (!query.password || query.password.length < 5)) {
       throw new this.SoTradeClientError('reg-too-short-pw');
+    }
     
     query.email = String(query.email);
     query.name = String(query.name);
     query.gender = query.gender ? String(query.gender) : null;
     
-    if (query.gender !== null && genders.genders.indexOf(query.gender) == -1)
+    if (query.gender !== null && genders.genders.indexOf(query.gender) === -1) {
       throw new this.SoTradeClientError('reg-unknown-gender');
+    }
     
     query.giv_name = String(query.giv_name || '');
     query.fam_name = String(query.fam_name || '');
@@ -1199,52 +1240,60 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
     query.zipcode = query.zipcode ? String(query.zipcode) : null;
     
     if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
-      query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) 
+      query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) {
       throw new this.SoTradeClientError('invalid-provision');
+    }
     
     query.lang = String(query.lang || cfg.languages[0].id);
-    if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() == -1)
+    if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() === -1) {
       throw new this.SoTradeClientError('reg-invalid-language');
+    }
     
-    if (!query.school) // e. g., empty string
+    if (!query.school) { // e. g., empty string
       query.school = null;
+    }
     
     return ctx.startTransaction();
   }).then(conn => {
     return Promise.all([
-      (ctx.user && query.email == ctx.user.email) ||
+      (ctx.user && query.email === ctx.user.email) ||
         this.validateEMail({ email: query.email, uid: uid }, conn),
-      (ctx.user && query.name == ctx.user.name) ||
+      (ctx.user && query.name === ctx.user.name) ||
         this.validateUsername({ name: query.name, uid: uid }, conn)
     ]).then(() => {
     return conn.query('SELECT `key` FROM betakeys WHERE `id` = ? FOR UPDATE',
-      [betakey[0]])
+      [betakey[0]]);
   }).then(βkey => {
-    if (cfg.betakeyRequired && (βkey.length == 0 || βkey[0].key != betakey[1]) && 
-      type == 'register' && !ctx.access.has('userdb'))
+    if (cfg.betakeyRequired && (βkey.length === 0 || βkey[0].key !== betakey[1]) && 
+      type === 'register' && !ctx.access.has('userdb')) {
       throw new this.SoTradeClientError('reg-beta-necessary');
+    }
     
-    if (query.school === null)
+    if (query.school === null) {
       return [];
+    }
     
     return conn.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path) FOR UPDATE', [String(query.school)]);
   }).then(res => {
-    if (res.length == 0 && query.school !== null) {
-      if (parseInt(query.school) == query.school || !query.school)
+    if (res.length === 0 && query.school !== null) {
+      if (parseInt(query.school) === parseInt(query.school) || !query.school) {
         throw new this.SoTradeClientError('reg-unknown-school');
+      }
       
-      const possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
+      let possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
       
       return conn.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [possibleSchoolPath]).then(psRes => {
         assert.equal(psRes.length, 1);
         
-        if (psRes[0].c == 0) /* no collision, no additional identifier needed */
+        if (psRes[0].c === 0) { /* no collision, no additional identifier needed */
           return null;
+        }
         
         return pseudoRandomBytes(3);
       }).then(rand => {
-        if (rand)
+        if (rand) {
           possibleSchoolPath += '-' + rand.toString('base64') + String(Date.now()).substr(3, 4);
+        }
         
         debug('Create school for user update', possibleSchoolPath);
         
@@ -1253,7 +1302,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
       });
     } else {
       if (query.school !== null) {
-        assert.ok(parseInt(query.school) != query.school || query.school == res[0].schoolid);
+        assert.ok(parseInt(query.school) !== query.school || query.school === res[0].schoolid);
         query.school = res[0].schoolid;
       }
       
@@ -1278,12 +1327,12 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
       });
     }
     
-    if (type == 'change') {
+    if (type === 'change') {
       return Promise.all([
         conn.query('UPDATE users SET name = ?, email = ?, email_verif = ?, ' +
           'delayorderhist = ?, skipwalkthrough = ? WHERE uid = ?',
           [String(query.name),
-          String(query.email), query.email == ctx.user.email ? 1 : 0, 
+          String(query.email), query.email === ctx.user.email ? 1 : 0, 
           query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
         conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
           'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
@@ -1297,15 +1346,18 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
           [query.wprovision, query.lprovision, uid]),
         query.password ? this.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve()
       ]).then(() => {
-        if (query.school == ctx.user.school)
+        if (query.school === ctx.user.school) {
           return;
+        }
         
         return Promise.resolve().then(() => {
-          if (ctx.user.school != null);
+          if (ctx.user.school !== null) {
             return conn.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', [uid, ctx.user.school]);
+          }
         }).then(() => {
-          if (query.school == null)
+          if (query.school === null) {
             return conn.query('DELETE FROM schoolmembers WHERE uid = ?', [uid]);
+          }
           
           return conn.query('REPLACE INTO schoolmembers (uid, schoolid, pending, jointime) '+
             'VALUES(?, ?, ' + (ctx.access.has('schooldb') ? '0' :
@@ -1313,8 +1365,9 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
             [uid, String(query.school), String(query.school)]);
         });
       }).then(() => {
-        if (query.name == ctx.user.name)
+        if (query.name === ctx.user.name) {
           return;
+        }
         
         return ctx.feed({
           'type': 'user-namechange',
@@ -1326,35 +1379,40 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
           return conn.query('UPDATE stocks SET name = ? WHERE leader = ?', ['Leader: ' + query.name, uid]);
         });
       }).then(() => {
-        if (query.wprovision == ctx.user.wprovision && query.lprovision == ctx.user.lprovision)
+        if (query.wprovision === ctx.user.wprovision && query.lprovision === ctx.user.lprovision) {
           return;
+        }
         
         return ctx.feed({'type': 'user-provchange', 'targetid': uid, 'srcuser': uid, json:
           {'oldwprov': ctx.user.wprovision, 'newwprov': query.wprovision,
            'oldlprov': ctx.user.lprovision, 'newlprov': query.lprovision}, 'conn': conn});
       }).then(() => {
-        if (query.desc == ctx.user.desc)
+        if (query.desc === ctx.user.desc) {
           return;
+        }
         
         return ctx.feed({'type': 'user-descchange', 'targetid': uid, 'srcuser': uid, 'conn': conn});
       });
     } else {
-      const inv = {};
+      let inv = {};
       return Promise.resolve().then(() => {
-        if (query.betakey)
+        if (query.betakey) {
           return conn.query('DELETE FROM betakeys WHERE id = ?', [betakey[0]]);
+        }
       }).then(() => {
-        if (!query.invitekey)
+        if (!query.invitekey) {
           return;
+        }
         
-        return conn.query('SELECT * FROM invitelink WHERE `key` = ?', [String(query.invitekey)]).then(() => {
-          if (invres.length == 0)
+        return conn.query('SELECT * FROM invitelink WHERE `key` = ?', [String(query.invitekey)]).then(invres => {
+          if (invres.length === 0) {
             return;
+          }
           
           assert.equal(invres.length, 1);
           
           inv = invres[0];
-          if (inv.schoolid && !query.school || parseInt(query.school) == parseInt(inv.schoolid)) {
+          if (inv.schoolid && !query.school || parseInt(query.school) === parseInt(inv.schoolid)) {
             query.school = inv.schoolid;
             inv.__schoolverif__ = 1;
           }
@@ -1368,7 +1426,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
           '(name, delayorderhist, email, email_verif, registertime) ' +
           'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())',
           [String(query.name), query.delayorderhist?1:0,
-          String(query.email), (inv.email && inv.email == query.email) ? 1 : 0]);
+          String(query.email), (inv.email && inv.email === query.email) ? 1 : 0]);
       }).then(res => {
         uid = res.insertId;
         
@@ -1404,8 +1462,9 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
     return gainUIDCBs.reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve());
   }).then(conn.commit, conn.rollbackAndThrow);
   }).then(() => {
-    if ((ctx.user && query.email == ctx.user.email) || (ctx.access.has('userdb') && query.nomail))
+    if ((ctx.user && query.email === ctx.user.email) || (ctx.access.has('userdb') && query.nomail)) {
       return { code: 'reg-success', uid: uid, extra: 'repush' };
+    }
     
     return this.sendRegisterEmail(query,
       new qctx.QContext({user: {uid: uid}, access: ctx.access,
@@ -1429,8 +1488,9 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
   debug('Reset user', ctx.user.uid);
   
   return this.getServerConfig().then(cfg => {
-    if (!cfg.resetAllowed && !ctx.access.has('userdb'))
+    if (!cfg.resetAllowed && !ctx.access.has('userdb')) {
       throw new this.PermissionDenied();
+    }
     
     assert.ok(ctx.user);
     assert.ok(ctx.access);
@@ -1470,8 +1530,9 @@ User.prototype.resetUser = buscomponent.provideWQT('client-reset-user', function
  */
 User.prototype.listGenders = buscomponent.provideQT('client-list-genders', function(query, ctx) {
   return Promise.resolve().then(() => {
-    if (this.cache.has('gender-statistics'))
+    if (this.cache.has('gender-statistics')) {
       return this.cache.use('gender-statistics');
+    }
     
     return this.cache.add('gender-statistics', 60000,
       ctx.query('SELECT gender, COUNT(gender) AS gc FROM users_data GROUP BY gender ORDER BY gc DESC'));
@@ -1483,8 +1544,10 @@ User.prototype.listGenders = buscomponent.provideQT('client-list-genders', funct
     const genderRanking = _.pluck(stats, 'gender').slice(0, 4);
     genders.genders = _.sortBy(genders.genders, gender => {
       let rankingIndex = genderRanking.indexOf(gender);
-      if (rankingIndex == -1)
+      if (rankingIndex === -1) {
         rankingIndex = Infinity;
+      }
+      
       return [rankingIndex, gender];
     });
     
@@ -1509,8 +1572,9 @@ User.prototype.listGenders = buscomponent.provideQT('client-list-genders', funct
  * @function c2s~password-reset
  */
 User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset', function(query, ctx) {
-  if (ctx.user)
+  if (ctx.user) {
     throw new this.SoTradeClientError('already-logged-in');
+  }
   
   const name = String(query.name);
   let pw, u;
@@ -1523,8 +1587,9 @@ User.prototype.passwordReset = buscomponent.provideTXQT('client-password-reset',
     'WHERE name = ? OR email = ? AND deletiontime IS NULL ' +
     'LIMIT 1 FOR UPDATE',
     [name, name]).then(res => {
-    if (res.length == 0)
+    if (res.length === 0) {
       throw new this.SoTradeClientError('password-reset-notfound');
+    }
     
     u = res[0];
     assert.ok(u);
@@ -1560,8 +1625,9 @@ User.prototype.getInviteKeyInfo = buscomponent.provideQT('client-get-invitekey-i
     ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]),
     this.getServerConfig()
   ]).then(spread((res, cfg) => {
-    if (res.length == 0)
+    if (res.length === 0) {
       throw new this.SoTradeClientError('get-invitekey-info-notfound');
+    }
   
     assert.equal(res.length, 1);
     
@@ -1585,19 +1651,22 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
   let sendKeyToCaller = ctx.access.has('userdb');
   let key, url, cfg;
   
-  if (query.schoolid && parseInt(query.schoolid) != query.schoolid)
+  if (query.schoolid && parseInt(query.schoolid) !== parseInt(query.schoolid)) {
     throw new this.FormatError();
+  }
   
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     query.email = query.email ? String(query.email) : null;
     
     if (!ctx.access.has('userdb')) {
-      if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email))
+      if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email)) {
         throw new this.SoTradeClientError('create-invite-link-invalid-email');
+      }
       
-      if (!ctx.access.has('email_verif'))
+      if (!ctx.access.has('email_verif')) {
         throw new this.SoTradeClientError('create-invite-link-not-verif');
+      }
     }
     
     return Promise.all([
@@ -1605,8 +1674,9 @@ User.prototype.createInviteLink = buscomponent.provideWQT('createInviteLink', fu
       ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
     ]);
   }).then(spread((buf, schoolcountres) => {
-    if (query.schoolid && schoolcountres[0].c != 1)
+    if (query.schoolid && schoolcountres[0].c !== 1) {
       throw new this.SoTradeClientError('create-invite-link-school-not-found');
+    }
     
     key = buf.toString('hex');
     return ctx.query('INSERT INTO invitelink ' +

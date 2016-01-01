@@ -27,8 +27,9 @@ function busAdapter(bus, prefix) {
   
   BusAdapter.prototype.broadcast_ = function(packet, opts, remote) {
     Adapter.prototype.broadcast.call(this, packet, opts);
-    if (!remote)
+    if (!remote) {
       bus.emit(prefix + '::' + this.nsp.name, {packet: packet, opts: opts});
+    }
   };
 
   return BusAdapter;

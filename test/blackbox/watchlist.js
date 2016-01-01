@@ -81,7 +81,7 @@ describe('watchlist', function() {
         assert.ok(res.results);
         
         const entry = res.results.filter(function(watchlistEntry) {
-          return watchlistEntry.uid == uid;
+          return watchlistEntry.uid === uid;
         })[0];
         assert.ok(entry);
         

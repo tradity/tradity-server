@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const http = require('http');
 const https = require('https');
 const assert = require('assert');
@@ -47,15 +46,16 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
   
   const fsmatch = reqURL.pathname.match(cfg.fsdb.reqregex);
   
-  if (!fsmatch)
+  if (!fsmatch) {
     return false;
+  }
   
   const filename = fsmatch[fsmatch.length - 1];
   
   debug('Requested file', filename);
   
   return ctx.query('SELECT * FROM httpresources WHERE name = ?', [filename]).then(rows => {
-    if (rows.length == 0) {
+    if (rows.length === 0) {
       res.writeHead(404, {'Content-Type': 'text/plain'});
       res.end('Not found');
       return true;
@@ -92,8 +92,9 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
     
       preq.on('error', e => this.emitError(e));
       
-      if (req.headers['if-modified-since'])
+      if (req.headers['if-modified-since']) {
         preq.setHeader('If-Modified-Since', req.headers['if-modified-since']);
+      }
       
       preq.setHeader('User-Agent', cfg.userAgent);
       preq.end();
@@ -107,23 +108,24 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
       if (req.headers['if-modified-since']) {
         return cont(304);
       } else {
-        if (r.gzipped) 
+        if (r.gzipped) {
           headers['Content-Encoding'] = 'gzip';
+        }
         
         return cont(200, res => res.end(r.content));
       }
     })((status, finalize) => {
       finalize = finalize || (res => res.end());
       
-      if (r.headers)
-        headers = deepupdate(headers, JSON.parse(r.headers));
+      let sendHeaders = headers;
+      if (r.headers) {
+        sendHeaders = deepupdate(headers, JSON.parse(r.headers));
+      }
       
-      res.writeHead(status, headers);
+      res.writeHead(status, sendHeaders);
       finalize(res);
     });
   });
-  
-  return true;
   });
 });
 
@@ -160,8 +162,9 @@ FileStorage.prototype.handle = buscomponent.provide('handleFSDBRequest', ['reque
  */
 FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   ['query', 'ctx', 'groupassoc'], function(query, ctx, groupassoc) {
-  if (ctx.getProperty('readonly'))
+  if (ctx.getProperty('readonly')) {
     throw new this.SoTradeClientError('server-readonly');
+  }
   
   let content = query.content;
   let uniqrole, filehash, filename, url;
@@ -177,18 +180,22 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   query.proxy = query.proxy ? true : false;
   query.mime = query.mime || 'application/octet-stream';
   
-  if (query.base64)
+  if (query.base64) {
     content = new Buffer(query.content, 'base64');
+  }
   
   return conn.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
     [ctx.user ? ctx.user.uid : null]).then(res => {
     const total = uniqrole ? 0 : res[0].total;
     
     if (!ctx.access.has('filesystem')) {
-      if (content.length + total > cfg.fsdb.userquota)
+      if (content.length + total > cfg.fsdb.userquota) {
         throw new this.SoTradeClientError('publish-quota-exceed');
-      if (cfg.fsdb.allowroles.indexOf(query.role) == -1)
+      }
+      
+      if (cfg.fsdb.allowroles.indexOf(query.role) === -1) {
         throw new this.SoTradeClientError('publish-inacceptable-role');
+      }
         
       if (query.proxy) {
         let hasRequiredAccess = false;
@@ -200,10 +207,10 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
           
           const match = query.content.match(p.regex);
           if (match) {
-            if (typeof p.requireAccess == 'function') {
+            if (typeof p.requireAccess === 'function') {
               hasRequiredAccess = p.requireAccess(ctx, match);
             } else {
-              hasRequiredAccess = p.requireAccess.length == 0;
+              hasRequiredAccess = p.requireAccess.length === 0;
               for (let i = 0; i < p.requireAccess.length; ++i) {
                 if (ctx.access.has(p.requireAccess[i])) {
                   hasRequiredAccess = true;
@@ -214,13 +221,15 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
           }
         }
         
-        if (!hasRequiredAccess)
+        if (!hasRequiredAccess) {
           throw new this.SoTradeClientError('publish-proxy-not-allowed');
+        }
       } else {
         // local mime type is ignored for proxy requests
         
-        if (cfg.fsdb.allowmime.indexOf(query.mime) == -1)
+        if (cfg.fsdb.allowmime.indexOf(query.mime) === -1) {
           throw new this.SoTradeClientError('publish-inacceptable-mime');
+        }
       }
     }
     
@@ -230,7 +239,10 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
     filename = (ctx.user ? ctx.user.uid + '-' : '') + ((Date.now()) % 8192) + '-' + query.name.replace(/[^-_+\w\.]/g, '');
     url = cfg.varReplace(cfg.fsdb.puburl.replace(/\{\$name\}/g, filename));
     
-    groupassoc = parseInt(groupassoc) == groupassoc ? parseInt(groupassoc) : null;
+    groupassoc = parseInt(groupassoc);
+    if (groupassoc !== groupassoc) { // NaN
+      groupassoc = null;
+    }
     
     if (uniqrole && ctx.user && !(ctx.access.has('filesystem') && query.retainOldFiles)) {
       let sql = 'DELETE FROM httpresources WHERE role = ? ';

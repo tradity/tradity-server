@@ -2,7 +2,6 @@
 
 const _ = require('lodash');
 const os = require('os');
-const util = require('util');
 const assert = require('assert');
 const http = require('http');
 const https = require('https');
@@ -73,8 +72,9 @@ class SoTradeServer extends buscomponent.BusComponent {
 SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('internalServerStatistics',
   ['qctxDebug'], function(qctxDebug)
 {
-  if (typeof gc === 'function')
+  if (typeof gc === 'function') {
     gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
+  }
   
   const ret = {
     pid: process.pid,
@@ -122,10 +122,11 @@ SoTradeServer.prototype.start = function(port) {
   return this.getServerConfig().then(cfg_ => {
     cfg = cfg_;
     
-    if (cfg.protocol == 'https')
+    if (cfg.protocol === 'https') {
       this.httpServer = https.createServer(cfg.http);
-    else
+    } else {
       this.httpServer = http.createServer();
+    }
     
     this.httpServer.on('request', (req, res) => this.handleHTTPRequest(req, res));
     
@@ -164,13 +165,15 @@ SoTradeServer.prototype.listen = function(port, host) {
   };
   
   this.httpServer.once('error', e => {
-    if (listenSuccess) // only handle pre-listen errors
+    if (listenSuccess) { // only handle pre-listen errors
       return;
+    }
     
     this.httpServer.removeListener('listening', listenHandler);
     
-    if (e.code != 'EADDRINUSE')
+    if (e.code !== 'EADDRINUSE') {
       return deferred.reject(e);
+    }
     
     console.log(process.pid, 'has address in use on', port, host);
     deferred.resolve(promiseUtil.delay(500).then(() => {
@@ -263,20 +266,24 @@ SoTradeServer.prototype.handleConnection = function(socket) {
 SoTradeServer.prototype.removeConnection = buscomponent.provide('deleteConnectionData', ['id'], function(id) {
   debug('Remove connection', id);
   
-  const removeClient = _.find(this.clients, client => client.cdid == id);
+  const removeClient = _.find(this.clients, client => client.cdid === id);
   
   if (removeClient) {
     this.clients = _.without(this.clients, removeClient);
     this.deadQueryCount          += removeClient.queryCount;
     
-    for (let i in removeClient.queryCompressionInfo.supported)
+    for (let i in removeClient.queryCompressionInfo.supported) {
       this.deadQueryCompressionInfo.supported[i] += removeClient.queryCompressionInfo.supported[i];
-    for (let i in removeClient.queryCompressionInfo.used)
+    }
+    
+    for (let i in removeClient.queryCompressionInfo.used) {
       this.deadQueryCompressionInfo.used[i] += removeClient.queryCompressionInfo.used[i];
+    }
   }
   
-  if (this.isShuttingDown)
-    this.shutdown();
+  if (this.isShuttingDown) {
+    return this.shutdown();
+  }
 });
 
 /**
@@ -289,13 +296,14 @@ SoTradeServer.prototype.shutdown = buscomponent.listener(['localShutdown', 'glob
   
   this.isShuttingDown = true;
   
-  if (this.clients.length == 0) {
+  if (this.clients.length === 0) {
     this.emitImmediate('localMasterShutdown').catch(e => {
       console.error(e);
     });
     
-    if (this.httpServer)
+    if (this.httpServer) {
       this.httpServer.close();
+    }
     
     return this.unplugBus();
   }

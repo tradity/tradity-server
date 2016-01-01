@@ -69,8 +69,8 @@ describe('loginIPCheck', function() {
       return function() {
         const now = Date.now();
         
-        assert.ok(i == 0 || now - prev <= maxWait * 1.5);
-        assert.ok(i == 0 || now - prev >= minWait);
+        assert.ok(i === 0 || now - prev <= maxWait * 1.5);
+        assert.ok(i === 0 || now - prev >= minWait);
         
         prev = now;
         

@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const buscomponent = require('./stbuscomponent.js');
 const debug = require('debug')('sotrade:feed');
@@ -74,8 +73,9 @@ FeedController.prototype.feed = buscomponent.provide('feed',
     
     if (!data.everyone) {
       const additional = data.feedusers && data.feedusers.slice(0) || [];
-      if (additional.indexOf(data.srcuser) == -1)
+      if (additional.indexOf(data.srcuser) === -1) {
         additional.push(data.srcuser);
+      }
       
       query = 'INSERT INTO events_users (eventid, uid) ';
       subselects = [];
@@ -109,8 +109,10 @@ FeedController.prototype.feed = buscomponent.provide('feed',
       }
        
       for (let i = 0; i < additional.length; ++i) {
-        if (parseInt(additional[i]) != additional[i])
+        const additionalUser = parseInt(additional[i]);
+        if (additionalUser !== additionalUser) { // NaN
           return this.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
+        }
         
         subselects.push('SELECT ?, ?');
         params.push(eventid, additional[i]);
@@ -139,13 +141,18 @@ FeedController.prototype.feed = buscomponent.provide('feed',
  * @function busreq~feedFetchEvents
  */
 FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx) {
-  let since = 0, count = 10000;
+  let since, count;
   if (query) {
-    if (parseInt(query.since) == query.since)
-      since = parseInt(query.since);
+    since = parseInt(query.since);
+    count = parseInt(query.count);
     
-    if (query.count !== null && parseInt(query.count) == query.count)
-      count = parseInt(query.count);
+    if (since !== since) {
+      since = 0;
+    }
+    
+    if (count !== count) {
+      count = 10000;
+    }
   }
   
   return ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
@@ -174,8 +181,10 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
     return r.map(ev => {
       if (ev.json) {
         const json = JSON.parse(ev.json);
-        if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid != ev.srcuser)
+        if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid !== ev.srcuser) {
           return null;
+        }
+        
         ev = _.extend(ev, json);
       }
       
@@ -190,8 +199,9 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
         delete ev.postjson;
       }
       
-      if (['gdeleted', 'mdeleted'].indexOf(ev.cstate) != -1)
+      if (['gdeleted', 'mdeleted'].indexOf(ev.cstate) !== -1) {
         return null;
+      }
       
       delete ev.json;
       return ev;
@@ -209,11 +219,13 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
  * @function c2s~mark-as-seen
  */
 FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-seen', function(query, ctx) {
-  if (parseInt(query.eventid) != query.eventid)
+  const eventid = parseInt(query.eventid);
+  if (eventid !== eventid) { // NaN
     throw new this.FormatError();
+  }
   
   return ctx.query('UPDATE events_users SET seen = 1 WHERE eventid = ? AND uid = ?', 
-    [parseInt(query.eventid), ctx.user.uid]).then(() => {
+    [eventid, ctx.user.uid]).then(() => {
     return { code: 'mark-as-seen-success' };
   });
 });
@@ -231,8 +243,10 @@ FeedController.prototype.markAsSeen = buscomponent.provideWQT('client-mark-as-se
  * @function c2s~comment
  */
 FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment', function(query, ctx) {
-  if (!query.comment || parseInt(query.eventid) != query.eventid)
+  const eventid = parseInt(query.eventid);
+  if (!query.comment || eventid !== eventid) {
     throw new this.FormatError();
+  }
   
   let feedschool = null;
   let feedchat = null;
@@ -241,9 +255,10 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
   
   return ctx.query('SELECT events.type, events.targetid, oh.uid AS trader FROM events ' +
     'LEFT JOIN orderhistory AS oh ON oh.orderid = events.targetid WHERE eventid = ? LOCK IN SHARE MODE',
-    [parseInt(query.eventid)]).then(res => {
-    if (res.length == 0)
+    [eventid]).then(res => {
+    if (res.length === 0) {
       throw new this.SoTradeClientError('comment-notfound');
+    }
     
     const r = res[0];
     
@@ -268,7 +283,7 @@ FeedController.prototype.commentEvent = buscomponent.provideTXQT('client-comment
     }
     
     return ctx.query('INSERT INTO ecomments (eventid, commenter, comment, trustedhtml, cstate, time) VALUES(?, ?, ?, ?, "", UNIX_TIMESTAMP())', 
-      [parseInt(query.eventid), ctx.user.uid, String(query.comment),
+      [eventid, ctx.user.uid, String(query.comment),
        query.ishtml && ctx.access.has('comments') ? 1 : 0]);
   }).then(res => {
     return ctx.feed({

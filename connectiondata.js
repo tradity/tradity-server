@@ -2,7 +2,6 @@
 
 const _ = require('lodash');
 const lzma = require('lzma-native');
-const util = require('util');
 const assert = require('assert');
 const commonUtil = require('tradity-connection');
 const debug = require('debug')('sotrade:conn');
@@ -170,17 +169,20 @@ ConnectionData.loginIgnore = [
  * @function module:connectiondata~ConnectionData#fetchEvents
  */
 ConnectionData.prototype.fetchEvents = function(query) {
-  if (!this.ctx.user)
+  if (!this.ctx.user) {
     return; // no user – no user events.
+  }
   
-  if (query.since)
+  if (query.since) {
     this.mostRecentEventTime = Math.max(this.mostRecentEventTime, parseInt(query.since));
+  }
   
   // possibly push info
   this.pushSelfInfo();
   
-  if (this.currentFetchingEvents)
+  if (this.currentFetchingEvents) {
     return this.currentFetchingEvents;
+  }
   
   // fetch regular events
   return this.currentFetchingEvents = this.request({
@@ -190,8 +192,9 @@ ConnectionData.prototype.fetchEvents = function(query) {
   }).then(evlist => {
     this.currentFetchingEvents = null;
     
-    if (evlist.length == 0)
+    if (evlist.length === 0) {
       return;
+    }
     
     evlist.forEach(ev => {
       this.mostRecentEventTime = Math.max(this.mostRecentEventTime, ev.eventtime);
@@ -200,8 +203,9 @@ ConnectionData.prototype.fetchEvents = function(query) {
     return this.wrapForReply({pushes: evlist}).then(r => {
       debug('Writing push container', this.cdid);
     
-      if (this.socket)
+      if (this.socket) {
         return this.socket.emit('push-container', r);
+      }
     });
   });
 };
@@ -244,8 +248,9 @@ ConnectionData.prototype.push = function(data) {
   return this.wrapForReply(data).then(r => {
     debug('Writing single push', this.cdid, data.type);
       
-    if (this.socket)
-      this.socket.emit('push', r);
+    if (this.socket) {
+      return this.socket.emit('push', r);
+    }
   }).then(() => {
     return this.pushSelfInfo();
   }).catch(e => {
@@ -260,8 +265,9 @@ ConnectionData.prototype.push = function(data) {
  * @function module:connectiondata~ConnectionData#pushSelfInfo
  */
 ConnectionData.prototype.pushSelfInfo = function() {
-  if (!this.ctx.user || !this.socket)
+  if (!this.ctx.user || !this.socket) {
     return;
+  }
   
   assert.ok(this.bus);
   
@@ -270,8 +276,9 @@ ConnectionData.prototype.pushSelfInfo = function() {
     if (curUnixTime > this.lastInfoPush + cfg.infopushMinDelta) {
       this.lastInfoPush = curUnixTime;
       
-      if (this.currentInfoPush)
+      if (this.currentInfoPush) {
         return this.currentInfoPush;
+      }
       
       debug('Push self info', this.cdid);
       return this.currentInfoPush = this.request({
@@ -283,7 +290,7 @@ ConnectionData.prototype.pushSelfInfo = function() {
         ctx: this.ctx.clone(),
         xdata: this.pickXDataFields()
       }).then(result => {
-        assert.ok(result.code == 'get-user-info-success');
+        assert.strictEqual(result.code, 'get-user-info-success');
         assert.ok(result.result);
         
         result.result.type = 'self-info';
@@ -303,17 +310,20 @@ ConnectionData.prototype.pushSelfInfo = function() {
 ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', function() {
   debug('Push pending events', this.cdid, this.bus && this.bus.id, !!this.pushEventsTimer, this.ctx.user && this.ctx.user.uid);
   
-  if (this.pushEventsTimer)
+  if (this.pushEventsTimer) {
     return this.pushEventsTimer;
+  }
   
-  if (!this.ctx.user || !this.ctx.user.uid)
+  if (!this.ctx.user || !this.ctx.user.uid) {
     return;
+  }
   
   return this.pushEventsTimer = promiseUtil.delay(1000).then(() => {
     this.pushEventsTimer = null;
     
-    if (this.socket === null)
+    if (this.socket === null) {
       return;
+    }
     
     return this.fetchEvents({
       since: this.mostRecentEventTime === null ? Date.now() / 1000 - 10 : this.mostRecentEventTime,
@@ -329,17 +339,20 @@ ConnectionData.prototype.pushEvents = buscomponent.listener('push-events', funct
  */
 ConnectionData.prototype.response = function(data) {
   const res = this.wrapForReply(data).then(r => {
-    if (!this.socket)
+    if (!this.socket) {
       debug('Lost socket while compiling response', this.cdid);
+    }
     
     debug('Writing response', this.cdid);
     
-    if (this.socket)
-      this.socket.emit('response', r);
+    if (this.socket) {
+      return this.socket.emit('response', r);
+    }
   }).catch(e => this.emitError(e));
   
-  if (this.isShuttingDown)
+  if (this.isShuttingDown) {
     this.shutdown();
+  }
   
   return res;
 };
@@ -350,6 +363,9 @@ ConnectionData.prototype.response = function(data) {
  * @function module:connectiondata~ConnectionData#onUserConnected
  */
 ConnectionData.prototype.onUserConnected = function() {
+  assert.ok(this.ctx.user);
+  assert.ok(this.ctx.user.uid);
+  
   return this.request({name: 'checkAchievements', ctx: this.ctx.clone()});
 };
 
@@ -392,12 +408,14 @@ ConnectionData.prototype.onLogout = function() {
  * @function module:connectiondata~ConnectionData#queryHandler
  */
 ConnectionData.prototype.queryHandler = function(query) {
-  if (!query)
+  if (!query) {
     return;
+  }
   
   return Promise.resolve().then(() => {
-    if (!query.signedContent)
-      return {query: query, masterAuthorization: false};
+    if (!query.signedContent) {
+      return { query: query, masterAuthorization: false };
+    }
     
     return this.request({
       name: 'verifySignedMessage',
@@ -405,32 +423,37 @@ ConnectionData.prototype.queryHandler = function(query) {
       msg: query.signedContent,
       maxAge: 900
     }).then(verified => {
-      if (verified)
-        return {query: verified, masterAuthorization: true};
-      else
-        return {query: null, masterAuthorization: false};
+      if (verified) {
+        return { query: verified, masterAuthorization: true };
+      } else {
+        return { query: null, masterAuthorization: false };
+      }
     });
   }).then(queryInfo => {
     const masterAuthorization = queryInfo.masterAuthorization;
     const query = queryInfo.query;
     
-    if (!query)
+    if (!query) {
       return;
+    }
     
     debug('Received query of type', this.cdid, this.bus && this.bus.id, query.type, query.id);
     const recvTime = Date.now();
     
     this.queryCount++;
-    if (query.lzma && !query.csupp)
+    if (query.lzma && !query.csupp) {
       query.csupp = {lzma: 1};
+    }
     
-    if (query.csupp)
+    if (query.csupp) {
       this.ctx.setProperty('compressionSupport', query.csupp);
+    }
     
     query.csupp = query.csupp || {};
     
-    for (let i in query.csupp)
+    for (let i in query.csupp) {
       this.queryCompressionInfo.supported[i] += 1;
+    }
     
     this.ctx.setProperty('remoteProtocolVersion', 
       (query.pv ? parseInt(query.pv) ||
@@ -452,29 +475,33 @@ ConnectionData.prototype.queryHandler = function(query) {
       }
       
       const access = new Access();
-      if (user != null) 
+      if (user !== null) {
         access.update(Access.fromJSON(user.access));
+      }
       
       this.ctx.access.update(access);
       
       if (masterAuthorization) {
         this.ctx.access.grantAny();
-        if (user == null && query.uid != null)
+        if (user === null && typeof query.uid !== 'undefined' && query.uid !== null) {
           user = {uid: query.uid};
+        }
       }
       
       this.ctx.user = user;
       this.ctx.access[['grant', 'drop'][this.ctx.user && this.ctx.user.email_verif ? 0 : 1]]('email_verif');
       
-      if (!hadUser && this.ctx.user != null)
+      if (!hadUser && this.ctx.user !== null) {
         this.onUserConnected();
+      }
       
       return Promise.resolve().then(() => {
         this.unansweredCount++;
-        if (this.isShuttingDown)
+        if (this.isShuttingDown) {
           throw new this.SoTradeClientError('server-shutting-down');
+        }
         
-        if (ConnectionData.loginIgnore.indexOf(query.type) == -1 &&
+        if (ConnectionData.loginIgnore.indexOf(query.type) === -1 &&
           this.ctx.user === null &&
           !this.ctx.access.has('login_override'))
         {
@@ -508,8 +535,9 @@ ConnectionData.prototype.queryHandler = function(query) {
          * @function c2s~init-bus-transport
          */
         case 'init-bus-transport':
-          if (!masterAuthorization)
+          if (!masterAuthorization) {
             throw new this.PermissionDenied();
+          }
           
           debug('Setting up bus transport', this.cdid);
           this.ctx.setProperty('isBusTransport', true);
@@ -525,8 +553,10 @@ ConnectionData.prototype.queryHandler = function(query) {
          * @function c2s~set-debug-mode
          */
         case 'set-debug-mode':
-          if (!this.ctx.access.has('server'))
+          if (!this.ctx.access.has('server')) {
             throw new this.PermissionDenied();
+          }
+          
           this.ctx.setProperty('debugEnabled', query.debugMode);
           return { code: 'set-debug-mode-success' };
         // documented in user.js
@@ -544,8 +574,9 @@ ConnectionData.prototype.queryHandler = function(query) {
           });
         }).catch(e => {
           debug('Query errored', this.cdid, query.type, query.id, e);
-          if (e.isSotradeError)
+          if (e.isSotradeError) {
             throw e;
+          }
           
           if (e.nonexistentType) {
             throw new this.SoTradeClientError('unknown-query-type');
@@ -574,13 +605,14 @@ ConnectionData.prototype.queryHandler = function(query) {
         delete result.extra;
         
         const finalizingPromises = [];
-        if (extra == 'repush' && this.bus && this.socket) {
+        if (extra === 'repush' && this.bus && this.socket) {
           this.lastInfoPush = 0;
           
           finalizingPromises.push(this.request({name: 'loadSessionUser', key: String(query.key), ctx: this.ctx.clone()})
             .then(newUser => {
-            if (newUser)
+            if (newUser) {
               this.ctx.user = newUser;
+            }
             
             return this.pushSelfInfo();
           }));
@@ -626,10 +658,12 @@ ConnectionData.prototype.disconnectedHandler = function() {
  * @function module:connectiondata~ConnectionData#close
  */
 ConnectionData.prototype.close = function() {
-  if (this.socket)
-    this.socket.disconnect();
-  else // disconnectedHandler would also be called via socket.disconnect()
-    this.disconnectedHandler();
+  if (this.socket) {
+    return this.socket.disconnect();
+  } else {
+    // disconnectedHandler would also be called via socket.disconnect()
+    return this.disconnectedHandler();
+  }
 };
 
 /**
@@ -641,8 +675,9 @@ ConnectionData.prototype.close = function() {
 ConnectionData.prototype.shutdown = buscomponent.listener(['localShutdown', 'globalShutdown'], function() {
   this.isShuttingDown = true;
   
-  if (this.unansweredCount == 0)
-    this.close();
+  if (this.unansweredCount === 0) {
+    return this.close();
+  }
 });
 
 /**
@@ -664,27 +699,31 @@ ConnectionData.prototype.wrapForReply = function(obj) {
     
     const compressionThreshold = 20480;
     const csupp = this.ctx.getProperty('compressionSupport');
-    let splitCompressable = null;
     
     const stringify = (o) => {
       try {
         return JSON.stringify(o, (key, value) => {
           // since Node v0.12, JSON.stringify does not convert
           // Buffers to integer arrays anymore
-          if (Buffer.isBuffer(value))
+          if (Buffer.isBuffer(value)) {
             return Array.prototype.slice.call(value);
-          if (value && value.type == 'Buffer' && value.data)
+          }
+          
+          if (value && value.type === 'Buffer' && value.data) {
             return value.data;
+          }
+          
           return value;
         });
       } catch (e) {
         // Most likely, obj was a circular data structure, so include that in the debug information
-        if (e.type == 'circular_structure')
+        if (e.type === 'circular_structure') {
           throw new Error('Circular JSON while wrapping for reply, cycle: ' + commonUtil.detectCycle(o));
-        else
+        } else {
           throw e;
+        }
       }
-    }
+    };
     
     let compressable, noncompressable = '';
     let cc = null;
@@ -710,8 +749,9 @@ ConnectionData.prototype.wrapForReply = function(obj) {
       
       const ckey = cc.key + ':compressed';
       return Promise.resolve().then(() => {
-        if (cc.cache.has(ckey))
+        if (cc.cache.has(ckey)) {
           return cc.cache.use(ckey);
+        }
         
         this.queryCompressionInfo.used.si += 1;
         return cc.cache.add(ckey, cc.validity, lzma.LZMA().compress(s, 3));

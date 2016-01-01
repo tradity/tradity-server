@@ -1,6 +1,5 @@
 'use strict';
 
-const assert = require('assert');
 const mocks = require('./mocks.js');
 
 const events = require('events');
@@ -13,7 +12,7 @@ describe('ConnectionData', function() {
     
     return mocks.fakeBus({
       'feedFetchEvents': () => {
-        if (++ffeCount == 2) {
+        if (++ffeCount === 2) {
           deferred.resolve();
         }
         
@@ -38,7 +37,7 @@ describe('ConnectionData', function() {
           conn.ctx.user = { uid : 1 };
           return conn;
         });
-      }
+      };
 
       return Promise.all([fakeConnection(), fakeConnection()]).then(() => {
         bus.manager.emitGlobal('push-events');

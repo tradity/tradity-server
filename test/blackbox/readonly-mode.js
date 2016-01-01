@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 let socket, user;
 
@@ -23,7 +22,7 @@ afterEach(function() {
   });
 });
 
-if (!testHelpers.testPerformance)
+if (!testHelpers.testPerformance) {
 describe('Readonly Login', function() {
   it('Provides means of logging in when the server has entered read-only mode', function() {
     return socket.emit('force-readonly', {
@@ -51,3 +50,4 @@ describe('Readonly Login', function() {
     });
   });
 });
+}

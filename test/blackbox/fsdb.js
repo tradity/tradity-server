@@ -2,13 +2,12 @@
 
 const assert = require('assert');
 const fs = require('fs');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 const cfg = require('../../config.js').config();
 const promiseUtil = require('../../lib/promise-util.js');
 const readFile = promiseUtil.ncall(fs.readFile);
 
-if (!testHelpers.testPerformance)
+if (!testHelpers.testPerformance) {
 describe('fsdb', function() {
   let socket, user;
 
@@ -63,3 +62,4 @@ describe('fsdb', function() {
     });
   });
 });
+}

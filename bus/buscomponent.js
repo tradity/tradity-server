@@ -32,12 +32,13 @@ class BusComponent {
   }
 
   unplugBus() {
-    if (!this.bus)
+    if (!this.bus) {
       return Promise.resolve();
+    }
     
     this.wantsUnplug = true;
     
-    if (this.unansweredBusRequests == 0) {
+    if (this.unansweredBusRequests === 0) {
       return this.unregisterProviders().then(() => {
         this.bus = null;
         this.componentName = null;
@@ -59,8 +60,9 @@ class BusComponent {
 
   requestAnswered() {
     this.unansweredBusRequests--;
-    if (this.wantsUnplug)
+    if (this.wantsUnplug) {
       return this.unplugBus();
+    }
     
     return Promise.resolve();
   }
@@ -104,44 +106,56 @@ class BusComponent {
   }
 
   emit(name, data) {
-    if (!this.bus)
+    if (!this.bus) {
       return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
+    }
+    
     return this.bus.emit(name, data);
   }
 
   emitImmediate(name, data) {
-    if (!this.bus)
+    if (!this.bus) {
       return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
+    }
+    
     return this.bus.emitImmediate(name, data);
   }
 
   emitLocal(name, data) {
-    if (!this.bus)
+    if (!this.bus) {
       return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
+    }
+    
     return this.bus.emitLocal(name, data);
   }
 
   emitGlobal(name, data) {
-    if (!this.bus)
+    if (!this.bus) {
       return Promise.reject(new Error('Cannot emit event "' + name + '" without bus connection'));
+    }
+    
     return this.bus.emitGlobal(name, data);
   }
 
   emitError(e) {
-    if (!this.bus)
+    if (!this.bus) {
       throw e;
+    }
+    
     return this.bus.emitImmediate('error', e);
   }
 
   registerProviders() {
     const promises = [];
     for (let i in this) {
-      if (!this[i] || !this[i].isProvider)
+      if (!this[i] || !this[i].isProvider) {
         continue;
+      }
       
       // create and store a bound version so it can be removed later
-      if (!this[i+'-bound'])
+      if (!this[i+'-bound']) {
         this[i+'-bound'] = this[i].requestCB.bind(this);
+      }
       
       const requests = Array.isArray(this[i].providedRequest) ? this[i].providedRequest : [this[i].providedRequest];
       
@@ -154,8 +168,9 @@ class BusComponent {
   unregisterProviders() {
     const promises = [];
     for (let i in this) {
-      if (!this[i] || !this[i].isProvider)
+      if (!this[i] || !this[i].isProvider) {
         continue;
+      }
       
       assert.ok(this[i+'-bound']);
       
@@ -183,8 +198,9 @@ function provide(name, args, fn, prefilter) {
   
   fn.requestCB = function(data) {
     const passArgs = [];
-    for (let i = 0; i < args.length; ++i)
+    for (let i = 0; i < args.length; ++i) {
       passArgs.push(data[args[i]]);
+    }
     
     return Promise.resolve(data).then(prefilter).then(prefilterResult => {
       assert.equal(typeof prefilterResult.prefiltered, 'boolean');
@@ -199,12 +215,14 @@ function provide(name, args, fn, prefilter) {
     });
   };
   
-  for (let i in fn)
-    if (fn.hasOwnProperty(i) && i !== 'requestCB' && typeof fn.requestCB[i] === 'undefined')
+  for (let i in fn) {
+    if (fn.hasOwnProperty(i) && i !== 'requestCB' && typeof fn.requestCB[i] === 'undefined') {
       fn.requestCB[i] = fn[i];
+    }
+  }
   
   return fn;
-};
+}
 
 function listener(name, fn) {
   fn.isProvider = true;
@@ -212,20 +230,21 @@ function listener(name, fn) {
   fn.requestCB = fn;
   
   return fn;
-};
+}
 
 function needsInit (fn) {
   return function() {
     const arguments_ = arguments;
     
-    if (this.initPromise === null)
+    if (this.initPromise === null) {
       this.initPromise = Promise.resolve(this._init());
+    }
     
     return this.initPromise.then(() => {
       return fn.apply(this, arguments_);
     });
   };
-};
+}
 
 exports.BusComponent = BusComponent;
 exports.listener     = listener;

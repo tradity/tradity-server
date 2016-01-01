@@ -3,7 +3,6 @@
 const commonUtil = require('tradity-connection');
 const deepupdate = require('./lib/deepupdate.js');
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const debug = require('debug')('sotrade:schools');
 const buscomponent = require('./stbuscomponent.js');
@@ -51,18 +50,20 @@ function _reqschooladm (f, soft, scdb, status) {
   return function(query, ctx) {
     const forward = () => { return f.call(this, query, ctx); };
     
-    if (soft && !query.schoolid)
+    if (soft && !query.schoolid) {
       return forward();
+    }
     
     let lsa = null;
-    if (this && this.bus) lsa = this;
-    if (scdb && scdb.bus) lsa = scdb;
+    if (this && this.bus) { lsa = this; }
+    if (scdb && scdb.bus) { lsa = scdb; }
     
     assert.ok(lsa);
     
     return lsa.request({name: 'isSchoolAdmin', ctx: ctx, status: status, schoolid: query.schoolid}).then(schoolAdminResult => {
-      if (!schoolAdminResult.ok)
+      if (!schoolAdminResult.ok) {
         throw new lsa.PermissionDenied();
+      }
       
       // in the case that schoolid was not numerical before
       query.schoolid = schoolAdminResult.schoolid;
@@ -91,24 +92,26 @@ function _reqschooladm (f, soft, scdb, status) {
 Schools.prototype.isSchoolAdmin = buscomponent.provide('isSchoolAdmin', ['ctx', 'status', 'schoolid'],
   function(ctx, status, schoolid)
 {
-  return (parseInt(schoolid) == schoolid ? Promise.resolve([{schoolid: schoolid}]) :
+  return (parseInt(schoolid) === parseInt(schoolid) ? Promise.resolve([{schoolid: schoolid}]) :
     ctx.query('SELECT schoolid FROM schools WHERE ? IN (schoolid, name, path)', [schoolid]))
   .then(res => {
-    if (res.length == 0)
+    if (res.length === 0) {
       return {ok: false, schoolid: null};
+    }
     
     assert.equal(res.length, 1);
     
     schoolid = res[0].schoolid;
     
-    if (ctx.access.has('schooldb'))
+    if (ctx.access.has('schooldb')) {
       return {ok: true, schoolid: schoolid};
+    }
       
     status = status || ['admin', 'xadmin'];
     
     return this.loadSchoolAdmins(schoolid, ctx).then(admins => {
       const isAdmin = (admins.filter(a => {
-        return status.indexOf(a.status) != -1 && a.adminid == ctx.user.uid;
+        return status.indexOf(a.status) !== -1 && a.adminid === ctx.user.uid;
       }).length > 0);
       return {ok: isAdmin, schoolid: isAdmin ? schoolid : null};
     });
@@ -145,6 +148,8 @@ Schools.prototype.loadSchoolAdmins = function(schoolid, ctx) {
  * @function module:schools~Schools#loadSchoolInfo
  */
 Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
+  debug('Load school info', lookfor);
+  
   let s;
   return ctx.query('SELECT schools.schoolid, schools.name, schools.path, descpage, config, eventid, type, targetid, time, srcuser, url AS banner '+
     'FROM schools ' +
@@ -152,8 +157,9 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
     'LEFT JOIN httpresources ON httpresources.groupassoc = schools.schoolid AND httpresources.role = "schools.banner" ' +
     'WHERE ? IN (schools.schoolid, schools.path, schools.name) ' + 
     'LIMIT 1', [String(lookfor)]).then(res => {
-    if (res.length == 0)
+    if (res.length === 0) {
       throw new this.SoTradeClientError('get-school-info-notfound');
+    }
     
     s = res[0]; 
     s.parentPath = null;
@@ -161,10 +167,11 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
     
     assert.ok(s.eventid);
     
-    if (s.config == '')
+    if (s.config === '') {
       s.config = {};
-    else
+    } else {
       s.config = JSON.parse(s.config);
+    }
       
     assert.ok(s.config);
     
@@ -188,7 +195,7 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
         'WHERE feedblogs.schoolid = ?',
         [s.schoolid]).then(blogposts => {
           return blogposts.map(post => {
-            const expost = _.extend(post, JSON.parse(post.postjson))
+            const expost = _.extend(post, JSON.parse(post.postjson));
             delete expost.postjson;
             return expost;
           });
@@ -211,8 +218,9 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
           'WHERE schools.schoolid = ? ' +
           'GROUP BY blogid', [s.schoolid]), // feedblogs
       Promise.resolve().then(() => {
-        if (s.path.replace(/[^\/]/g, '').length != 1) // need higher-level 
+        if (s.path.replace(/[^\/]/g, '').length !== 1) { // need higher-level 
           s.parentPath = commonUtil.parentPath(s.path);
+        }
         
         return s.parentPath ? this.loadSchoolInfo(s.parentPath, ctx, cfg) :
           Promise.resolve({schoolinfo: null});
@@ -228,10 +236,11 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
     s.feedblogs = feedblogs;
     
     /* backwards compatibility */
-    for (let i = 0; i < s.popularStocks.length; ++i)
+    for (let i = 0; i < s.popularStocks.length; ++i) {
       s.popularStocks[i].stockid = s.popularStocks[i].stocktextid;
+    }
     
-    assert.ok(typeof parentResult.code == 'undefined' || parentResult.code == 'get-school-info-success');
+    assert.ok(typeof parentResult.code === 'undefined' || parentResult.code === 'get-school-info-success');
     
     s.parentSchool = parentResult;
     s.config = deepupdate({}, cfg.schoolConfigDefaults,
@@ -345,17 +354,21 @@ Schools.prototype.changeDescription = buscomponent.provideWQT('client-school-cha
  * @function c2s~school-change-member-status
  */
 Schools.prototype.changeMemberStatus = buscomponent.provideWQT('client-school-change-member-status', _reqschooladm(function(query, ctx) {
-  if (parseInt(query.uid) != query.uid)
+  const uid = parseInt(query.uid);
+  const schoolid = parseInt(query.schoolid);
+  if (uid !== uid || schoolid !== schoolid) {
     throw new this.FormatError();
+  }
   
   return ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
-    [parseInt(query.uid), parseInt(query.schoolid)]).then(() => {
-    if (query.status == 'member')
+    [uid, schoolid]).then(() => {
+    if (query.status === 'member') {
       return ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?',
-        [parseInt(query.uid), parseInt(query.schoolid)]);
-    else
-      return ctx.query('REPLACE INTO schooladmins (schoolid, uid, status) VALUES(?, ?, ?)',
-        [parseInt(query.schoolid), parseInt(query.uid), String(query.status)]);
+        [uid, schoolid]);
+    } else {
+      return ctx.query('REPLACE INTO schooladmins (uid, schoolid, status) VALUES(?, ?, ?)',
+        [uid, schoolid, String(query.status)]);
+    }
   }).then(() => {
     return { code: 'school-change-member-status-success' };
   });
@@ -380,10 +393,12 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
     'JOIN events AS e ON e.eventid = c.eventid ' +
     'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
     [parseInt(query.commentid), parseInt(query.schoolid)]).then(res => {
-    if (res.length == 0)
-      throw new self.PermissionDenied();
+    if (res.length === 0) {
+      throw new this.PermissionDenied();
+    }
     
-    assert.ok(res.length == 1 && res[0].cid == query.commentid);
+    assert.ok(res.length === 1);
+    assert.ok(res[0].cid === query.commentid);
     
     return ctx.query('UPDATE ecomments SET cstate = "gdeleted" WHERE commentid = ?',
       [parseInt(query.commentid)]);
@@ -404,13 +419,16 @@ Schools.prototype.deleteComment = buscomponent.provideWQT('client-school-delete-
  * @function c2s~school-kick-user
  */
 Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', _reqschooladm(function(query, ctx) {
-  if (parseInt(query.uid) != query.uid || parseInt(query.schoolid) != query.schoolid)
+  const uid = parseInt(query.uid);
+  const schoolid = parseInt(query.schoolid);
+  if (uid !== uid || schoolid !== schoolid) {
     throw new this.FormatError();
+  }
   
   return ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
-    [parseInt(query.uid), parseInt(query.schoolid)]).then(() => {
+    [uid, schoolid]).then(() => {
     return ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?', 
-      [parseInt(query.uid), parseInt(query.schoolid)]);
+      [uid, schoolid]);
   }).then(() => {
     return { code: 'school-kick-user-success' };
   });
@@ -448,30 +466,33 @@ Schools.prototype.kickUser = buscomponent.provideWQT('client-school-kick-user', 
  * @function c2s~create-school
  */
 Schools.prototype.createSchool = buscomponent.provideTXQT('client-create-school', function(query, ctx) {
-  if (!query.schoolname)
+  if (!query.schoolname) {
     throw new this.FormatError();
+  }
   
   query.schoolname = String(query.schoolname || '');
   
-  if (!query.schoolpath)
+  if (!query.schoolpath) {
     query.schoolpath = '/' + query.schoolname.toLowerCase().replace(/[^\w_-]/g, '');
+  }
     
   return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)]).then(r => {
     assert.equal(r.length, 1);
-    if (r[0].c == 1 || !query.schoolname.trim() || 
+    if (r[0].c === 1 || !query.schoolname.trim() || 
       !/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
       throw new this.SoTradeClientError('create-school-already-exists');
     }
     
-    if (String(query.schoolpath).replace(/[^\/]/g, '').length == 1)
+    if (String(query.schoolpath).replace(/[^\/]/g, '').length === 1) {
       return [{c: 1}];
-    else
+    } else {
       return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
       [commonUtil.parentPath(String(query.schoolpath))]);
+    }
   }).then(r => {
     assert.equal(r.length, 1);
     
-    if (r[0].c != 1) {
+    if (r[0].c !== 1) {
       throw new this.SoTradeClientError('create-school-missing-parent');
     }
     
@@ -527,8 +548,9 @@ Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', fu
     'GROUP BY p.schoolid', params).then(results => {
     
     /* backwards compatibility */
-    for (let i = 0; i < results.length; ++i)
+    for (let i = 0; i < results.length; ++i) {
       results[i].id = results[i].schoolid;
+    }
     
     return { code: 'list-schools-success', 'result': results };
   });

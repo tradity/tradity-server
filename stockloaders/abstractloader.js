@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const request = require('request');
 const debug = require('debug')('sotrade:stockloader');
 const promiseUtil = require('../lib/promise-util.js');
@@ -15,16 +14,17 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     opt = opt || {};
     
     this.setMaxListeners(0);
-    this.cacheTime = typeof opt.cacheTime == 'undefined' ? CACHE_TIME_DEFAULT : opt.cacheTime;
-    this.maxlen = typeof opt.maxlen == 'undefined' ? MAXLEN_DEFAULT : opt.maxlen;
-    this.requestRetries = typeof opt.requestRetries == 'undefined' ? 2 : opt.requestRetries;
+    this.cacheTime = typeof opt.cacheTime === 'undefined' ? CACHE_TIME_DEFAULT : opt.cacheTime;
+    this.maxlen = typeof opt.maxlen === 'undefined' ? MAXLEN_DEFAULT : opt.maxlen;
+    this.requestRetries = typeof opt.requestRetries === 'undefined' ? 2 : opt.requestRetries;
     this.cache = {};
   }
 
   _handleRecord(record, cached) {
-    if (!cached && record.failure == null) {
-      if (!record.fetchTime)
+    if (!cached && record.failure === null) {
+      if (!record.fetchTime) {
         record.fetchTime = Date.now();
+      }
 
       this.cache['s-' + record.symbol] = record;
     }
@@ -32,7 +32,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     this.emit('record', record);
     
     return record;
-  };
+  }
 
   _makeQuoteRequest(stocklist) {
     let cachedResults = [];
@@ -50,8 +50,9 @@ class AbstractLoader extends promiseUtil.EventEmitter {
       return true;
     });
     
-    if (stocklist.length == 0) // everything was cached
+    if (stocklist.length === 0) { // everything was cached
       return Promise.resolve(cachedResults);
+    }
     
     // split stocklist into groups of maximum length maxlen
     // and flatten the resulting chunked array of records
@@ -66,8 +67,8 @@ class AbstractLoader extends promiseUtil.EventEmitter {
       
       const receivedStocks = [];
       fetchedRecordList.forEach(record => {
-        if (record.isin) receivedStocks.push(record.isin);
-        if (record.wkn)  receivedStocks.push(record.wkn);
+        if (record.isin) { receivedStocks.push(record.isin); }
+        if (record.wkn)  { receivedStocks.push(record.wkn); }
       });
       
       const notReceivedStocks = _.difference(stocklist, receivedStocks);
@@ -88,8 +89,9 @@ class AbstractLoader extends promiseUtil.EventEmitter {
   }
 
   request(url, attemptsLeft) {
-    if (typeof attemptsLeft == 'undefined')
+    if (typeof attemptsLeft === 'undefined') {
       attemptsLeft = this.requestRetries;
+    }
     
     const requestDeferred = Promise.defer();
     request({
@@ -98,14 +100,17 @@ class AbstractLoader extends promiseUtil.EventEmitter {
         'User-Agent': this.userAgent
       }
     }, (err, res, body) => {
-      if (err)
+      if (err) {
         return requestDeferred.reject(err);
+      }
       
-      if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0)
+      if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0) {
         return promiseUtil.delay(750).then(() => this.request(url, attemptsLeft - 1));
+      }
       
-      if (res.statusCode != 200)
+      if (res.statusCode !== 200) {
         return requestDeferred.reject(new Error('Stock loader error: URL ' + url + ' returned status code ' + res.statusCode));
+      }
       
       debug('Loaded', url, res.statusCode);
       

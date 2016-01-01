@@ -1,8 +1,5 @@
 "use strict";
 
-const _ = require('lodash');
-const util = require('util');
-const assert = require('assert');
 const buscomponent = require('./stbuscomponent.js');
 const debug = require('debug')('sotrade:watchlist');
 
@@ -56,20 +53,23 @@ Watchlist.prototype.watchlistAdd = buscomponent.provideTXQT('client-watchlist-ad
     'LEFT JOIN users ON users.uid = stocks.leader WHERE stocks.stockid = ? OR stocks.stocktextid = ? LOCK IN SHARE MODE',
     [String(query.stockid), String(query.stockid)]).then(res_ => {
     res = res_;
-    if (res.length == 0)
+    if (res.length === 0) {
       throw new this.SoTradeClientError('watchlist-add-notfound');
+    }
     
     uid = res[0].uid;
-    if (uid == ctx.user.uid)
+    if (uid === ctx.user.uid) {
       throw new this.SoTradeClientError('watchlist-add-self');
+    }
     
     return ctx.query('REPLACE INTO watchlists ' +
       '(watcher, watchstarttime, watchstartvalue, watched) '+
       'VALUES(?, UNIX_TIMESTAMP(), ?, ?)',
       [ctx.user.uid, res[0].bid, res[0].stockid]);
   }).then(r => {
-    if (r.affectedRows != 1) // REPLACE INTO did not add a new entry
+    if (r.affectedRows !== 1) { // REPLACE INTO did not add a new entry
       return { code: 'watchlist-add-success' };
+    }
     
     return ctx.feed({
       type: 'watch-add',

@@ -13,10 +13,11 @@ const streamMultiPipe = function(streams) {
   let i = 0;
   
   const pipeNextStream = function() {
-    if (i >= streams.length)
+    if (i >= streams.length) {
       return;
+    }
     
-    streams[i].pipe(out, { end: i == streams.length - 1 });
+    streams[i].pipe(out, { end: i === streams.length - 1 });
     streams[i].on('end', pipeNextStream);
     i++;
   };
@@ -27,8 +28,9 @@ const streamMultiPipe = function(streams) {
 };
 
 const setupDatabase = function() {
-  if (process.env.SOTRADE_TEST_SKIP_DB_SETUP)
+  if (process.env.SOTRADE_TEST_SKIP_DB_SETUP) {
     return Promise.resolve();
+  }
 
   console.error("Setting up database...");
   
@@ -60,8 +62,9 @@ const setupDatabase = function() {
   mysqlRunner.on('close', code => {
     fs.unlinkSync(mysqlConfigFilename);
     
-    if (code !== 0)
+    if (code !== 0) {
       return deferred.reject(new Error('mysql process exited with error code ' + code));
+    }
     
     console.error("Set up database.");
     return deferred.resolve();
@@ -84,16 +87,18 @@ const generateKeys = function() {
   });
   
   privateKeyGen.on('close', code => {
-    if (code !== 0)
+    if (code !== 0) {
       return deferred.reject(new Error('openssl genrsa exited with error code ' + code));
+    }
     
     const publicKeyGen = spawn('openssl', ['rsa', '-in', cfg.privateKey, '-pubout'], {
       stdio: ['ignore', fs.openSync(cfg.publicKeys[0], 'w'), process.stderr]
     });
     
     publicKeyGen.on('close', code => {
-      if (code !== 0)
+      if (code !== 0) {
         return deferred.reject(new Error('openssl rsa -pubout exited with error code ' + code));
+      }
       
       console.error("Generated keys.");
       return deferred.resolve();

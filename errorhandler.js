@@ -43,8 +43,9 @@ class ErrorHandler extends buscomponent.BusComponent {
  * @function module:errorhandler~ErrorHandler#err
  */
 ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
-  if (!e)
+  if (!e) {
     return this.err(new Error('Error without Error object caught -- abort'), true);
+  }
   
   debug('Error', e);
   
@@ -64,10 +65,11 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
         noemail = noemail || false;
         
         longErrorText = process.pid + ': ' + (new Date().toString()) + ': ' + e + '\n';
-        if (e.stack)
+        if (e.stack) {
           longErrorText += e.stack + '\n';
-        else // assume e is not actually an Error instance
+        } else { // assume e is not actually an Error instance
           longErrorText += util.inspect(e) + '\n';
+        }
         
         // indicating current stack may be helpful
         longErrorText += catchstack + '\n';
@@ -75,15 +77,18 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
         if (this.bus) {
           longErrorText += 'Bus: ' + this.bus.id + '\n';
         
-          if (e.nonexistentType || e.name.match(/^Assertion/i))
+          if (e.nonexistentType || e.name.match(/^Assertion/i)) {
             longErrorText += '\n' + JSON.stringify(this.bus.busGraph) + '\n';
+          }
         }
         
-        if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS)
+        if (!process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS) {
           console.error(longErrorText);
+        }
         
-        if (cfg && cfg.errorLogFile)
+        if (cfg && cfg.errorLogFile) {
           return promiseUtil.ncall(fs.appendFile)(cfg.errorLogFile.replace(/\{\$pid\}/g, process.pid), longErrorText);
+        }
       }).then(() => {
         if (cfg && cfg.mail) {
           const opt = _.clone(cfg.mail['errorBase']);

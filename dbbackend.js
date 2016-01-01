@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const buscomponent = require('./stbuscomponent.js');
 const deepupdate = require('./lib/deepupdate.js');
@@ -63,8 +62,9 @@ Database.prototype._init = function() {
       assert.ok(cfg.db.cluster[id]);
       const opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
       
-      if (opt.ssl === 'default')
+      if (opt.ssl === 'default') {
         opt.ssl = cfg.ssl || {};
+      }
       
       debug('Create pool node', opt.writable, opt.readable, id);
       
@@ -73,16 +73,18 @@ Database.prototype._init = function() {
         this.wConnectionPool.add(id, opt);
       }
       
-      if (opt.readable)
+      if (opt.readable) {
         this.rConnectionPool.add(id, opt);
+      }
     }
     
     this.wConnectionPool.on('remove', nodeId => {
       debug('Connection removed from writing pool!');
       
       this.writableNodes = _.without(this.writableNodes, nodeId);
-      if (this.writableNodes.length == 0)
-        this.emitImmediate('change-readability-mode', { readonly: true });
+      if (this.writableNodes.length === 0) {
+        return this.emitImmediate('change-readability-mode', { readonly: true });
+      }
     });
     
     this.wConnectionPool.on('remove', () => this.emitError(new Error('DB lost write connection')));
@@ -105,7 +107,7 @@ Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', funct
   
   debug('Database shutdown');
   
-  if (this.openConnections == 0) {
+  if (this.openConnections === 0) {
     if (this.wConnectionPool) {
       this.wConnectionPool.end();
       this.wConnectionPool = null;
@@ -150,8 +152,9 @@ Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'r
 {
   const origArgs = arguments;
   
-  if (typeof readonly !== 'boolean')
-    readonly = (query.trim().indexOf('SELECT') == 0);
+  if (typeof readonly !== 'boolean') {
+    readonly = (query.trim().indexOf('SELECT') === 0);
+  }
   
   return this._getConnection(true, /* restart */() => {
     return this._query.apply(this, origArgs);
@@ -187,8 +190,9 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
     const release = () => {
       this.openConnections--;
       
-      if (this.openConnections == 0 && this.isShuttingDown)
+      if (this.openConnections === 0 && this.isShuttingDown) {
         this.shutdown();
+      }
       
       return conn.release();
     };
@@ -197,19 +201,20 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
       this.queryCount++;
       
       const rollback = () => {
-        if (!readonly)
+        if (!readonly) {
           return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+        }
       };
       
       const deferred = Promise.defer();
       const startTime = Date.now();
       conn.query(q, args, (err, res) => {
         debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
-          (res && typeof res.length != 'undefined' ? res.length + ' results' :
-           res && typeof res.affectedRows != 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
+          (res && typeof res.length !== 'undefined' ? res.length + ' results' :
+           res && typeof res.affectedRows !== 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
            ' in ' + (Date.now() - startTime) + ' ms');
         
-        if (err && (err.code == 'ER_LOCK_WAIT_TIMEOUT' || err.code == 'ER_LOCK_DEADLOCK')) {
+        if (err && (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.code === 'ER_LOCK_DEADLOCK')) {
           this.deadlockCount++;
           rollback();
           
@@ -250,8 +255,9 @@ Database.prototype._getConnection = buscomponent.needsInit(function(autorelease,
           }
         }
         
-        if (autorelease)
+        if (autorelease) {
           release();
+        }
       });
       
       return deferred.promise;

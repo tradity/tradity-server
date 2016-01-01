@@ -2,7 +2,6 @@
 
 const _ = require('lodash');
 const assert = require('assert');
-const util = require('util');
 const bus = require('./bus.js');
 
 class DirectTransport extends bus.Transport {

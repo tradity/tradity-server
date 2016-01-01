@@ -1,7 +1,5 @@
 "use strict";
 
-const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const WP = require('wordpress-rest-api');
 const buscomponent = require('./stbuscomponent.js');
@@ -38,8 +36,9 @@ class WordpressFeed extends buscomponent.BusComponent {
  * @function c2s~process-wordpress-feed
  */
 WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-wordpress-feed', function(query, ctx) {
-  if (ctx.access.has('wordpress') == -1)
+  if (ctx.access.has('wordpress') === -1) {
     throw new this.PermissionDenied();
+  }
   
   debug('Received process-wordpress-feed');
   
@@ -58,8 +57,10 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
         return Promise.all(posts.filter(function(post) {
           post.date_unix = new Date(post.date_gmt).getTime() / 1000;
           
-          if (bloginfo.lastposttime === null)
+          if (bloginfo.lastposttime === null) {
             return true;
+          }
+          
           return post.date_unix > bloginfo.lastposttime;
         }).map(function(post) {
           return ctx.query('INSERT INTO blogposts (blogid, posttime, postjson) ' +
@@ -96,8 +97,9 @@ WordpressFeed.prototype.processBlogs = buscomponent.provideTXQT('client-process-
  * @function c2s~list-wordpress-feeds
  */
 WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list-wordpress-feeds', function(query, ctx) {
-  if (ctx.access.has('wordpress') == -1)
+  if (ctx.access.has('wordpress') === -1) {
     throw new this.PermissionDenied();
+  }
   
   // compare schools.js
   return ctx.query('SELECT feedblogs.blogid, endpoint, category, schools.schoolid, path AS schoolpath, ' +
@@ -131,31 +133,34 @@ WordpressFeed.prototype.listWordpressFeeds = buscomponent.provideQT('client-list
  * @function c2s~add-wordpress-feed
  */
 WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-wordpress-feed', function(query, ctx) {
-  if (ctx.access.has('wordpress') == -1)
+  if (ctx.access.has('wordpress') === -1) {
     throw new this.PermissionDenied();
+  }
     
   query.schoolid = query.schoolid ? parseInt(query.schoolid) : null;
   query.category = query.category ? String(query.category) : null;
   
-  if (query.schoolid != query.schoolid)
+  if (query.schoolid !== query.schoolid) {
     throw new this.FormatError();
+  }
   
   debug('Add feed', query.schoolid, query.category);
   
   return ctx.query('SELECT endpoint, bloguser FROM feedblogs WHERE schoolid IS NULL LIMIT 1').then(res => {
     if (res.length > 0) {
       assert.ok(res[0].endpoint);
-      assert.ok(parseInt(res[0].bloguser) == res[0].bloguser);
+      assert.equal(parseInt(res[0].bloguser), res[0].bloguser);
     }
     
-    if ((!query.endpoint || query.bloguser == null) && res.length == 0) {
+    if ((!query.endpoint || query.bloguser === null) && res.length === 0) {
       throw new this.SoTradeClientError('add-wordpress-feed-missingdata');
     }
     
     query.endpoint = query.endpoint ? String(query.endpoint) : res[0].endpoint;
-    query.bloguser = query.bloguser != null ? parseInt(query.bloguser) : res[0].bloguser;
-    if (query.bloguser != query.bloguser)
+    query.bloguser = query.bloguser !== null ? parseInt(query.bloguser) : res[0].bloguser;
+    if (query.bloguser !== query.bloguser) {
       throw new this.FormatError();
+    }
     
     debug('Insert feed', query.schoolid, query.category, query.endpoint, query.bloguser);
     
@@ -178,13 +183,15 @@ WordpressFeed.prototype.addWordpressFeed = buscomponent.provideWQT('client-add-w
  * @function c2s~remove-wordpress-feed
  */
 WordpressFeed.prototype.removeWordpressFeed = buscomponent.provideWQT('client-remove-wordpress-feed', function(query, ctx) {
-  if (ctx.access.has('wordpress') == -1)
+  if (!ctx.access.has('wordpress')) {
     throw new this.PermissionDenied();
+  }
   
   query.blogid = parseInt(query.blogid);
   
-  if (query.blogid != query.blogid)
+  if (query.blogid !== query.blogid) {
     throw new this.FormatError();
+  }
 
   debug('Remove blog', query.blogid);
 

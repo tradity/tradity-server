@@ -70,7 +70,7 @@ describe('schools', function() {
   });
   
   describe('school-change-description', function() {
-    if (!testHelpers.testPerformance)
+    if (!testHelpers.testPerformance) {
     it('Requires school admin privileges', function() {
       let school;
       
@@ -85,6 +85,7 @@ describe('schools', function() {
         assert.equal(res.code, 'permission-denied');
       });
     });
+    }
     
     it('Should change a school’s description text', function() {
       let school;
@@ -213,13 +214,13 @@ describe('schools', function() {
         assert.ok(comments);
         assert.ok(comments.length > 0);
         
-        var comment = comments.sort((a, b) => { return b.time - a.time; })[0]; // most recent comment
-        assert.ok(comment.cstate == 'gdeleted');
-      })
+        var comment = comments.sort((a, b) => b.time - a.time)[0]; // most recent comment
+        assert.strictEqual(comment.cstate, 'gdeleted');
+      });
     });
   });
   
-  if (!testHelpers.testPerformance)
+  if (!testHelpers.testPerformance) {
   describe('school-kick-user', function() {
     it('Should remove the current user from their group', function() {
       var school;
@@ -263,6 +264,7 @@ describe('schools', function() {
       });
     });
   });
+  }
   
   describe('create-school', function() {
     it('Should refuse to create already-existing schools', function() {

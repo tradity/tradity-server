@@ -3,10 +3,8 @@
 
 const _ = require('lodash');
 const assert = require('assert');
-const fs = require('fs');
 const https = require('https');
 const cluster = require('cluster');
-const util = require('util');
 
 const qctx = require('./qctx.js');
 const cfg = require('./config.js').config();
@@ -84,16 +82,19 @@ Main.init_ = function() {
 Main.prototype.initBus = function() {
   return this.mainBus.init().then(() => Promise.all([
     this.mainBus.addInputFilter(packet => {
-      if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON)
+      if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON) {
         packet.data.ctx = qctx.fromJSON(packet.data.ctx, this);
+      }
       
       return packet;
     }),
 
     this.mainBus.addOutputFilter(packet => {
       if (packet.data && packet.data.ctx && packet.data.ctx.toJSON &&
-        !(packet.recipients.length == 1 && packet.recipients[0] == packet.sender)) // not local
+        !(packet.recipients.length === 1 && packet.recipients[0] === packet.sender)) // not local
+      {
         packet.data.ctx = packet.data.ctx.toJSON();
+      }
       
       return packet;
     })
@@ -132,8 +133,9 @@ Main.prototype.setupStockLoaders = function() {
   // setup stock loaders
   const stockLoaders = {};
   for (let i in cfg.stockloaders) {
-    if (!cfg.stockloaders[i] || !cfg.stockloaders[i].path)
+    if (!cfg.stockloaders[i] || !cfg.stockloaders[i].path) {
       continue;
+    }
     
     const stockloaderConfig = _.clone(cfg.stockloaders[i]);
     stockloaderConfig.userAgent = cfg.userAgent;
@@ -163,8 +165,10 @@ Main.prototype.start = function() {
     let isAlreadyShuttingDownDueToError = false;
     const unhandledSomething = err => {
       this.emitError(err);
-      if (!isAlreadyShuttingDownDueToError)
+      if (!isAlreadyShuttingDownDueToError) {
         this.emitImmediate('localShutdown');
+      }
+      
       isAlreadyShuttingDownDueToError = true;
     };
     
@@ -173,7 +177,7 @@ Main.prototype.start = function() {
       return unhandledSomething(err);
     });
     
-    process.on('unhandledRejection', (reason, p) => {
+    process.on('unhandledRejection', (reason) => {
       debug('Unhandled rejection', reason, reason && reason.stack);
       return unhandledSomething(reason);
     });
@@ -185,15 +189,15 @@ Main.prototype.start = function() {
       }, 250);
     });
     
-    for (let i = 0; i < this.shutdownSignals.length; ++i)
-      process.on(this.shutdownSignals[i], () => { this.emitLocal('globalShutdown'); });
+    for (let i = 0; i < this.shutdownSignals.length; ++i) {
+      process.on(this.shutdownSignals[i], () => this.emitLocal('globalShutdown'));
+    }
 
-    const cfg = this.getServerConfig();
-    
     return this.setupStockLoaders();
   }).then(() => {
-    if (!this.transportToMaster)
+    if (!this.transportToMaster) {
       this.transportToMaster = new pt.ProcessTransport(process);
+    }
     
     if (this.isWorker) {
       debug('Connecting to master', process.pid);
@@ -214,7 +218,7 @@ Main.prototype.getFreePort = function(pid) {
   if (this.useCluster) {
     // free all ports assigned to dead workers first
     const pids = _.chain(this.workers).pluck('process').pluck('pid').value();
-    this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) != -1);
+    this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) !== -1);
   }
   
   const freePorts = _.difference(this.getServerConfig().wsports, _.pluck(this.assignedPorts, 'port'));
@@ -251,17 +255,18 @@ Main.prototype.registerWorker = function(w) {
 
 Main.prototype.forkBackgroundWorker = function() {
   debug('Forking new background worker', this.useCluster);
-  if (!this.useCluster)
+  if (!this.useCluster) {
     return this.newNonClusterWorker(true, null);
+  }
   
   const bw = cluster.fork();
-  const sentSBW = false;
+  let sentSBW = false;
 
   this.workers.push(bw);
 
   return this.registerWorker(bw).then(() => {
     bw.on('message', msg => {
-      if (msg.cmd == 'startRequest' && !sentSBW) {
+      if (msg.cmd === 'startRequest' && !sentSBW) {
         sentSBW = true;
         
         debug('Sending SBW to', bw.process.pid);
@@ -278,8 +283,9 @@ Main.prototype.forkBackgroundWorker = function() {
 
 Main.prototype.forkStandardWorker = function() {
   debug('Forking new standard worker', this.useCluster);
-  if (!this.useCluster)
+  if (!this.useCluster) {
     return this.newNonClusterWorker(false, this.getFreePort(process.pid));
+  }
   
   const w = cluster.fork();
   let sentSSW = false;
@@ -289,7 +295,7 @@ Main.prototype.forkStandardWorker = function() {
   return w.on('online', () => {
     this.registerWorker(w, () => {
       w.on('message', msg => {
-        if (msg.cmd == 'startRequest' && !sentSSW) {
+        if (msg.cmd === 'startRequest' && !sentSSW) {
           sentSSW = true;
           const port = this.getFreePort(w.process.pid);
           
@@ -309,11 +315,13 @@ Main.prototype.startMaster = function() {
   return Promise.resolve().then(() => {
     const workerStartedPromises = [];
     
-    if (this.getServerConfig().startBackgroundWorker)
+    if (this.getServerConfig().startBackgroundWorker) {
       workerStartedPromises.push(Promise.resolve().then(() => this.forkBackgroundWorker()));
+    }
     
-    for (let i = 0; i < this.getServerConfig().wsports.length; ++i) 
+    for (let i = 0; i < this.getServerConfig().wsports.length; ++i) {
       workerStartedPromises.push(Promise.resolve().then(() => this.forkStandardWorker()));
+    }
     
     debug('Starting workers', process.pid, workerStartedPromises.length + ' workers');
     
@@ -321,27 +329,29 @@ Main.prototype.startMaster = function() {
   }).then(() => {
     debug('All workers started', process.pid);
     
-    const shuttingDown = false;
+    let shuttingDown = false;
     this.mainBus.on('globalShutdown', () => this.mainBus.emitLocal('localShutdown'));
     this.mainBus.on('localShutdown', () => { shuttingDown = true; });
     
     cluster.on('exit', (worker, code, signal) => {
-      this.workers = this.workers.filter(w => (w.process.pid != worker.process.pid));
+      this.workers = this.workers.filter(w => (w.process.pid !== worker.process.pid));
       
-      const shouldRestart = !shuttingDown;
+      let shouldRestart = !shuttingDown;
       
-      if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) != -1)
+      if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) !== -1) {
         shouldRestart = false;
+      }
       
       debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
       
       if (!shuttingDown) {
         debug('respawning');
         
-        if (worker.process.pid == this.bwpid)
+        if (worker.process.pid === this.bwpid) {
           return this.forkBackgroundWorker();
-        else 
+        } else {
           return this.forkStandardWorker();
+        }
       } else {
         setTimeout(function() {
           process.exit(0);
@@ -356,8 +366,9 @@ Main.prototype.startMaster = function() {
 };
 
 Main.prototype.worker = function() {
-  if (!this.useCluster)
+  if (!this.useCluster) {
     return this.startWorker();
+  }
   
   const startRequestInterval = setInterval(() => {
     if (!this.hasReceivedStartCommand) {
@@ -367,14 +378,15 @@ Main.prototype.worker = function() {
   }, 250);
   
   process.on('message', msg => {
-    if (this.hasReceivedStartCommand)
+    if (this.hasReceivedStartCommand) {
       return;
+    }
     
-    if (msg.cmd == 'startBackgroundWorker') {
+    if (msg.cmd === 'startBackgroundWorker') {
       debug('received SBW', process.pid);
       
       this.isBackgroundWorker = true;
-    } else if (msg.cmd == 'startStandardWorker') {
+    } else if (msg.cmd === 'startStandardWorker') {
       assert.ok(msg.port);
       
       debug('received SSW', process.pid, msg.port);
@@ -416,7 +428,7 @@ Main.prototype.startWorker = function() {
       });
     }
   });
-}
+};
 
 Main.prototype.connectToSocketIORemotes = function() {
   return Promise.all(
@@ -429,7 +441,7 @@ Main.prototype.connectToSocketIORemotes = function() {
 Main.prototype.connectToSocketIORemote = function(remote) {
   debug('Connecting to socket.io remote', process.pid, remote.url);
   const sslOpts = remote.ssl || this.getServerConfig().ssl;
-  const socket = new sotradeClient.SoTradeConnection({
+  let socket = new sotradeClient.SoTradeConnection({
     url: remote.url,
     socketopts: {
       transports: ['websocket'],
@@ -456,10 +468,11 @@ Main.prototype.connectToSocketIORemote = function(remote) {
   }).then(r => {
     debug('init-bus-transport returned', process.pid, r.code);
     
-    if (r.code == 'init-bus-transport-success')
+    if (r.code === 'init-bus-transport-success') {
       return this.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
-    else
+    } else {
       return this.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
+    }
   });
 };
 
@@ -467,12 +480,13 @@ Main.prototype.loadComponents = function(componentsForLoading) {
   return Promise.all(componentsForLoading.map(componentName => {
     const component = require(componentName);
     
-    return Promise.all(_.map(component, componentClass => {
-      if (!componentClass || !componentClass.prototype.setBus)
+    return Promise.all(_.map(component, ComponentClass => {
+      if (!ComponentClass || !ComponentClass.prototype.setBus) {
         return Promise.resolve();
+      }
       
       const componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
-      return new componentClass().setBus(this.mainBus, componentID);
+      return new ComponentClass().setBus(this.mainBus, componentID);
     }));
   }));
 };
@@ -483,5 +497,6 @@ Main.prototype.ctx = function() {
 
 exports.Main = Main;
 
-if (require.main === module)
+if (require.main === module) {
   new Main().start();
+}

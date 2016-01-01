@@ -63,7 +63,7 @@ describe('chats', function() {
         assert.ok(res.chat);
         assert.equal(res.chat.chatid, chatid);
         assert.ok(res.chat.messages.length > 0);
-        assert.ok(res.chat.messages[0].comment == chatMessageContent);
+        assert.equal(res.chat.messages[0].comment, chatMessageContent);
         
         return socket.emit('chat-adduser', {
           chatid: chatid,
@@ -94,7 +94,7 @@ describe('chats', function() {
         assert.ok(res.chats[chatid]);
         
         // 2 extra users: ourselves + laterAddedUser
-        assert.ok(res.chats[chatid].members.length == endpoints.length + 2);
+        assert.equal(res.chats[chatid].members.length, endpoints.length + 2);
       });
     });
   });

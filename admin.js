@@ -1,8 +1,6 @@
 "use strict";
 
 const commonUtil = require('tradity-connection');
-const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const debug = require('debug')('sotrade:admin');
 const buscomponent = require('./stbuscomponent.js');
@@ -40,10 +38,11 @@ function _reqpriv (required, f) {
   const requiredPermission = required;
   
   return function(query, ctx, xdata) {
-    if (ctx.user === null || !ctx.access.has(requiredPermission))
+    if (ctx.user === null || !ctx.access.has(requiredPermission)) {
       throw new this.PermissionDenied();
-    else
+    } else {
       return f.call(this, query, ctx, xdata);
+    }
   };
 }
 
@@ -114,8 +113,9 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
 Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(query, ctx) {
   debug('Administrative server shutdown');
   
-  if (!ctx.access.has('server'))
+  if (!ctx.access.has('server')) {
     throw new this.PermissionDenied();
+  }
   
   promiseUtil.delay(2000).then(() => this.emit('globalShutdown'));
   
@@ -133,17 +133,20 @@ Admin.prototype.shutdown = buscomponent.provideQT('client-shutdown', function(qu
  * @function c2s~impersonate-user
  */
 Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-user', _reqpriv('server', function(query, ctx) {
-  if (parseInt(query.uid) != query.uid)
+  const uid = parseInt(query.uid);
+  if (uid !== uid) {
     throw new this.PermissionDenied();
+  }
   
-  debug('Admin impersonation', ctx.user.uid, query.uid);
+  debug('Admin impersonation', ctx.user.uid, uid);
   
-  return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [parseInt(query.uid)]).then(r => {
+  return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid]).then(r => {
     assert.equal(r.length, 1);
-    if (r[0].c == 0)
+    if (r[0].c === 0) {
       throw new this.SoTradeClientError('impersonate-user-notfound');
+    }
   
-    return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [parseInt(query.uid), ctx.user.sid]);
+    return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [uid, ctx.user.sid]);
   }).then(() => {
     return { code: 'impersonate-user-success', extra: 'repush' };
   });
@@ -161,11 +164,13 @@ Admin.prototype.impersonateUser = buscomponent.provideTXQT('client-impersonate-u
  */
 Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _reqpriv('userdb', function(query, ctx) {
   const uid = parseInt(query.uid);
-  if (uid != uid) // NaN
+  if (uid !== uid) { // NaN
     throw new this.FormatError();
+  }
   
-  if (ctx.user.uid == uid)
+  if (ctx.user.uid === uid) {
     throw new this.SoTradeClientError('delete-user-self-notallowed');
+  }
   
   debug('Deleting user', ctx.user.uid, uid);
   
@@ -199,11 +204,13 @@ Admin.prototype.deleteUser = buscomponent.provideTXQT('client-delete-user', _req
  * @function c2s~change-user-email
  */
 Admin.prototype.changeUserEMail = buscomponent.provideWQT('client-change-user-email', _reqpriv('userdb', function(query, ctx) {
-  if (parseInt(query.uid) != query.uid)
+  const uid = parseInt(query.uid);
+  if (uid !== uid) {
     throw new this.FormatError();
+  }
   
   return ctx.query('UPDATE users SET email = ?, email_verif = ? WHERE uid = ?',
-    [String(query.email), query.emailverif ? 1 : 0, parseInt(query.uid)]).then(function() {
+    [String(query.email), query.emailverif ? 1 : 0, uid]).then(function() {
     return { code: 'change-user-email-success' };
   });
 }));
@@ -299,8 +306,9 @@ Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', 
   
   let oldpath;
   return ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.schoolid)]).then(r => {
-    if (r.length == 0)
+    if (r.length === 0) {
       throw new this.SoTradeClientError('rename-school-notfound');
+    }
     
     oldpath = r[0].path;
     assert.ok(oldpath);
@@ -310,19 +318,22 @@ Admin.prototype.renameSchool = buscomponent.provideTXQT('client-rename-school', 
       [commonUtil.parentPath(query.schoolpath)]);
   }).then(pr => {
     assert.equal(pr.length, 1);
-    if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) != '/' ? 1 : 0))
+    if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) !== '/' ? 1 : 0)) {
       throw new this.SoTradeClientError('rename-school-notfound');
+    }
     
     return ctx.query('SELECT path FROM schools WHERE path = ? FOR UPDATE', [query.schoolpath]);
   }).then(er => {
-    if (query.schoolpath != '/' && er.length > 0 && er[0].path.toLowerCase() == query.schoolpath)
+    if (query.schoolpath !== '/' && er.length > 0 && er[0].path.toLowerCase() === query.schoolpath) {
       throw new this.SoTradeClientError('rename-school-already-exists');
+    }
     
     return ctx.query('UPDATE schools SET name = ? WHERE schoolid = ?',
       [String(query.schoolname), parseInt(query.schoolid)]);
   }).then(() => {
-    if (query.schoolpath == '/')
+    if (query.schoolpath === '/') {
       return;
+    }
       
     return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ? OR path = ?',
       [query.schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
@@ -349,11 +360,13 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
   query.masterschool = parseInt(query.masterschool);
   query.subschool    = parseInt(query.subschool);
   
-  if (query.masterschool !== query.masterschool)
+  if (query.masterschool !== query.masterschool) {
     query.masterschool = null;
+  }
   
-  if (query.subschool !== query.subschool)
+  if (query.subschool !== query.subschool) {
     throw new this.FormatError();
+  }
   
   return Promise.all([
     ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [query.masterschool]),
@@ -362,17 +375,21 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
     assert.ok(mr.length <= 1);
     assert.ok(sr.length <= 1);
     
-    if (sr.length == 0 || ((mr.length == 0 || mr[0].path == sr[0].path) && query.masterschool != null))
+    if (sr.length === 0 || ((mr.length === 0 || mr[0].path === sr[0].path) && query.masterschool !== null)) {
       throw new this.SoTradeClientError('join-schools-notfound');
-    if (mr.length > 0 && commonUtil.parentPath(mr[0].path) != commonUtil.parentPath(sr[0].path))
+    }
+    
+    if (mr.length > 0 && commonUtil.parentPath(mr[0].path) !== commonUtil.parentPath(sr[0].path)) {
       throw new this.SoTradeClientError('join-schools-diff-parent');
+    }
     
     if (query.masterschool === null) {
       return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path LIKE ?', [sr[0].path + '/%']).then(ssr => {
         assert.equal(ssr.length, 1);
         
-        if (ssr[0].c > 0)
+        if (ssr[0].c > 0) {
           throw new this.SoTradeClientError('join-schools-delete-nosubschools');
+        }
       }).then(() => {
         return Promise.all([
           ctx.query('DELETE FROM schoolmembers WHERE schoolid = ?', [query.subschool]),
@@ -413,18 +430,21 @@ Admin.prototype.joinSchools = buscomponent.provideTXQT('client-join-schools', _r
  * @function c2s~get-followers
  */
 Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _reqpriv('userdb', function(query, ctx) {
-  if (parseInt(query.uid) != query.uid)
+  const uid = parseInt(query.uid);
+  if (uid !== uid) { // NaN
     throw new this.FormatError();
+  }
   
   return ctx.query('SELECT u.name, u.uid, ds.* ' +
     'FROM stocks AS s ' +
     'JOIN depot_stocks AS ds ON ds.stockid = s.stockid ' +
     'JOIN users AS u ON ds.uid = u.uid ' +
-    'WHERE s.leader = ?', [parseInt(query.uid)]).then(res => {
+    'WHERE s.leader = ?', [uid]).then(res => {
     
     /* backwards compatibility */
-    for (let i = 0; i < res.length; ++i)
+    for (let i = 0; i < res.length; ++i) {
       res[i].id = res[i].uid;
+    }
     
     return { code: 'get-followers-success', results: res };
   });
@@ -442,7 +462,7 @@ Admin.prototype.getFollowers = buscomponent.provideQT('client-get-followers', _r
  * 
  * @function c2s~get-server-statistics
  */
-Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query, ctx) {
+Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-statistics', _reqpriv('userdb', function(query) {
   debug('Requesting server statistics');
   
   return this.requestGlobal({name: 'internalServerStatistics', qctxDebug: query.qctxDebug ? 1 : 0}).then(replies => {

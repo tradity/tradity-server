@@ -6,7 +6,6 @@ const buscomponent = require('../../stbuscomponent.js');
 const cfg = require('../../config.js').config();
 const _ = require('lodash');
 const util = require('util');
-const assert = require('assert');
 
 exports.fakeBus = function(handlers) {
   const mainBus = new bus.Bus();
@@ -15,7 +14,7 @@ exports.fakeBus = function(handlers) {
   util.inherits(ManagerType, buscomponent.BusComponent);
   
   const defaultHandlers = {
-    'get-readability-mode': () => { return { readonly: false } },
+    'get-readability-mode': () => { return { readonly: false }; },
     'getServerConfig': () => cfg
   };
   
@@ -36,4 +35,4 @@ exports.fakeBus = function(handlers) {
     mainBus.manager = manager;
     return mainBus;
   });
-}
+};

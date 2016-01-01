@@ -1,7 +1,5 @@
 "use strict";
 
-const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const buscomponent = require('./stbuscomponent.js');
 const PSemaphore = require('promise-semaphore');
@@ -43,8 +41,9 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
   
   assert.ok(ctx.access);
   
-  if (ctx.access.has('server') == -1)
+  if (!ctx.access.has('server')) {
     throw new this.SoTradeClientError('prod-not-allowed');
+  }
   
   let starttime, userdbtime;
   

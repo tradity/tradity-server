@@ -1,4 +1,5 @@
 "use strict";
+/*jshint unused:false */
 
 const _ = require('lodash');
 const assert = require('assert');
@@ -54,7 +55,7 @@ const tcaKeys = Object.keys(tradeCountAchievements);
 
 for (let i = 0; i < tcaKeys.length; ++i) {
   const count = tcaKeys[i];
-  const prevCount = i == 0 ? null : tcaKeys[i-1];
+  const prevCount = i === 0 ? null : tcaKeys[i-1];
   
   AchievementList.push({
     name: 'TRADE_COUNT_' + count,
@@ -75,7 +76,7 @@ const ftcaKeys = Object.keys(followerTradeCountAchievements);
 
 for (let i = 0; i < ftcaKeys.length; ++i) {
   const count = ftcaKeys[i];
-  const prevCount = i == 0 ? null : ftcaKeys[i-1];
+  const prevCount = i === 0 ? null : ftcaKeys[i-1];
   
   AchievementList.push({
     name: 'TRADE_FOLLOWER_COUNT_' + count,
@@ -96,7 +97,7 @@ const ltcaKeys = Object.keys(leaderTradeCountAchievements);
 
 for (let i = 0; i < ltcaKeys.length; ++i) {
   const count = ltcaKeys[i];
-  const prevCount = i == 0 ? null : ltcaKeys[i-1];
+  const prevCount = i === 0 ? null : ltcaKeys[i-1];
   
   AchievementList.push({
     name: 'LEADER_TRADED_COUNT_' + count,
@@ -161,8 +162,9 @@ for (let i = 0; i < commentCountAchievements.length; ++i) {
   let prevCounts = null;
   for (let j = 0; j < commentCountAchievements.length; ++j) {
     const p = commentCountAchievements[j];
-    if (p[0] < counts[0] && p[1] <= counts[1])
+    if (p[0] < counts[0] && p[1] <= counts[1]) {
       prevCounts = p;
+    }
   }
   
   counts = counts.slice(0, 2);
@@ -200,7 +202,7 @@ const dailyLoginAchievements = _.range(2,21);
 
 for (let i = 0; i < dailyLoginAchievements.length; ++i) {
   const count = dailyLoginAchievements[i];
-  const prevCount = i == 0 ? null : dailyLoginAchievements[i-1];
+  const prevCount = i === 0 ? null : dailyLoginAchievements[i-1];
   
   ClientAchievements.push({
     name: 'DAILY_LOGIN_DAYS_' + count,
@@ -216,7 +218,7 @@ for (let i = 0; i < ClientAchievements.length; ++i) {
   
   AchievementList.push({
     name: achievement.name,
-    fireOn: { 'clientside-achievement': (ev, ctx) => ev.name == achievement.name ? [ev.srcuser] : [] },
+    fireOn: { 'clientside-achievement': (ev, ctx) => ev.name === achievement.name ? [ev.srcuser] : [] },
     xp: achievement.xp,
     check: (uid, userAchievements, cfg, ctx) => {
       return ctx.query('SELECT COUNT(*) AS c FROM achievements_client WHERE uid = ? AND achname = ? ' +
@@ -274,8 +276,9 @@ AchievementList.push({
   check: (uid, userAchievements, cfg, ctx) => {
     return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND stockname LIKE "A%"', [uid])
       .then(resA => {
-      if (resA[0].tradecount == 0) 
+      if (resA[0].tradecount === 0) {
         return false;
+      }
       
       return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND stockname LIKE "Z%"', [uid])
         .then(resZ => (resZ[0].tradecount > 0));
@@ -367,7 +370,7 @@ AchievementList.push({
   check: (uid, userAchievements, cfg, ctx) => {
     return ctx.query('SELECT wprovision FROM users_finance WHERE uid = ?', [uid]).then(res => {
       assert.equal(res.length, 1);
-      return res[0].wprovision != cfg.defaultWProvision;
+      return res[0].wprovision !== cfg.defaultWProvision;
     });
   },
   version: 0,
@@ -381,7 +384,7 @@ AchievementList.push({
   check: (uid, userAchievements, cfg, ctx) => {
     return ctx.query('SELECT lprovision FROM users_finance WHERE uid = ?', [uid]).then(res => {
       assert.equal(res.length, 1);
-      return res[0].lprovision != cfg.defaultLProvision;
+      return res[0].lprovision !== cfg.defaultLProvision;
     });
   },
   version: 0,
@@ -395,7 +398,7 @@ AchievementList.push({
   check: function(uid, userAchievements, cfg, ctx) {
     return ctx.query('SELECT `desc` FROM users_data WHERE uid = ?', [uid]).then(res => {
       assert.equal(res.length, 1);
-      return res[0].desc != '';
+      return res[0].desc !== '';
     });
   },
   version: 0,

@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('assert');
-const mocks = require('./mocks.js');
 
 const Access = require('../../access.js').Access;
 

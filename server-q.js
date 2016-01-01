@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 "use strict";
+/*jshint -W061 */
 
 Error.stackTraceLimit = Infinity;
 
-const fs = require('fs');
-const https = require('https');
 const assert = require('assert');
-const util = require('util');
 const _ = require('lodash');
 
 const cfg = require('./config.js').config();
@@ -25,11 +23,13 @@ for (let i = 1; i < options.length; ++i) {
   const p = options[i].match(/^-{0,2}([\w_-]+)=(.*)$/);
   
   let value = p[2];
-  if (value == 'false') value = false;
-  if (value == 'true')  value = true;
-  if (value == 'null')  value = null;
+  if (value === 'false') { value = false; }
+  if (value === 'true')  { value = true; }
+  if (value === 'null')  { value = null; }
   
-  if (value && value.length > 0 && value[0] == '$')  value = eval(value.substr(1));
+  if (value && value.length > 0 && value[0] === '$') {
+    value = eval(value.substr(1));
+  }
   
   query[p[1]] = value;
 }
@@ -58,6 +58,7 @@ socket.once('server-config').then(function() {
     console.log(_.reduce(path, _.result, data));
   }
   
-  if (!query.lurk)
+  if (!query.lurk) {
     process.exit(0);
+  }
 }).catch(e => console.trace(e));

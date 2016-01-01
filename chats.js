@@ -1,7 +1,6 @@
 "use strict";
 
 const _ = require('lodash');
-const util = require('util');
 const assert = require('assert');
 const debug = require('debug')('sotrade:chats');
 
@@ -71,27 +70,34 @@ class Chats extends buscomponent.BusComponent {
 Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(query, ctx) {
   let whereString = '';
   let params = [];
+  let chatid = typeof query.chatid === 'undefined' || query.chatid === null ?
+    null : parseInt(query.chatid);
   
   if (!query.endpoints || !query.endpoints.length) {
-    if (!query.chatid || parseInt(query.chatid) != query.chatid)
+    if (chatid !== chatid) { // NaN
       throw new this.FormatError();
-    
-    whereString += ' chatid = ?';
-    params.push(query.chatid);
-  } else {
-    if (query.chatid)
-      throw new this.FormatError();
-    
-    var containsOwnChats = false;
-    for (let i = 0; i < query.endpoints.length; ++i) {
-      const uid = query.endpoints[i];
-      containsOwnChats = containsOwnChats || (uid == ctx.user.uid);
-      if (parseInt(uid) != uid)
-        throw new this.FormatError();
     }
     
-    if (!containsOwnChats && ctx.user)
+    whereString += ' chatid = ?';
+    params.push(chatid);
+  } else {
+    if (chatid !== null) {
+      throw new this.FormatError();
+    }
+    
+    let containsOwnChats = false;
+    for (let i = 0; i < query.endpoints.length; ++i) {
+      const uid = parseInt(query.endpoints[i]);
+      if (uid !== uid) { // NaN
+        throw new this.FormatError();
+      }
+      
+      containsOwnChats = containsOwnChats || (uid === ctx.user.uid);
+    }
+    
+    if (!containsOwnChats && ctx.user) {
       query.endpoints.push(ctx.user.uid);
+    }
     
     const endpointsList = query.endpoints.join(',');
     const numEndpoints = query.endpoints.length;
@@ -104,24 +110,27 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
     params.push(numEndpoints, numEndpoints);
   }
   
-  let chatid, chat;
+  let chat;
   return ctx.query('SELECT chatid, eventid AS chatstartevent ' + 
     'FROM chats AS c ' +
     'LEFT JOIN events ON events.targetid = c.chatid AND events.type = "chat-start" '+
     'WHERE ' + whereString + ' ' +
     'ORDER BY (SELECT MAX(time) FROM events AS msgs WHERE msgs.type="comment" AND msgs.targetid = chatstartevent) DESC ' +
     'LIMIT 1', params).then(chatlist => {
-    if (chatlist.length != 0)
+    if (chatlist.length !== 0) {
       return chatlist[0];
+    }
     
-    if (query.failOnMissing || !query.endpoints || ctx.getProperty('readonly'))
+    if (query.failOnMissing || !query.endpoints || ctx.getProperty('readonly')) {
       return null;
+    }
     
     // query.endpoints has undergone validation and can be assumed to be all integers
     return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid IN (' + query.endpoints.join(',') + ')',
       []).then(endpointUserCount => {
-      if (endpointUserCount[0].c != query.endpoints.length)
+      if (endpointUserCount[0].c !== query.endpoints.length) {
         return null;
+      }
       
       debug('Creating new chat', query.endpoints.length, 'users');
       
@@ -153,10 +162,11 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
   }).then(chat_ => {
     chat = chat_;
     if (chat === null) {
-      if (ctx.getProperty('readonly'))
+      if (ctx.getProperty('readonly')) {
         throw new this.SoTradeClientError('server-readonly');
-      else
+      } else {
         throw new this.SoTradeClientError('chat-get-notfound');
+      }
     }
     
     assert.equal(parseInt(chat.chatid), chat.chatid);
@@ -165,8 +175,9 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
     chat.eventid = chat.chatstartevent; // backwards compatibility
     chat.endpoints = query.endpoints;
     
-    if (query.noMessages)
+    if (query.noMessages) {
       return { code: 'chat-get-success', chat: chat };
+    }
     
     return ctx.query('SELECT u.name AS username, u.uid AS uid, url AS profilepic ' +
       'FROM chatmembers AS cm ' +
@@ -179,14 +190,15 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
     
     let ownChatsIsEndpoint = false;
     for (let i = 0; i < chat.endpoints.length; ++i) {
-      if (chat.endpoints[i].uid == ctx.user.uid) {
+      if (chat.endpoints[i].uid === ctx.user.uid) {
         ownChatsIsEndpoint = true;
         break;
       }
     }
     
-    if (!ownChatsIsEndpoint)
+    if (!ownChatsIsEndpoint) {
       throw new this.SoTradeClientError('chat-get-notfound');
+    }
     
     return ctx.query('SELECT c.*,u.name AS username,u.uid AS uid, url AS profilepic, trustedhtml ' + 
       'FROM ecomments AS c ' + 
@@ -225,17 +237,19 @@ Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', 
   debug('Add user to chat', query.userid, query.chatid);
   
   /* backwards compatibility */
-  if (parseInt(query.userid) == query.userid && parseInt(query.uid) != query.userid)
-    query.uid = query.userid;
+  const uid = parseInt(query.uid) || parseInt(query.userid);
+  const chatid = parseInt(query.chatid);
   
-  if (parseInt(query.uid) != query.uid || parseInt(query.chatid) != query.chatid)
+  if (uid !== uid || chatid !== chatid) {
     throw new this.FormatError();
+  }
   
   let username, chat;
   
-  return ctx.query('SELECT name FROM users WHERE uid = ? LOCK IN SHARE MODE', [query.uid]).then(res => {
-    if (res.length == 0)
+  return ctx.query('SELECT name FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid]).then(res => {
+    if (res.length === 0) {
       throw new this.SoTradeClientError('chat-adduser-user-notfound');
+    }
     
     assert.equal(res.length, 1);
     username = res[0].name;
@@ -257,18 +271,18 @@ Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', 
     
     chat = getChatsResult.chat;
     
-    return ctx.query('INSERT INTO chatmembers (chatid, uid) VALUES (?, ?)', [query.chatid, query.uid]);
-  }).then(r => {
+    return ctx.query('INSERT INTO chatmembers (chatid, uid) VALUES (?, ?)', [chatid, uid]);
+  }).then(() => {
     const feedusers = _.pluck(chat.endpoints, 'uid');
-    feedusers.push(query.uid);
+    feedusers.push(uid);
     
     return ctx.feed({
       type: 'chat-user-added',
-      targetid: query.chatid,
+      targetid: chatid,
       srcuser: ctx.user.uid,
       noFollowers: true,
       feedusers: _.pluck(chat.endpoints, 'uid'),
-      json: {addedChats: query.uid, addedChatsName: username, endpoints: chat.endpoints}
+      json: {addedChats: uid, addedChatsName: username, endpoints: chat.endpoints}
     });
   }).then(() => ({ code: 'chat-adduser-success' }));
 });

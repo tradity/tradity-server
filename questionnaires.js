@@ -74,7 +74,7 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
  */
 Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-save-questionnaire', function(query, ctx) {
   const questionnaireId = parseInt(query.questionnaire);
-  const fill_time = parseInt(fill_time);
+  const fill_time = parseInt(query.fill_time);
   if (questionnaireId !== questionnaireId || fill_time !== fill_time) {
     throw new this.FormatError();
   }

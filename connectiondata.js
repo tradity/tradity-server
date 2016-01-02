@@ -6,7 +6,7 @@ const assert = require('assert');
 const commonUtil = require('tradity-connection');
 const debug = require('debug')('sotrade:conn');
 const buscomponent = require('./stbuscomponent.js');
-const dt = require('./bus/directtransport.js');
+const DirectTransport = require('./bus/directtransport.js');
 const qctx = require('./qctx.js');
 const Access = require('./access.js').Access;
 const promiseUtil = require('./lib/promise-util.js');
@@ -541,7 +541,7 @@ ConnectionData.prototype.queryHandler = function(query) {
           
           debug('Setting up bus transport', this.cdid);
           this.ctx.setProperty('isBusTransport', true);
-          return this.bus.addTransport(new dt.DirectTransport(this.socket, query.weight || 10, false))
+          return this.bus.addTransport(new DirectTransport(this.socket, query.weight || 10, false))
             .then(() => ({ code: 'init-bus-transport-success' }));
         /**
          * Tell the current {@link module:qctx~QContext} to send back

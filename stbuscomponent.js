@@ -3,7 +3,9 @@
 const util = require('util');
 const _ = require('lodash');
 
-const buscomponent = require('./bus/buscomponent.js');
+const bus = require('tradity-bus');
+
+Object.assign(exports, bus);
 
 /**
  * Provides Tradity-specific extensions to the general {@link module:buscomponent} module
@@ -17,7 +19,7 @@ const buscomponent = require('./bus/buscomponent.js');
  * @constructor module:stbuscomponent~STBusComponent
  * @augments module:buscomponent~BusComponent
  */
-class STBusComponent extends buscomponent.BusComponent {
+class STBusComponent extends bus.BusComponent {
   constructor() {
     super();
   }
@@ -49,11 +51,7 @@ function txwrap(tables, options, fn) {
   };
 }
 
-exports.provide   = buscomponent.provide;
-exports.listener  = buscomponent.listener;
-exports.needsInit = buscomponent.needsInit;
-
-const provide = buscomponent.provide;
+const provide = bus.provide;
 
 function provideW(name, args, fn) {
   fn.needsWriting = true;

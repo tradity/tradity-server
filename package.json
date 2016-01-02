@@ -20,9 +20,7 @@
     "nodemailer-sendmail-transport": "~1.0.0"
   },
   "dependencies": {
-    "cytoscape": "~2.5.0",
     "datejs": "1.0.0-rc3",
-    "debug": "~2.2.0",
     "genders": "^1.0.1",
     "ipaddr.js": "~1.0.3",
     "lapack": "~0.1.0",
@@ -33,7 +31,6 @@
     "mysql": "~2.10.0",
     "nodemailer": "~1.11.0",
     "nodemailer-smtp-pool": "~1.2.0",
-    "object-hash": "^1.0.0",
     "promise-events": "~0.1.0",
     "promise-semaphore": ">=0.2.4",
     "promise-ratelimit": "~0.0.2",
@@ -41,6 +38,7 @@
     "socket.io": ">=1.2.1",
     "socket.io-client": ">=1.2.1",
     "tradity-connection": "~0.10.0",
+    "tradity-bus": "^1.0.0",
     "unionfind": "~0.0.3",
     "validator": "^4.0.0",
     "weak": "~1.0.0",

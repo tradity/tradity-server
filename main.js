@@ -10,8 +10,8 @@ const qctx = require('./qctx.js');
 const cfg = require('./config.js').config();
 const bus = require('./bus/bus.js');
 const buscomponent = require('./stbuscomponent.js');
-const pt = require('./bus/processtransport.js');
-const dt = require('./bus/directtransport.js');
+const ProcessTransport = require('./bus/processtransport.js');
+const DirectTransport = require('./bus/directtransport.js');
 const sotradeClient = require('./sotrade-client.js');
 const promiseUtil = require('./lib/promise-util.js');
 const debug = require('debug')('sotrade:main');
@@ -196,7 +196,7 @@ Main.prototype.start = function() {
     return this.setupStockLoaders();
   }).then(() => {
     if (!this.transportToMaster) {
-      this.transportToMaster = new pt.ProcessTransport(process);
+      this.transportToMaster = new ProcessTransport(process);
     }
     
     if (this.isWorker) {
@@ -229,8 +229,8 @@ Main.prototype.getFreePort = function(pid) {
 
 Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
   const ev = new promiseUtil.EventEmitter();
-  const toMaster = new dt.DirectTransport(ev, 1, true);
-  const toWorker = new dt.DirectTransport(ev, 1, true);
+  const toMaster = new DirectTransport(ev, 1, true);
+  const toWorker = new DirectTransport(ev, 1, true);
   
   assert.ok(isBackgroundWorker || port);
   const m = new Main({
@@ -250,7 +250,7 @@ Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
 };
 
 Main.prototype.registerWorker = function(w) {
-  return this.mainBus.addTransport(new pt.ProcessTransport(w));
+  return this.mainBus.addTransport(new ProcessTransport(w));
 };
 
 Main.prototype.forkBackgroundWorker = function() {
@@ -469,7 +469,7 @@ Main.prototype.connectToSocketIORemote = function(remote) {
     debug('init-bus-transport returned', process.pid, r.code);
     
     if (r.code === 'init-bus-transport-success') {
-      return this.mainBus.addTransport(new dt.DirectTransport(socket.raw(), remote.weight || 10, false));
+      return this.mainBus.addTransport(new DirectTransport(socket.raw(), remote.weight || 10, false));
     } else {
       return this.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
     }

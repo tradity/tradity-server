@@ -293,7 +293,7 @@ Main.prototype.forkStandardWorker = function() {
   this.workers.push(w);
   
   return w.on('online', () => {
-    this.registerWorker(w, () => {
+    return this.registerWorker(w).then(() => {
       w.on('message', msg => {
         if (msg.cmd === 'startRequest' && !sentSSW) {
           sentSSW = true;

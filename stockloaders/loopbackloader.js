@@ -28,8 +28,8 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
         record.pieces = 10000;
         
         if (record.leader === null) {
-          record.ask *= 1.0001 / 10000;
-          record.bid *= 1.0001 / 10000;
+          record.ask *= 1.000001 / 10000.0;
+          record.bid *= 1.000001 / 10000.0;
         }
         
         record.last = (record.ask + record.bid)/2.0;

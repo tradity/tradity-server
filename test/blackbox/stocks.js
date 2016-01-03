@@ -104,7 +104,7 @@ describe('stocks', function() {
   
   describe('stock-buy', function() {
     it('Can buy and sell stocks via forceNow', function() {
-      const amount = 5;
+      const amount = 1;
       
       /* clear depot first */
       return socket.emit('stock-buy', {
@@ -113,7 +113,8 @@ describe('stocks', function() {
         value: null,
         stocktextid: standardISIN,
         leader: null,
-        forceNow: true
+        forceNow: true,
+        skipTest: true
       }).then(res => {
         assert.equal(res.code, 'stock-buy-success');
         
@@ -133,7 +134,8 @@ describe('stocks', function() {
           value: null,
           stocktextid: standardISIN,
           leader: null,
-          forceNow: true
+          forceNow: true,
+          skipTest: true
         });
       }).then(res => {
         assert.ok(res.code === 'stock-buy-success' ||
@@ -153,7 +155,8 @@ describe('stocks', function() {
           value: null,
           stocktextid: standardISIN,
           leader: null,
-          forceNow: true
+          forceNow: true,
+          skipTest: true
         });
       }).then(data => {
         assert.equal(data.code, 'stock-buy-not-enough-stocks');

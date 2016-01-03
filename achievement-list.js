@@ -176,7 +176,8 @@ for (let i = 0; i < commentCountAchievements.length; ++i) {
     xp: commentCountAchievements[i][2],
     check: (uid, userAchievements, cfg, ctx) => {
       return ctx.query('SELECT COUNT(eventid) AS c, COUNT(DISTINCT eventid) AS cd FROM `ecomments` WHERE commenter = ? ' +
-        'AND (SELECT type FROM events WHERE events.eventid=ecomments.eventid) != "chat-start"', [uid]).then(res => {
+        'AND (SELECT type FROM events WHERE events.eventid=ecomments.eventid) != "chat-start" ' +
+        'AND cstate != "mdeleted" AND cstate != "gdeleted"', [uid]).then(res => {
         assert.equal(res.length, 1);
         
         return res[0].c >= counts[0] && res[0].cd >= counts[1];

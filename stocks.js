@@ -1006,6 +1006,11 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
       'LEFT JOIN users AS u ON c.commenter = u.uid ' +
       'WHERE c.eventid = ?', [r.eventid]);
   })).then(comments => {
+    comments = comments.map(c => {
+      c.isDeleted = ['gdeleted', 'mdeleted'].indexOf(c.cstate) !== -1;
+      return c;
+    });
+    
     return { code: 'get-trade-info-success', 'trade': r, 'comments': comments };
   });
 });

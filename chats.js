@@ -205,7 +205,11 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
       'LEFT JOIN users AS u ON c.commenter = u.uid ' + 
       'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' + 
       'WHERE c.eventid = ?', [chat.chatstartevent]).then(comments => {
-      chat.messages = comments;
+      chat.messages = comments.map(c => {
+        c.isDeleted = ['gdeleted', 'mdeleted'].indexOf(c.cstate) !== -1;
+        return c;
+      });
+      
       return { code: 'chat-get-success', chat: chat };
     }); 
   });

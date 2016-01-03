@@ -787,7 +787,10 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
         'LEFT JOIN httpresources ON httpresources.uid = c.commenter AND httpresources.role = "profile.image" ' + 
         'WHERE c.eventid = ?', [xuser.registerevent]);
     })).then(comments => {
-      result.pinboard = comments;
+      result.pinboard = comments.map(c => {
+        c.isDeleted = ['gdeleted', 'mdeleted'].indexOf(c.cstate) !== -1;
+        return c;
+      });
       
       return result;
     });

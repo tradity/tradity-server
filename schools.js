@@ -230,10 +230,13 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
     s.admins = admins;
     s.subschools = subschools;
     s.usercount = usercount[0].usercount;
-    s.comments = comments;
     s.blogposts = blogposts;
     s.popularStocks = popularStocks;
     s.feedblogs = feedblogs;
+    s.comments = comments.map(c => {
+      c.isDeleted = ['gdeleted', 'mdeleted'].indexOf(c.cstate) !== -1;
+      return c;
+    });
     
     /* backwards compatibility */
     for (let i = 0; i < s.popularStocks.length; ++i) {

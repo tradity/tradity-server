@@ -16,6 +16,7 @@
     "istanbul": "*",
     "jshint": "*",
     "mocha": "*",
+    "jsdoc": "^3.4.0",
     "nodemailer-sendmail-transport": "~1.0.0"
   },
   "dependencies": {

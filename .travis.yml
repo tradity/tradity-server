@@ -1,0 +1,32 @@
+language: node_js
+node_js:
+  - 5
+sudo: false
+services:
+  - mysql
+mysql:
+  - adapter: mysql2
+  - username: sotrade
+  - database: sotrade
+  - encoding: utf8
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - liblapack-dev
+      - g++-4.8
+      - libstdc++-4.8-dev
+cache:
+  directories:
+    - node_modules
+before_install:
+  - export PATH=$HOME/.local/bin:./node_modules/.bin:$PATH
+  - export CXX="g++-4.8" CC="gcc-4.8"
+before_script:
+  - mysql -e 'CREATE DATABASE IF NOT EXISTS sotrade_test'
+script:
+  - npm run jshint
+  - npm run test-cov
+after_success:
+  - ./node_modules/coveralls/bin/coveralls.js < coverage/lcov.info

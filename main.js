@@ -24,10 +24,7 @@ const cluster = require('cluster');
 
 const qctx = require('./qctx.js');
 const cfg = require('./config.js').config();
-const bus = require('./bus/bus.js');
-const buscomponent = require('./stbuscomponent.js');
-const ProcessTransport = require('./bus/processtransport.js');
-const DirectTransport = require('./bus/directtransport.js');
+const bus = require('tradity-bus');
 const sotradeClient = require('./sotrade-client.js');
 const promiseUtil = require('./lib/promise-util.js');
 const debug = require('debug')('sotrade:main');
@@ -42,7 +39,7 @@ const achievementList = require('./achievement-list.js');
  * @module main
  */
 
-class Main extends buscomponent.BusComponent {
+class Main extends bus.BusComponent {
   constructor(opt) {
     Main.init_();
     
@@ -117,27 +114,27 @@ Main.prototype.initBus = function() {
   ]));
 };
 
-Main.prototype.getStockQuoteLoader = buscomponent.provide('getStockQuoteLoader', [], function() {
+Main.prototype.getStockQuoteLoader = bus.provide('getStockQuoteLoader', [], function() {
   return this.defaultStockLoader;
 });
 
-Main.prototype.getServerConfig = buscomponent.provide('getServerConfig', [], function() {
+Main.prototype.getServerConfig = bus.provide('getServerConfig', [], function() {
   return cfg;
 });
 
-Main.prototype.getAchievementList = buscomponent.provide('getAchievementList', [], function() {
+Main.prototype.getAchievementList = bus.provide('getAchievementList', [], function() {
   return achievementList.AchievementList;
 });
 
-Main.prototype.getClientAchievementList = buscomponent.provide('getClientAchievementList', [], function() {
+Main.prototype.getClientAchievementList = bus.provide('getClientAchievementList', [], function() {
   return achievementList.ClientAchievements;
 });
 
-Main.prototype.getReadabilityMode = buscomponent.provide('get-readability-mode', [], function() {
+Main.prototype.getReadabilityMode = bus.provide('get-readability-mode', [], function() {
   return { readonly: this.readonly };
 });
 
-Main.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
+Main.prototype.changeReadabilityMode = bus.listener('change-readability-mode', function(event) {
   if (this.readonly !== event.readonly) {
     debug('Change readability mode', event.readonly);
   }
@@ -212,7 +209,7 @@ Main.prototype.start = function() {
     return this.setupStockLoaders();
   }).then(() => {
     if (!this.transportToMaster) {
-      this.transportToMaster = new ProcessTransport(process);
+      this.transportToMaster = new bus.ProcessTransport(process);
     }
     
     if (this.isWorker) {
@@ -245,8 +242,8 @@ Main.prototype.getFreePort = function(pid) {
 
 Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
   const ev = new promiseUtil.EventEmitter();
-  const toMaster = new DirectTransport(ev, 1, true);
-  const toWorker = new DirectTransport(ev, 1, true);
+  const toMaster = new bus.DirectTransport(ev, 1, true);
+  const toWorker = new bus.DirectTransport(ev, 1, true);
   
   assert.ok(isBackgroundWorker || port);
   const m = new Main({
@@ -266,7 +263,7 @@ Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
 };
 
 Main.prototype.registerWorker = function(w) {
-  return this.mainBus.addTransport(new ProcessTransport(w));
+  return this.mainBus.addTransport(new bus.ProcessTransport(w));
 };
 
 Main.prototype.forkBackgroundWorker = function() {
@@ -485,7 +482,7 @@ Main.prototype.connectToSocketIORemote = function(remote) {
     debug('init-bus-transport returned', process.pid, r.code);
     
     if (r.code === 'init-bus-transport-success') {
-      return this.mainBus.addTransport(new DirectTransport(socket.raw(), remote.weight || 10, false));
+      return this.mainBus.addTransport(new bus.DirectTransport(socket.raw(), remote.weight || 10, false));
     } else {
       return this.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
     }

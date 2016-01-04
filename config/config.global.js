@@ -9,6 +9,15 @@ function md5(s) {
   return h.read().toString('hex');
 }
 
+function tryReadSync(filename) {
+  try {
+    return fs.readFileSync(filename);
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
 module.exports = {
   'db': {
     'user': 'sotrade',
@@ -129,13 +138,14 @@ module.exports = {
   'socketIORemotes': [],
   'ssl': {
     'ca': [
-      fs.readFileSync('/etc/ssl/certs/startssl-sub.class2.server.ca.pem'),
-      fs.readFileSync('/etc/ssl/certs/StartCom_Certification_Authority.pem')
-    ]
+      tryReadSync('/etc/ssl/certs/startssl-sub.class2.server.ca.pem'),
+      tryReadSync('/etc/ssl/certs/StartCom_Certification_Authority.pem')
+    ].filter(f => f)
   },
   'stockloaders': {
     'ariva': {
-      'path': './stockloaders/arivafinance.js'
+      'path': './stockloaders/arivafinance.js',
+      'apiKey': 'missing' // add your own API key here if you have one!
     },
     'arivascraper': {
       'path': './stockloaders/arivascraper.js'

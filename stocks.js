@@ -762,7 +762,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     price = amount * ta_value;
     if (price > ures[0].freemoney && price >= 0) {
       debug('Trying to buy stocks with too few money', price, ures[0].freemoney, ctx.user.uid);
-      throw new self.SoTradeClientError('stock-buy-out-of-money');
+      throw new this.SoTradeClientError('stock-buy-out-of-money');
     }
     
     const tradedToday = ohr[0].amount || 0;

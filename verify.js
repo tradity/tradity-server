@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // Tradity.de Server
 // Copyright (C) 2016 Tradity.de Tech Team <tech@tradity.de>
 
@@ -13,8 +14,6 @@
 
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-#!/usr/bin/env node
 
 "use strict";
 const SignedMessaging = require('./signedmsg.js').SignedMessaging;

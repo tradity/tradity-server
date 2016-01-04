@@ -1,7 +1,6 @@
 tradity-server
 ===========
 
-[![NPM Version](https://img.shields.io/npm/v/tradity-server.svg?style=flat)](https://npmjs.org/package/tradity-server)
 [![Build Status](https://travis-ci.org/tradity/tradity-server.svg?style=flat&branch=master)](https://travis-ci.org/tradity/tradity-server?branch=master)
 [![Coverage Status](https://coveralls.io/repos/tradity/tradity-server/badge.svg?branch=master)](https://coveralls.io/r/tradity/tradity-server?branch=master)
 [![Dependency Status](https://david-dm.org/tradity/tradity-server.svg?style=flat)](https://david-dm.org/tradity/tradity-server)

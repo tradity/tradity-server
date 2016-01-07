@@ -401,4 +401,40 @@ describe('admin', function() {
     });
   });
   }
+  
+  if (!testHelpers.testPerformance) {
+  describe('get-event-statistics', function() {
+    it('Should return a histogram of event counts', function() {
+      return socket.emit('get-event-statistics', {
+        __sign__: true,
+        since: 0
+      }).then(res => {
+        assert.equal(res.code, 'get-event-statistics-success');
+        assert.ok(res.result.length > 0);
+        assert.ok(res.result[0].timeindex);
+        
+        // only days where events *happened* included
+        // -> this should be okay
+        assert.ok(res.result[0].nevents);
+        assert.ok(res.result[0].nuser);
+      });
+    });
+  });
+  }
+  
+  describe('list-all-events', function() {
+    it('Should return all events within a given timespan', function() {
+      return socket.emit('list-all-events', {
+        __sign__: true,
+        omitUidFilter: true,
+        includeDeletedComments: true,
+        since: 1446054731,
+        upto: 1446054955 // events for these dates are in the test DB
+      }).then(res => {
+        assert.equal(res.code, 'list-all-events-success');
+        assert.ok(res.results.length > 0);
+        assert.ok(res.results[0].eventtime);
+      });
+    });
+  });
 });

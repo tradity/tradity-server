@@ -152,34 +152,47 @@ FeedController.prototype.feed = buscomponent.provide('feed',
  * Loads events for a given user’s feed.
  * 
  * @param {int} query.since  A unix timestamp indicating the maximum age of events
+ * @param {?int} query.upto  A unix timestamp indicating the minimum age of events
  * @param {?int} query.count  A maximum count of events to return
+ * @param {boolean} query.omitUidFilter  If possible, list events for *all* users
+ * @param {boolean} query.includeDeletedComments  Include deleted comments
  * 
  * @function busreq~feedFetchEvents
  */
 FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents', function(query, ctx) {
-  let since, count;
-  if (query) {
-    since = parseInt(query.since);
-    count = parseInt(query.count);
-    
-    if (since !== since) {
-      since = 0;
-    }
-    
-    if (count !== count) {
-      count = 10000;
-    }
+  let since, upto, count;
+  assert.ok(query);
+  
+  since = parseInt(query.since);
+  upto = parseInt(query.upto);
+  count = parseInt(query.count);
+  
+  if (since !== since) {
+    since = parseInt(Date.now() / 1000);
   }
   
-  return ctx.query('SELECT events.*, events_users.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
+  if (upto !== upto) {
+    upto = parseInt(Date.now() / 1000);
+  }
+  
+  if (count !== count) {
+    count = 10000;
+  }
+  
+  const omitUidFilter = query.omitUidFilter && ctx.access.has('feed');
+  const includeDeletedComments = query.includeDeletedComments || false;
+  
+  return ctx.query('SELECT events.*, c.*, oh.*, events.time AS eventtime, events.eventid AS eventid, ' +
     'e2.eventid AS baseeventid, e2.type AS baseeventtype, trader.uid AS traderid, trader.name AS tradername, ' +
     'schools.schoolid, schools.name AS schoolname, schools.path AS schoolpath, ' +
     'su.name AS srcusername, notif.content AS notifcontent, notif.sticky AS notifsticky, url AS profilepic, ' +
     'achievements.achname, achievements.xp, sentemails.messageid, sentemails.sendingtime, sentemails.bouncetime, ' +
     'sentemails.mailtype, sentemails.recipient AS mailrecipient, sentemails.diagnostic_code, ' +
     'blogposts.* ' +
-    'FROM events_users ' +
-    'JOIN events ON events_users.eventid = events.eventid ' +
+    (omitUidFilter ? '' : ', events_users.*') +
+    'FROM events ' +
+    (omitUidFilter ? '' : 
+      'JOIN events_users ON events_users.eventid = events.eventid ') +
     'LEFT JOIN ecomments AS c ON c.commentid = events.targetid AND events.type="comment" ' +
     'LEFT JOIN events AS e2 ON c.eventid = e2.eventid ' +
     'LEFT JOIN orderhistory AS oh ON oh.orderid = IF(events.type="trade", events.targetid, IF(e2.type="trade", e2.targetid, NULL)) ' +
@@ -192,12 +205,19 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
     'LEFT JOIN blogposts ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
     'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +
     'LEFT JOIN schools ON schools.schoolid = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
-    'WHERE events_users.uid = ? AND events.time >= ? ORDER BY events.time DESC LIMIT ?',
-    [ctx.user.uid, since, count]).then(r => {
+    'WHERE ' +
+    (omitUidFilter ? '(1 OR ?)' : 
+      'events_users.uid = ? ') +
+    'AND events.time >= ? AND events.time <= ? ' + 
+    'ORDER BY events.time DESC LIMIT ?',
+    [ctx.user.uid, since, upto, count]).then(r => {
     return r.map(ev => {
       if (ev.json) {
         const json = JSON.parse(ev.json);
-        if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) && ctx.user.uid !== ev.srcuser) {
+        if (json.delay && (Date.now()/1000 - ev.eventtime < json.delay) &&
+            ctx.user.uid !== ev.srcuser &&
+            !omitUidFilter) // omitUidFilter implies administrative overview
+        {
           return null;
         }
         
@@ -215,7 +235,9 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
         delete ev.postjson;
       }
       
-      if (['gdeleted', 'mdeleted'].indexOf(ev.cstate) !== -1) {
+      if (!includeDeletedComments && 
+          ['gdeleted', 'mdeleted'].indexOf(ev.cstate) !== -1)
+      {
         return null;
       }
       

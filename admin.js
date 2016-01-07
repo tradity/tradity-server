@@ -120,6 +120,27 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
 }));
 
 /**
+ * Returns a list of all events for a given timespan.
+ * 
+ * Internally calls {@link busreq~feedFetchEvents}.
+ * 
+ * @return {object} Returns with <code>list-all-events-success</code> or a common error code
+ *                  and populates <code>.results</code> with a
+ *                  {@link Event[]}.
+ * 
+ * @function c2s~list-all-events
+ */
+Admin.prototype.listAllEvents = buscomponent.provideQT('client-list-all-events', _reqpriv('feed', function(query, ctx) {
+  return this.request({
+    name: 'feedFetchEvents',
+    query: query,
+    ctx: ctx.clone()
+  }).then(evlist => {
+    return { code: 'list-all-events-success', results: evlist };
+  });
+}));
+
+/**
  * Shuts down the server. Not really something for the typical user.
  * 
  * @return {object} Returns with <code>shutdown-success</code>.
@@ -512,6 +533,29 @@ Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-st
     'GROUP BY timeindex',
     [dt, dt, timespanStart, todayStart]).then(res => {
     return { code: 'get-ticks-statistics-success', results: res };
+  });
+}));
+
+/**
+ * Returns a per-day histogram of event frequency.
+ * 
+ * @return {object} Returns with <code>get-event-histogram-success</code> or a common error code
+ *                  and populates <code>.result</code> with information about event frequency.
+ * 
+ * @function c2s~get-event-statistics
+ */
+Admin.prototype.getEventStatistics = buscomponent.provideQT('client-get-event-statistics', _reqpriv('feed', function(query, ctx) {
+  const now = Math.floor(Date.now() / 1000);
+  const todayEnd = now - (now % 86400) + 86400;
+  const ndays = parseInt(query.ndays) || 365;
+  const timespanStart = todayEnd - ndays * 86400;
+  
+  return ctx.query('SELECT FLOOR(time/?)*? AS timeindex, COUNT(eventid) AS nevents, COUNT(DISTINCT srcuser) AS nuser ' +
+    'FROM events ' +
+    'WHERE time >= ? ' +
+    'GROUP BY timeindex',
+    [86400, 86400, timespanStart]).then(res => {
+    return { code: 'get-event-statistics-success', result: res };
   });
 }));
 

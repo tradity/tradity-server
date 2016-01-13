@@ -112,7 +112,7 @@ describe('watchlist', function() {
         assert.equal(res.code, 'watchlist-show-success');
         assert.ok(res.results);
         
-        assert.equal(_.pluck(res.results, 'uid').indexOf(uid), -1);
+        assert.equal(_.map(res.results, 'uid').indexOf(uid), -1);
       });
     });
   });

@@ -293,7 +293,7 @@ Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', 
     
     return ctx.query('INSERT INTO chatmembers (chatid, uid) VALUES (?, ?)', [chatid, uid]);
   }).then(() => {
-    const feedusers = _.pluck(chat.endpoints, 'uid');
+    const feedusers = _.map(chat.endpoints, 'uid');
     feedusers.push(uid);
     
     return ctx.feed({
@@ -301,7 +301,7 @@ Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', 
       targetid: chatid,
       srcuser: ctx.user.uid,
       noFollowers: true,
-      feedusers: _.pluck(chat.endpoints, 'uid'),
+      feedusers: _.map(chat.endpoints, 'uid'),
       json: {addedChats: uid, addedChatsName: username, endpoints: chat.endpoints}
     });
   }).then(() => ({ code: 'chat-adduser-success' }));

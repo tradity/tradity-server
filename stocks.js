@@ -75,11 +75,13 @@ Stocks.prototype.updateStockIDCache = function(ctx) {
   return this.knownStockIDs = ctx.query('SELECT stockid, stocktextid FROM stocks').then(stockidlist => {
     debug('Generating ISIN |-> id map', stockidlist.length + ' entries');
     
-    return this.knownStockIDs = _.chain(stockidlist).map(entry => {
+    this.knownStockIDs = {};
+    
+    for (let entry of stockidlist) {
       assert.equal(typeof entry.stockid, 'number');
       assert.ok(this.leaderStockTextIDFormat.test(entry.stocktextid) || validator.isISIN(entry.stocktextid));
-      return [entry.stocktextid, entry.stockid];
-    }).zipObject().value();
+      this.knownStockIDs[entry.stocktextid] = entry.stockid;
+    }
   });
 };
 
@@ -95,7 +97,7 @@ Stocks.prototype.updateStockIDCache = function(ctx) {
  * @function module:stocks~Stocks#stocksFilter
  */
 Stocks.prototype.stocksFilter = function(cfg, rec) {
-  return _.chain(cfg.stockExchanges).keys().contains(rec.exchange).value() && rec.currency_name === cfg.requireCurrency;
+  return Object.keys(cfg.stockExchanges).indexOf(rec.exchange) !== -1 && rec.currency_name === cfg.requireCurrency;
 };
 
 /**
@@ -291,7 +293,7 @@ Stocks.prototype.updateStockValues = function(ctx) {
       'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
     [cfg.lrutimeLimit, cfg.refetchLimit]);
   }).then(res => {
-    stocklist = _.pluck(res, 'stocktextid');
+    stocklist = _.map(res, 'stocktextid');
     return this.request({name: 'neededStocksDQ'});
   }).then(dqNeededStocks => {
     stocklist = _.union(stocklist, dqNeededStocks);
@@ -445,7 +447,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
       [xstr, xstr])
   ]).then(spread((cfg, localResults_, externalStocks) => {
     localResults = localResults_;
-    const externalStocksIDs = _.pluck(externalStocks, 'stocktextid');
+    const externalStocksIDs = _.map(externalStocks, 'stocktextid');
 
     // ISIN or WKN
     if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str)) {
@@ -474,7 +476,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     debug('Search for stock', str, localResults.length + ' local', externalResults.length + ' external', results.length + ' unique');
     
     results = _.uniq(results, false, r => r.stocktextid);
-    let symbols = _.pluck(results, 'stocktextid');
+    let symbols = _.map(results, 'stocktextid');
     
     if (symbols.length > 0 && !ctx.getProperty('readonly')) {
       symbols = symbols.map(encodeURIComponent);

@@ -144,7 +144,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
       'WHERE uid = ? AND achname IN (' + lookfor.map(() => '?').join(',') + ')',
       [uid].splice(0).concat(lookfor));
   }).then(userAchievements => {
-    userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).object().value();
+    userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).zipObject().value();
     
     if (userAchievements[achievementEntry.name]) {
       const dbver = userAchievements[achievementEntry.name].version;

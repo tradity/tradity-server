@@ -151,7 +151,7 @@ describe('schools', function() {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result.admins);
         assert.ok(res.result.admins.length > 0);
-        assert.notEqual(_.pluck(res.result.admins, 'adminid').indexOf(user.uid), -1);
+        assert.notEqual(_.map(res.result.admins, 'adminid').indexOf(user.uid), -1);
         
         return socket.emit('school-change-member-status', {
           schoolid: school.schoolid,
@@ -167,7 +167,7 @@ describe('schools', function() {
       }).then(res => {
         assert.equal(res.code, 'get-school-info-success');
         assert.ok(res.result.admins);
-        assert.equal(_.pluck(res.result.admins, 'adminid').indexOf(user.uid), -1);
+        assert.equal(_.map(res.result.admins, 'adminid').indexOf(user.uid), -1);
       });
     });
   });
@@ -326,7 +326,7 @@ describe('schools', function() {
       }).then(res => {
         assert.equal(res.code, 'list-schools-success');
         assert.ok(res.result);
-        assert.notEqual(_.pluck(res.result, 'path').indexOf(path), -1);
+        assert.notEqual(_.map(res.result, 'path').indexOf(path), -1);
       });
     });
   });

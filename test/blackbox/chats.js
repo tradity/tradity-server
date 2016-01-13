@@ -52,7 +52,7 @@ describe('chats', function() {
       }).then(res => {
         assert.equal(res.code, 'list-all-users-success');
         
-        endpoints = _.pluck(res.results.slice(0, 3), 'uid');
+        endpoints = _.map(res.results.slice(0, 3), 'uid');
         laterAddedUser = res.results[4].uid;
         
         return socket.emit('chat-get', {

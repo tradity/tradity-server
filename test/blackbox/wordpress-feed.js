@@ -77,7 +77,7 @@ describe('wordpress-feed', function() {
       }).then(res => {
         assert.equal(res.code, 'list-wordpress-feeds-success');
         
-        assert.equal(_.pluck(res.results, 'endpoint').indexOf(endpoint), -1);
+        assert.equal(_.map(res.results, 'endpoint').indexOf(endpoint), -1);
       });
     });
   });

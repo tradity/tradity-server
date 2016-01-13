@@ -67,7 +67,7 @@ Questionnaires.prototype.listQuestionnaires = buscomponent.provideQT('client-lis
         'WHERE uid = ? AND qn_result_sets.questionnaire_id = qn_questionnaires.questionnaire_id) = 0 '
       ), uid === null ? [] : [uid])
     ]).then(spread(function(questionnaires, res) {
-    const ids = _.pluck(res, 'questionnaire_id');
+    const ids = _.map(res, 'questionnaire_id');
     
     return {
       code: 'list-questionnaires-success',
@@ -117,8 +117,8 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
     
     assert.ok(questionnaire.questionnaire_id);
     
-    const answeredQuestions = _.pluck(query.results, 'question');
-    const availableQuestions = _.pluck(questionnaire.questions, 'question_id');
+    const answeredQuestions = _.map(query.results, 'question');
+    const availableQuestions = _.map(questionnaire.questions, 'question_id');
     
     if (_.xor(answeredQuestions, availableQuestions).length > 0) {
       throw new this.SoTradeClientError('save-questionnaire-incomplete');
@@ -138,8 +138,8 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
           ' (' + JSON.stringify(question) + ')');
       }
       
-      const chosenAnswers = _.pluck(answers, 'answer');
-      const availableAnswers = _.pluck(question.answers, 'answer_id');
+      const chosenAnswers = _.map(answers, 'answer');
+      const availableAnswers = _.map(question.answers, 'answer_id');
       
       if (_.difference(chosenAnswers, availableAnswers).length > 0) {
         throw new this.SoTradeClientError('save-questionnaire-invalid',
@@ -199,7 +199,7 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
     ]).then(spread((texts, questions) => {
       return _.mapValues(texts, (entry, lang) => {
         return _.extend(entry, questionnaire, {
-          questions: _.pluck(questions, lang)
+          questions: _.map(questions, lang)
         });
       });
     })).then(questionnaireObject => {
@@ -220,7 +220,7 @@ Questionnaires.prototype.loadQuestionnaires = function(ctx) {
     ]).then(spread((texts, answers) => {
       return _.mapValues(texts, (entry, lang) => {
         return _.extend(entry, question, {
-          answers: _.pluck(answers, lang)
+          answers: _.map(answers, lang)
         });
       });
     }));

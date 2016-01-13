@@ -286,7 +286,7 @@ User.prototype.login = buscomponent.provide('client-login',
     
     /* if there is an user with a verified e-mail address
      * do not allow other users with the same e-mail address to log in */
-    const haveVerifiedEMail = _.any(_.pluck(res, 'email_verif'));
+    const haveVerifiedEMail = _.some(_.map(res, 'email_verif'));
     
     return res.map(r => {
       return (foundUser => {
@@ -1264,7 +1264,7 @@ User.prototype.updateUser = function(query, type, ctx, xdata) {
     }
     
     query.lang = String(query.lang || cfg.languages[0].id);
-    if (_.chain(cfg.languages).pluck('id').indexOf(query.lang).value() === -1) {
+    if (_.chain(cfg.languages).map('id').indexOf(query.lang).value() === -1) {
       throw new this.SoTradeClientError('reg-invalid-language');
     }
     
@@ -1560,7 +1560,7 @@ User.prototype.listGenders = buscomponent.provideQT('client-list-genders', funct
     /* if something went wrong, everything still is just fine */
     return [];
   }).then(stats => {
-    const genderRanking = _.pluck(stats, 'gender').slice(0, 4);
+    const genderRanking = _.map(stats, 'gender').slice(0, 4);
     genders.genders = _.sortBy(genders.genders, gender => {
       let rankingIndex = genderRanking.indexOf(gender);
       if (rankingIndex === -1) {

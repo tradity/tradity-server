@@ -258,7 +258,7 @@ AchievementList.push({
   name: 'CHAT_PARTICIPANTS_5',
   fireOn: {
     'feed-chat-start': (ev, ctx) => ev.endpoints,
-    'feed-chat-user-added': (ev, ctx) => _.union([ev.addedChats], _.pluck(ev.endpoints, 'uid'))
+    'feed-chat-user-added': (ev, ctx) => _.union([ev.addedChats], _.map(ev.endpoints, 'uid'))
   },
   xp: 400,
   check: (uid, userAchievements, cfg, ctx) => {
@@ -423,4 +423,4 @@ AchievementList.push({
 });
 
 exports.AchievementList = AchievementList;
-exports.ClientAchievements = _.pluck(ClientAchievements, 'name');
+exports.ClientAchievements = _.map(ClientAchievements, 'name');

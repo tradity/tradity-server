@@ -89,7 +89,7 @@ describe('dqueries', function() {
       }).then(res => {
         assert.equal(res.code, 'dquery-list-success');
         assert.ok(res.results);
-        assert.equal(_.pluck(res.results, 'queryid').indexOf(queryid), -1);
+        assert.equal(_.map(res.results, 'queryid').indexOf(queryid), -1);
       });
     });
   });

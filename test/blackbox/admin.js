@@ -310,8 +310,8 @@ describe('admin', function() {
       }).then(res => {
         assert.equal(res.code, 'list-schools-success');
         assert.ok(res.result);
-        assert.notEqual(_.pluck(res.result, 'schoolid').indexOf(id1), -1);
-        assert.equal   (_.pluck(res.result, 'schoolid').indexOf(id2), -1);
+        assert.notEqual(_.map(res.result, 'schoolid').indexOf(id1), -1);
+        assert.equal   (_.map(res.result, 'schoolid').indexOf(id2), -1);
       });
     });
     
@@ -320,7 +320,7 @@ describe('admin', function() {
         assert.equal(res.code, 'list-schools-success');
         assert.ok(res.result);
         
-        const existentIDs = _.pluck(res.result, 'schoolid');
+        const existentIDs = _.map(res.result, 'schoolid');
         const nonexistentID = (Math.max.apply(Math, existentIDs) || 0) + 1;
         
         return socket.emit('join-schools', {

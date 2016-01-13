@@ -194,7 +194,7 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
     ]);
   })).then(spread((users, res_static, res_static2, res_leader) => {
     res_static = res_static.concat(res_static2);
-    users = _.uniq(_.pluck(users, 'uid'));
+    users = _.uniq(_.map(users, 'uid'));
     
     const lmuFetchData = Date.now();
     
@@ -307,8 +307,8 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
       sgesvTotalTime += sgesvET - sgesvST;
       presgesvTotalTime += sgesvST - componentStartTime;
       
-      const X =  _.pluck(res.X, 0);
-      const Xa = _.pluck(res.X, 1);
+      const X =  _.map(res.X, 0);
+      const Xa = _.map(res.X, 1);
 
       for (let i = 0; i < n; ++i) {
         assert.notStrictEqual(X[i],  null);

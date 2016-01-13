@@ -91,7 +91,7 @@ function test() {
   ql.on('error', e => console.log(e, e.stack + ''));
   
   ql.loadQuotesList(['DE000BAY0017', 'ZAE000149936']).then(rec => {
-    console.log(rec.length, _.pluck(rec, 'name'));
+    console.log(rec.length, _.map(rec, 'name'));
   }).catch(e => {
     console.error('Sorry, an error was encountered:');
     console.log(e);

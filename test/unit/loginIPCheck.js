@@ -30,9 +30,9 @@ function cov(a, b) {
   
   const Ea = mean(a), Eb = mean(b);
   
-  return 1/(N - 1) * _.sum(_.range(N), function(i) {
+  return 1/(N - 1) * _.sum(_.range(N).map(function(i) {
     return (a[i] - Ea) * (b[i] - Eb);
-  });
+  }));
 }
 
 function correlation(a, b) {
@@ -115,6 +115,7 @@ describe('loginIPCheck', function() {
         return check.check('1:2:3::4');
       };
     }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve(null)).then(function() {
+      console.log(deltas);
       deltas.shift();
       
       const relStddev = stddev(deltas) / mean(deltas);

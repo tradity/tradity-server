@@ -230,7 +230,7 @@ Main.prototype.start = function() {
 Main.prototype.getFreePort = function(pid) {
   if (this.useCluster) {
     // free all ports assigned to dead workers first
-    const pids = _.chain(this.workers).map('process').pluck('pid').value();
+    const pids = _.chain(this.workers).map('process').map('pid').value();
     this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) !== -1);
   }
   

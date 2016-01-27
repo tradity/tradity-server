@@ -602,7 +602,7 @@ ConnectionData.prototype.queryHandler = function(query) {
           }
         });
       }).catch(e => {
-        debug('Querry error catch', this.cdid, e);
+        debug('Query error catch', this.cdid, e);
         return e.toJSON();
       }).then(result => {
         debug('Query returned', this.cdid, query.type, query.id, result && result.code);

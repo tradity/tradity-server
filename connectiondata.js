@@ -603,7 +603,11 @@ ConnectionData.prototype.queryHandler = function(query) {
         });
       }).catch(e => {
         debug('Query error catch', this.cdid, e);
-        return e.toJSON();
+        if (typeof e.toJSON === 'function') {
+          return e.toJSON();
+        }
+        
+        return e;
       }).then(result => {
         debug('Query returned', this.cdid, query.type, query.id, result && result.code);
         

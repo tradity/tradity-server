@@ -150,10 +150,15 @@ module.exports = {
     'arivascraper': {
       'path': './stockloaders/arivascraper.js'
     },
+    'boerse-frankfurt': {
+      'path': './stockloaders/boerse-frankfurt.js',
+      'apiUsername': 'missing',
+      'apiPassword': 'missing'
+    },
     'loopback': {
       'path': './stockloaders/loopbackloader.js'
     },
-    '_defaultStockLoader': 'arivascraper'
+    '_defaultStockLoader': 'boerse-frankfurt'
   },
   'passwords': {
     'pbkdf2Iterations': 18,

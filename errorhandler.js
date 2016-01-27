@@ -93,7 +93,7 @@ ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail)
         if (this.bus) {
           longErrorText += 'Bus: ' + this.bus.id + '\n';
         
-          if (e.nonexistentType || e.name.match(/^Assertion/i)) {
+          if (e.nonexistentType || (e.name && e.name.match(/^Assertion/i))) {
             longErrorText += '\n' + JSON.stringify(this.bus.busGraph) + '\n';
           }
         }

@@ -17,6 +17,7 @@
 "use strict";
 
 const _ = require('lodash');
+const assert = require('assert');
 const request = require('request');
 const debug = require('debug')('sotrade:stockloader');
 const promiseUtil = require('../lib/promise-util.js');
@@ -79,7 +80,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     return Promise.all(chunkedStocklist.map(chunk => {
       return this._makeQuoteRequestFetch(chunk);
     })).then(recordListChunks => {
-      const fetchedRecordList = _.flatten(recordListChunks);
+      const fetchedRecordList = _.flatten(recordListChunks).filter(entry => entry);
       
       const receivedStocks = [];
       fetchedRecordList.forEach(record => {
@@ -104,34 +105,66 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     }).then(records => records.filter(filter));
   }
 
-  request(url, attemptsLeft) {
-    if (typeof attemptsLeft === 'undefined') {
+  request(url, attemptsLeft, headers, method, content) {
+    if (typeof attemptsLeft === 'undefined' || attemptsLeft === null) {
       attemptsLeft = this.requestRetries;
     }
     
+    method = (method || 'get').toLowerCase();
+    headers = _.extend({
+      'User-Agent': this.userAgent
+    }, headers || {});
+    
+    if (content) {
+      headers['Content-Length'] = content.length;
+    }
+    
+    debug('Loading', url, method);
+    
     const requestDeferred = Promise.defer();
-    request({
+    const req = request[method]({
       url: url,
-      headers: {
-        'User-Agent': this.userAgent
-      }
+      headers: headers,
+      gzip: true,
+      forever: true,
+      timeout: 5000
     }, (err, res, body) => {
+      const retry = () => promiseUtil.delay(750).then(() =>
+        this.request(url, attemptsLeft - 1, headers, method, content));
+      
       if (err) {
+        debug('Loaded [error]', url, err);
+        
+        if (attemptsLeft > 0) {
+          return retry();
+        }
+        
         return requestDeferred.reject(err);
       }
       
       if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0) {
-        return promiseUtil.delay(750).then(() => this.request(url, attemptsLeft - 1));
+        debug('Loaded [retrying]', url, res.statusCode);
+        return retry();
       }
       
       if (res.statusCode !== 200) {
-        return requestDeferred.reject(new Error('Stock loader error: URL ' + url + ' returned status code ' + res.statusCode));
+        debug('Loaded [failed]', url, res.statusCode);
+        err = new Error('Stock loader error: URL ' + url + ' returned status code ' + res.statusCode);
+        err.statusCode = res.statusCode;
+        
+        return requestDeferred.reject(err);
       }
       
       debug('Loaded', url, res.statusCode);
       
       requestDeferred.resolve(body);
     });
+    
+    if (method !== 'get') {
+      assert.ok(typeof content !== 'undefined');
+      
+      req.end(content);
+    }
     
     return requestDeferred.promise;
   }

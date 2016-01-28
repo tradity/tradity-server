@@ -133,18 +133,18 @@ class AbstractLoader extends promiseUtil.EventEmitter {
         this.request(url, attemptsLeft - 1, headers, method, content));
       
       if (err) {
-        debug('Loaded [error]', url, err);
+        debug('Loaded [error]', url, attemptsLeft, err);
         
         if (attemptsLeft > 0) {
-          return retry();
+          return requestDeferred.resolve(retry());
         }
         
         return requestDeferred.reject(err);
       }
       
       if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0) {
-        debug('Loaded [retrying]', url, res.statusCode);
-        return retry();
+        debug('Loaded [retrying]', url, attemptsLeft, res.statusCode);
+        return requestDeferred.resolve(retry());
       }
       
       if (res.statusCode !== 200) {

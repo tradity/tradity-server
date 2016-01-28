@@ -155,7 +155,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       }
       
       r[0].pieces = r[1] || 0;
-      return r[0];
+      return this._handleRecord(r[0], false);
     });
   }
 }

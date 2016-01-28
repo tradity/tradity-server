@@ -84,8 +84,9 @@ class AbstractLoader extends promiseUtil.EventEmitter {
       
       const receivedStocks = [];
       fetchedRecordList.forEach(record => {
-        if (record.isin) { receivedStocks.push(record.isin); }
-        if (record.wkn)  { receivedStocks.push(record.wkn); }
+        if (record.symbol) { receivedStocks.push(record.symbol); }
+        if (record.isin)   { receivedStocks.push(record.isin); }
+        if (record.wkn)    { receivedStocks.push(record.wkn); }
       });
       
       const notReceivedStocks = _.difference(stocklist, receivedStocks);

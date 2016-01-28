@@ -114,10 +114,15 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
         return null;
       }
       
-      const exchangeInfo = (res.listings || [])
-        .filter(l => l.exchangeSymbol === this.exchange)[0] || {};
+      const exchangeInfos = (res.listings || [])
+        .filter(l => l.exchangeSymbol === this.exchange);
       
-      Object.assign(res, exchangeInfo);
+      if (exchangeInfos.length === 0) {
+        return null;
+      }
+      
+      assert.strictEqual(exchangeInfos.length, 1);
+      Object.assign(res, exchangeInfos[0]);
       
       return {
         symbol: res.isin,

@@ -449,8 +449,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
     localResults = localResults_;
     const externalStocksIDs = _.map(externalStocks, 'stocktextid');
 
-    // ISIN or WKN
-    if (validator.isISIN(str.toUpperCase()) || /^[0-9A-Za-z]{6}$/.test(str)) {
+    if (validator.isISIN(str.toUpperCase())) {
       externalStocksIDs.push(str.toUpperCase());
     }
     

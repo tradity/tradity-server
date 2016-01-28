@@ -33,7 +33,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     this.setMaxListeners(0);
     this.cacheTime = typeof opt.cacheTime === 'undefined' ? CACHE_TIME_DEFAULT : opt.cacheTime;
     this.maxlen = typeof opt.maxlen === 'undefined' ? MAXLEN_DEFAULT : opt.maxlen;
-    this.requestRetries = typeof opt.requestRetries === 'undefined' ? 2 : opt.requestRetries;
+    this.requestRetries = typeof opt.requestRetries === 'undefined' ? 10 : opt.requestRetries;
     this.cache = {};
   }
 

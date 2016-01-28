@@ -78,7 +78,7 @@ describe('stocks', function() {
         const stockinfo = res.results[0];
         
         assert.ok(stockinfo);
-        assert.strictEqual(stockinfo.stockid, standardISIN);
+        assert.strictEqual(stockinfo.stocktextid, standardISIN);
         assert.strictEqual(stockinfo.leader, null);
         assert.strictEqual(stockinfo.leadername, null);
         assert.strictEqual(stockinfo.lprovision, 0);

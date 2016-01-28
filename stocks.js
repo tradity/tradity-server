@@ -435,8 +435,8 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
   let localResults;
   return Promise.all([
     this.getServerConfig(),
-    ctx.query('SELECT stocks.stockid AS stockid, stocks.lastvalue AS lastvalue, stocks.ask AS ask, stocks.bid AS bid, ' +
-      'stocks.leader AS leader, users.name AS leadername, wprovision, lprovision '+
+    ctx.query('SELECT stocks.stockid, stocks.stocktextid, stocks.lastvalue, stocks.ask, stocks.bid, ' +
+      'stocks.leader, users.name AS leadername, wprovision, lprovision '+
       'FROM users ' +
       'JOIN stocks ON stocks.leader = users.uid ' +
       'JOIN users_finance ON users.uid = users_finance.uid ' +

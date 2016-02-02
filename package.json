@@ -7,9 +7,9 @@
     "test": "test"
   },
   "scripts": {
-    "test": "./node_modules/.bin/mocha --recursive -s 20000 -t 50000",
-    "test-cov": "./node_modules/.bin/istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 20000 -t 80000 && ./node_modules/.bin/istanbul report html",
-    "jshint": "./node_modules/.bin/jshint .",
+    "test": "mocha --recursive -s 20000 -t 50000",
+    "test-cov": "istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 20000 -t 80000 && istanbul report html",
+    "jshint": "jshint .",
     "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js && ./compile-templates.sh && ./generate_docs.sh"
   },
   "repository": {

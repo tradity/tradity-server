@@ -156,6 +156,7 @@ FeedController.prototype.feed = buscomponent.provide('feed',
  * @param {?int} query.count  A maximum count of events to return
  * @param {boolean} query.omitUidFilter  If possible, list events for *all* users
  * @param {boolean} query.includeDeletedComments  Include deleted comments
+ * @param {?Array} query.types  List of event types to filer for.
  * 
  * @function busreq~feedFetchEvents
  */
@@ -166,6 +167,7 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
   since = parseInt(query.since);
   upto = parseInt(query.upto);
   count = parseInt(query.count);
+  const types = Array.from(query.types || []).map(String);
   
   if (since !== since) {
     since = parseInt(Date.now() / 1000);
@@ -205,12 +207,11 @@ FeedController.prototype.fetchEvents = buscomponent.provideQT('feedFetchEvents',
     'LEFT JOIN blogposts ON events.targetid = blogposts.postid AND events.type="blogpost" ' +
     'LEFT JOIN feedblogs ON blogposts.blogid = feedblogs.blogid ' +
     'LEFT JOIN schools ON schools.schoolid = IF(events.type="blogpost", feedblogs.schoolid, IF(e2.type="school-create", e2.targetid, NULL)) ' +
-    'WHERE ' +
-    (omitUidFilter ? '(1 OR ?)' : 
-      'events_users.uid = ? ') +
-    'AND events.time >= ? AND events.time <= ? ' + 
+    'WHERE events.time >= ? AND events.time <= ? ' +
+    (omitUidFilter ? ' ' : 'AND events_users.uid = ? ') +
+    (types.length > 0 ? 'AND events.type IN (' + types.map(() => '?').join(',') + ') ' : ' ') +
     'ORDER BY events.time DESC LIMIT ?',
-    [ctx.user.uid, since, upto, count]).then(r => {
+    [since, upto, ctx.user.uid].concat(types).concat([count])).then(r => {
     return r.map(ev => {
       if (ev.json) {
         const json = JSON.parse(ev.json);

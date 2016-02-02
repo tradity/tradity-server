@@ -512,6 +512,8 @@ Admin.prototype.getServerStatistics = buscomponent.provideQT('client-get-server-
  * 
  * This is likely to be subjected to larger modifications due to #270.
  * 
+ * @param {?int} query.ndays  Number of days to look into the past. Default 365.
+ * 
  * @return {object} Returns with <code>get-ticks-statistics</code> or
  *                  a common error code and, in case of success, sets
  *                  <code>.results</code> appropiately.
@@ -539,6 +541,9 @@ Admin.prototype.getTicksStatistics = buscomponent.provideQT('client-get-ticks-st
 /**
  * Returns a per-day histogram of event frequency.
  * 
+ * @param {?int} query.ndays  Number of days to look into the past. Default 365.
+ * @param {?Array} query.types  List of event types to filer for.
+ * 
  * @return {object} Returns with <code>get-event-histogram-success</code> or a common error code
  *                  and populates <code>.result</code> with information about event frequency.
  * 
@@ -549,12 +554,14 @@ Admin.prototype.getEventStatistics = buscomponent.provideQT('client-get-event-st
   const todayEnd = now - (now % 86400) + 86400;
   const ndays = parseInt(query.ndays) || 365;
   const timespanStart = todayEnd - ndays * 86400;
+  const types = Array.from(query.types || []).map(String);
   
   return ctx.query('SELECT FLOOR(time/?)*? AS timeindex, COUNT(eventid) AS nevents, COUNT(DISTINCT srcuser) AS nuser ' +
     'FROM events ' +
     'WHERE time >= ? ' +
+    (types.length > 0 ? 'AND type IN (' + types.map(() => '?').join(',') + ') ' : ' ') +
     'GROUP BY timeindex',
-    [86400, 86400, timespanStart]).then(res => {
+    [86400, 86400, timespanStart].concat(types)).then(res => {
     return { code: 'get-event-statistics-success', result: res };
   });
 }));

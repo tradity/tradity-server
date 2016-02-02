@@ -407,7 +407,24 @@ describe('admin', function() {
     it('Should return a histogram of event counts', function() {
       return socket.emit('get-event-statistics', {
         __sign__: true,
-        since: 0
+        ndays: 10000
+      }).then(res => {
+        assert.equal(res.code, 'get-event-statistics-success');
+        assert.ok(res.result.length > 0);
+        assert.ok(res.result[0].timeindex);
+        
+        // only days where events *happened* included
+        // -> this should be okay
+        assert.ok(res.result[0].nevents);
+        assert.ok(res.result[0].nuser);
+      });
+    });
+    
+    it('Should return a histogram of event counts, filtered by type', function() {
+      return socket.emit('get-event-statistics', {
+        __sign__: true,
+        ndays: 10000,
+        types: ['comment']
       }).then(res => {
         assert.equal(res.code, 'get-event-statistics-success');
         assert.ok(res.result.length > 0);

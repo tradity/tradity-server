@@ -127,7 +127,6 @@ class AbstractLoader extends promiseUtil.EventEmitter {
       url: url,
       headers: headers,
       gzip: true,
-      forever: true,
       timeout: 5000
     }, (err, res, body) => {
       const retry = () => promiseUtil.delay(750).then(() =>

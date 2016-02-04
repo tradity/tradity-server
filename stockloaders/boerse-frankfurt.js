@@ -115,7 +115,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       }
       
       const exchangeInfos = (res.listings || [])
-        .filter(l => l.exchangeSymbol === this.exchange);
+        .filter(l => l.exchangeSymbol === this.exchange && l.price);
       
       if (exchangeInfos.length === 0) {
         return null;

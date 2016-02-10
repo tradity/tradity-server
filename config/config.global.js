@@ -143,13 +143,6 @@ module.exports = {
     ].filter(f => f)
   },
   'stockloaders': {
-    'ariva': {
-      'path': './stockloaders/arivafinance.js',
-      'apiKey': 'missing' // add your own API key here if you have one!
-    },
-    'arivascraper': {
-      'path': './stockloaders/arivascraper.js'
-    },
     'boerse-frankfurt': {
       'path': './stockloaders/boerse-frankfurt.js',
       'apiUsername': 'missing',

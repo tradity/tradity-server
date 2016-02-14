@@ -97,7 +97,10 @@ Stocks.prototype.updateStockIDCache = function(ctx) {
  * @function module:stocks~Stocks#stocksFilter
  */
 Stocks.prototype.stocksFilter = function(cfg, rec) {
-  return Object.keys(cfg.stockExchanges).indexOf(rec.exchange) !== -1 && rec.currency_name === cfg.requireCurrency;
+  return Object.keys(cfg.stockExchanges).indexOf(rec.exchange) !== -1 &&
+      rec.currency_name === cfg.requireCurrency &&
+      rec.ask >= cfg.minAskPrice &&
+      rec.lastTradePrice > 0;
 };
 
 /**
@@ -743,7 +746,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     
     ta_value = amount > 0 ? r.ask : r.bid;
     
-    assert.ok(r.ask >= 0);
+    assert.ok(r.ask >= cfg.minAskPrice);
     assert.ok(r.stocktextid);
     
     // re-fetch freemoney because the 'user' object might come from dquery

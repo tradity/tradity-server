@@ -87,6 +87,7 @@ module.exports = {
     'tradity': {open: '8:00', close: '20:00', days: [1,2,3,4,5]}
   },
   'requireCurrency': 'EUR',
+  'minAskPrice': 10,
   'infopushMinDelta': 60000,
   'fsdb': {
     'reqregex': /^(\/\w+)?\/dynamic\/files\/([-+_,\w.]+)\/?$/,

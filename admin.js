@@ -107,7 +107,7 @@ Admin.prototype.listAllUsers = buscomponent.provideQT('client-list-all-users', _
   return ctx.query('SELECT birthday, deletiontime, street, zipcode, town, `desc`, users.name, giv_name, fam_name, ' +
     'users.uid, tradecount, email, email_verif AS emailverif, ' +
     'wprovision, lprovision, freemoney, totalvalue, wprov_sum, lprov_sum, registertime, lang, ' +
-    'schools.path AS schoolpath, schools.schoolid, pending, jointime, ' +
+    'schools.path AS schoolpath, schools.schoolid, schoolclass, pending, jointime, ' +
     '(SELECT COUNT(*) FROM ecomments WHERE ecomments.commenter=users.uid) AS commentcount, '+
     '(SELECT MAX(time) FROM ecomments WHERE ecomments.commenter=users.uid) AS lastcommenttime FROM users ' +
     'JOIN users_data ON users.uid = users_data.uid ' +

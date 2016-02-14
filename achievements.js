@@ -144,7 +144,7 @@ Achievements.prototype.checkAchievement = function(achievementEntry, ctx, userAc
       'WHERE uid = ? AND achname IN (' + lookfor.map(() => '?').join(',') + ')',
       [uid].splice(0).concat(lookfor));
   }).then(userAchievements => {
-    userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).zipObject().value();
+    userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).fromPairs().value();
     
     if (userAchievements[achievementEntry.name]) {
       const dbver = userAchievements[achievementEntry.name].version;
@@ -334,17 +334,16 @@ Achievements.prototype.clientAchievement = buscomponent.provideW('client-achieve
   
   query.name = String(query.name);
   
+  debug('Entering client-side achievement', query.name, verified);
+  
   if (this.clientAchievements.indexOf(query.name) === -1) {
     throw new this.SoTradeClientError('achievement-unknown-name');
   }
   
   return ctx.query('REPLACE INTO achievements_client (uid, achname, verified) VALUES(?, ?, ?)',
-    [ctx.user.uid, query.name, verified || 0]).then(() =>
-  {
-    this.emitImmediate('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
-    
-    return { code: 'achievement-success' };
-  });
+    [ctx.user.uid, query.name, verified || 0]).then(() => {
+    return this.emitImmediate('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
+  }).then(() => ({ code: 'achievement-success' }));
 });
 
 /**

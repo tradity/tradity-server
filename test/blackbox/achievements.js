@@ -174,7 +174,7 @@ describe('achievements', function() {
       });
     });
     
-    it('Should register achievements for being logged in multiple days in a row', function() {
+    it('Should register achievements for being logged in multiple days with breaks', function() {
       const now = Date.now();
       
       const dates = [2,3,4,6,7].map(x => {

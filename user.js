@@ -21,7 +21,6 @@ const crypto = require('crypto');
 const assert = require('assert');
 const validator = require('validator');
 const genders = require('genders');
-const LoginIPCheck = require('./lib/loginIPCheck.js');
 const sha256 = require('./lib/sha256.js');
 const Cache = require('./lib/minicache.js').Cache;
 const buscomponent = require('./stbuscomponent.js');
@@ -54,17 +53,6 @@ class User extends buscomponent.BusComponent {
     super();
     
     this.cache = new Cache();
-    
-    this.loginIPCheck = null;
-    this.getLoginIPCheck = function() {
-      if (this.loginIPCheck) {
-        return Promise.resolve(this.loginIPCheck);
-      }
-      
-      return this.loginIPCheck = this.getServerConfig().then(cfg => {
-        return new LoginIPCheck(cfg.login);
-      });
-    };
   }
 }
 
@@ -259,9 +247,7 @@ User.prototype.login = buscomponent.provide('client-login',
   
   debug('Login', xdata.remoteip, name, useTransaction, ignorePassword);
   
-  return Promise.resolve()/*this.getLoginIPCheck().then(check => {
-    return check.check(xdata.remoteip);
-  })*/.then(() => {
+  return Promise.resolve().then(() => {
     const query = 'SELECT passwords.*, users.email_verif ' +
       'FROM passwords ' +
       'JOIN users ON users.uid = passwords.uid ' +

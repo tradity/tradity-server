@@ -340,14 +340,14 @@ Stocks.prototype.updateRecord = function(ctx, rec) {
     return;
   }
   
-  assert.notEqual(rec.lastTradePrice, null);
-  if (rec.lastTradePrice === 0) { // happens with API sometimes.
-    return;
-  }
-  
-  assert.notStrictEqual(rec.pieces, null);
-  
-  return Promise.resolve().then(() => {
+  return this.getServerConfig().then(cfg => {
+    assert.notEqual(rec.lastTradePrice, null);
+    if (rec.lastTradePrice === 0 || rec.ask < cfg.minAskPrice) { // happens with API sometimes.
+      return;
+    }
+    
+    assert.notStrictEqual(rec.pieces, null);
+  }).then(() => {
     if (ctx.getProperty('readonly')) {
       return;
     }
@@ -703,7 +703,7 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
       'LEFT JOIN users_finance AS l ON stocks.leader = l.uid AND depot_stocks.uid != l.uid ' +
       'WHERE stocks.stocktextid = ? FOR UPDATE', [ctx.user.uid, String(query.stocktextid)]);
   }).then(res => {
-    if (res.length === 0 || res[0].lastvalue === 0) {
+    if (res.length === 0 || res[0].lastvalue === 0 || res[0].ask < cfg.minAskPrice) {
       throw new this.SoTradeClientError('stock-buy-stock-not-found');
     }
     
@@ -746,7 +746,6 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     
     ta_value = amount > 0 ? r.ask : r.bid;
     
-    assert.ok(r.ask >= cfg.minAskPrice);
     assert.ok(r.stocktextid);
     
     // re-fetch freemoney because the 'user' object might come from dquery

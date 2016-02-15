@@ -140,7 +140,8 @@ module.exports = {
   'ssl': {
     'ca': [
       tryReadSync('/etc/ssl/certs/startssl-sub.class2.server.ca.pem'),
-      tryReadSync('/etc/ssl/certs/StartCom_Certification_Authority.pem')
+      tryReadSync('/etc/ssl/certs/StartCom_Certification_Authority.pem'),
+      tryReadSync('/etc/mysql/ca.pem')
     ].filter(f => f)
   },
   'stockloaders': {

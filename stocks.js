@@ -107,6 +107,7 @@ Stocks.prototype.stocksFilter = function(cfg, rec) {
  * Regularly called function to perform various cleanup and update tasks.
  * 
  * Calls the following functions (not necessarily all of these, but in the given order):
+ * {@link module:stocks~Stocks#cleanUpDepotDuplicates}
  * {@link module:stocks~Stocks#cleanUpUnusedStocks}
  * {@link module:stocks~Stocks#updateStockValues}
  * {@link busreq~updateLeaderMatrix}
@@ -129,10 +130,13 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
     return;
   }
     
-  let rcbST, rcbET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET, usicST;
+  let rcbST, rcbET, cddET, cuusET, usvET, ulmET, uriET, uvhET, upET, wcbET, usicST;
   rcbST = Date.now();
   
-  return this.cleanUpUnusedStocks(ctx).then(() => {
+  return this.cleanUpDepotDuplicates(ctx).then(() => {
+    cddET = Date.now();
+    return this.cleanUpUnusedStocks(ctx);
+  }).then(() => {
     cuusET = Date.now();
     return this.updateStockValues(ctx);
   }).then(() => {
@@ -169,7 +173,8 @@ Stocks.prototype.regularCallback = buscomponent.provide('regularCallbackStocks',
     return this.updateStockIDCache(ctx);
   }).then(() => {
     rcbET = Date.now();
-    console.log('cleanUpUnusedStocks:      ' + (cuusET  - rcbST)  + ' ms');
+    console.log('cleanUpDepotDuplicates:   ' + (cddET   - rcbST)  + ' ms');
+    console.log('cleanUpUnusedStocks:      ' + (cuusET  - cddET)  + ' ms');
     console.log('updateStockValues:        ' + (usvET   - cuusET) + ' ms');
     console.log('updateLeaderMatrix:       ' + (ulmET   - usvET)  + ' ms');
     console.log('updateProvisions:         ' + (upET    - ulmET)  + ' ms');
@@ -273,6 +278,51 @@ Stocks.prototype.cleanUpUnusedStocks = function(ctx) {
       '(SELECT COUNT(*) FROM depot_stocks AS ds WHERE ds.stockid = stocks.stockid) != 0 ' +
       'OR (SELECT COUNT(*) FROM watchlists AS w WHERE w.watched  = stocks.stockid) != 0 ' +
       'OR leader IS NOT NULL');
+  });
+};
+
+/**
+ * Cleans up the depot tables.
+ * Unifies duplicate depot entries.
+ * 
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ *
+ * @return {object}  A Promise indicating task completion
+ * @function module:stocks~Stocks#cleanUpDepotDuplicates
+ */
+Stocks.prototype.cleanUpDepotDuplicates = function(ctx) {
+  debug('Clean up duplicate depot entries');
+  
+  return ctx.startTransaction().then(conn => {
+    return conn.query('SELECT ' +
+      'MIN(depotentryid) AS idx, ' +
+      'SUM(amount) AS amount, SUM(buymoney) AS buymoney, ' +
+      'SUM(wprov_sum) AS wprov_sum, SUM(lprov_sum) AS lprov_sum, ' +
+      'uid, stockid, COUNT(1) AS n_ent ' +
+      'FROM depot_stocks ' +
+      'GROUP BY uid, stockid ' +
+      'HAVING n_ent > 1 FOR UPDATE').then(res => {
+      // res is likely to be small
+      
+      debug('Deduplicating depot entries', res.length);
+      return Promise.all(res.map(r => {
+        assert.ok(!isNaN(parseInt(r.idx)));
+        assert.ok(!isNaN(parseInt(r.amount)));
+        assert.ok(!isNaN(parseInt(r.buymoney)));
+        assert.ok(!isNaN(parseInt(r.wprov_sum)));
+        assert.ok(!isNaN(parseInt(r.lprov_sum)));
+        
+        return Promise.all([
+          conn.query('UPDATE depot_stocks ' +
+            'SET amount = ?, buymoney = ?, wprov_sum = ?, lprov_sum = ? ' +
+            'WHERE depotentryid = ?',
+            [r.amount, r.buymoney, r.wprov_sum, r.lprov_sum, r.idx]),
+          conn.query('DELETE FROM depot_stocks ' +
+            'WHERE uid = ? AND stockid = ? AND depotentryid != ?',
+            [r.uid, r.stockid, r.idx])
+        ]);
+      }));
+    }).then(conn.commit, conn.rollbackAndThrow);
   });
 };
 

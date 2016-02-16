@@ -668,7 +668,7 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     ]).join(', ');
     
     let lookfor = parseInt(query.lookfor), lookforColumn;
-    if (lookfor === lookfor) {
+    if (String(lookfor) === String(query.lookfor)) {
       lookforColumn = 'uid';
     } else {
       lookfor = String(query.lookfor);

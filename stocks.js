@@ -99,7 +99,7 @@ Stocks.prototype.updateStockIDCache = function(ctx) {
 Stocks.prototype.stocksFilter = function(cfg, rec) {
   return Object.keys(cfg.stockExchanges).indexOf(rec.exchange) !== -1 &&
       rec.currency_name === cfg.requireCurrency &&
-      rec.ask >= cfg.minAskPrice &&
+      rec.ask * 10000 >= cfg.minAskPrice &&
       rec.lastTradePrice > 0;
 };
 

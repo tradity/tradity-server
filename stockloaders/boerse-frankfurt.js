@@ -124,6 +124,10 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       assert.strictEqual(exchangeInfos.length, 1);
       Object.assign(res, exchangeInfos[0]);
       
+      if (res.ask === null || res.bid === null) {
+        return null;
+      }
+      
       return {
         symbol: res.isin,
         ask: res.ask,

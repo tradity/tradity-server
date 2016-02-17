@@ -77,7 +77,7 @@ for (let i = 0; i < tcaKeys.length; ++i) {
     name: 'TRADE_COUNT_' + count,
     fireOn: { 'feed-trade': (ev, ctx) => [ev.srcuser] },
     xp: tradeCountAchievements[count],
-    check: (uid, userAchievements, cfg, ctx) => {
+    check: (uid, userAchievements, cfg, ctx) => { // jshint ignore:line
       return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ?', [uid])
         .then(res => (res[0].tradecount >= count));
     },
@@ -98,7 +98,7 @@ for (let i = 0; i < ftcaKeys.length; ++i) {
     name: 'TRADE_FOLLOWER_COUNT_' + count,
     fireOn: { 'feed-trade': (ev, ctx) => [ev.srcuser] },
     xp: followerTradeCountAchievements[count],
-    check: (uid, userAchievements, cfg, ctx) => {
+    check: (uid, userAchievements, cfg, ctx) => { // jshint ignore:line
       return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND leader IS NOT NULL', [uid])
         .then(res => (res[0].tradecount >= count));
     },
@@ -119,7 +119,7 @@ for (let i = 0; i < ltcaKeys.length; ++i) {
     name: 'LEADER_TRADED_COUNT_' + count,
     fireOn: { 'feed-trade': (ev, ctx) => ev.leader ? [ev.leader] : [] },
     xp: leaderTradeCountAchievements[count],
-    check: (uid, userAchievements, cfg, ctx) => {
+    check: (uid, userAchievements, cfg, ctx) => { // jshint ignore:line
       return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE leader = ?', [uid])
         .then(res => (res[0].tradecount >= count));
     },
@@ -190,7 +190,7 @@ for (let i = 0; i < commentCountAchievements.length; ++i) {
     name: 'COMMENT_COUNT_' + counts.join('_'),
     fireOn: { 'feed-comment': (ev, ctx) => [ev.srcuser] },
     xp: commentCountAchievements[i][2],
-    check: (uid, userAchievements, cfg, ctx) => {
+    check: (uid, userAchievements, cfg, ctx) => { // jshint ignore:line
       return ctx.query('SELECT COUNT(eventid) AS c, COUNT(DISTINCT eventid) AS cd FROM `ecomments` WHERE commenter = ? ' +
         'AND (SELECT type FROM events WHERE events.eventid=ecomments.eventid) != "chat-start" ' +
         'AND cstate != "mdeleted" AND cstate != "gdeleted"', [uid]).then(res => {
@@ -235,9 +235,9 @@ for (let i = 0; i < ClientAchievements.length; ++i) {
   
   AchievementList.push({
     name: achievement.name,
-    fireOn: { 'clientside-achievement': (ev, ctx) => ev.name === achievement.name ? [ev.srcuser] : [] },
+    fireOn: { 'clientside-achievement': (ev, ctx) => ev.name === achievement.name ? [ev.srcuser] : [] }, // jshint ignore:line
     xp: achievement.xp,
-    check: (uid, userAchievements, cfg, ctx) => {
+    check: (uid, userAchievements, cfg, ctx) => { // jshint ignore:line
       return ctx.query('SELECT COUNT(*) AS c FROM achievements_client WHERE uid = ? AND achname = ? ' +
         (achievement.requireVerified ? 'AND verified = 1 ' : ''),
         [uid, achievement.name]).then(res => {

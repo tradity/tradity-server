@@ -126,7 +126,7 @@ Questionnaires.prototype.saveQuestionnaire = buscomponent.provideTXQT('client-sa
     
     for (let i = 0; i < query.results.length; ++i) {
       const answers = query.results[i].answers;
-      const question = questionnaire.questions.filter(qn => {
+      const question = questionnaire.questions.filter(qn => { // jshint ignore:line
         return qn.question_id === query.results[i].question;
       })[0];
       

@@ -65,7 +65,7 @@ function handleMail(mail) {
     
     const attachmentParser = new MailParser();
     
-    attachmentParser.on('end', attachmentContent => {
+    attachmentParser.on('end', attachmentContent => { // jshint ignore:line
       if (attachment.contentType === 'message/delivery-status') {
         const dsParser = new MailParser();
         

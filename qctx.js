@@ -115,6 +115,22 @@ class QContext extends buscomponent.BusComponent {
     
     this.addProperty({name: 'debugEnabled', value: false, access: 'server'});
   }
+
+  /**
+   * Call context-specific error handlers and pass on to
+   * {@link module:buscomponent~BusComponent#emitError}.
+   * 
+   * @function module:qctx~QContext#emitError
+   */
+  emitError(e) {
+    this.debug('Caught error', e);
+    
+    for (let i = 0; i < this.errorHandlers.length; ++i) {
+      this.errorHandlers[i](e);
+    }
+    
+    super.emitError(this, e);
+  }
 }
 
 QContext.masterQueryContext = null;
@@ -660,22 +676,6 @@ QContext.prototype.debug = function() {
   for (let i = 0; i < this.debugHandlers.length; ++i) {
     this.debugHandlers[i](Array.prototype.slice.call(arguments));
   }
-};
-
-/**
- * Call context-specific error handlers and pass on to
- * {@link module:buscomponent~BusComponent#emitError}.
- * 
- * @function module:qctx~QContext#emitError
- */
-QContext.prototype.emitError = function(e) {
-  this.debug('Caught error', e);
-  
-  for (let i = 0; i < this.errorHandlers.length; ++i) {
-    this.errorHandlers[i](e);
-  }
-  
-  QContext.super_.prototype.emitError.call(this, e);
 };
 
 /**

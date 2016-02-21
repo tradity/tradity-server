@@ -158,5 +158,6 @@ module.exports = {
   'passwords': {
     'pbkdf2Iterations': 18,
     'pbkdf2MinIterations': 18
-  }
+  },
+  'forbidLeaderTrades': true
 };

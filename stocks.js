@@ -499,7 +499,7 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
       'WHERE (name LIKE ? OR stocktextid LIKE ?) AND leader IS NULL',
       [xstr, xstr])
   ]).then(spread((cfg, localResults_, externalStocks) => {
-    localResults = localResults_;
+    localResults = cfg.forbidLeaderTrades ? [] : localResults_;
     const externalStocksIDs = _.map(externalStocks, 'stocktextid');
 
     if (validator.isISIN(str.toUpperCase())) {
@@ -760,6 +760,10 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     assert.equal(res.length, 1);
     
     r = res[0];
+    
+    if (r.lid !== null && cfg.forbidLeaderTrades) {
+      throw new this.SoTradeClientError('stock-buy-no-leader-trades');
+    }
     
     hadDepotStocksEntry = (r.amount !== null);
     

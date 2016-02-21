@@ -39,5 +39,6 @@ module.exports = {
   'login': {
     'minWait': 1,
     'maxWait': 2
-  }
+  },
+  'forbidLeaderTrades': false
 };

@@ -188,7 +188,6 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
     assert.equal(parseInt(chat.chatid), chat.chatid);
     assert.equal(parseInt(chat.chatstartevent), chat.chatstartevent);
     
-    chat.eventid = chat.chatstartevent; // backwards compatibility
     chat.endpoints = query.endpoints;
     
     if (query.noMessages) {
@@ -256,8 +255,7 @@ Chats.prototype.getChat = buscomponent.provideQT('client-chat-get', function(que
 Chats.prototype.addUserToChat = buscomponent.provideTXQT('client-chat-adduser', function(query, ctx) {
   debug('Add user to chat', query.userid, query.chatid);
   
-  /* backwards compatibility */
-  const uid = parseInt(query.uid) || parseInt(query.userid);
+  const uid = parseInt(query.uid);
   const chatid = parseInt(query.chatid);
   
   if (uid !== uid || chatid !== chatid) {
@@ -336,7 +334,6 @@ Chats.prototype.listAllChats = buscomponent.provideQT('client-list-all-chats', f
       }
       
       ret[res[i].chatid].members.push({
-        id: res[i].member, /* backwards compatibility */
         uid: res[i].member,
         name: res[i].membername,
         profilepic: res[i].profilepic

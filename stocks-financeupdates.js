@@ -352,7 +352,6 @@ StocksFinanceUpdates.prototype.updateLeaderMatrix = buscomponent.provide('update
         (lmuEnd - lmuComputationsComplete) + ' ms writing');
       
       return res.map(r => {
-        r.stockid = r.stocktextid; // backwards compatibility
         return this.emitGlobal('stock-update', r);
       });
     });

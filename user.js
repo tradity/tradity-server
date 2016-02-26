@@ -700,7 +700,6 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     }
     
     xuser = users[0];
-    xuser.id = xuser.uid; // backwards compatibility
     xuser.isSelf = (ctx.user && xuser.uid === ctx.user.uid);
     if (xuser.isSelf) {
       xuser.access = ctx.access.toArray();
@@ -734,11 +733,6 @@ User.prototype.getUserInfo = buscomponent.provideQT('client-get-user-info', func
     const levelArray = schools.map(s => { return s.path.replace(/[^\/]/g, '').length; }); // count '/'
     if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length !== levelArray.length) {
       return this.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
-    }
-    
-    /* backwards compatibility */
-    for (let i = 0; i < schools.length; ++i) {
-      schools[i].id = schools[i].schoolid;
     }
     
     xuser.schools = schools;
@@ -1017,9 +1011,6 @@ User.prototype.loadSessionUser = buscomponent.provide('loadSessionUser', ['key',
       
       assert.equal(res.length, 1);
       const user = res[0];
-      /* backwards compatibility */
-      user.id = user.uid;
-      user.school = user.schoolid;
       
       assert.ok(user.uid === loginInfo.uid || loginInfo.uid === null);
       

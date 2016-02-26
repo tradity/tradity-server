@@ -103,8 +103,6 @@ SoTradeServer.prototype.internalServerStatistics = buscomponent.provide('interna
     connectionCount: this.connectionCount,
     deadQueryCount: this.deadQueryCount,
     deadQueryCompressionInfo: this.deadQueryCompressionInfo,
-    deadQueryLZMACount: this.deadQueryCompressionInfo.supported.lzma, // backwards compatibility
-    deadQueryLZMAUsedCount: this.deadQueryCompressionInfo.used.lzma, // backwards compatibility
     now: Date.now(),
     qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
   };

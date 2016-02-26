@@ -510,7 +510,6 @@ Stocks.prototype.searchStocks = buscomponent.provideQT('client-stock-search', fu
   })).then(externalResults => {
     let results = _.union(localResults, externalResults.map(r => {
       return {
-        'stockid': r.symbol, /* backwards compatibility */
         'stocktextid': r.symbol,
         'lastvalue': r.lastTradePrice * 10000,
         'ask': r.ask * 10000,
@@ -726,8 +725,6 @@ Stocks.prototype.buyStock = buscomponent.provide('client-stock-buy',
     
     if (query.leader !== null) {
       query.stocktextid = '__LEADER_' + query.leader + '__';
-    } else if (query.stockid && typeof query.stocktextid === 'undefined') {
-      query.stocktextid = String(query.stockid); // backwards compatibility
     }
     
     if (opt.testOnly) {
@@ -978,11 +975,6 @@ Stocks.prototype.stocksForUser = buscomponent.provideQT('client-list-own-depot',
     'LEFT JOIN users ON s.leader = users.uid ' +
     'WHERE ds.uid = ? AND amount != 0',
     [ctx.user.uid]).then(results => {
-    /* backwards compatibility */
-    for (let i = 0; i < results.length; ++i) {
-      results[i].stockid = results[i].stocktextid;
-    }
-    
     return { code: 'list-own-depot-success', 'results': results };
   });
 });
@@ -1070,7 +1062,6 @@ Stocks.prototype.getTradeInfo = buscomponent.provideQT('client-get-trade-info', 
       throw new this.SoTradeClientError('get-trade-delayed-history');
     }
     
-    r.userid = r.uid; // backwards compatibility
     assert.equal(r.uid, parseInt(r.uid));
     
     return ctx.query('SELECT c.*,u.name AS username, u.uid AS uid, url AS profilepic, trustedhtml ' +
@@ -1131,11 +1122,6 @@ Stocks.prototype.listPopularStocks = buscomponent.provideQT('client-list-popular
       'WHERE buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
       'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days]);
   }).then(popular => {
-    /* backwards compatibility */
-    for (let i = 0; i < popular.length; ++i) {
-      popular[i].stockid = popular[i].stocktextid;
-    }
-    
     return { code: 'list-popular-stocks-success', 'results': popular };
   });
 });

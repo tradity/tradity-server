@@ -51,7 +51,6 @@ Misc.prototype.getOwnOptions = buscomponent.provideQT('client-get-own-options', 
   const r = _.clone(ctx.user);
   assert.ok(!r.pwsalt);
   assert.ok(!r.pwhash);
-  r.id = r.uid; // backwards compatibility
   return { code: 'get-own-options-success', 'result': r };
 });
 

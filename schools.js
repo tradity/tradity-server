@@ -179,7 +179,6 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
     
     s = res[0]; 
     s.parentPath = null;
-    s.id = s.schoolid; // backwards compatibility
     
     assert.ok(s.eventid);
     
@@ -253,11 +252,6 @@ Schools.prototype.loadSchoolInfo = function(lookfor, ctx, cfg) {
       c.isDeleted = ['gdeleted', 'mdeleted'].indexOf(c.cstate) !== -1;
       return c;
     });
-    
-    /* backwards compatibility */
-    for (let i = 0; i < s.popularStocks.length; ++i) {
-      s.popularStocks[i].stockid = s.popularStocks[i].stocktextid;
-    }
     
     assert.ok(typeof parentResult.code === 'undefined' || parentResult.code === 'get-school-info-success');
     
@@ -565,12 +559,6 @@ Schools.prototype.listSchools = buscomponent.provideQT('client-list-schools', fu
     'LEFT JOIN httpresources ON httpresources.groupassoc = p.schoolid AND httpresources.role = "schools.banner" ' +
     where +
     'GROUP BY p.schoolid', params).then(results => {
-    
-    /* backwards compatibility */
-    for (let i = 0; i < results.length; ++i) {
-      results[i].id = results[i].schoolid;
-    }
-    
     return { code: 'list-schools-success', 'result': results };
   });
 });

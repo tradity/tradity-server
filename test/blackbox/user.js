@@ -34,15 +34,14 @@ describe('user', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('get-user-info', function() {
+  describe('/user/…', function() {
     it('Should return no values with .nohistory', function() {
-      return socket.emit('get-user-info', {
-        lookfor: user.name,
-        nohistory: true,
-        noCache: true, __sign__: true
+      return socket.get('/user/' + user.name, {
+        qs: { nohistory: true },
+        cache: false, __sign__: true
       }).then(res => {
-        assert.equal(res.code, 'get-user-info-success');
-        assert.ok(res.result);
+        assert.ok(res._success);
+        assert.ok(res.data);
         assert.ok(!res.comments);
         assert.ok(!res.orders);
         assert.ok(!res.values);
@@ -50,16 +49,15 @@ describe('user', function() {
     });
     
     it('Should return a valuehistory without .nohistory', function() {
-      return socket.emit('prod', {
+      return socket.post('/regular-callback', {
         __sign__: true
       }).then(() => {
-        return socket.emit('get-user-info', {
-          lookfor: user.name,
-          noCache: true, __sign__: true
+        return socket.get('/user/' + user.name, {
+          cache: false, __sign__: true
         });
       }).then(res => {
-        assert.equal(res.code, 'get-user-info-success');
-        assert.ok(res.result);
+        assert.ok(res._success);
+        assert.ok(res.data);
         assert.ok(res.pinboard);
         assert.ok(res.orders);
         assert.ok(res.values);
@@ -67,84 +65,88 @@ describe('user', function() {
     });
     
     it('Should be able to search by name and by ID', function() {
-      return Promise.all([socket.emit('get-user-info', {
-        lookfor: user.name,
-        nohistory: true,
-        noCache: true, __sign__: true
-      }), socket.emit('get-user-info', {
-        lookfor: user.uid,
-        nohistory: true,
-        noCache: true, __sign__: true
-      })]).then(spread((byName, byID) => {
-        assert.equal(byName.code, 'get-user-info-success');
-        assert.equal(byID.code, 'get-user-info-success');
-        assert.equal(byName.result.name, byID.result.name);
-        assert.equal(byName.result.totalvalue, byID.result.totalvalue);
-        assert.equal(byName.result.lstockid, byID.result.lstockid);
+      return Promise.all([
+        socket.get('/user/' + user.name, {
+          qs: { nohistory: true },
+          cache: false, __sign__: true
+        }),
+        socket.get('/user/' + user.uid, {
+          qs: { nohistory: true },
+          cache: false, __sign__: true
+        })
+      ]).then(spread((byName, byID) => {
+        assert.ok(byName._success);
+        assert.ok(byID._success);
+        assert.equal(byName.data.name, byID.data.name);
+        assert.equal(byName.data.totalvalue, byID.data.totalvalue);
+        assert.equal(byName.data.lstockid, byID.data.lstockid);
       }));
     });
   });
   
-  describe('get-ranking', function() {
+  describe('/ranking', function() {
     it('Should return a list of all users', function() {
-      return socket.emit('get-ranking').then(res => {
-        assert.equal(res.code, 'get-ranking-success');
-        assert.ok(res.result);
-        assert.ok(res.result.length > 0);
-        assert.ok(res.result[0].name);
-        assert.ok(res.result[0].totalvalue);
+      return socket.get('/ranking').then(res => {
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.length > 0);
+        assert.ok(res.data[0].name);
+        assert.ok(res.data[0].totalvalue);
       });
     });
   });
   
-  describe('validate-username', function() {
+  describe('/validate-username', function() {
     it('Should allow valid user names', function() {
-      return socket.emit('validate-username', {
-        name: 'Banana1992'
-      }).then(res => {
-        assert.equal(res.code, 'validate-username-valid');
+      return socket.get('/validate-username/Banana1992').then(res => {
+        assert.ok(res._success);
       });
     });
     
     it('Should recognize invalid user names', function() {
-      return socket.emit('validate-username', {
-        name: 'Banana 1992'
-      }).then(res => {
-        assert.equal(res.code, 'reg-name-invalid-char');
+      return socket.get('/validate-username/Banana 1992').then(res => {
+        assert.equal(res.code, 403);
+        assert.equal(res.identifier, 'invalid-char');
       });
     });
     
     it('Should recognize already present user names', function() {
-      return socket.emit('validate-username', {
-        name: user.name
-      }).then(res => {
-        assert.equal(res.code, 'reg-name-already-present');
+      return socket.get('/validate-username/' + user.name).then(res => {
+        assert.equal(res.code, 403);
+        assert.equal(res.identifier, 'already-present');
       });
     });
   });
   
   describe('validate-email', function() {
     it('Should allow valid email addresses', function() {
-      return socket.emit('validate-email', {
-        email: 'Banana1992@notsohotmail.com'
-      }).then(res => {
-        assert.equal(res.code, 'validate-email-valid');
+      return socket.get('/validate-email/Banana1992@notsohotmail.com').then(res => {
+        assert.ok(res._success);
       });
     });
     
     it('Should recognize invalid email addresses', function() {
-      return socket.emit('validate-email', {
-        email: 'Banana 1992'
-      }).then(res => {
-        assert.equal(res.code, 'reg-invalid-email');
+      return socket.get('/validate-email/Banana 1992').then(res => {
+        assert.equal(res.code, 403);
+        assert.equal(res.identifier, 'invalid-email');
       });
     });
     
     it('Should recognize already present email addresses', function() {
-      return socket.emit('validate-email', {
-        email: user.email
+      // need verified email address for this
+      return socket.put('/user/' + user.uid + '/email', {
+        __sign__: true,
+        body: {
+          emailverif: true,
+          email: user.email
+        }
+      }).then(result => {
+        assert.ok(result._success);
+        
+        return socket.get('/validate-email/' + user.email);
       }).then(res => {
-        assert.equal(res.code, 'reg-email-already-present');
+        assert.equal(res.code, 403);
+        assert.equal(res.identifier, 'already-present');
       });
     });
   });

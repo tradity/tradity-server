@@ -5,7 +5,6 @@ errors.log
 errors-*.log
 errors.*.log
 out
-doc
 buildstamp.js
 core
 coverage

@@ -16,50 +16,24 @@
 
 "use strict";
 
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 const templates = require('./templates-compiled.js');
 const debug = require('debug')('sotrade:template-loader');
 
-/**
- * Provides methods for reading in template files.
- * 
- * @public
- * @module template-loader
- */
-
-/**
- * Main object of the {@link module:template-loader} module
- * 
- * @public
- * @constructor module:template-loader~TemplateLoader
- * @augments module:stbuscomponent~STBusComponent
- */
-class TemplateLoader extends buscomponent.BusComponent {
+class TemplateReader extends api.Component {
   constructor() {
-    super();
+    super({
+      identifier: 'TemplateReader',
+      description: 'Read a template and optionally substitute variables.',
+      notes: 'The strings which are substituted are of the format `${varname}`'
+    });
   }
-}
-
-/**
- * Read a template and optionally substitute variables.
- * The strings which are substituted are of the format
- * <code>${varname}</code>.
- * 
- * @param {string} template  The file name of the remplate to read in.
- * @param {string} lang  The preferred language for the files to be read in.
- * @param {?object} variables  An dictionary of variables to replace.
- * 
- * @return {string} Returns the template, variables having been substituted.
- * 
- * @function busreq~readTemplate
- */
-TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
-  ['template', 'lang', 'variables'],
-  function(template, lang, variables)
-{ 
-  debug('Read template', template, lang, variables);
   
-  return this.getServerConfig().then(cfg => {
+  readTemplate(template, lang, variables) { 
+    debug('Read template', template, lang, variables);
+    
+    const cfg = this.load('Config').config();
+    
     variables = variables || {};
     
     let t = templates[lang] && templates[lang][template];
@@ -82,55 +56,44 @@ TemplateLoader.prototype.readTemplate = buscomponent.provide('readTemplate',
       throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
     }
     
-    return t;
-  });
-});
+    return Promise.resolve(t);
+  }
 
-/**
- * Read an e-mail template and optionally substitute variables.
- * This internally calls {@link busreq~readTemplate} and has the same 
- * parameters, but header fields will be passend and an object suitable
- * for passing to {@link busreq~sendMail} is returned rather than a string.
- * 
- * @param {string} template  The file name of the remplate to read in.
- * @param {string} lang  The preferred language for the files to be read in.
- * @param {?object} variables  An dictionary of variables to replace.
- * 
- * @function busreq~readEMailTemplate
- */
-TemplateLoader.prototype.readEMailTemplate = buscomponent.provide('readEMailTemplate',
-  ['template', 'lang', 'variables'], function(template, lang, variables) {
-  return this.readTemplate(template, lang, variables).then(function(t) {
-    const headerend = t.indexOf('\n\n');
-    
-    const headers = t.substr(0, headerend).split('\n');
-    const body = t.substr(headerend + 2);
-    
-    const opt = {
-      headers: {
-        'X-SoTrade-Lang': lang
-      }
-    };
-    
-    for (let i = 0; i < headers.length; ++i) {
-      const h = headers[i];
-      const headerNameEnd = h.indexOf(':');
-      const headerName = h.substr(0, headerNameEnd).trim();
-      const headerValue = h.substr(headerNameEnd + 1).trim();
+  readEMailTemplate(template, lang, variables) {
+    return this.readTemplate(template, lang, variables).then(t => {
+      const headerend = t.indexOf('\n\n');
       
-      const camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase(); }).replace(/-/g, '');
+      const headers = t.substr(0, headerend).split('\n');
+      const body = t.substr(headerend + 2);
       
-      if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) !== -1) {
-        opt[camelCaseHeaderName] = headerValue;
-      } else {
-        opt.headers[headerName] = headerValue;
+      const opt = {
+        headers: {
+          'X-SoTrade-Lang': lang
+        }
+      };
+      
+      for (let i = 0; i < headers.length; ++i) {
+        const h = headers[i];
+        const headerNameEnd = h.indexOf(':');
+        const headerName = h.substr(0, headerNameEnd).trim();
+        const headerValue = h.substr(headerNameEnd + 1).trim();
+        
+        const camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, w => w.toUpperCase()).replace(/-/g, '');
+        
+        if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) !== -1) {
+          opt[camelCaseHeaderName] = headerValue;
+        } else {
+          opt.headers[headerName] = headerValue;
+        }
       }
-    }
-    
-    opt.html = body;
-    opt.generateTextFromHTML = true;
-    return opt;
-  });
-});
+      
+      opt.html = body;
+      opt.generateTextFromHTML = true;
+      return opt;
+    });
+  }
+}
 
-exports.TemplateLoader = TemplateLoader;
+exports.components = [
+  TemplateReader
+];

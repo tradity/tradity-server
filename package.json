@@ -10,7 +10,7 @@
     "test": "mocha --recursive -s 20000 -t 50000",
     "test-cov": "istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 20000 -t 80000 && istanbul report html",
     "jshint": "jshint .",
-    "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js && ./compile-templates.sh && ./generate_docs.sh"
+    "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js && ./compile-templates.sh"
   },
   "repository": {
     "type": "git",
@@ -28,15 +28,16 @@
   "devDependencies": {
     "coveralls": "^2.11.6",
     "istanbul": "*",
-    "jsdoc": "^3.4.0",
     "jshint": "*",
     "mocha": "*",
     "nodemailer-sendmail-transport": "^1.0.0"
   },
   "dependencies": {
+    "JSONStream": "^1.1.1",
+    "bl": "^1.1.2",
     "datejs": "1.0.0-rc3",
+    "deep-freeze": "^0.0.1",
     "genders": "^1.0.1",
-    "ipaddr.js": "^1.0.3",
     "lapack": "^0.1.0",
     "lodash": "^4.0.0",
     "lzma-native": "^1.0.3",
@@ -46,18 +47,15 @@
     "nodemailer": "^2.0.0",
     "nodemailer-smtp-pool": "^2.0.0",
     "promise-events": "^0.1.0",
-    "promise-semaphore": ">=0.2.4",
     "promise-ratelimit": "^0.0.2",
+    "promise-semaphore": ">=0.2.4",
+    "redis": "^2.4.2",
     "request": "^2.67.0",
-    "socket.io": "^1.4.4",
-    "socket.io-client": "^1.4.4",
-    "tradity-connection": "^0.10.0",
-    "tradity-bus": "^1.0.0",
     "unionfind": "^0.0.3",
-    "validator": "^4.0.0",
+    "validator": "^5.1.0",
     "weak": "^1.0.0",
-    "wordpress-rest-api": "^0.5.0",
-    "xml2js": "^0.4.4"
+    "wordpress-rest-api": "^0.6.0",
+    "z-schema": "^3.16.1"
   },
   "private": true
 }

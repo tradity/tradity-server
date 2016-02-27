@@ -16,19 +16,18 @@
 
 "use strict";
 
-const commonAPI = require('tradity-connection');
-const sio = require('socket.io-client');
-const https = require('https');
 const debug = require('debug')('sotrade:s-client');
+const request = require('request');
 
 function NodeSoTradeConnection (opt) {
   opt = opt || {};
   
-  const cfg = opt.serverConfig || require('./config.js').config();
+  const Config = require('./config.js');
+  const cfg = opt.serverConfig || new Config().reloadConfig().config();
   
   if (!opt.url) {
     const port = cfg.wsporte || cfg.wsports[parseInt(Math.random() * cfg.wsports.length)];
-    opt.url = cfg.protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + port;
+    opt.url = cfg.protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + port + '/api/v1/';
   }
   
   try {
@@ -41,37 +40,6 @@ function NodeSoTradeConnection (opt) {
   } catch (e) {
     console.error(e);
   }
-
-  try {
-    opt.lzma = opt.lzma || new require('lzma-native').LZMA();
-  } catch (e) {
-    console.error(e);
-  }
-  
-  const socketopts = opt.socketopts || {};
-  if (!socketopts.transports) {
-    socketopts.transports = ['websocket'];
-  }
-  
-  if (socketopts.multiplex !== true) {
-    socketopts.multiplex = false;
-  }
-  
-  if (/^(https|wss)/.test(opt.url)) {
-    socketopts.agent = new https.Agent(cfg.ssl);
-  }
-  
-  const url = opt.url;
-  if (url && !opt.connect) {
-    opt.connect = function() {
-      debug('Connecting', url, socketopts);
-      return sio.connect(url, socketopts);
-    };
-  }
-  
-  if (typeof opt.logDevCheck === 'undefined') {
-    opt.logDevCheck = true;
-  }
   
   let ownVersion = 'SOTS0';
   try {
@@ -81,8 +49,73 @@ function NodeSoTradeConnection (opt) {
   }
   
   opt.clientSoftwareVersion = opt.clientSoftwareVersion || ownVersion;
-  debug('Setting up connection', opt.url);
-  return new commonAPI.SoTradeConnection(opt);
+  
+  const req = request.defaults({
+    baseUrl: opt.url,
+    headers: {
+      'User-Agent': opt.clientSoftwareVersion
+    }
+  });
+  
+  let key = null;
+  
+  const fn = options => {
+    options = Object.assign({
+      hawk: (!opt.noSignByDefault || options.__sign__) ? {
+        credentials: cfg.hawk || {
+          id: 'KCHpWKIpisiKqUN',
+          key: cfg.db.password + '_hawk',
+          algorithm: 'sha256'
+        }
+      } : undefined,
+      json: true
+    }, options, {
+      headers: Object.assign({
+        'X-Sotrade-Auth': key
+      }, options.headers),
+      qs: options.qs || options.cache === false ? Object.assign({
+        noCache: Date.now()
+      }, options.qs || {}) : undefined
+    });
+      
+    return new Promise((resolve, reject) => {
+      req(options, (err, httpResponse, body) => {
+        if (err) {
+          return reject(err);
+        }
+        
+        if (!options.json &&
+            httpResponse.headers['content-type'].match(/^application\/json/)) {
+          try {
+            body = JSON.parse(body);
+          } catch (e) {}
+        }
+        
+        if (!body) {
+          body = {};
+        }
+        
+        body._success = httpResponse.statusCode >= 200 && httpResponse.statusCode <= 299;
+        
+        debug('Got response with status code', httpResponse.statusCode, body._success ? '' : JSON.stringify(body));
+        
+        if (body.key) {
+          debug('Setting session key', body.key);
+          key = body.key;
+        }
+        
+        return resolve(body);
+      });
+    });
+  };
+  
+  fn.get    = (uri, opt) => fn(Object.assign({ uri: uri, method: 'GET'    }, opt || {}));
+  fn.post   = (uri, opt) => fn(Object.assign({ uri: uri, method: 'POST'   }, opt || {}));
+  fn.delete = (uri, opt) => fn(Object.assign({ uri: uri, method: 'DELETE' }, opt || {}));
+  fn.update = (uri, opt) => fn(Object.assign({ uri: uri, method: 'UPDATE' }, opt || {}));
+  fn.put    = (uri, opt) => fn(Object.assign({ uri: uri, method: 'PUT'    }, opt || {}));
+  
+  return fn;
 }
 
 exports.SoTradeConnection = NodeSoTradeConnection;

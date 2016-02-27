@@ -17,7 +17,8 @@
 'use strict';
 
 require('../common.js');
-const cfg = require('../../config.js').config();
+const Config = require('../../config.js');
+const cfg = new Config().reloadConfig().config();
 const assert = require('assert');
 const fs = require('fs');
 const lzma = require('lzma-native');

@@ -19,42 +19,133 @@
 
 const _ = require('lodash');
 const assert = require('assert');
-const https = require('https');
 const cluster = require('cluster');
+const redis = require('redis');
 
 const qctx = require('./qctx.js');
-const cfg = require('./config.js').config();
-const bus = require('tradity-bus');
-const sotradeClient = require('./sotrade-client.js');
-const promiseUtil = require('./lib/promise-util.js');
+const api = require('./api.js');
 const debug = require('debug')('sotrade:main');
 
-const achievementList = require('./achievement-list.js');
+class StockQuoteLoaderProvider extends api.Component {
+  constructor() {
+    super({
+      identifier: 'StockQuoteLoaderProvider',
+      description: 'Decides which stock quote loader to use.'
+    });
+    
+    this.defaultStockLoader = null;
+  }
+  
+  resolve() {
+    return this.defaultStockLoader;
+  }
+  
+  init() {
+    debug('Running StockQuoteLoaderProvider init');
+    const stockLoaders = {};
+    const cfg = this.load('Config').config();
+    
+    Error.stackTraceLimit = cfg.stackTraceLimit || 20;
+    
+    for (let i in cfg.stockloaders) {
+      if (!cfg.stockloaders[i] || !cfg.stockloaders[i].path) {
+        continue;
+      }
+      
+      const stockloaderConfig = _.clone(cfg.stockloaders[i]);
+      stockloaderConfig.userAgent = cfg.userAgent;
+      stockloaderConfig.ctx = new qctx.QContext({parentComponent: this});
+      
+      const slModule = require(stockloaderConfig.path);
+      stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
+      stockLoaders[i].on('error', e => this.load('PubSub').emit('error', e));
+    }
 
-/**
- * Main entry point of this software.
- * This manages – mostly – initial setup, loading modules and
- * coordinating workers.
- * 
- * @module main
- */
+    this.defaultStockLoader = stockLoaders[cfg.stockloaders._defaultStockLoader];
+    
+    debug('Set up default stock loader');
+  }
+}
 
-class Main extends bus.BusComponent {
+class PubSub extends api._Component {
+  constructor() {
+    super({
+      identifier: 'PubSub',
+      description: 'Shortcut redis interface.',
+      depends: ['Config']
+    });
+    
+    this.subclient = null;
+    this.pubclient = null;
+    this.cfg = null;
+  }
+  
+  init() {
+    this.cfg = this.load('Config').config().redis;
+    this.pubclient = redis.createClient(this.cfg);
+    this.subclient = redis.createClient(this.cfg);
+    this.subclient.subscribe(this.cfg._channel);
+    
+    this.subclient.on('message', (channel, message) => {
+      const msg = JSON.parse(message);
+      debug('Receiving', msg.name, msg.kind);
+      this.emit(msg.name, msg.data);
+    });
+  }
+  
+  publish(name, data) {
+    let kind = 'object';
+    
+    if (data instanceof Error) {
+      kind = 'error';
+      data = Object.assign({
+        message: data.message,
+        name: data.name,
+        stack: data.stack
+      }, data);
+    }
+    
+    debug('Publishing', name, kind);
+    this.pubclient.publish(this.cfg._channel, JSON.stringify({
+      name: name,
+      data: data,
+      kind: kind
+    }));
+  }
+}
+
+class ReadonlyStore extends api._Component {
+  constructor() {
+    super({
+      identifier: 'ReadonlyStore',
+      depends: ['Config']
+    });
+    
+    this.readonly = null;
+  }
+  
+  init() {
+    this.readonly = this.load('Config').config().readonly;
+  }
+}
+
+// XXX split this into PrimaryMain and WorkerMain
+class Main extends api.Component {
   constructor(opt) {
     Main.init_();
     
-    super();
+    super({
+      identifier: 'Main',
+      description: 'Main entry point of this software.',
+      notes: 'This manages – mostly – initial setup, loading modules and coordinating workers',
+      depends: ['DelayedQueries']
+    });
     
     opt = opt || {};
-    this.mainBus = new bus.Bus();
-    this.defaultStockLoaderDeferred = Promise.defer();
-    this.defaultStockLoader = this.defaultStockLoaderDeferred.promise;
-    this.readonly = this.getServerConfig().readonly;
-    this.managerCTX = null;
+    this.readonly = true;
     this.useCluster = opt.useCluster == null ? !process.env.SOTRADE_NO_CLUSTER : opt.useCluster;
     this.isWorker = opt.isWorker == null ? cluster.isWorker : opt.isWorker;
     this.isBackgroundWorker = opt.isBackgroundWorker || null;
-    this.transportToMaster = opt.transportToMaster || null;
     
     this.bwpid = null;
     this.workers = [];
@@ -62,454 +153,310 @@ class Main extends bus.BusComponent {
     this.hasReceivedStartCommand = false;
     this.port = opt.port || null;
     
-    this.superEssentialComponents = [
-      './errorhandler.js', './emailsender.js', './signedmsg.js'
-    ];
+    this.registry = new api.Registry();
+    this.registry.addComponentClass(StockQuoteLoaderProvider);
+    this.registry.addComponentClass(PubSub);
+    this.registry.addComponentClass(ReadonlyStore);
+    this.registry.addIndependentInstance(this);
     
-    this.basicComponents = [
+    this.componentModules = [
+      './config.js', './errorhandler.js', './emailsender.js', './signedmsg.js',
       './dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js',
-      './user.js', './misc.js'
-    ];
-    
-    this.bwComponents = [
-      './background-worker.js', './dqueries.js'
-    ];
-    
-    this.regularComponents = [
-      './admin.js', './schools.js', './fsdb.js', './achievements.js', './chats.js',
-      './watchlist.js', './wordpress-feed.js', './questionnaires.js'
+      './user.js', './misc.js', './dqueries.js',
+      './background-worker.js',
+      './admin.js', './schools.js', './fsdb.js', './achievements.js',
+      './achievement-list.js',
+      './watchlist.js', './wordpress-feed.js', './questionnaires.js',
+      './user-info.js', './ranking.js'
     ];
     
     this.shutdownSignals = ['SIGTERM', 'SIGINT'];
   }
+  
+  start() {
+    debug('Starting');
+    
+    return this.loadComponents().then(() => {
+      debug('Loaded components');
+      
+      let isAlreadyShuttingDownDueToError = false;
+      const unhandledSomething = err => {
+        this.load('PubSub').emit('error', err);
+        if (!isAlreadyShuttingDownDueToError) {
+          this.load('PubSub').emit('shutdown');
+        }
+        
+        isAlreadyShuttingDownDueToError = true;
+      };
+      
+      process.on('uncaughtException', err => {
+        debug('Uncaught exception', err, err && err.stack);
+        return unhandledSomething(err);
+      });
+      
+      process.on('unhandledRejection', (reason) => {
+        debug('Unhandled rejection', reason, reason && reason.stack);
+        return unhandledSomething(reason);
+      });
+      
+      debug('Set up error handlers');
+      
+      this.readonly = this.load('Config').config().readonly;
+      
+      this.load('PubSub').on('shutdown', () => {
+        setTimeout(() => {
+          debug('Quitting after "shutdown" event', process.pid);
+          process.exit(0);
+        }, 250);
+      });
+      
+      for (let i = 0; i < this.shutdownSignals.length; ++i) {
+        process.on(this.shutdownSignals[i], () => { // jshint ignore:line
+          this.load('PubSub').emit('shutdown');
+        
+          this.workers.forEach(w => {
+            w.kill(this.shutdownSignals[i]);
+          });
+        });
+      }
+      
+      if (this.isWorker) {
+        return this.worker();
+      } else {
+        debug('Starting master', process.pid);
+        assert.ok(cluster.isMaster);
+        return this.startMaster().then(() => {
+          debug('Started master', process.pid);
+        });
+      }
+    }).then(() => {
+      debug('Startup complete!', process.pid);
+    });
+  }
+
+  getFreePort(pid) {
+    if (this.useCluster) {
+      // free all ports assigned to dead workers first
+      const pids = _.chain(this.workers).map('process').map('pid').value();
+      this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) !== -1);
+    }
+    
+    const freePorts = _.difference(this.load('Config').config().wsports, _.map(this.assignedPorts, 'port'));
+    assert.ok(freePorts.length > 0);
+    this.assignedPorts.push({pid: pid, port: freePorts[0]});
+    return freePorts[0];
+  }
+
+  newNonClusterWorker(isBackgroundWorker, port) {
+    assert.ok(isBackgroundWorker || port);
+    const m = new Main({
+      isBackgroundWorker: isBackgroundWorker,
+      isWorker: true,
+      useCluster: false,
+      port: port
+    });
+    
+    return m.start();
+  }
+
+  forkBackgroundWorker() {
+    debug('Forking new background worker', this.useCluster);
+    if (!this.useCluster) {
+      return this.newNonClusterWorker(true, null);
+    }
+    
+    const bw = cluster.fork();
+    let sentSBW = false;
+
+    this.workers.push(bw);
+
+    return Promise.resolve().then(() => {
+      bw.on('message', msg => {
+        if (msg.cmd === 'startRequest' && !sentSBW) {
+          sentSBW = true;
+          
+          debug('Sending SBW to ' + bw.process.pid);
+          return bw.send({cmd: 'startBackgroundWorker'});
+        }
+      });
+    }).then(() => {
+      this.bwpid = bw.process.pid;
+      assert.ok(this.bwpid);
+      
+      return this.bwpid;
+    });
+  }
+
+  forkStandardWorker() {
+    debug('Forking new standard worker', this.useCluster);
+    if (!this.useCluster) {
+      return this.newNonClusterWorker(false, this.getFreePort(process.pid));
+    }
+    
+    const w = cluster.fork();
+    let sentSSW = false;
+    
+    this.workers.push(w);
+    
+    return w.on('online', () => {
+      return Promise.resolve().then(() => {
+        w.on('message', msg => {
+          if (msg.cmd === 'startRequest' && !sentSSW) {
+            sentSSW = true;
+            const port = this.getFreePort(w.process.pid);
+            
+            debug('Sending SSW[' + port + '] to ' + w.process.pid);
+            
+            w.send({
+              cmd: 'startStandardWorker',
+              port: port
+            });
+          }
+        });
+      });
+    });
+  }
+
+  startMaster() {
+    return Promise.resolve().then(() => {
+      const workerStartedPromises = [];
+      
+      if (this.load('Config').config().startBackgroundWorker) {
+        workerStartedPromises.push(Promise.resolve().then(() => this.forkBackgroundWorker()));
+      }
+      
+      for (let i = 0; i < this.load('Config').config().wsports.length; ++i) {
+        workerStartedPromises.push(Promise.resolve().then(() => this.forkStandardWorker()));
+      }
+      
+      debug('Starting workers', process.pid, workerStartedPromises.length + ' workers');
+      
+      return Promise.all(workerStartedPromises);
+    }).then(() => {
+      debug('All workers started', process.pid);
+      
+      let shuttingDown = false;
+      this.load('PubSub').on('shutdown', () => { shuttingDown = true; });
+      
+      return cluster.on('exit', (worker, code, signal) => {
+        this.workers = this.workers.filter(w => (w.process.pid !== worker.process.pid));
+        
+        let shouldRestart = !shuttingDown;
+        
+        if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) !== -1) {
+          shouldRestart = false;
+        }
+        
+        debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
+        
+        if (!shuttingDown) {
+          debug('respawning');
+          
+          if (worker.process.pid === this.bwpid) {
+            return this.forkBackgroundWorker();
+          } else {
+            return this.forkStandardWorker();
+          }
+        } else {
+          setTimeout(() => {
+            process.exit(0);
+          }, 1500);
+        }
+      });
+    });
+  }
+
+  worker() {
+    if (!this.useCluster) {
+      return this.startWorker();
+    }
+    
+    const startRequestInterval = setInterval(() => {
+      if (!this.hasReceivedStartCommand) {
+        debug('Requesting start commands', process.pid);
+        process.send({cmd: 'startRequest'});
+      }
+    }, 250);
+    
+    process.on('message', msg => {
+      if (this.hasReceivedStartCommand) {
+        return;
+      }
+      
+      if (msg.cmd === 'startBackgroundWorker') {
+        debug('received SBW', process.pid);
+        
+        this.isBackgroundWorker = true;
+      } else if (msg.cmd === 'startStandardWorker') {
+        assert.ok(msg.port);
+        
+        debug('received SSW', process.pid, msg.port);
+        this.port = msg.port;
+        this.isBackgroundWorker = false;
+      } else {
+        return;
+      }
+      
+      this.hasReceivedStartCommand = true;
+      clearInterval(startRequestInterval);
+      
+      return this.startWorker();
+    });
+  }
+
+  startWorker() {    
+    debug('loading', process.pid);
+    
+    return this.loadComponents().then(() => {
+      const server = require('./server.js');
+      const stserver = new server.Server({
+        isBackgroundWorker: this.isBackgroundWorker
+      }, this.registry.listInstances().filter(f => f instanceof api.Requestable));
+      
+      this.load('DelayedQueries').enable();
+      
+      return stserver.initRegistryFromParent(this).then(() => stserver);
+    }).then(stserver => {
+      debug('loaded', process.pid);
+      
+      if (!this.isBackgroundWorker) {
+        return stserver.start(this.port).then(() => {
+          debug('Server started!', process.pid);
+        });
+      }
+    });
+  }
+
+  loadComponents() {
+    return Promise.all(this.componentModules.map(moduleName => {
+      const components = require(moduleName).components;
+      
+      if (!components) {
+        return;
+      }
+      
+      return Promise.all(components.map(Class => {
+        return this.registry.addComponentClass(Class);
+      }));
+    })).then(() => {
+      debug('Running registry init');
+      return this.registry.init();
+    });
+  }
 }
 
 Main.init_ = function() {
-  Error.stackTraceLimit = cfg.stackTraceLimit || 20;
   require('events').EventEmitter.defaultMaxListeners = 0;
   require('promise-events').EventEmitter.defaultMaxListeners = 0;
   process.setMaxListeners(0);
   cluster.setMaxListeners(0);
 };
 
-Main.prototype.initBus = function() {
-  return this.mainBus.init().then(() => Promise.all([
-    this.mainBus.addInputFilter(packet => {
-      if (packet.data && packet.data.ctx && !packet.data.ctx.toJSON) {
-        packet.data.ctx = qctx.fromJSON(packet.data.ctx, this);
-      }
-      
-      return packet;
-    }),
-
-    this.mainBus.addOutputFilter(packet => {
-      if (packet.data && packet.data.ctx && packet.data.ctx.toJSON &&
-        !(packet.recipients.length === 1 && packet.recipients[0] === packet.sender)) // not local
-      {
-        packet.data.ctx = packet.data.ctx.toJSON();
-      }
-      
-      return packet;
-    })
-  ]));
-};
-
-Main.prototype.getStockQuoteLoader = bus.provide('getStockQuoteLoader', [], function() {
-  return this.defaultStockLoader;
-});
-
-Main.prototype.getServerConfig = bus.provide('getServerConfig', [], function() {
-  return cfg;
-});
-
-Main.prototype.getAchievementList = bus.provide('getAchievementList', [], function() {
-  return achievementList.AchievementList;
-});
-
-Main.prototype.getClientAchievementList = bus.provide('getClientAchievementList', [], function() {
-  return achievementList.ClientAchievements;
-});
-
-Main.prototype.getReadabilityMode = bus.provide('get-readability-mode', [], function() {
-  return { readonly: this.readonly };
-});
-
-Main.prototype.changeReadabilityMode = bus.listener('change-readability-mode', function(event) {
-  if (this.readonly !== event.readonly) {
-    debug('Change readability mode', event.readonly);
-  }
-  
-  this.readonly = event.readonly;
-});
-
-Main.prototype.setupStockLoaders = function() {
-  // setup stock loaders
-  const stockLoaders = {};
-  for (let i in cfg.stockloaders) {
-    if (!cfg.stockloaders[i] || !cfg.stockloaders[i].path) {
-      continue;
-    }
-    
-    const stockloaderConfig = _.clone(cfg.stockloaders[i]);
-    stockloaderConfig.userAgent = cfg.userAgent;
-    stockloaderConfig.ctx = this.managerCTX.clone();
-    
-    const slModule = require(stockloaderConfig.path);
-    stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
-    stockLoaders[i].on('error', function(e) { this.emitError(e); });
-  }
-
-  this.defaultStockLoader = stockLoaders[cfg.stockloaders._defaultStockLoader];
-  this.defaultStockLoaderDeferred.resolve(this.defaultStockLoader);
-  
-  debug('Set up default stock loader');
-};
-
-Main.prototype.start = function() {
-  debug('Starting');
-  
-  return this.initBus().then(() => {
-    return this.setBus(this.mainBus, 'manager-' + process.pid + '-' + Date.now());
-  }).then(() => {
-    return this.loadComponents(this.superEssentialComponents);
-  }).then(() => {
-    this.managerCTX = new qctx.QContext({parentComponent: this});
-    
-    let isAlreadyShuttingDownDueToError = false;
-    const unhandledSomething = err => {
-      this.emitError(err);
-      if (!isAlreadyShuttingDownDueToError) {
-        this.emitImmediate('localShutdown');
-      }
-      
-      isAlreadyShuttingDownDueToError = true;
-    };
-    
-    process.on('uncaughtException', err => {
-      debug('Uncaught exception', err, err && err.stack);
-      return unhandledSomething(err);
-    });
-    
-    process.on('unhandledRejection', (reason) => {
-      debug('Unhandled rejection', reason, reason && reason.stack);
-      return unhandledSomething(reason);
-    });
-    
-    this.mainBus.on('localShutdown', () => {
-      setTimeout(() => {
-        debug('Quitting after localShutdown', process.pid);
-        process.exit(0);
-      }, 250);
-    });
-    
-    for (let i = 0; i < this.shutdownSignals.length; ++i) {
-      process.on(this.shutdownSignals[i], () => this.emitLocal('globalShutdown'));
-    }
-
-    return this.setupStockLoaders();
-  }).then(() => {
-    if (!this.transportToMaster) {
-      this.transportToMaster = new bus.ProcessTransport(process);
-    }
-    
-    if (this.isWorker) {
-      debug('Connecting to master', process.pid);
-      return this.mainBus.addTransport(this.transportToMaster).then(() => this.worker());
-    }
-    
-    debug('Starting master', process.pid);
-    assert.ok(cluster.isMaster);
-    return this.startMaster().then(() => {
-      debug('Started master', process.pid);
-    });
-  }).then(() => {
-    debug('Startup complete!', process.pid);
-  });
-};
-
-Main.prototype.getFreePort = function(pid) {
-  if (this.useCluster) {
-    // free all ports assigned to dead workers first
-    const pids = _.chain(this.workers).map('process').map('pid').value();
-    this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) !== -1);
-  }
-  
-  const freePorts = _.difference(this.getServerConfig().wsports, _.map(this.assignedPorts, 'port'));
-  assert.ok(freePorts.length > 0);
-  this.assignedPorts.push({pid: pid, port: freePorts[0]});
-  return freePorts[0];
-};
-
-Main.prototype.newNonClusterWorker = function(isBackgroundWorker, port) {
-  const ev = new promiseUtil.EventEmitter();
-  const toMaster = new bus.DirectTransport(ev, 1, true);
-  const toWorker = new bus.DirectTransport(ev, 1, true);
-  
-  assert.ok(isBackgroundWorker || port);
-  const m = new Main({
-    isBackgroundWorker: isBackgroundWorker,
-    isWorker: true,
-    transportToMaster: toMaster,
-    useCluster: false,
-    port: port
-  });
-  
-  return m.start().then(() => {
-    debug('Adding transport to non-cluster worker');
-    return this.mainBus.addTransport(toWorker).then(() => {
-      debug('Added transport to non-cluster worker');
-    });
-  });
-};
-
-Main.prototype.registerWorker = function(w) {
-  return this.mainBus.addTransport(new bus.ProcessTransport(w));
-};
-
-Main.prototype.forkBackgroundWorker = function() {
-  debug('Forking new background worker', this.useCluster);
-  if (!this.useCluster) {
-    return this.newNonClusterWorker(true, null);
-  }
-  
-  const bw = cluster.fork();
-  let sentSBW = false;
-
-  this.workers.push(bw);
-
-  return this.registerWorker(bw).then(() => {
-    bw.on('message', msg => {
-      if (msg.cmd === 'startRequest' && !sentSBW) {
-        sentSBW = true;
-        
-        debug('Sending SBW to', bw.process.pid);
-        return bw.send({cmd: 'startBackgroundWorker'});
-      }
-    });
-  }).then(() => {
-    this.bwpid = bw.process.pid;
-    assert.ok(this.bwpid);
-    
-    return this.bwpid;
-  });
-};
-
-Main.prototype.forkStandardWorker = function() {
-  debug('Forking new standard worker', this.useCluster);
-  if (!this.useCluster) {
-    return this.newNonClusterWorker(false, this.getFreePort(process.pid));
-  }
-  
-  const w = cluster.fork();
-  let sentSSW = false;
-  
-  this.workers.push(w);
-  
-  return w.on('online', () => {
-    return this.registerWorker(w).then(() => {
-      w.on('message', msg => {
-        if (msg.cmd === 'startRequest' && !sentSSW) {
-          sentSSW = true;
-          const port = this.getFreePort(w.process.pid);
-          
-          debug('Sending SSW[', port, '] to', w.process.pid);
-          
-          w.send({
-            cmd: 'startStandardWorker',
-            port: port
-          });
-        }
-      });
-    });
-  });
-};
-
-Main.prototype.startMaster = function() {
-  return Promise.resolve().then(() => {
-    const workerStartedPromises = [];
-    
-    if (this.getServerConfig().startBackgroundWorker) {
-      workerStartedPromises.push(Promise.resolve().then(() => this.forkBackgroundWorker()));
-    }
-    
-    for (let i = 0; i < this.getServerConfig().wsports.length; ++i) {
-      workerStartedPromises.push(Promise.resolve().then(() => this.forkStandardWorker()));
-    }
-    
-    debug('Starting workers', process.pid, workerStartedPromises.length + ' workers');
-    
-    return Promise.all(workerStartedPromises);
-  }).then(() => {
-    debug('All workers started', process.pid);
-    
-    let shuttingDown = false;
-    this.mainBus.on('globalShutdown', () => this.mainBus.emitLocal('localShutdown'));
-    this.mainBus.on('localShutdown', () => { shuttingDown = true; });
-    
-    cluster.on('exit', (worker, code, signal) => {
-      this.workers = this.workers.filter(w => (w.process.pid !== worker.process.pid));
-      
-      let shouldRestart = !shuttingDown;
-      
-      if (['SIGKILL', 'SIGQUIT', 'SIGTERM'].indexOf(signal) !== -1) {
-        shouldRestart = false;
-      }
-      
-      debug('worker ' + worker.process.pid + ' died with code ' + code + ', signal ' + signal + ' shutdown state ' + shuttingDown);
-      
-      if (!shuttingDown) {
-        debug('respawning');
-        
-        if (worker.process.pid === this.bwpid) {
-          return this.forkBackgroundWorker();
-        } else {
-          return this.forkStandardWorker();
-        }
-      } else {
-        setTimeout(function() {
-          process.exit(0);
-        }, 1500);
-      }
-    });
-    
-    return this.connectToSocketIORemotes().then(() => {
-      debug('Connected to socket.io remotes', process.pid);
-    });
-  });
-};
-
-Main.prototype.worker = function() {
-  if (!this.useCluster) {
-    return this.startWorker();
-  }
-  
-  const startRequestInterval = setInterval(() => {
-    if (!this.hasReceivedStartCommand) {
-      debug('Requesting start commands', process.pid);
-      process.send({cmd: 'startRequest'});
-    }
-  }, 250);
-  
-  process.on('message', msg => {
-    if (this.hasReceivedStartCommand) {
-      return;
-    }
-    
-    if (msg.cmd === 'startBackgroundWorker') {
-      debug('received SBW', process.pid);
-      
-      this.isBackgroundWorker = true;
-    } else if (msg.cmd === 'startStandardWorker') {
-      assert.ok(msg.port);
-      
-      debug('received SSW', process.pid, msg.port);
-      this.port = msg.port;
-      this.isBackgroundWorker = false;
-    } else {
-      return;
-    }
-    
-    this.hasReceivedStartCommand = true;
-    clearInterval(startRequestInterval);
-    
-    return this.startWorker();
-  });
-};
-
-Main.prototype.startWorker = function() {
-  const componentsForLoading = this.basicComponents
-    .concat(this.isBackgroundWorker ? this.bwComponents : this.regularComponents);
-  
-  debug('loading', process.pid);
-  
-  return this.loadComponents(componentsForLoading).then(() => {
-    const server = require('./server.js');
-    const stserver = new server.SoTradeServer({isBackgroundWorker: this.isBackgroundWorker});
-    
-    return stserver.setBus(this.mainBus, 'serverMaster').then(() => stserver);
-  }).then(stserver => {
-    debug('loaded', process.pid);
-    
-    if (this.isBackgroundWorker) {
-      debug('BW started at', process.pid, 'connecting to remotes...');
-      return this.connectToSocketIORemotes().then(() => {
-        debug('BW connected to remotes', process.pid);
-      });
-    } else {
-      return stserver.start(this.port).then(() => {
-        debug('Server started!', process.pid);
-      });
-    }
-  });
-};
-
-Main.prototype.connectToSocketIORemotes = function() {
-  return Promise.all(
-    this.getServerConfig().socketIORemotes.map(
-      remote => this.connectToSocketIORemote(remote)
-    )
-  );
-};
-
-Main.prototype.connectToSocketIORemote = function(remote) {
-  debug('Connecting to socket.io remote', process.pid, remote.url);
-  const sslOpts = remote.ssl || this.getServerConfig().ssl;
-  let socket = new sotradeClient.SoTradeConnection({
-    url: remote.url,
-    socketopts: {
-      transports: ['websocket'],
-      agent: sslOpts && /^(https|wss)/.test(remote.url) ? new https.Agent(sslOpts) : null
-    },
-    serverConfig: this.getServerConfig()
-  });
-
-  this.mainBus.on('localShutdown', () => {
-    if (socket) {
-      socket.raw().io.reconnectionAttempts(0);
-      socket.raw().close();
-    }
-    
-    socket = null;
-  });
-  
-  return socket.once('server-config').then(() => {
-    debug('Received server-config from remote', process.pid, remote.url);
-    
-    return socket.emit('init-bus-transport', {
-      weight: remote.weight
-    });
-  }).then(r => {
-    debug('init-bus-transport returned', process.pid, r.code);
-    
-    if (r.code === 'init-bus-transport-success') {
-      return this.mainBus.addTransport(new bus.DirectTransport(socket.raw(), remote.weight || 10, false));
-    } else {
-      return this.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
-    }
-  });
-};
-
-Main.prototype.loadComponents = function(componentsForLoading) {
-  return Promise.all(componentsForLoading.map(componentName => {
-    const component = require(componentName);
-    
-    return Promise.all(_.map(component, ComponentClass => {
-      if (!ComponentClass || !ComponentClass.prototype.setBus) {
-        return Promise.resolve();
-      }
-      
-      const componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
-      return new ComponentClass().setBus(this.mainBus, componentID);
-    }));
-  }));
-};
-
-Main.prototype.ctx = function() {
-  return this.managerCTX;
-};
-
 exports.Main = Main;
 
 if (require.main === module) {
-  new Main().start();
+  new Main().start().catch(err => {
+    console.log('Starting failed: ', err);
+    process.exit(1);
+  });
 }

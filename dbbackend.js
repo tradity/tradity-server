@@ -18,23 +18,14 @@
 
 const _ = require('lodash');
 const assert = require('assert');
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 const deepupdate = require('./lib/deepupdate.js');
 const debug = require('debug')('sotrade:db');
 const debugSQL = require('debug')('sotrade:db:SQL');
 const promiseUtil = require('./lib/promise-util.js');
 
 /**
- * Provides access to a (MySQL) database for storing and fetching information
- * 
- * @public
- * @module dbbackend
- */
-
-/**
- * Main object of the {@link module:dbbackend} module
- * 
- * @augments module:stbuscomponent~STBusComponent
+ * Database access module
  * 
  * @property {object} dbmod  The node.js module for database connection
  * @property {object} wConnectionPool  A connection pool for connections
@@ -42,14 +33,14 @@ const promiseUtil = require('./lib/promise-util.js');
  * @property {object} rConnectionPool  A connection pool for connections
  *                                     not requiring write access.
  * @property {int} openConnections  The current count of in-use connections
- * @property {boolean} isShuttingDown  Flag that indicates server shutdown
- * 
- * @public
- * @constructor module:dbbackend~Database
  */
-class Database extends buscomponent.BusComponent {
+class Database extends api.Component {
   constructor() {
-    super();
+    super({
+      identifier: 'Database',
+      description: 'Provides database access to other components.',
+      depends: ['ReadonlyStore']
+    });
     
     this.dbmod = null;
     this.wConnectionPool = null;
@@ -61,12 +52,12 @@ class Database extends buscomponent.BusComponent {
     this.writableNodes = [];
     this.id = 0;
   }
-}
-
-Database.prototype._init = function() {
-  debug('Initializing database');
   
-  return this.getServerConfig().then(cfg => {
+  init() {
+    debug('Initializing database');
+    
+    const cfg = this.load('Config').config();
+    
     this.dbmod = cfg.dbmod || require('mysql');
     
     this.wConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
@@ -99,224 +90,210 @@ Database.prototype._init = function() {
       
       this.writableNodes = _.without(this.writableNodes, nodeId);
       if (this.writableNodes.length === 0) {
-        return this.emitImmediate('change-readability-mode', { readonly: true });
+        return this.load('ReadonlyStore').readonly = true;
       }
     });
     
-    this.wConnectionPool.on('remove', () => this.emitError(new Error('DB lost write connection')));
-    this.rConnectionPool.on('remove', () => this.emitError(new Error('DB lost read connection')));
+    this.wConnectionPool.on('remove', () => this.load('PubSub').emit('error', new Error('DB lost write connection')));
+    this.rConnectionPool.on('remove', () => this.load('PubSub').emit('error', new Error('DB lost read connection')));
+    
+    this.load('PubSub').on('shutdown', () => this.shutdown());
     
     this.inited = true;
     this.openConnections = 0;
-    
-    /*
-     * Note: We don't set isShuttingDown = true here.
-     * This happens so we can actually resurrect the database connection
-     * during the shutdown process temporarily, so other components can complete
-     * any remaining work in progress.
-     */
-  });
-};
-
-Database.prototype.shutdown = buscomponent.listener('localMasterShutdown', function() {
-  this.isShuttingDown = true;
-  
-  debug('Database shutdown');
-  
-  if (this.openConnections === 0) {
-    if (this.wConnectionPool) {
-      this.wConnectionPool.end();
-      this.wConnectionPool = null;
-    }
-    
-    if (this.rConnectionPool) {
-      this.rConnectionPool.end();
-      this.rConnectionPool = null;
-    }
-    
-    this.inited = false;
   }
-});
 
-/**
- * Provides some database usage statistics, like deadlock and query counts.
- * 
- * @function busreq~dbUsageStatistics
- */
-Database.prototype.usageStatistics = buscomponent.provide('dbUsageStatistics', [], function() {
-  return {
-    deadlockCount: this.deadlockCount,
-    queryCount: this.queryCount,
-    writableNodes: this.writableNodes.length
-  };
-});
-
-/**
- * Executes an SQL query on the database.
- * Your local {@link module:qctx~QContext}’s <code>query</code> method
- * invokes this – if available, consider using it in order to map all
- * actions to the current context.
- * 
- * @param {string} query  The SQL query
- * @param {Array} args  Parameters to escape and insert into the query
- * @param {boolean} readonly  Indicates whether this query can use the read-only pool
- * 
- * @function busreq~dbQuery
- */
-Database.prototype._query = buscomponent.provide('dbQuery', ['query', 'args', 'readonly'],
-  buscomponent.needsInit(function(query, args, readonly)
-{
-  const origArgs = arguments;
-  
-  if (typeof readonly !== 'boolean') {
-    readonly = (query.trim().indexOf('SELECT') === 0);
-  }
-  
-  return this._getConnection(true, /* restart */() => {
-    return this._query.apply(this, origArgs);
-  }, readonly).then(connection => {
-    return connection.query(query, args || []);
-  });
-}));
-
-/**
- * Returns a database connection (for internal use).
- * Your local {@link module:qctx~QContext}’s <code>getConnection</code>
- * method invokes this – if available, consider using it in order to map
- * all actions to the current context.
- * 
- * @param {boolean} autorelease  Whether to release the connection after 1 query
- * @param {function} restart  Callback which will be invoked in case the query resulted in
- *                            a state in which the query/transaction needs to be restarted
- * @param {boolean} readonly  Indicates whether the connection can
- *                            be from the read-only pool
- * 
- * @function module:dbbackend~Database#_getConnection
- */
-Database.prototype._getConnection = buscomponent.needsInit(function(autorelease, restart, readonly) {
-  const pool = readonly ? this.rConnectionPool : this.wConnectionPool;
-  assert.ok(pool);
-  
-  return promiseUtil.ncall(pool.getConnection.bind(pool))().then(conn => {
-    this.openConnections++;
-  
-    assert.ok(conn);
-    const id = this.id++;
+  shutdown() {
+    this.isShuttingDown = true;
     
-    const release = () => {
-      this.openConnections--;
-      
-      if (this.openConnections === 0 && this.isShuttingDown) {
-        this.shutdown();
+    debug('Database shutdown');
+    
+    if (this.openConnections === 0) {
+      if (this.wConnectionPool) {
+        this.wConnectionPool.end();
+        this.wConnectionPool = null;
       }
       
-      return conn.release();
-    };
-    
-    const query = (q, args) => {
-      this.queryCount++;
+      if (this.rConnectionPool) {
+        this.rConnectionPool.end();
+        this.rConnectionPool = null;
+      }
       
-      const rollback = () => {
-        if (!readonly) {
-          return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
+      this.inited = false;
+    }
+  }
+  
+  usageStatistics() {
+    return {
+      deadlockCount: this.deadlockCount,
+      queryCount: this.queryCount,
+      writableNodes: this.writableNodes.length
+    };
+  }
+
+  /**
+   * Executes an SQL query on the database.
+   * Your local {@link module:qctx~QContext}’s <code>query</code> method
+   * invokes this – if available, consider using it in order to map all
+   * actions to the current context.
+   * 
+   * @param {string} query  The SQL query
+   * @param {Array} args  Parameters to escape and insert into the query
+   * @param {boolean} readonly  Indicates whether this query can use the read-only pool
+   */
+  query(query, args, readonly) {
+    const origArgs = Array.prototype.slice.call(arguments);
+    
+    if (typeof readonly !== 'boolean') {
+      readonly = (query.trim().indexOf('SELECT') === 0);
+    }
+    
+    return this._getConnection(true, /* restart */() => {
+      return this.query.apply(this, origArgs);
+    }, readonly).then(connection => {
+      return connection.query(query, args || []);
+    });
+  }
+
+  /**
+   * Returns a database connection (for internal use).
+   * Your local {@link module:qctx~QContext}’s <code>getConnection</code>
+   * method invokes this – if available, consider using it in order to map
+   * all actions to the current context.
+   * 
+   * @param {boolean} autorelease  Whether to release the connection after 1 query
+   * @param {function} restart  Callback which will be invoked in case the query resulted in
+   *                            a state in which the query/transaction needs to be restarted
+   * @param {boolean} readonly  Indicates whether the connection can
+   *                            be from the read-only pool
+   */
+  _getConnection(autorelease, restart, readonly) {
+    const pool = readonly ? this.rConnectionPool : this.wConnectionPool;
+    assert.ok(pool);
+    
+    return promiseUtil.ncall(pool.getConnection.bind(pool))().then(conn => {
+      this.openConnections++;
+    
+      assert.ok(conn);
+      const id = this.id++;
+      
+      const release = () => {
+        this.openConnections--;
+        
+        if (this.openConnections === 0 && this.isShuttingDown) {
+          this.shutdown();
         }
+        
+        return conn.release();
       };
       
-      const deferred = Promise.defer();
-      const startTime = Date.now();
-      conn.query(q, args, (err, res) => {
-        debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
-          (res && typeof res.length !== 'undefined' ? res.length + ' results' :
-           res && typeof res.affectedRows !== 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
-           ' in ' + (Date.now() - startTime) + ' ms');
-        
-        if (err && (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.code === 'ER_LOCK_DEADLOCK')) {
-          this.deadlockCount++;
-          rollback();
-          
-          release();
-          
-          return deferred.resolve(Promise.resolve().then(restart));
+      const query = (q, args) => {
+        if (/^\s*(REPLACE|DELETE|UPDATE|INSERT)/i.test(q) && readonly) {
+          debug('Refusing to execute query without write connection', q);
+          return Promise.reject(new RangeError('Won’t execute this query on a readonly connection. ' +
+            'This mission is too important for me to allow you to jeopardize it.'));
         }
         
-        let exception = null;
+        this.queryCount++;
         
-        if (!err) {
-          try {
-            deferred.resolve(res);
-          } catch (e) {
-            exception = e;
+        const rollback = () => {
+          if (!readonly) {
+            return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
           }
-        }
+        };
         
-        if (err || exception) {
-          rollback();
+        const deferred = Promise.defer();
+        const startTime = Date.now();
+        conn.query(q, args, (err, res) => {
+          debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
+            (res && typeof res.length !== 'undefined' ? res.length + ' results' :
+             res && typeof res.affectedRows !== 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
+             ' in ' + (Date.now() - startTime) + ' ms');
           
-          // make sure that the error event is emitted -> release() will be called in next tick
-          Promise.resolve().then(release).catch(e => { throw e; });
-          
-          deferred.reject(err || exception);
-          
-          if (err) {
-            // query-related error
-            const datajson = JSON.stringify(args);
-            const querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
-          
-            this.emitError(q ? new Error(
-              err + '\nCaused by ' + querydesc
-            ) : err);
-          } else {
-            // exception in callback
-            this.emitError(exception);
+          if (err && (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.code === 'ER_LOCK_DEADLOCK')) {
+            this.deadlockCount++;
+            rollback();
+            
+            release();
+            
+            return deferred.resolve(Promise.resolve().then(restart));
           }
-        }
+          
+          let exception = null;
+          
+          if (!err) {
+            try {
+              deferred.resolve(res);
+            } catch (e) {
+              exception = e;
+            }
+          }
+          
+          if (err || exception) {
+            rollback();
+            
+            // make sure that the error event is emitted -> release() will be called in next tick
+            Promise.resolve().then(release).catch(e => { throw e; });
+            
+            deferred.reject(err || exception);
+            
+            if (err) {
+              // query-related error
+              const datajson = JSON.stringify(args);
+              const querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
+            
+              this.load('PubSub').emit('error', q ? new Error(
+                err + '\nCaused by ' + querydesc
+              ) : err);
+            } else {
+              // exception in callback
+              this.load('PubSub').emit('error', exception);
+            }
+          }
+          
+          if (autorelease) {
+            release();
+          }
+        });
         
-        if (autorelease) {
-          release();
-        }
-      });
+        return deferred.promise;
+      };
       
-      return deferred.promise;
-    };
+      return {
+        query: query, release: release
+      };
+    });
+  }
+
+  /**
+   * Returns a database connection (for public use).
+   * Your local {@link module:qctx~QContext}’s <code>getConnection</code>
+   * method invokes this – if available, consider using it in order to map
+   * all actions to the current context.
+   * 
+   * @param {boolean} readonly  Indicates whether the connection can
+   *                            be from the read-only pool
+   * @param {function} restart  Callback that will be invoked when the current transaction
+   *                            needs to be restarted
+   */
+  getConnection(readonly, restart) { 
+    assert.ok(readonly === true || readonly === false);
     
-    return {
-      query: query, release: release
-    };
-  });
-});
+    return this._getConnection(false, restart, readonly).then(cn => {
+      return {
+        query: (q, data) => {
+          data = data || [];
+          
+          return cn.query(q, data);
+        },
+        release: () => {
+          return cn.release();
+        }
+      };
+    });
+  }
+}
 
-/**
- * Returns a database connection (for public use).
- * Your local {@link module:qctx~QContext}’s <code>getConnection</code>
- * method invokes this – if available, consider using it in order to map
- * all actions to the current context.
- * 
- * @param {boolean} readonly  Indicates whether the connection can
- *                            be from the read-only pool
- * @param {function} restart  Callback that will be invoked when the current transaction
- *                            needs to be restarted
- * 
- * @function busreq~dbGetConection
- */
-Database.prototype.getConnection = buscomponent.provide('dbGetConnection',
-  ['readonly', 'restart'], function(readonly, restart) 
-{ 
-  assert.ok(readonly === true || readonly === false);
-  
-  return this._getConnection(false, restart, readonly).then(cn => {
-    return {
-      query: (q, data) => {
-        data = data || [];
-        
-        // emitting self has the sole purpose of it showing up in the bus log
-        this.emitImmediate('dbBoundQueryLog', [q, data]);
-        return cn.query(q, data);
-      },
-      release: () => {
-        return cn.release();
-      }
-    };
-  });
-});
-
-exports.Database = Database;
+exports.components = [
+  Database
+];

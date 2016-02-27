@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# XXX throw this file out in favour of dynamic loading
+
 TARGET="templates-compiled.js"
 
 (

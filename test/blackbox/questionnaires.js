@@ -39,27 +39,28 @@ describe('questionnaires', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('list-questionnaires', function() {
+  describe('/questionnaires', function() {
     it('Should return a list of questionnaires', function() {
-      return socket.emit('list-questionnaires').then(res => {
-        assert.equal(res.code, 'list-questionnaires-success');
+      return socket.get('/questionnaires').then(res => {
+        assert.ok(res._success);
       });
     });
   });
   
   describe('save-questionnaire-feed', function() {
     it('Should save a questionnaire’s results', function() {
-      return socket.emit('list-questionnaires').then(data => {
-        assert.equal(data.code, 'list-questionnaires-success');
+      return socket.get('/questionnaires').then(result => {
+        assert.ok(result._success);
+        const questionnaires = result.data.questionnaires;
         
         const startTime = Date.now();
         
-        const questionnaireIDs = Object.keys(data.questionnaires);
+        const questionnaireIDs = Object.keys(questionnaires);
         if (questionnaireIDs.length === 0) {
           return;
         }
         
-        const questionnaireLangs = data.questionnaires[questionnaireIDs[parseInt(random() * questionnaireIDs.length)]];
+        const questionnaireLangs = questionnaires[questionnaireIDs[parseInt(random() * questionnaireIDs.length)]];
         const languages = Object.keys(questionnaireLangs).filter(s => s !== 'questionnaire_id');
         assert.ok(languages.length > 0);
         
@@ -103,19 +104,20 @@ describe('questionnaires', function() {
           };
         });
         
-        return socket.emit('save-questionnaire', {
-          results: results,
-          questionnaire: questionnaire.questionnaire_id,
-          fill_time: Date.now() - startTime,
-          fill_language: lang
+        return socket.post('/questionnaire/' + questionnaire.questionnaire_id, {
+          body: {
+            results: results,
+            fill_time: Date.now() - startTime,
+            fill_language: lang
+          }
         }).then(data => {
-          assert.equal(data.code, 'save-questionnaire-success');
+          assert.ok(data._success);
           
-          return socket.emit('list-questionnaires');
-        }).then(data => {
-          assert.equal(data.code, 'list-questionnaires-success');
+          return socket.get('/questionnaires');
+        }).then(result => {
+          assert.ok(result._success);
           
-          assert.equal(Object.keys(data.questionnaires).map(parseInt).indexOf(questionnaire.questionnaire_id), -1);
+          assert.equal(Object.keys(result.data.questionnaires).map(parseInt).indexOf(questionnaire.questionnaire_id), -1);
         });
       });
     });

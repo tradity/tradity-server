@@ -19,7 +19,6 @@
 const assert = require('assert');
 const testHelpers = require('./test-helpers.js');
 
-if (!testHelpers.testPerformance) {
 describe('emailsender', function() {
   let socket, user;
 
@@ -34,14 +33,14 @@ describe('emailsender', function() {
   after(testHelpers.standardTeardown);
 
   it('Should directly bounce all e-mails in test mode', function() {
-    return socket.emit('create-invite-link', {
-      __sign__: true,
-      email: user.email
-    }).then(res => {
-      assert.equal(res.code, 'create-invite-link-success');
-      
-      return socket.once('email-bounced');
-    });
+    return Promise.all([
+      socket.post('/create-invitelink', {
+        __sign__: true,
+        body: { email: user.email }
+      }).then(res => {
+        assert.ok(res._success);
+      }),
+      socket.once('feed-email-bounced')
+    ]);
   });
 });
-}

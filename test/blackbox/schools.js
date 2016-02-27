@@ -37,71 +37,75 @@ describe('schools', function() {
   after(testHelpers.standardTeardown);
 
   const getOwnSchool = function() {
-    return socket.emit('get-user-info', {
-      lookfor: '$self'
-    }).then(res => {
-      assert.equal(res.code, 'get-user-info-success');
-      assert.ok(res.result.schools);
-      assert.ok(res.result.schools.length > 0);
-      return res.result.schools[0];
+    return socket.get('/user/$self').then(res => {
+      assert.ok(res._success);
+      assert.ok(res.data.schools);
+      assert.ok(res.data.schools.length > 0);
+      return res.data.schools[0];
     });
   };
 
-  describe('get-school-info', function() {
+  describe('/school', function() {
     it('Should return information on a given school', function() {
       let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.ok(res.result);
-        assert.ok(res.result.name);
-        assert.equal(school.schoolid, res.result.schoolid);
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.name);
+        assert.equal(school.schoolid, res.data.schoolid);
         
-        return socket.emit('school-exists', {
-          lookfor: school.path
+        return socket.get('school-exists', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'school-exists-success');
-        assert.ok(res.exists);
-        assert.equal(res.path, school.path);
+        assert.ok(res._success);
+        assert.ok(res.data.exists);
+        assert.equal(res.data.path, school.path);
       });
     });
   });
   
-  describe('school-exists', function() {
-    it('Should indicate whether a school exists', function() {
-      return socket.emit('school-exists', {
-        lookfor: '/nonexistent'
+  describe('/school-exists', function() {
+    it('Should indicate whether a school exists (Query string version)', function() {
+      return socket.get('/school-exists', {
+        qs: { lookfor: '/nonexistent' }
       }).then(res => {
-        assert.equal(res.code, 'school-exists-success');
-        assert.ok(!res.exists);
+        assert.ok(res._success);
+        assert.ok(!res.data.exists);
+      });
+    });
+    
+    it('Should indicate whether a school exists (URI param version)', function() {
+      return socket.get('/school-exists/nonexistent').then(res => {
+        assert.ok(res._success);
+        assert.ok(!res.data.exists);
       });
     });
   });
   
-  describe('school-change-description', function() {
-    if (!testHelpers.testPerformance) {
+  describe('/school/…/description', function() {
     it('Requires school admin privileges', function() {
       let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return socket.emit('school-change-description', {
-          schoolid: school.schoolid,
-          descpage: 'Bla bla bla'
+        return socket.put('/school/' + school.schoolid + '/description', {
+          body: {
+            descpage: 'Bla bla bla'
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'permission-denied');
+        assert.equal(res.code, 403);
       });
     });
-    }
     
     it('Should change a school’s description text', function() {
       let school;
@@ -110,280 +114,284 @@ describe('schools', function() {
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return socket.emit('school-change-description', {
+        return socket.put('/school/' + school.schoolid + '/description', {
           __sign__: true,
-          schoolid: school.schoolid,
-          descpage: descpage
+          body: {
+            descpage: descpage
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'school-change-description-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.equal(res.result.descpage, descpage);
+        assert.ok(res._success);
+        assert.strictEqual(res.data.descpage, descpage);
       });
     });
   });
   
-  describe('school-change-member-status', function() {
+  describe('/school/…/members/… (PUT)', function() {
     it('Should toggle admin status', function() {
-      var school;
+      let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return socket.emit('school-change-member-status', {
+        return socket.put('/school/' + school.schoolid + '/members/' + user.uid, {
           __sign__: true,
-          schoolid: school.schoolid,
-          status: 'admin',
-          uid: user.uid
+          body: {
+            status: 'admin',
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'school-change-member-status-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.ok(res.result.admins);
-        assert.ok(res.result.admins.length > 0);
-        assert.notEqual(_.map(res.result.admins, 'adminid').indexOf(user.uid), -1);
+        assert.ok(res._success);
+        assert.ok(res.data.admins);
+        assert.ok(res.data.admins.length > 0);
+        assert.notEqual(_.map(res.data.admins, 'adminid').indexOf(user.uid), -1);
         
-        return socket.emit('school-change-member-status', {
-          schoolid: school.schoolid,
-          status: 'member',
-          uid: user.uid
+        return socket.put('/school/' + school.schoolid + '/members/' + user.uid, {
+          __sign__: true,
+          body: {
+            status: 'member'
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'school-change-member-status-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.ok(res.result.admins);
-        assert.equal(_.map(res.result.admins, 'adminid').indexOf(user.uid), -1);
+        assert.ok(res._success);
+        assert.ok(res.data.admins);
+        assert.equal(_.map(res.data.admins, 'adminid').indexOf(user.uid), -1);
       });
     });
   });
   
-  describe('school-delete-comment', function() {
+  describe('/school/…/comments/…', function() {
     it('Should delete a comment on a school pinboard', function() {
-      var school;
-      var eventid;
-      var origCommentText = 'Stupid text';
+      let school;
+      let eventid;
+      const origCommentText = 'Some offensive text';
       
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.ok(res.result);
-        assert.ok(res.result.eventid);
-        eventid = res.result.eventid;
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.eventid);
+        eventid = res.data.eventid;
         
-        return socket.emit('comment', {
-          eventid: eventid,
-          comment: origCommentText
+        return socket.post('/events/' + eventid + '/comments', {
+          body: {
+            comment: origCommentText
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'comment-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.ok(res.result);
+        assert.ok(res._success);
+        assert.ok(res.data);
         
-        var comments = res.result.comments;
+        const comments = res.data.comments;
         assert.ok(comments);
         assert.ok(comments.length > 0);
         
-        var comment = comments.sort((a, b) => { return b.time - a.time; })[0]; // most recent comment
+        const comment = comments.sort((a, b) => { return b.time - a.time; })[0]; // most recent comment
         assert.equal(comment.comment, origCommentText);
         
-        return socket.emit('school-delete-comment', {
-          __sign__: true,
-          schoolid: school.schoolid,
-          commentid: comment.commentid
+        return socket.delete('/school/' + school.schoolid + '/comments/' + comment.commentid, {
+          __sign__: true
         });
       }).then(res => {
-        assert.equal(res.code, 'school-delete-comment-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.ok(res.result);
+        assert.ok(res._success);
+        assert.ok(res.data);
         
-        var comments = res.result.comments;
+        const comments = res.data.comments;
         assert.ok(comments);
         assert.ok(comments.length > 0);
         
-        var comment = comments.sort((a, b) => b.time - a.time)[0]; // most recent comment
+        const comment = comments.sort((a, b) => b.time - a.time)[0]; // most recent comment
         assert.strictEqual(comment.cstate, 'gdeleted');
         assert.ok(comment.isDeleted);
       });
     });
   });
   
-  if (!testHelpers.testPerformance) {
-  describe('school-kick-user', function() {
+  describe('/school/…/members/… (DELETE)', function() {
     it('Should remove the current user from their group', function() {
-      var school;
+      let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return socket.emit('school-kick-user', {
-          __sign__: true,
-          uid: user.uid,
-          schoolid: school.schoolid
+        return socket.delete('/school/' + school.schoolid + '/members/' + user.uid, {
+          __sign__: true
         });
       }).then(res => {
-        assert.equal(res.code, 'school-kick-user-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true
+        return socket.get('/user/$self', {
+          cache: false, __sign__: true
         });
       }).then(res => {
-        assert.equal(res.code, 'get-user-info-success');
-        assert.ok(res.result.schools);
-        assert.equal(res.result.schools.length, 0);
+        assert.ok(res._success);
+        assert.ok(res.data.schools);
+        assert.equal(res.data.schools.length, 0);
         
-        return socket.emit('get-own-options');
+        return socket.get('/options');
       }).then(res => {
-        assert.equal(res.code, 'get-own-options-success');
-        res.result.school = school.schoolid;
+        assert.ok(res._success);
+        res.data.school = school.schoolid;
         
-        return socket.emit('change-options', res.result);
-      }).then(res => {
-        assert.equal(res.code, 'reg-success');
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true
+        return socket.put('/options', {
+          body: res.data
         });
       }).then(res => {
-        assert.equal(res.code, 'get-user-info-success');
-        assert.ok(res.result.schools);
-        assert.ok(res.result.schools.length > 0);
+        assert.ok(res._success);
+        
+        return socket.get('/user/$self', {
+          cache: false, __sign__: true
+        });
+      }).then(res => {
+        assert.ok(res._success);
+        assert.ok(res.data.schools);
+        assert.ok(res.data.schools.length > 0);
       });
     });
   });
-  }
   
-  describe('create-school', function() {
+  describe('/school (POST)', function() {
     it('Should refuse to create already-existing schools', function() {
       return getOwnSchool().then(school => {
-        return socket.emit('create-school', {
+        return socket.post('/school', {
           __sign__: true,
-          schoolname: 'Doublé',
-          schoolpath: school.path
+          body: {
+            schoolname: 'Doublé',
+            schoolpath: school.path
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'create-school-already-exists');
+        assert.equal(res.code, 403);
       });
     });
     
     it('Should not create schools with invalid paths', function() {
-      return socket.emit('create-school', {
+      return socket.post('/school', {
         __sign__: true,
-        schoolname: 'Nonexistent Students of the World',
-        schoolpath: '/nonexistent/nsotw'
+        body: {
+          schoolname: 'Nonexistent Students of the World',
+          schoolpath: '/nonexistent/nsotw'
+        }
       }).then(res => {
-        assert.equal(res.code, 'create-school-missing-parent');
+        assert.equal(res.code, 404);
       });
     });
     
     it('Should create schools', function() {
-      var path;
-      return socket.emit('create-school', {
+      let path;
+      return socket.post('/school', {
         __sign__: true,
-        schoolname: 'S' + Date.now(),
+        body: {
+          schoolname: 'S' + Date.now(),
+        }
       }).then(res => {
-        assert.equal(res.code, 'create-school-success');
+        assert.ok(res._success);
         path = res.path;
         
-        return socket.emit('school-exists', {
-          lookfor: path
+        return socket.get('/school-exists', {
+          qs: { lookfor: path }
         });
       }).then(res => {
-        assert.equal(res.code, 'school-exists-success');
-        assert.ok(res.exists);
+        assert.ok(res._success);
+        assert.ok(res.data.exists);
         
-        return socket.emit('list-schools');
+        return socket.get('/schools');
       }).then(res => {
-        assert.equal(res.code, 'list-schools-success');
-        assert.ok(res.result);
-        assert.notEqual(_.map(res.result, 'path').indexOf(path), -1);
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.notEqual(_.map(res.data, 'path').indexOf(path), -1);
       });
     });
   });
   
   describe('school-publish-banner', function() {
     it('Should provide schools with banners', function() {
-      var school;
+      let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
         
         return readFile('res/bob.jpg');
       }).then(data => {
-        return socket.emit('school-publish-banner', {
+        return socket.put('/school/' + school.schoolid + '/banner', {
           __sign__: true,
-          base64: true,
-          content: data.toString('base64'),
-          schoolid: school.schoolid,
-          mime: 'image/jpeg',
-          name: 'bob.jpg'
+          body: data,
+          json: false,
+          headers: {
+            'Content-Type': 'image/jpeg'
+          },
+          qs: {
+            name: 'bob.jpg'
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'publish-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-school-info', {
-          lookfor: school.path
+        return socket.get('/school', {
+          qs: { lookfor: school.path }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-school-info-success');
-        assert.ok(res.result.banner);
+        assert.ok(res._success);
+        assert.ok(res.data.banner);
       });
     });
   });
   
   describe('create-invite-link', function() {
     it('Should assign school IDs to invitation links', function() {
-      var school;
+      let school;
       
       return getOwnSchool().then(school_ => {
         school = school_;
         
-        return socket.emit('create-invite-link', {
+        return socket.post('/school/' + school.schoolid + '/create-invitelink', {
           __sign__: true,
-          email: null,
-          schoolid: school.schoolid
+          email: null
         });
       }).then(res => {
-        assert.equal(res.code, 'create-invite-link-success');
+        assert.ok(res._success);
         assert.ok(res.key);
         
-        return socket.emit('get-invitekey-info', {
-          invitekey: res.key
-        });
+        return socket.get('/invitekey/' + res.key);
       }).then(res => {
-        assert.equal(res.code, 'get-invitekey-info-success');
-        assert.ok(res.result);
-        assert.equal(res.result.schoolid, school.schoolid);
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.equal(res.data.schoolid, school.schoolid);
       });
     });
   });

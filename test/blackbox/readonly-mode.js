@@ -30,40 +30,44 @@ before(function() {
 after(testHelpers.standardTeardown);
 
 afterEach(function() {
-  return socket.emit('force-readonly', {
+  return socket.post('/force-readonly', {
     __sign__: true,
-    readonly: false
+    body: {
+      readonly: false
+    }
   }).then(res => {
-    assert.equal(res.code, 'force-readonly-success');
+    assert.ok(res._success);
   });
 });
 
-if (!testHelpers.testPerformance) {
 describe('Readonly Login', function() {
   it('Provides means of logging in when the server has entered read-only mode', function() {
-    return socket.emit('force-readonly', {
-      __sign__: true,
-      readonly: true
+    return socket.post('/logout').then(res => {
+      assert.ok(res._success);
+      
+      return socket.post('/force-readonly', {
+        __sign__: true,
+        body: {
+          readonly: true
+        }
+      });
     }).then(res => {
-      assert.equal(res.code, 'force-readonly-success');
+      assert.ok(res._success);
       
-      return socket.emit('logout');
-    }).then(res => { // flush privileges
-      assert.equal(res.code, 'server-readonly');
-      
-      return socket.emit('login', {
-        name: user.name,
-        pw: user.password,
-        stayloggedin: false
+      return socket.post('/login', {
+        body: {
+          name: user.name,
+          pw: user.password,
+          stayloggedin: false
+        }
       });
     }).then(loginresult => {
-      assert.equal(loginresult.code, 'login-success');
+      assert.ok(loginresult._success);
       
-      return socket.emit('ping');
+      return socket.get('/ping');
     }).then(res => {
-      assert.equal(res.code, 'pong');
+      assert.ok(res._success);
       assert.equal(res.uid, user.uid);
     });
   });
 });
-}

@@ -10,5 +10,3 @@ if (typeof process.env.DEBUG === 'undefined') {
 
 // use config.test.js
 process.env.SOTRADE_CONFIG = 'test';
-const config = require('../config.js');
-config.reloadConfig();

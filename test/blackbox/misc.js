@@ -33,56 +33,41 @@ describe('misc', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('get-own-options', function() {
+  describe('/options (GET)', function() {
     it('Should return information about own options', function() {
-      return socket.emit('get-own-options').then(res => {
-        assert.equal(res.code, 'get-own-options-success');
-        assert.equal(res.result.name, user.name);
-        assert.ok(!res.result.pwhash);
-        assert.ok(!res.result.pwsalt);
+      return socket.get('/options').then(res => {
+        assert.ok(res._success);
+        assert.equal(res.data.name, user.name);
+        assert.ok(!res.data.pwhash);
+        assert.ok(!res.data.pwsalt);
       });
     });
   });
   
-  describe('set-client-storage', function() {
+  describe('/options/clientstorage', function() {
     it('Should save information in arbitrary Buffers', function() {
       const buf = new Buffer(_.range(0, 256));
       
-      return socket.emit('set-clientstorage', {
-        storage: buf
+      return socket.put('/options/clientstorage', {
+        body: buf,
+        json: false
       }).then(res => {
-        assert.equal(res.code, 'set-clientstorage-success');
+        assert.ok(res._success);
         
-        return socket.emit('get-own-options');
+        return socket.get('/options');
       }).then(res => {
-        assert.equal(res.code, 'get-own-options-success');
+        assert.ok(res._success);
         
-        assert.ok(res.result.clientstorage);
-        assert.ok(testHelpers.bufferEqual(res.result.clientstorage, buf));
-      });
-    });
-    
-    it('Should fail with format-error when given invalid input', function() {
-      return socket.emit('set-clientstorage', {
-        storage: null
-      }).then(res => {
-        assert.equal(res.code, 'format-error');
+        assert.ok(res.data.clientstorage);
+        assert.ok(testHelpers.bufferEqual(new Buffer(res.data.clientstorage), buf));
       });
     });
   });
   
-  describe('ping', function() {
+  describe('/ping', function() {
     it('Should really not do much', function() {
-      return socket.emit('ping').then(res => {
-        assert.equal(res.code, 'pong');
-      });
-    });
-  });
-  
-  describe('fetch-events', function() {
-    it('Should return fetched-events', function() {
-      return socket.emit('fetch-events', res => {
-        assert.equal(res.code, 'fetched-events');
+      return socket.get('/ping').then(res => {
+        assert.equal(res.ping, 'pong');
       });
     });
   });

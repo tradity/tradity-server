@@ -21,25 +21,23 @@ const sotradeClient = require('../../sotrade-client.js');
 const sha256 = require('../../lib/sha256.js');
 const main = require('../../main.js');
 const _ = require('lodash');
-const fs = require('fs');
 const assert = require('assert');
 
-const testPerformance = process.env.SOTRADE_PROFILE_PERFORMANCE;
-const timingFile = process.env.SOTRADE_TIMING_FILE;
+let server;
 
 const startServer = _.memoize(function() {
   return setup.setupDatabase().then(() => {
     return setup.generateKeys();
   }).then(() => {
-    return new main.Main().start();
+    server = new main.Main();
+    return server.start();
   }).then(() => {
     // test connectivity
     
-    return new sotradeClient.SoTradeConnection({logDevCheck: false});
+    return new sotradeClient.SoTradeConnection();
   }).then(socket => {
-    return socket.emit('ping').then(() => {
+    return socket.get('/ping').then(() => {
       console.error('Server connectivity established');
-      return socket.raw().disconnect();
     });
   });
 });
@@ -47,38 +45,12 @@ const startServer = _.memoize(function() {
 const getSocket = _.memoize(function() {
   return startServer().then(() => {
     const socket = new sotradeClient.SoTradeConnection({
-      noSignByDefault: true,
-      logDevCheck: false
+      noSignByDefault: true
     });
     
-    if (testPerformance && timingFile) {
-      socket.on('*', data => {
-        const dt = data._dt;
-        
-        if (!dt) {
-          return; // probably an event
-        }
-        
-        const fields = [
-          Date.now(),
-          dt.cdelta,
-          dt.sdelta,
-          dt.inqueue,
-          dt.outqueue,
-          dt.scomp,
-          dt.ccomp,
-          data._resp_decsize,
-          data._resp_encsize,
-          data._reqsize,
-          data.code,
-          data.type,
-        ];
-        
-        fs.appendFile(timingFile, fields.join('\t') + '\n', { mode: '0660' }, () => {});
-      });
-    }
+    socket.once = evname => server.load('PubSub').once(evname);
     
-    return socket.once('server-config').then(_.constant(socket));
+    return socket;
   });
 });
 
@@ -92,64 +64,72 @@ const getTestUser = _.memoize(function() {
   let schoolname = schoolid;
   
   return getSocket().then(socket => {
-    return socket.emit('list-schools').then(data => {
-      assert.equal(data.code, 'list-schools-success');
-      for (let i = 0; i < data.result.length; ++i) {
-        assert.ok(data.result[i].banner === null || typeof data.result[i].banner === 'string');
+    return socket.get('/schools').then(result => {
+      assert.ok(result._success);
+      
+      for (let i = 0; i < result.data.length; ++i) {
+        assert.ok(result.data[i].banner === null || typeof result.data[i].banner === 'string');
         
-        if (data.result[i].name === schoolid) {
-          schoolid = data.result[i].id;
+        if (result.data[i].name === schoolid) {
+          schoolid = result.data[i].schoolid;
           break;
         }
       }
       
-      return socket.emit('list-genders');
-    }).then(data => {
-      assert.equal(data.code, 'list-genders-success');
+      assert.ok(schoolid);
+      return socket.get('/genders');
+    }).then(result => {
+      assert.ok(result._success);
       
-      gender = data.genders.genders[parseInt(Math.random() * data.genders.genders.length)];
+      gender = result.data.genders[parseInt(Math.random() * result.data.genders.length)];
       
-      return socket.emit('register', {
+      return socket.post('/register', {
         __sign__: true,
-        name: name,
-        giv_name: 'John',
-        fam_name: 'Doe ' + Date.now() % 19,
-        realnamepublish: false,
-        delayorderhist: false,
-        password: password,
-        email: email,
-        school: schoolid,
-        nomail: true,
-        betakey: '1-a.skidulaqrniucznl',
-        street: '',
-        town: '',
-        zipcode: '',
-        traditye: 0,
-        dla_optin: 0,
-        gender: gender
+        body: {
+          name: name,
+          giv_name: 'John',
+          fam_name: 'Doe ' + Date.now() % 19,
+          realnamepublish: false,
+          delayorderhist: false,
+          password: password,
+          email: email,
+          school: schoolid,
+          nomail: true,
+          betakey: '1-a.skidulaqrniucznl',
+          street: '',
+          town: '',
+          zipcode: '',
+          traditye: 0,
+          dla_optin: 0,
+          gender: gender
+        }
       });
-    }).then(data => {
-      assert.equal(data.code, 'reg-success');
+    }).then(result => {
+      // console.log('User register result', result);
+      assert.ok(result._success);
       
-      return socket.emit('login', {
-        name: email,
-        pw: password,
-        stayloggedin: false
+      return socket.post('/login', {
+        body: {
+          name: email,
+          pw: password,
+          stayloggedin: false
+        }
       });
     }).then(data => {
-      assert.equal(data.code, 'login-success');
-          
-      return socket.emit('get-own-options');
-    }).then(data => {
-      assert.equal(data.code, 'get-own-options-success');
-      assert.ok(!data.result.pwhash);
-      assert.equal(data.result.uid, parseInt(data.result.uid));
+      assert.ok(data._success);
+      
+      return socket.get('/options');
+    }).then(result => {
+      assert.ok(result._success);
+      assert.ok(result.data);
+      assert.ok(!result.data.pwhash);
+      assert.equal(typeof result.data.uid, 'number');
       
       return {
         name: name,
         password: password,
         email: email,
-        uid: data.result.uid,
+        uid: result.data.uid,
         schoolname: schoolname,
         schoolid: schoolid
       };
@@ -169,24 +149,22 @@ const standardSetup = function() {
 };
 
 const standardTeardown = function() {
-  return getSocket().then(socket => socket.raw().disconnect());
+  return Promise.resolve();
 };
 
 const standardReset = function() {
   return getSocket().then(socket => {
     return getTestUser().then(user => {
-      if (testPerformance) {
-        return;
-      }
-      
-      return socket.emit('logout').then(() => {
-        return socket.emit('login', { // login to reset privileges
-          name: user.name,
-          pw: user.password,
-          stayloggedin: false
+      return socket.post('/logout').then(() => {
+        return socket.post('/login', { // login to reset privileges
+          body: {
+            name: user.name,
+            pw: user.password,
+            stayloggedin: false
+          }
         });
       }).then(loginresult => {
-        assert.equal(loginresult.code, 'login-success');
+        assert.ok(loginresult._success);
       });
     });
   });
@@ -212,4 +190,3 @@ exports.standardSetup = standardSetup;
 exports.standardTeardown = standardTeardown;
 exports.standardReset = standardReset;
 exports.bufferEqual = bufferEqual;
-exports.testPerformance = testPerformance;

@@ -32,64 +32,63 @@ describe('achievements', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('list-all-achievements', function() {
+  describe('/achievements/list', function() {
     it('Should be successful and return multiple achievement types', function() {
-      return socket.emit('list-all-achievements').then(result => {
-        assert.equal(result.code, 'list-all-achievements-success');
+      return socket.get('/achievements/list').then(result => {
+        assert.ok(result._success);
+        assert.ok(result.data.length > 0);
         
-        assert.ok(result.result.length > 0);
-        
-        for (let i = 0; i < result.length; ++i) {
-          assert.ok(result[i].name);
-          assert.ok(result[i].xp >= 0);
-          assert.ok(result[i].category);
+        for (let i = 0; i < result.data.length; ++i) {
+          assert.ok(result.data[i].name);
+          assert.ok(result.data[i].xp >= 0);
+          assert.ok(result.data[i].category);
         }
       });
     });
   });
   
-  describe('get-daily-login-certificate', function() {
+  describe('/achievements/client/daily-login-cert', function() {
     it('Should be successful and return a valid server certificate', function() {
-      return socket.emit('get-daily-login-certificate').then(result => {
-        assert.equal(result.code, 'get-daily-login-certificate-success');
-        
-        assert.ok(result.cert);
+      return socket.get('/achievements/client/daily-login-cert').then(result => {
+        assert.ok(result._success);
+        assert.ok(result.data);
+        assert.equal(typeof result.data, 'string');
       });
     });
     
     it('Should fail with permission-denied when specifiying date', function() {
-      return socket.emit('get-daily-login-certificate', {
-        today: '2015-12-31'
+      return socket.get('/achievements/client/daily-login-cert', {
+        qs: { today: '2015-12-31' }
       }).then(result => {
-        assert.equal(result.code, 'permission-denied');
+        assert.equal(result.code, 403);
       });
     });
   });
   
-  describe('achievement', function() {
+  describe('/achievements/client', function() {
     it('Should fail for unknown achievements', function() {
-      return socket.emit('achievement', {
-        name: 'NONEXISTENT_ACHIEVEMENT'
+      return socket.post('/achievements/client', {
+        body: { name: 'NONEXISTENT_ACHIEVEMENT' }
       }).then(result => {
-        assert.equal(result.code, 'achievement-unknown-name');
+        assert.equal(result.code, 404);
       });
     });
     
     it('Should fail for empty achievement names', function() {
-      return socket.emit('achievement', {
-        name: ''
+      return socket.post('/achievements/client', {
+        body: { name: '' }
       }).then(result => {
-        assert.equal(result.code, 'format-error');
+        assert.equal(result.code, 404);
       });
     });
     
     it('Should work for known achievements and result in an user-info-listed achievement', function() {
       let clientAchievementName;
       
-      return socket.emit('list-all-achievements').then(res => {
-        assert.equal(res.code, 'list-all-achievements-success');
+      return socket.get('/achievements/list').then(res => {
+        assert.ok(res._success);
         
-        const clientAchievements = res.result.filter(ach => {
+        const clientAchievements = res.data.filter(ach => {
           return ach.isClientAchievement && !ach.requireVerified;
         });
         
@@ -97,18 +96,15 @@ describe('achievements', function() {
         
         clientAchievementName = clientAchievements[0].name;
         
-        return socket.emit('achievement', {
-          name: clientAchievementName
+        return socket.post('/achievements/client', {
+          body: { name: clientAchievementName }
         });
       }).then(result => {
-        assert.equal(result.code, 'achievement-success');
+        assert.ok(result._success);
         
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true
-        });
+        return socket.get('/user/$self', { cache: false });
       }).then(userInfo => {
-        assert.equal(userInfo.code, 'get-user-info-success');
+        assert.ok(userInfo._success);
         
         const achievementNames = userInfo.achievements.map(ach => ach.achname);
         
@@ -117,7 +113,7 @@ describe('achievements', function() {
     });
   });
   
-  describe('dl-achievement', function() {
+  describe('/achievements/client/daily-login-cert', function() {
     it('Should register achievements for being logged in multiple days in a row', function() {
       return _.range(2, 10).map(N => {
         return () => {
@@ -129,27 +125,24 @@ describe('achievements', function() {
           });
           
           return Promise.all(dates.map(date => {
-            return socket.emit('get-daily-login-certificate', {
+            return socket.get('/achievements/client/daily-login-cert', {
               __sign__: true,
-              today: date
+              qs: { today: date }
             }).then(result => {
-              assert.equal(result.code, 'get-daily-login-certificate-success');
+              assert.ok(result._success);
               
-              return result.cert;
+              return result.data;
             });
           })).then(certs => {
-            return socket.emit('dl-achievement', {
-              certs: certs
+            return socket.post('/achievements/client/daily-login-submit', {
+              body: { certs: certs }
             });
           }).then(result => {
-            assert.equal(result.code, 'dl-achievement-success');
+            assert.ok(result._success);
             
-            return socket.emit('get-user-info', {
-              lookfor: '$self',
-              noCache: true, __sign__: true
-            });
+            return socket.get('/user/$self', { cache: false, __sign__: true });
           }).then(userInfo => {
-            assert.equal(userInfo.code, 'get-user-info-success');
+            assert.ok(userInfo._success);
             
             const achievementNames = userInfo.achievements.map(ach => ach.achname);
             
@@ -160,16 +153,16 @@ describe('achievements', function() {
     });
     
     it('Should fail when no certificates are given', function() {
-      return socket.emit('dl-achievement').then(result => {
-        assert.equal(result.code, 'format-error');
+      return socket.post('/achievements/client/daily-login-submit').then(result => {
+        assert.equal(result.code, 400);
       });
     });
     
     it('Should fail when invalid certificates are given', function() {
-      return socket.emit('dl-achievement', {
-        certs: ['XXX']
+      return socket.post('/achievements/client/daily-login-submit', {
+        body: { certs: ['XXX'] }
       }).then(result => {
-        assert.strictEqual(result.code, 'dl-achievement-success');
+        assert.strictEqual(result.code, 200);
         assert.strictEqual(result.streak, 1);
       });
     });
@@ -182,20 +175,20 @@ describe('achievements', function() {
       });
       
       return Promise.all(dates.map(date => {
-        return socket.emit('get-daily-login-certificate', {
+        return socket.get('/achievements/client/daily-login-cert', {
           __sign__: true,
-          today: date
+          qs: { today: date }
         }).then(result => {
-          assert.equal(result.code, 'get-daily-login-certificate-success');
+          assert.ok(result._success);
           
-          return result.cert;
+          return result.data;
         });
       })).then(certs => {
-        return socket.emit('dl-achievement', {
-          certs: certs
+        return socket.post('/achievements/client/daily-login-submit', {
+          body: { certs: certs }
         });
       }).then(result => {
-        assert.strictEqual(result.code, 'dl-achievement-success');
+        assert.strictEqual(result.code, 200);
         assert.strictEqual(result.streak, 3);
       });
     });

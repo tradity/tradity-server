@@ -4,6 +4,7 @@ node_js:
 sudo: false
 services:
   - mysql
+  - redis
 mysql:
   - adapter: mysql2
   - username: sotrade
@@ -26,6 +27,7 @@ before_install:
 before_script:
   - mysql -e 'CREATE DATABASE IF NOT EXISTS sotrade_test'
 script:
+  - ./config.js
   - npm run jshint
   - npm run test-cov
 after_success:

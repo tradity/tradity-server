@@ -131,6 +131,10 @@ class Requestable extends Component {
       throw new TypeError('Writing Requestable instances cannot use GET');
     }
     
+    if (!this.options.writing && this.options.methods.indexOf('GET') === -1) {
+      throw new TypeError('Non-writing Requestable instances must allow GET');
+    }
+    
     if (this.options.schema) {
       const s = this.options.schema;
       if (!s.$schema) {
@@ -168,8 +172,15 @@ class Requestable extends Component {
   // XXX: getServerConfig
   // XXX: schema validation
   // XXX: .request
-  // XXX: remove SoTradeClientError
+  // XXX: remove SoTradeClientError, PermissionDenied, FormatError
   // XXX: Markdown
+  // XXX: other XXXes
+  // XXX: /** */
+  // XXX: Docs?
+  // XXX: Publicize code-based documentation
+  // XXX: Check for parseInt/parseFloat/isNan/etc.
+  // XXX: special handling for 204s
+  // XXX: Check data: wrappers
   
   handle() {
     ...

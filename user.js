@@ -125,27 +125,6 @@ class UserManagementRequestable extends api.Requestable {
   }
 
   /**
-   * Sends an invite e-mail to a user.
-   * 
-   * @param {object} data  General information on sender and receiver of the e-mail.
-   * @param {string} data.sender.name  The username of the sender.
-   * @param {string} data.sender.email  The e-mail address of the sender.
-   * @param {string} data.email  The e-mail adress of the receiver.
-   * @param {string} data.url  The URL of the invite link.
-   * @param {module:qctx~QContext} ctx  A QContext to provide database access.
-   * 
-   * @return  Returns with <code>{ code: 204 }</code>.
-   */
-  sendInviteEmail(data, ctx) {
-    debug('Send invite email', data.email, data.url, ctx.user && ctx.user.uid);
-    return this.request({name: 'sendTemplateMail',
-      template: 'invite-email.eml',
-      ctx: ctx,
-      variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
-    }).then(() => ({ code: 204 }));
-  }
-
-  /**
    * Sends the registation e-mail to a new user or after an e-mail address change.
    * 
    * @param {object} data  General information on the receiver of the email.
@@ -1237,8 +1216,29 @@ class CreateInviteLink extends api.Component {
   constructor() {
     super();
   }
+
+  /**
+   * Sends an invite e-mail to a user.
+   * 
+   * @param {object} data  General information on sender and receiver of the e-mail.
+   * @param {string} data.sender.name  The username of the sender.
+   * @param {string} data.sender.email  The e-mail address of the sender.
+   * @param {string} data.email  The e-mail adress of the receiver.
+   * @param {string} data.url  The URL of the invite link.
+   * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+   * 
+   * @return  Returns with <code>{ code: 204 }</code>.
+   */
+  sendInviteEmail(data, ctx) {
+    debug('Send invite email', data.email, data.url, ctx.user && ctx.user.uid);
+    return this.request({name: 'sendTemplateMail',
+      template: 'invite-email.eml',
+      ctx: ctx,
+      variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
+    }).then(() => ({ code: 204 }));
+  }
   
-  handle(query, ctx) {
+  handle(query, ctx, ErrorProvider) {
     ctx = ctx.clone(); // so we can’t lose the user object during execution
     
     debug('Create invite link for', ctx.user.uid, query.email, query.schoolid);
@@ -1247,7 +1247,7 @@ class CreateInviteLink extends api.Component {
     let key, url, cfg;
     
     if (query.schoolid && parseInt(query.schoolid) !== parseInt(query.schoolid)) {
-      throw new this.FormatError();
+      throw new ErrorProvider.FormatError();
     }
     
     return this.getServerConfig().then(cfg_ => {
@@ -1255,12 +1255,12 @@ class CreateInviteLink extends api.Component {
       query.email = query.email ? String(query.email) : null;
       
       if (!ctx.access.has('userdb')) {
-        if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email)) {
-          throw new this.SoTradeClientError('create-invite-link-invalid-email');
+        if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email)) { // XXX validator.js
+          throw new ErrorProvider.ClientError('invalid-email');
         }
         
         if (!ctx.access.has('email_verif')) {
-          throw new this.SoTradeClientError('create-invite-link-not-verif');
+          throw new ErrorProvider.ClientError('email-not-verified');
         }
       }
       
@@ -1270,7 +1270,7 @@ class CreateInviteLink extends api.Component {
       ]);
     }).then(spread((buf, schoolcountres) => {
       if (query.schoolid && schoolcountres[0].c !== 1) {
-        throw new this.SoTradeClientError('create-invite-link-school-not-found');
+        throw new ErrorProvider.ClientError('school-not-found');
       }
       
       key = buf.toString('hex');
@@ -1289,7 +1289,7 @@ class CreateInviteLink extends api.Component {
         }, ctx);
       } else {
         sendKeyToCaller = true;
-        return { code: 'create-invite-link-success' };
+        return { code: 204 };
       }
     }).then(ret => {
       if (sendKeyToCaller) {

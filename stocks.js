@@ -24,7 +24,7 @@ const qctx = require('./qctx.js');
 const buscomponent = require('./stbuscomponent.js');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
-require('datejs');
+require('datejs'); // XXX
 
 /**
  * Provides client requests for small-scale finance updates and display.

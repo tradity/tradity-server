@@ -75,4 +75,48 @@ BackgroundWorker.prototype.prod = buscomponent.provideWQT('client-prod', functio
   });
 });
 
+
+/**
+ * Regularly called function to perform various cleanup and update tasks.
+ * 
+ * Flushes outdated sessions out of the system and weekly 
+ * removes memberless groups that were not created by 
+ * administrative users.
+ * 
+ * @param {Query} query  A query structure, indicating which actions should be performed
+ * @param {Query} query.weekly  Clean up schools without members
+ * @param {module:qctx~QContext} ctx  A QContext to provide database access.
+ * 
+ * @function busreq~regularCallbackUser
+ */
+User.prototype.regularCallback = buscomponent.provide('regularCallbackUser', ['query', 'ctx'], function(query, ctx) {
+  if (ctx.getProperty('readonly')) {
+    return Promise.resolve();
+  }
+  
+  debug('Regular callback');
+  
+  return Promise.all([
+    ctx.query('DELETE FROM sessions WHERE lastusetime + endtimeoffset < UNIX_TIMESTAMP()'),
+    ctx.query('DELETE FROM passwords WHERE changetime IS NULL AND issuetime < UNIX_TIMESTAMP() - 7*86400'),
+    ctx.query('UPDATE users SET email=CONCAT("deleted:erased:", uid), email_verif = 0 ' +
+      'WHERE deletiontime IS NOT NULL AND deletiontime < UNIX_TIMESTAMP() - 70*86400'),
+    ctx.query('SELECT p.schoolid, p.path, users.access FROM schools AS p ' +
+      'JOIN events ON events.type="school-create" AND events.targetid = p.schoolid ' +
+      'JOIN users ON users.uid = events.srcuser ' +
+      'WHERE ' +
+      '(SELECT COUNT(uid) FROM schoolmembers WHERE schoolmembers.schoolid = p.schoolid) = 0 AND ' +
+      '(SELECT COUNT(*) FROM schools AS c WHERE c.path LIKE CONCAT(p.path, "/%")) = 0 AND ' +
+      '(SELECT COUNT(*) FROM feedblogs WHERE feedblogs.schoolid = p.schoolid) = 0 AND ' +
+      '(SELECT COUNT(*) FROM invitelink WHERE invitelink.schoolid = p.schoolid) = 0').then(schools => {
+      return Promise.all(schools.filter(school => {
+        return !Access.fromJSON(school.access).has('schooldb') &&
+          (school.path.replace(/[^\/]/g, '').length === 1 || (query && query.weekly));
+      }).map(school => {
+        return ctx.query('DELETE FROM schools WHERE schoolid = ?', [school.schoolid]);
+      }));
+    })
+  ]);
+});
+
 exports.BackgroundWorker = BackgroundWorker;

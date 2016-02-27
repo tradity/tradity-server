@@ -20,143 +20,125 @@ const fs = require('fs');
 const crypto = require('crypto');
 const assert = require('assert');
 const debug = require('debug')('sotrade:signedmsg');
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 
-/**
- * Provides methods for signing and verifying messages
- * from other server or client instances.
- * This allows authorized queries to be sent securely.
- * 
- * @public
- * @module signedmsg
- */
-
-/**
- * Main object of the {@link module:signedmsg} module
- * 
- * @public
- * @constructor module:signedmsg~SignedMessaging
- * @augments module:stbuscomponent~STBusComponent
- */
-class SignedMessaging extends buscomponent.BusComponent {
+class SignedMessaging extends api.Component {
   constructor() {
-    super();
+    super({
+      identifier: 'SignedMessaging',
+      description: 'Create signed messages and verify them.',
+      depends: ['Config']
+    });
     
     this.privateKey = null;
     this.publicKeys = [];
     this.algorithm = 'RSA-SHA256';
   }
-}
-
-SignedMessaging.prototype.onBusConnect = function() {
-  return this.getServerConfig().then(cfg => {
-    return this.useConfig(cfg);
-  });
-};
-
-/**
- * Sets the server configuration to use and reads in the own private key,
- * the accepted public keys and, optionally, a specified signing algorithm.
- * 
- * @function module:signedmsg~SignedMessaging#useConfig
- */
-SignedMessaging.prototype.useConfig = function(cfg) {
-  assert.ok(cfg.privateKey);
-  this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
-  this.publicKeys = cfg.publicKeys.map(pkfile => {
-    return fs.readFileSync(pkfile, {encoding: 'utf-8'})
-    .replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, s => '\0' + s).split(/\0/).map(s => s.trim());
-  }).reduce((a, b) => a.concat(b));
-  this.algorithm = cfg.signatureAlgorithm || this.algorithm;
   
-  debug('Loaded keys', this.publicKeys.length + ' public keys', this.algorithm);
-};
-
-/**
- * Create a signed message for verification by other instances.
- * Note that, while base64 encoding is applied, no encryption of
- * any kind is being used.
- * 
- * @param {object} msg  An arbitrary object to be signed.
- * 
- * @return {string} Returns with a string containing the object and a signature.
- * 
- * @function busreq~createSignedMessage
- */
-SignedMessaging.prototype.createSignedMessage = buscomponent.provide('createSignedMessage', ['msg'], function(msg) {
-  const string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
-  const sign = crypto.createSign('RSA-SHA256');
-  
-  return new Promise((resolve, reject) => {
-    assert.ok(this.privateKey);
-    sign.on('error', reject);
-    
-    sign.end(string, null, () => {
-      const signed = string + '~' + sign.sign(this.privateKey, 'base64');
-      return resolve(signed);
+  postInit() {
+    return this.getServerConfig().then(cfg => {
+      return this.useConfig(cfg);
     });
-  });
-});
-
-/**
- * Parse and verify a signed message created by 
- * {@link busreq~createSignedMessage}
- * 
- * @param {string} msg  The signed object.
- * @param {?int} maxAge  An optional maximum age (in seconds) for considering
- *                       the message valid
- * 
- * @return {object} Returns the signed object in case the message came from
- *                  an accepted public key or <code>null</code> otherwise.
- * 
- * @function busreq~verifySignedMessage
- */
-SignedMessaging.prototype.verifySignedMessage = buscomponent.provide('verifySignedMessage',
-  ['msg', 'maxAge'], function(msg, maxAge) 
-{
-  const msg_ = msg.split('~');
-  if (msg_.length !== 2) {
-    return null;
   }
   
-  const string = msg_[0], signature = msg_[1];
-  
-  return new Promise((resolve, reject) => {
-    const verifySingleKey = i => {
-      if (i === this.publicKeys.length) {
-        return resolve(null); // no key matched
-      }
+  /**
+   * Sets the server configuration to use and reads in the own private key,
+   * the accepted public keys and, optionally, a specified signing algorithm.
+   */
+  useConfig(cfg) {
+    assert.ok(cfg.privateKey);
+    this.privateKey = fs.readFileSync(cfg.privateKey, {encoding: 'utf-8'});
+    this.publicKeys = cfg.publicKeys.map(pkfile => {
+      return fs.readFileSync(pkfile, {encoding: 'utf-8'})
+      .replace(/\n-+BEGIN PUBLIC KEY-+\n/gi, s => '\0' + s).split(/\0/).map(s => s.trim());
+    }).reduce((a, b) => a.concat(b));
+    this.algorithm = cfg.signatureAlgorithm || this.algorithm;
+    
+    debug('Loaded keys', this.publicKeys.length + ' public keys', this.algorithm);
+  }
+
+  /**
+   * Create a signed message for verification by other instances.
+   * Note that, while base64 encoding is applied, no encryption of
+   * any kind is being used.
+   * 
+   * @param {object} msg  An arbitrary object to be signed.
+   * 
+   * @return {string} Returns with a string containing the object and a signature.
+   */
+  createSignedMessage(msg) {
+    const string = new Buffer(JSON.stringify(msg)).toString('base64') + '#' + Date.now() + '#' + Math.random();
+    const sign = crypto.createSign('RSA-SHA256');
+    
+    return new Promise((resolve, reject) => {
+      assert.ok(this.privateKey);
+      sign.on('error', reject);
       
-      const pubkey = this.publicKeys[i];
-      const verify = crypto.createVerify('RSA-SHA256');
-      verify.on('error', reject);
-      
-      return verify.end(string, null, () => {
-        if (verify.verify(pubkey, signature, 'base64')) {
-          debug('Could verify signed message using public key', i);
-          
-          // move current public key to first position (lru caching)
-          this.publicKeys.splice(0, 0, this.publicKeys.splice(i, 1)[0]);
-          
-          const stringparsed = string.split('#');
-          const objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
-          
-          if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000) {
-            return resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
-          } else {
-            debug('Message max age was exceeded');
-          }
+      sign.end(string, null, () => {
+        const signed = string + '~' + sign.sign(this.privateKey, 'base64');
+        return resolve(signed);
+      });
+    });
+  }
+
+  /**
+   * Parse and verify a signed message created by 
+   * {@link #createSignedMessage}
+   * 
+   * @param {string} msg  The signed object.
+   * @param {?int} maxAge  An optional maximum age (in seconds) for considering
+   *                       the message valid
+   * 
+   * @return {object} Returns the signed object in case the message came from
+   *                  an accepted public key or <code>null</code> otherwise.
+   */
+  verifySignedMessage(msg, maxAge) {
+    const msg_ = msg.split('~');
+    if (msg_.length !== 2) {
+      return null;
+    }
+    
+    const string = msg_[0], signature = msg_[1];
+    
+    return new Promise((resolve, reject) => {
+      const verifySingleKey = i => {
+        if (i === this.publicKeys.length) {
+          return resolve(null); // no key matched
         }
         
-        verifySingleKey(i+1); // try next key
-      });
-    };
-    
-    verifySingleKey(0);
-  });
-});
+        const pubkey = this.publicKeys[i];
+        const verify = crypto.createVerify('RSA-SHA256');
+        verify.on('error', reject);
+        
+        return verify.end(string, null, () => {
+          if (verify.verify(pubkey, signature, 'base64')) {
+            debug('Could verify signed message using public key', i);
+            
+            // move current public key to first position (lru caching)
+            this.publicKeys.splice(0, 0, this.publicKeys.splice(i, 1)[0]);
+            
+            const stringparsed = string.split('#');
+            const objstring = stringparsed[0], signTime = parseInt(stringparsed[1]);
+            
+            if (!maxAge || Math.abs(signTime - Date.now()) < maxAge * 1000) {
+              return resolve(JSON.parse(new Buffer(objstring, 'base64').toString()));
+            } else {
+              debug('Message max age was exceeded');
+            }
+          }
+          
+          verifySingleKey(i+1); // try next key
+        });
+      };
+      
+      verifySingleKey(0);
+    });
+  }
+}
 
-exports.SignedMessaging = SignedMessaging;
+exports.components = [
+  SignedMessaging;
+];
 
 /* small test script */
 if (require.main === module) {

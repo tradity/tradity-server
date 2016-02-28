@@ -35,7 +35,7 @@ class SignedMessaging extends api.Component {
     this.algorithm = 'RSA-SHA256';
   }
   
-  postInit() {
+  init() {
     return this.getServerConfig().then(cfg => {
       return this.useConfig(cfg);
     });

@@ -17,32 +17,37 @@
 "use strict";
 
 const Cache = require('./lib/minicache.js').Cache;
+const promiseEvents = require('promise-events');
 
-class Component {
+const registryInit = Symbol('registryInit');
+const loadedDependencies = Symbol('loadedDependencies');
+
+class Component extends promiseEvents.EventEmitter {
   constructor(options) {
     options = options || {};
     this.depends = options.depends || [];
-    this._loadedDeps = new Map();
+    this[loadedDependencies] = new Map();
   }
   
-  init(registry) {
+  [registryInit](registry) {
     return Promise.all(this.depends.map(dependency => {
       return registry.load(dependency).then(result => {
-        this._loadedDeps.set(dependency, result);
+        this[loadedDependencies].set(dependency, result);
       });
     }));
   }
   
-  postInit() {
+  init() {
   }
   
   load(dependency) {
     assert.ok(this.depends.indexOf(dependency) !== -1);
     
-    return this._loadedDeps.get(dependency);
+    return this[loadedDependencies].get(dependency);
   }
 }
 
+const addComponentInstance = Symbol('addComponentInstance');
 class Registry extends Component {
   constructor() {
     super({identifier: '_Registry'});
@@ -50,7 +55,11 @@ class Registry extends Component {
     this._dependencyIndex = new Map();
     this._instances = [];
     this._inited = false;
+    
+    this[addComponentInstance](this, Registry);
   }
+  
+  [registryInit]() {}
   
   addComponentClass(Cls) {
     if (this._inited) {
@@ -63,7 +72,14 @@ class Registry extends Component {
     
     const instance = new Cls();
     
+    assert.strictEqual(instance.constructor, Cls);
+    
+    return this[addComponentInstance](instance);
+  }
+  
+  [addComponentInstance](instance) {
     this._dependencyIndex.put(Cls, instance);
+    this._dependencyIndex.put(instance.constructor, instance);
     
     if (instance.identifier) {
       this._dependencyIndex.put(instance.identifier, instance);
@@ -79,8 +95,8 @@ class Registry extends Component {
     
     this._inited = true;
     
-    return Promise.all( this._instances.map(i => i.init()) ).then(() => 
-           Promise.all( this._instances.map(i => i.postInit()) );
+    return Promise.all( this._instances.map(i => i[registryInit]()) ).then(() => 
+           Promise.all( this._instances.map(i => i.init()) );
   }
   
   load(dependency) {
@@ -180,7 +196,16 @@ class Requestable extends Component {
   // XXX: Publicize code-based documentation
   // XXX: Check for parseInt/parseFloat/isNan/etc.
   // XXX: special handling for 204s
+  // XXX: console.warn for 204/200 mismatch
   // XXX: Check data: wrappers
+  // XXX: access.has
+  // XXX: validation for non-Requestable components?
+  // XXX: there may be some .freeze() missing for the registry components?
+  // XXX: check for old onBusConnect entries
+  // XXX: check old buscomponent.listener entries
+  // XXX: dependencies which have not been explicitly loaded into the registry
+  // XXX: check for literal 'function' entries
+  // XXX: check for .result(s)
   
   handle() {
     ...

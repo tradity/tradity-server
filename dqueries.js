@@ -44,7 +44,8 @@ const debug = require('debug')('sotrade:dqueries');
 class DelayedQueries extends api.Component {
   constructor() {
     super({
-      identifier: 'DelayedQueries'
+      identifier: 'DelayedQueries',
+      depends: ['StockExchangeIsOpen']
     });
     
     this.queries = {};
@@ -218,7 +219,7 @@ class DelayedQueries extends api.Component {
                   return this.getServerConfig().then(cfg => {
                     assert.ok(cfg);
                     
-                    return this.request({name: 'stockExchangeIsOpen', sxname: r[0].exchange, cfg: cfg});
+                    return this.load('StockExchangeIsOpen').test(r[0].exchange, cfg);
                   }).then(isOpen => {
                     return lt ? isOpen < value : isOpen > value;
                   });
@@ -421,6 +422,7 @@ class DelayedQueryDelete extends api.Requestable {
 class DelayedQueryAdd {
   constructor() {
     super({
+      identifier: 'DelayedQueryAdd',
       url: '/dqueries',
       methods: ['POST'],
       writing: true,

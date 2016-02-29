@@ -206,6 +206,8 @@ class Requestable extends Component {
   // XXX: dependencies which have not been explicitly loaded into the registry
   // XXX: check for literal 'function' entries
   // XXX: check for .result(s)
+  // XXX: schema forwarding/inclusion
+  // XXX: readonly? can we handle that one better?
   
   handle() {
     ...

@@ -23,30 +23,12 @@ const assert = require('assert');
 const sha256 = require('./lib/sha256.js');
 const deepupdate = require('./lib/deepupdate.js');
 const qctx = require('./qctx.js');
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 const debug = require('debug')('sotrade:fsdb');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
-/**
- * Provides an interface for publishing files and downloading them via HTTP.
- * 
- * @public
- * @module fsdb
- */
-
-/**
- * Main object of the {@link module:fsdb} module
- * @public
- * @constructor module:msdb~FileStorage
- * @augments module:stbuscomponent~STBusComponent
- */
-class FileStorage extends buscomponent.BusComponent {
-  constructor() {
-    super();
-  }
-}
-
+// XXX we need access to the raw request/response objects here
 /**
  * Handles an HTTP file request.
  * 

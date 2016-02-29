@@ -422,5 +422,24 @@ AchievementList.push({
   category: 'LEADER'
 });
 
-exports.AchievementList = AchievementList;
-exports.ClientAchievements = _.map(ClientAchievements, 'name');
+const api = require('api');
+
+class AchievementListProvider extends api.Component {
+  constructor() {
+    super({
+      identifier: 'AchievementListProvider'
+    });
+  }
+  
+  getAchievementList() {
+    return AchievementList;
+  }
+  
+  getClientAchievementList() {
+    return ClientAchievements;
+  }
+}
+
+exports.components = [
+  AchievementListProvider
+];

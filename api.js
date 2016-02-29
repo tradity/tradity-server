@@ -208,6 +208,8 @@ class Requestable extends Component {
   // XXX: check for .result(s)
   // XXX: schema forwarding/inclusion
   // XXX: readonly? can we handle that one better?
+  // XXX: regexp check for code:\s*['"]
+  // XXX: default identifier to class name
   
   handle() {
     ...

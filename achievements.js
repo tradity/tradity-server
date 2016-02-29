@@ -20,44 +20,20 @@ const _ = require('lodash');
 const assert = require('assert');
 const qctx = require('./qctx.js');
 const debug = require('debug')('sotrade:achievements');
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 
-/**
- * Achievement checking and awarding system.
- * 
- * @public
- * @module achievements
- */
-
-/**
- * Main entry point of {@link module:achievements}
- * 
- * @property {module:achievement-list~AchievementType[]} achievementList  List of avaiable achievements.
- * @property {string[]} clientAchievements  List of ids of achievements which are complete
- *                            solely on the client side.
- * 
- * @public
- * @constructor module:achievements~Achievements
- * @augments module:stbuscomponent~STBusComponent
- */
-class Achievements extends buscomponent.BusComponent {
-  constructor() {
-    super();
-    
-    this.achievementList = [];
-    this.clientAchievements = [];
-  }
-}
 
 Achievements.prototype.onBusConnect = function() {
   return this.request({name: 'getAchievementList'}).then(al => {
     assert.ok(al);
+    // XXX
     return this.registerAchievements(al);
   }).then(() => {
     return this.request({name: 'getClientAchievementList'});
   }).then(al => {
     assert.ok(al);
     this.clientAchievements = al;
+    // XXX
     return this.markClientAchievements();
   });
 };

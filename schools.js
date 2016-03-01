@@ -654,11 +654,11 @@ class PublishBanner extends SchoolUtilRequestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     return this.requireSchoolAdmin(query, ctx, false).then(() => {
       query.role = 'schools.banner';
       
-      return this.load('PublishFile').handle(query, ctx, groupassoc);
+      return this.load('PublishFile').handle(query, ctx, cfg, groupassoc);
     }
   }
 }
@@ -694,9 +694,9 @@ class CreateInviteLinkGroup extends SchoolUtilRequestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     return this.requireSchoolAdmin(query, ctx, true).then(() => {
-      return this.load('CreateInviteLink').handle(query, ctx, this);
+      return this.load('CreateInviteLink').handle(query, ctx, cfg, this);
     });
   }
 }

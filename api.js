@@ -20,20 +20,19 @@ const Cache = require('./lib/minicache.js').Cache;
 const promiseEvents = require('promise-events');
 
 const registryInit = Symbol('registryInit');
-const loadedDependencies = Symbol('loadedDependencies');
+const _registry = Symbol('_registry');
 
-class Component extends promiseEvents.EventEmitter {
+class _Component extends promiseEvents.EventEmitter {
   constructor(options) {
     options = options || {};
     this.depends = options.depends || [];
-    this[loadedDependencies] = new Map();
+    this[_registry] = new Map();
   }
   
   [registryInit](registry) {
+    this[_registry] = registry;
     return Promise.all(this.depends.map(dependency => {
-      return registry.load(dependency).then(result => {
-        this[loadedDependencies].set(dependency, result);
-      });
+      return registry.load(dependency);
     }));
   }
   
@@ -43,12 +42,28 @@ class Component extends promiseEvents.EventEmitter {
   load(dependency) {
     assert.ok(this.depends.indexOf(dependency) !== -1);
     
-    return this[loadedDependencies].get(dependency);
+    return this[_registry].load(dependency);
+  }
+}
+
+class Component extends _Component {
+  constructor(options) {
+    options = options || {};
+    options.depends = (options.depends || []).concat(['PubSub', 'Config']);
+    super(options);
+  }
+  
+  publish(name, data) {
+    this.load('PubSub').publish(name, data);
+  }
+  
+  subscribe(name, handler) {
+    this.load('PubSub').subscribe(name, handler);
   }
 }
 
 const addComponentInstance = Symbol('addComponentInstance');
-class Registry extends Component {
+class Registry extends _Component {
   constructor() {
     super({identifier: '_Registry'});
     
@@ -110,11 +125,31 @@ class Registry extends Component {
   }
 }
 
-/**
- * Main object of the {@link module:api} module
- * @public
- * @constructor module:api~Requestable
- */
+class URLMatcher {
+  constructor(path) {
+    this.path = path;
+    this.parameters = [];
+    
+    let i = 1;
+    this.regexp = new RegExp('^' + path.replace(/\((\?:?)?/g, '(?:')
+      .replace(/:([^/]+?)\b/g, (match, name) => {
+      this.parameters[i++] = name;
+      return '([^/]+)';
+    }) + '$');
+  }
+  
+  match(url) {
+    const match = url.match(this.regexp);
+    if (!match) {
+      return null;
+    }
+    
+    return Object.assign.apply(Object, [{}, match].concat(
+      match.map((content, index) => ({ [this.parameters[index]]: content }))
+    ));
+  }
+}
+
 class Requestable extends Component {
   constructor(options) {
     super(options);
@@ -132,6 +167,8 @@ class Requestable extends Component {
     if (!this.options.url) {
       throw new TypeError('Requestable instances need url property');
     }
+    
+    this.urlMatcher = new URLMatcher(this.options.url);
     
     if (!this.options.description) {
       throw new TypeError('Description is neccessary for Requestable instances');
@@ -174,9 +211,29 @@ class Requestable extends Component {
           throw new TypeError('No identifier info available for ' + identifier);
         }
         
-        Object.assign(this, info);
+        super(requestable.url + ': ' + info.code + ': ' + identifier);
         
-        super(requestable.url + ': ' + this.statusCode + ': ' + identifier);
+        Object.assign(this, info);
+      }
+    };
+    
+    this.BadRequest =
+    class BadRequest extends Error {
+      constructor(underlying) {
+        super('Bad Request: ' + String(underlying));
+        
+        this.code = 400;
+        this.identifier = 'bad-request';
+      }
+    };
+    
+    this.MissingHandler =
+    class MissingHandler extends Error {
+      constructor() {
+        super('Missing handler');
+        
+        this.code = 500;
+        this.identifier = 'missing-handler';
       }
     };
   }
@@ -211,11 +268,79 @@ class Requestable extends Component {
   // XXX: regexp check for code:\s*['"]
   // XXX: default identifier to class name
   
-  handle() {
-    ...
+  // wrap this.handle() for some backwards compatibility
+  handleWithRequestInfo(query, ctx, cfg, xdata) {
+    return this.handle(query, ctx, cfg);
   }
   
-  ...
+  handle(query, ctx, cfg) {
+    throw new this.MissingHandler();
+  }
+  
+  _handleRequest(req, res, uriMatch) {
+    // get the remote address asap since it is lost with early disconnects
+    const remoteAddress = req.socket.remoteAddress;
+    
+    return Promise.resolve().then(() => {
+      if (req.method === 'GET')
+        return {};
+      
+      if (!req.headers['content-type'].match(/^application\/(x-)?json/i))
+        return {};
+      
+      return new Promise((resolve, reject) => {
+        const jsonStream = req.pipe(JSONStream.parse());
+        
+        jsonStream.on('data', resolve);
+        
+        jsonStream.on('error', e => {
+          reject(new this.BadRequest(e));
+        });
+      }
+    }).then(postData => {
+      const query = Object.assign({}, uriMatch, postData);
+      const ctx = new qctx.QContext({parentComponent: this});
+      
+      return this.handleWithRequestInfo(query, ctx, this.load('Config').config(), {
+        remoteip: remoteAddress
+      });
+    }).catch(err => {
+      if (typeof err.code === 'number') {
+        return err;
+      }
+      
+      throw err;
+    }).then(answer => {
+      res.writeHead(answer.code);
+      if (answer.code === 204) {
+        // If we say “no content”, we stick to it.
+      } else {
+        const outJSON = JSONStream.stringify('', '', '');
+        
+        return new Promise((resolve, reject) => {
+          outJSON.on('end', resolve);
+          outJSON.on('error', reject);
+        });
+        
+        outJSON.pipe(res);
+        outJSON.end(answer);
+      }
+    });
+  }
+  
+  handleRequest(req, res, uriMatch) {
+    return Promise.resolve().then(() => {
+      return this._handleRequest(req, res, uriMatch);
+    }).catch(e => {
+      res.writeHead(500, {'Content-Type': 'text/plain;charset=utf-8'});
+      res.write('Error: ' + e.toString() + '\n' + e.stack);
+      this.publish('error', e);
+    });
+  }
+  
+  getURLMatcher() {
+    return this.urlMatcher;
+  }
 }
 
 exports.Registry = Registry;

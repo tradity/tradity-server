@@ -717,7 +717,7 @@ class StockTrade extends api.Requestable {
     });
   }
   
-  handle(query, ctx, opt) {
+  handle(query, ctx, cfg, opt) {
     let conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
     let fee, oh_res = null, tradeID = null, perffull = null, forceNow;
     

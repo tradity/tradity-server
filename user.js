@@ -206,7 +206,7 @@ class Login extends UserManagementRequestable {
     });
   }
   
-  handle(query, ctx, xdata, useTransaction, ignorePassword) {
+  handleWithRequestInfo(query, ctx, cfg, xdata, useTransaction, ignorePassword) {
     const name = String(query.name);
     const pw = String(query.pw);
     let key, uid;
@@ -262,7 +262,7 @@ class Login extends UserManagementRequestable {
     }).then(r => {
       if (r === null) {
         if (!useTransaction) {
-          return this.handle(query, ctx, xdata, true, ignorePassword);
+          return this.handleWithRequestInfo(query, ctx, cfg, xdata, true, ignorePassword);
         }
         
         throw new this.ClientError('wrong-username-pw');
@@ -379,7 +379,7 @@ class EmailVerify extends api.Requestable {
     });
   }
   
-  handle(query, ctx, xdata) {
+  handleWithRequestInfo(query, ctx, cfg, xdata) {
     const uid = parseInt(query.uid);
     const key = String(query.key);
     let email;
@@ -586,7 +586,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     }, options);
   }
   
-  updateUser(query, type, ctx, xdata) {
+  updateUser(query, type, ctx, cfg, xdata) {
     debug('Update user', type, ctx.user && ctx.user.uid);
     
     const betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
@@ -865,12 +865,12 @@ class Register extends UpdateUserRequestable {
     });
   }
   
-  handle(query, ctx, xdata) {
+  handleWithRequestInfo(query, ctx, cfg, xdata) {
     if (ctx.user !== null) {
       throw new this.ClientError('already-logged-in');
     }
     
-    return this.updateUser(query, 'register', ctx, xdata);
+    return this.updateUser(query, 'register', ctx, cfg, xdata);
   }
 }
 
@@ -884,8 +884,8 @@ class ChangeOptions extends UpdateUserRequestable {
     });
   }
   
-  handle(query, ctx, xdata) {
-    return this.updateUser(query, 'change', ctx, xdata);
+  handleWithRequestInfo(query, ctx, cfg, xdata) {
+    return this.updateUser(query, 'change', ctx, cfg, xdata);
   }
 }
 
@@ -1211,7 +1211,6 @@ class InviteKeyInfo extends api.Requestable {
   }
 }
 
-
 class CreateInviteLink extends api.Component {
   constructor() {
     super();
@@ -1238,7 +1237,7 @@ class CreateInviteLink extends api.Component {
     }).then(() => ({ code: 204 }));
   }
   
-  handle(query, ctx, ErrorProvider) {
+  handle(query, ctx, cfg, ErrorProvider) {
     ctx = ctx.clone(); // so we can’t lose the user object during execution
     
     debug('Create invite link for', ctx.user.uid, query.email, query.schoolid);

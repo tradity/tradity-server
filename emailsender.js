@@ -164,7 +164,7 @@ class BouncedMailHandler {
     });
   }
   
-  handle(query, ctx, internal) {
+  handle(query, ctx, cfg, internal) {
     if (!ctx) {
       ctx = new qctx.QContext({parentComponent: this});
     }

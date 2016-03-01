@@ -311,7 +311,7 @@ class Requestable extends Component {
       
       throw err;
     }).then(answer => {
-      res.writeHead(answer.code);
+      res.writeHead(answer.code, {'Content-Type': 'application/json;charset=utf-8'});
       if (answer.code === 204) {
         // If we say “no content”, we stick to it.
       } else {
@@ -332,8 +332,12 @@ class Requestable extends Component {
     return Promise.resolve().then(() => {
       return this._handleRequest(req, res, uriMatch);
     }).catch(e => {
-      res.writeHead(500, {'Content-Type': 'text/plain;charset=utf-8'});
-      res.write('Error: ' + e.toString() + '\n' + e.stack);
+      res.writeHead(500, {'Content-Type': 'application/json;charset=utf-8'});
+      res.write(JSON.stringify({
+        code: 500,
+        error: e.toString(),
+        stack: JSON.stringify(e.stack)
+      }));
       this.publish('error', e);
     });
   }

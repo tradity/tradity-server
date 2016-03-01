@@ -89,51 +89,49 @@ class UserInfo extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
-    let cfg, xuser;
+  handle(query, ctx, cfg) {
+    let xuser;
     
     let resultCacheKey = '';
     const cacheable = !(ctx.access.has('caching') && query.noCache);
     
     query.nohistory = !!query.nohistory;
     
-    return this.getServerConfig().then(cfg_ => {
-      cfg = cfg_;
+    if (query.lookfor === '$self' && ctx.user) {
+      query.lookfor = ctx.user.uid;
+    }
     
-      if (query.lookfor === '$self' && ctx.user) {
-        query.lookfor = ctx.user.uid;
-      }
-      
-      const columns = (ctx.access.has('userdb') || query.lookfor === ctx.user.uid ? [
-        'u.*', 'ud.*', 'uf.*',
-      ] : [
-        'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
-        'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
-      ]).concat([
-        'u.uid AS uid', 'u.name AS name', 'birthday',
-        'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
-        '`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
-        'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.stockid AS lstockid',
-        'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
-        '((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
-        '((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
-        '((uf.fperf_cur + uf.fperf_sold - week_va.fperf_sold) / (uf.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
-        '((uf.operf_cur + uf.operf_sold - week_va.operf_sold) / (uf.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
-        '(uf.fperf_cur + uf.fperf_sold) / uf.fperf_bought AS totalfperf',
-        '(uf.operf_cur + uf.operf_sold) / uf.operf_bought AS totaloperf',
-        'freemoney', 'uf.wprov_sum + uf.lprov_sum AS prov_sum',
-        'week_va.totalvalue AS weekstarttotalvalue',
-        'day_va.totalvalue  AS daystarttotalvalue'
-      ]).join(', ');
-      
-      let lookfor = parseInt(query.lookfor), lookforColumn;
-      if (String(lookfor) === String(query.lookfor)) {
-        lookforColumn = 'uid';
-      } else {
-        lookfor = String(query.lookfor);
-        lookforColumn = 'name';
-      }
-      
+    const columns = (ctx.access.has('userdb') || query.lookfor === ctx.user.uid ? [
+      'u.*', 'ud.*', 'uf.*',
+    ] : [
+      'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',
+      'IF(realnamepublish != 0,fam_name,NULL) AS fam_name'
+    ]).concat([
+      'u.uid AS uid', 'u.name AS name', 'birthday',
+      'sm.pending AS schoolpending', 'sm.schoolid AS dschoolid', 'sm.jointime AS schooljointime',
+      '`desc`', 'wprovision', 'lprovision', 'uf.totalvalue', 'delayorderhist',
+      'lastvalue', 'daystartvalue', 'weekstartvalue', 'stocks.stockid AS lstockid',
+      'url AS profilepic', 'eventid AS registerevent', 'events.time AS registertime',
+      '((uf.fperf_cur + uf.fperf_sold -  day_va.fperf_sold) / (uf.fperf_bought -  day_va.fperf_bought +  day_va.fperf_cur)) AS  dayfperf',
+      '((uf.operf_cur + uf.operf_sold -  day_va.operf_sold) / (uf.operf_bought -  day_va.operf_bought +  day_va.operf_cur)) AS  dayoperf',
+      '((uf.fperf_cur + uf.fperf_sold - week_va.fperf_sold) / (uf.fperf_bought - week_va.fperf_bought + week_va.fperf_cur)) AS weekfperf',
+      '((uf.operf_cur + uf.operf_sold - week_va.operf_sold) / (uf.operf_bought - week_va.operf_bought + week_va.operf_cur)) AS weekoperf',
+      '(uf.fperf_cur + uf.fperf_sold) / uf.fperf_bought AS totalfperf',
+      '(uf.operf_cur + uf.operf_sold) / uf.operf_bought AS totaloperf',
+      'freemoney', 'uf.wprov_sum + uf.lprov_sum AS prov_sum',
+      'week_va.totalvalue AS weekstarttotalvalue',
+      'day_va.totalvalue  AS daystarttotalvalue'
+    ]).join(', ');
+    
+    let lookfor = parseInt(query.lookfor), lookforColumn;
+    if (String(lookfor) === String(query.lookfor)) {
+      lookforColumn = 'uid';
+    } else {
+      lookfor = String(query.lookfor);
+      lookforColumn = 'name';
+    }
+    
+    return Promise.resolve().then(() => {
       resultCacheKey += 'get-user-info-result:' + columns.length;
       const cacheKey = 'get-user-info1:' + columns.length + ':' + lookforColumn + '=' + lookfor;
       if (this.cache.has(cacheKey) && cacheable) {

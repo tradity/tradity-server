@@ -36,9 +36,7 @@ class SignedMessaging extends api.Component {
   }
   
   init() {
-    return this.getServerConfig().then(cfg => {
-      return this.useConfig(cfg);
-    });
+    this.useConfig(this.load('Config').config());
   }
   
   /**

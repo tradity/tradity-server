@@ -32,31 +32,31 @@ class TemplateReader extends api.Component {
   readTemplate(template, lang, variables) { 
     debug('Read template', template, lang, variables);
     
-    return this.getServerConfig().then(cfg => {
-      variables = variables || {};
-      
-      let t = templates[lang] && templates[lang][template];
-      
-      for (let i = 0; !t && i < cfg.languages.length; ++i) {
-        t = templates[cfg.languages[i].id][template];
-      }
-      
-      if (!t) {
-        throw new Error('Template not found: ' + template);
-      }
-      
-      Object.keys(variables).forEach(e => {
-        const r = new RegExp('\\$\\{' + e + '\\}', 'g');
-        t = t.replace(r, variables[e]);
-      });
-      
-      const unresolved = t.match(/\$\{([^\}]*)\}/);
-      if (unresolved) {
-        throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
-      }
-      
-      return t;
+    const cfg = this.load('Config').config();
+    
+    variables = variables || {};
+    
+    let t = templates[lang] && templates[lang][template];
+    
+    for (let i = 0; !t && i < cfg.languages.length; ++i) {
+      t = templates[cfg.languages[i].id][template];
+    }
+    
+    if (!t) {
+      throw new Error('Template not found: ' + template);
+    }
+    
+    Object.keys(variables).forEach(e => {
+      const r = new RegExp('\\$\\{' + e + '\\}', 'g');
+      t = t.replace(r, variables[e]);
     });
+    
+    const unresolved = t.match(/\$\{([^\}]*)\}/);
+    if (unresolved) {
+      throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
+    }
+    
+    return t;
   }
 
   readEMailTemplate(template, lang, variables) {

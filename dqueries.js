@@ -216,13 +216,11 @@ class DelayedQueries extends api.Component {
                     return false;
                   }
                   
-                  return this.getServerConfig().then(cfg => {
-                    assert.ok(cfg);
-                    
-                    return this.load('StockExchangeIsOpen').test(r[0].exchange, cfg);
-                  }).then(isOpen => {
+                  const cfg = this.load('Config');
+                  
+                  if (this.load('StockExchangeIsOpen').test(r[0].exchange, cfg)) {
                     return lt ? isOpen < value : isOpen > value;
-                  });
+                  }
                 });
               });
               break;

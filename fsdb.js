@@ -169,10 +169,9 @@ FileStorage.prototype.publish = buscomponent.provideW('client-publish',
   
   debug('Upload file', query.mime, query.role);
   
-  return Promise.all([
-    this.getServerConfig(),
-    ctx.startTransaction()
-  ]).then(spread((cfg, conn) => {
+  const cfg = this.load('Config').config();
+  
+  return ctx.startTransaction().then(conn => {
   uniqrole = cfg.fsdb.uniqroles[query.role];
   
   query.proxy = query.proxy ? true : false;

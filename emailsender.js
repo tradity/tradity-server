@@ -37,11 +37,11 @@ class Mailer extends api.Component {
   }
   
   init() {
-    return this.getServerConfig().then(cfg => {
-      const transportModule = require(cfg.mail.transport);
-      this.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
-      this.inited = true;
-    });
+    const cfg = this.load('Config').config();
+    
+    const transportModule = require(cfg.mail.transport);
+    this.mailer = nodemailer.createTransport(transportModule(cfg.mail.transportData));
+    this.inited = true;
   }
 
   /**
@@ -84,20 +84,21 @@ class Mailer extends api.Component {
     
     assert.ok(this.mailer);
     
-    return this.getServerConfig().then(cfg => {
-      const origTo = opt.to;
-      
-      if (cfg.mail.forceTo) {
-        opt.to = cfg.mail.forceTo;
-      }
-      
-      if (cfg.mail.forceFrom) {
-        opt.from = cfg.mail.forceFrom;
-      }
-      
-      shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
-      opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
-      
+    const cfg = this.load('Config').config();
+    const origTo = opt.to;
+    
+    if (cfg.mail.forceTo) {
+      opt.to = cfg.mail.forceTo;
+    }
+    
+    if (cfg.mail.forceFrom) {
+      opt.from = cfg.mail.forceFrom;
+    }
+    
+    shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
+    opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
+    
+    return Promise.resolve().then(() => {
       if (ctx && !ctx.getProperty('readonly')) {
         return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
           'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',

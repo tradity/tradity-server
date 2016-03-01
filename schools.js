@@ -270,10 +270,8 @@ class GetSchoolInfo extends SchoolUtilRequestable {
     });
   }
   
-  handle(query, ctx) {
-    return this.getServerConfig().then(cfg => {
-      return this.loadSchoolInfo(query.lookfor, ctx, cfg);
-    }).then(result => {
+  handle(query, ctx, cfg) {
+    return this.loadSchoolInfo(query.lookfor, ctx, cfg).then(result => {
       return { code: 200, data: result.schoolinfo };
     });
   }

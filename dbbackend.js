@@ -39,7 +39,8 @@ class Database extends api.Component {
   constructor() {
     super({
       identifier: 'Database',
-      description: 'Provides database access to other components.'
+      description: 'Provides database access to other components.',
+      depends: ['Config']
     });
     
     this.dbmod = null;
@@ -56,56 +57,56 @@ class Database extends api.Component {
   init() {
     debug('Initializing database');
     
-    return this.getServerConfig().then(cfg => {
-      this.dbmod = cfg.dbmod || require('mysql');
+    const cfg = this.load('Config').config();
+    
+    this.dbmod = cfg.dbmod || require('mysql');
+    
+    this.wConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
+    this.rConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
+    this.writableNodes = [];
+    
+    for (let i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
+      const id = cfg.db.clusterOptions.order[i];
+      assert.ok(cfg.db.cluster[id]);
+      const opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
       
-      this.wConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
-      this.rConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
-      this.writableNodes = [];
-      
-      for (let i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
-        const id = cfg.db.clusterOptions.order[i];
-        assert.ok(cfg.db.cluster[id]);
-        const opt = deepupdate({}, cfg.db.cluster[id], cfg.db);
-        
-        if (opt.ssl === 'default') {
-          opt.ssl = cfg.ssl || {};
-        }
-        
-        debug('Create pool node', opt.writable, opt.readable, id);
-        
-        if (opt.writable) {
-          this.writableNodes.push(id);
-          this.wConnectionPool.add(id, opt);
-        }
-        
-        if (opt.readable) {
-          this.rConnectionPool.add(id, opt);
-        }
+      if (opt.ssl === 'default') {
+        opt.ssl = cfg.ssl || {};
       }
       
-      this.wConnectionPool.on('remove', nodeId => {
-        debug('Connection removed from writing pool!');
-        
-        this.writableNodes = _.without(this.writableNodes, nodeId);
-        if (this.writableNodes.length === 0) {
-          return this.emitImmediate('change-readability-mode', { readonly: true });
-        }
-      });
+      debug('Create pool node', opt.writable, opt.readable, id);
       
-      this.wConnectionPool.on('remove', () => this.emitError(new Error('DB lost write connection')));
-      this.rConnectionPool.on('remove', () => this.emitError(new Error('DB lost read connection')));
+      if (opt.writable) {
+        this.writableNodes.push(id);
+        this.wConnectionPool.add(id, opt);
+      }
       
-      this.inited = true;
-      this.openConnections = 0;
+      if (opt.readable) {
+        this.rConnectionPool.add(id, opt);
+      }
+    }
+    
+    this.wConnectionPool.on('remove', nodeId => {
+      debug('Connection removed from writing pool!');
       
-      /*
-       * Note: We don't set isShuttingDown = true here.
-       * This happens so we can actually resurrect the database connection
-       * during the shutdown process temporarily, so other components can complete
-       * any remaining work in progress.
-       */
+      this.writableNodes = _.without(this.writableNodes, nodeId);
+      if (this.writableNodes.length === 0) {
+        return this.emitImmediate('change-readability-mode', { readonly: true });
+      }
     });
+    
+    this.wConnectionPool.on('remove', () => this.emitError(new Error('DB lost write connection')));
+    this.rConnectionPool.on('remove', () => this.emitError(new Error('DB lost read connection')));
+    
+    this.inited = true;
+    this.openConnections = 0;
+    
+    /*
+     * Note: We don't set isShuttingDown = true here.
+     * This happens so we can actually resurrect the database connection
+     * during the shutdown process temporarily, so other components can complete
+     * any remaining work in progress.
+     */
   }
 
   // XXX was event handler for localMasterShutdown

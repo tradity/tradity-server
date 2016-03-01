@@ -45,14 +45,12 @@ class UserManagementRequestable extends api.Requestable {
    * 
    * @return {object}  A Promise for an object of the form { salt: …, hash: …, algorithm: … }
    */
-  generatePWKey(pw) {
+  generatePWKey(pw, cfg) {
     let pwsalt, iterations;
     
     return randomBytes(32).then(pwsalt_ => {
       pwsalt = pwsalt_;
       
-      return this.getServerConfig();
-    }).then(cfg => {
       iterations = cfg.passwords.pbkdf2Iterations;
       assert.strictEqual(iterations, parseInt(iterations));
       assert.ok(iterations >= cfg.passwords.pbkdf2MinIterations);
@@ -79,7 +77,7 @@ class UserManagementRequestable extends api.Requestable {
     
     debug('Generate password', timeName, uid);
     
-    return this.generatePWKey(pw).then(pwdata => {
+    return this.generatePWKey(pw, this.load('Config').config()).then(pwdata => {
       return conn.query('INSERT INTO passwords (pwsalt, pwhash, algorithm, uid, ' + timeName + ') ' +
         'VALUES(?, ?, ?, ?, UNIX_TIMESTAMP())',
         [pwdata.salt, pwdata.hash, pwdata.algorithm, uid]);
@@ -105,14 +103,14 @@ class UserManagementRequestable extends api.Requestable {
     if (pbkdf2Match) {
       const iterations = parseInt(pbkdf2Match[1]);
       
-      return this.getServerConfig().then(cfg => {
-        if (iterations < cfg.passwords.pbkdf2MinIterations) {
-          return false;
-        }
-        
-        return pbkdf2(String(pw), pwdata.pwsalt, 1 << iterations, 64).then(pwhash => {
-          return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
-        });
+      const cfg 0 this.load('Config').config();
+      
+      if (iterations < cfg.passwords.pbkdf2MinIterations) {
+        return false;
+      }
+      
+      return pbkdf2(String(pw), pwdata.pwsalt, 1 << iterations, 64).then(pwhash => {
+        return pwhash.toString('hex') === pwdata.pwhash.toString('hex');
       });
     }
     
@@ -154,8 +152,8 @@ class UserManagementRequestable extends api.Requestable {
       return ctx.query('INSERT INTO email_verifcodes (`uid`, `time`, `key`) VALUES(?, UNIX_TIMESTAMP(), ?)', 
         [ctx.user.uid, key]);
     }).then(() => {
-      return this.getServerConfig();
-    }).then(cfg => {
+      const cfg = this.load('Config').config();
+      
       const url = cfg.varReplace(cfg.regurl
         .replace(/\{\$key\}/g, key)
         .replace(/\{\$uid\}/g, ctx.user.uid));
@@ -286,8 +284,7 @@ class Login extends UserManagementRequestable {
       return randomBytes(16);
     }).then(buf => {
       key = buf.toString('hex');
-      return this.getServerConfig();
-    }).then(cfg => {
+      
       const today = parseInt(Date.now() / 86400);
       if (ctx.getProperty('readonly')) {
         key = key.substr(0, 6);
@@ -594,8 +591,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     let uid, cfg;
     let gainUIDCBs = [];
     
-    return this.getServerConfig().then(cfg_ => {
-      cfg = cfg_;
+    return Promise.resolve().then(() => {
       uid = ctx.user !== null ? ctx.user.uid : null;
       
       if ((query.password || type !== 'change') && (!query.password || query.password.length < 5)) {
@@ -1025,7 +1021,7 @@ class ResetUser extends api.Requestable {
       url: '/reset-user',
       methods: ['POST'],
       returns: [
-        { code: 200 }
+        { code: 204 }
       ],
       writing: true,
       requiredAccess: 'userdb',
@@ -1033,38 +1029,36 @@ class ResetUser extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     debug('Reset user', ctx.user.uid);
     
-    return this.getServerConfig().then(cfg => {
-      if (!cfg.resetAllowed && !ctx.access.has('userdb')) {
-        throw new this.PermissionDenied();
-      }
+    if (!cfg.resetAllowed && !ctx.access.has('userdb')) {
+      throw new this.PermissionDenied();
+    }
+    
+    assert.ok(ctx.user);
+    assert.ok(ctx.access);
+    
+    return ctx.query('DELETE FROM depot_stocks WHERE uid = ?', [ctx.user.uid]).then(() => {
+      return ctx.query('UPDATE users_finance SET freemoney = ?, totalvalue = ?, ' +
+        'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
+        'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
+        'wprov_sum = 0, lprov_sum = 0 ' + 
+        'WHERE uid = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid]);
+    }).then(() => {
+      return this.request({name: 'sellAll', query: query, ctx: ctx});
+    }).then(() => {
+      const val = cfg.defaultStartingMoney / 1000;
       
-      assert.ok(ctx.user);
-      assert.ok(ctx.access);
-      
-      return ctx.query('DELETE FROM depot_stocks WHERE uid = ?', [ctx.user.uid]).then(() => {
-        return ctx.query('UPDATE users_finance SET freemoney = ?, totalvalue = ?, ' +
-          'fperf_bought = 0, fperf_cur = 0, fperf_sold = 0, ' + 
-          'operf_bought = 0, operf_cur = 0, operf_sold = 0, ' + 
-          'wprov_sum = 0, lprov_sum = 0 ' + 
-          'WHERE uid = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid]);
-      }).then(() => {
-        return this.request({name: 'sellAll', query: query, ctx: ctx});
-      }).then(() => {
-        const val = cfg.defaultStartingMoney / 1000;
-        
-        return Promise.all([
-          ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
-            'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
-            [val, val, val, val, val, ctx.user.uid]),
-          ctx.query('DELETE FROM valuehistory WHERE uid = ?', [ctx.user.uid]),
-          ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid}),
-          this.request({name: 'dqueriesResetUser', ctx: ctx})
-        ]);
-      }).then(() => ({ code: 'reset-user-success' }));
-    });
+      return Promise.all([
+        ctx.query('UPDATE stocks SET lastvalue = ?, ask = ?, bid = ?, ' +
+          'daystartvalue = ?, weekstartvalue = ?, lastchecktime = UNIX_TIMESTAMP() WHERE leader = ?',
+          [val, val, val, val, val, ctx.user.uid]),
+        ctx.query('DELETE FROM valuehistory WHERE uid = ?', [ctx.user.uid]),
+        ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid}),
+        this.request({name: 'dqueriesResetUser', ctx: ctx})
+      ]);
+    }).then(() => ({ code: 204 }));
   }
 }
 
@@ -1194,10 +1188,8 @@ class InviteKeyInfo extends api.Requestable {
   }
   
   handle(query, ctx) {
-    return Promise.all([
-      ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?', [String(query.invitekey)]),
-      this.getServerConfig()
-    ]).then(spread((res, cfg) => {
+    return ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?',
+      [String(query.invitekey)]).then(res) => {
       if (res.length === 0) {
         throw new this.SoTradeClientError('get-invitekey-info-notfound');
       }
@@ -1207,7 +1199,7 @@ class InviteKeyInfo extends api.Requestable {
       res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, String(query.invitekey)));
       
       return { code: 200, result: res[0] };
-    }));
+    });
   }
 }
 
@@ -1249,8 +1241,7 @@ class CreateInviteLink extends api.Component {
       throw new ErrorProvider.FormatError();
     }
     
-    return this.getServerConfig().then(cfg_ => {
-      cfg = cfg_;
+    return Promise.resolve().then(() => {
       query.email = query.email ? String(query.email) : null;
       
       if (!ctx.access.has('userdb')) {

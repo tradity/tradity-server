@@ -92,71 +92,70 @@ class StockQuoteLoaderInterface extends api.Component {
       return;
     }
     
-    return this.getServerConfig().then(cfg => {
-      assert.notEqual(rec.lastTradePrice, null);
-      if (rec.lastTradePrice === 0 || rec.ask < cfg.minAskPrice) { // happens with API sometimes.
-        return;
-      }
+    const cfg = this.load('Config').config();
+    assert.notEqual(rec.lastTradePrice, null);
+    if (rec.lastTradePrice === 0 || rec.ask < cfg.minAskPrice) { // happens with API sometimes.
+      return;
+    }
+    
+    assert.notStrictEqual(rec.pieces, null);
+    
+    if (ctx.getProperty('readonly')) {
+      return;
+    }
+    
+    let knownStockIDs;
+    
+    // on duplicate key is likely to be somewhat slower than other options
+    // -> check whether we already know the primary key
+    return Promise.resolve(this.knownStockIDs).then(knownStockIDs_ => {
+      knownStockIDs = knownStockIDs_;
+      return knownStockIDs[rec.symbol]; // might be a promise from INSERT INTO
+    }).then(ksid => {
+      const updateQueryString = 'lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), ' +
+        'name = IF(LENGTH(name) >= ?, name, ?), exchange = ?, pieces = ? ';
+      const updateParams = [rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
+        rec.name.length, rec.name, rec.exchange, rec.pieces];
       
-      assert.notStrictEqual(rec.pieces, null);
-    }).then(() => {
-      if (ctx.getProperty('readonly')) {
-        return;
-      }
-      
-      let knownStockIDs;
-      
-      // on duplicate key is likely to be somewhat slower than other options
-      // -> check whether we already know the primary key
-      return Promise.resolve(this.knownStockIDs).then(knownStockIDs_ => {
-        knownStockIDs = knownStockIDs_;
-        return knownStockIDs[rec.symbol]; // might be a promise from INSERT INTO
-      }).then(ksid => {
-        const updateQueryString = 'lastvalue = ?, ask = ?, bid = ?, lastchecktime = UNIX_TIMESTAMP(), ' +
-          'name = IF(LENGTH(name) >= ?, name, ?), exchange = ?, pieces = ? ';
-        const updateParams = [rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
-          rec.name.length, rec.name, rec.exchange, rec.pieces];
+      if (typeof ksid === 'number') {
+        return ctx.query('UPDATE stocks SET ' + updateQueryString +
+          'WHERE stockid = ?', updateParams.concat([ksid]));
+      } else {
+        assert.equal(typeof ksid, 'undefined');
         
-        if (typeof ksid === 'number') {
-          return ctx.query('UPDATE stocks SET ' + updateQueryString +
-            'WHERE stockid = ?', updateParams.concat([ksid]));
-        } else {
-          assert.equal(typeof ksid, 'undefined');
-          
-          return knownStockIDs[rec.symbol] = ctx.query('INSERT INTO stocks (stocktextid, lastvalue, ask, bid, lastchecktime, ' +
-            'lrutime, leader, name, exchange, pieces) '+
-            'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
-            'UPDATE ' + updateQueryString,
-            [rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
-            rec.name, rec.exchange, rec.pieces].concat(updateParams)).then(function(res) {
-              if (res.affectedRows === 1) { // insert took place
-                return knownStockIDs[rec.symbol] = res.insertId;
-              }
+        return knownStockIDs[rec.symbol] = ctx.query('INSERT INTO stocks (stocktextid, lastvalue, ask, bid, lastchecktime, ' +
+          'lrutime, leader, name, exchange, pieces) '+
+          'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
+          'UPDATE ' + updateQueryString,
+          [rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
+          rec.name, rec.exchange, rec.pieces].concat(updateParams)).then(function(res) {
+            if (res.affectedRows === 1) { // insert took place
+              return knownStockIDs[rec.symbol] = res.insertId;
+            }
+            
+            // no insert -> look the id up
+            return ctx.query('SELECT stockid FROM stocks WHERE stocktextid = ?', [rec.symbol], res => {
+              assert.ok(res[0]);
+              assert.ok(res[0].stockid);
               
-              // no insert -> look the id up
-              return ctx.query('SELECT stockid FROM stocks WHERE stocktextid = ?', [rec.symbol], res => {
-                assert.ok(res[0]);
-                assert.ok(res[0].stockid);
-                
-                return knownStockIDs[rec.symbol] = res[0].stockid;
-              });
+              return knownStockIDs[rec.symbol] = res[0].stockid;
             });
-        }
-      });
-    }).then(() => {
-      debug('Updated record', rec.symbol);
-      
-      return this.emitGlobal('stock-update', {
-        'stockid': rec.symbol,
-        'lastvalue': rec.lastTradePrice * 10000,
-        'ask': rec.ask * 10000,
-        'bid': rec.bid * 10000,
-        'name': rec.name,
-        'leader': null,
-        'leadername': null,
-        'exchange': rec.exchange,
-        'pieces': rec.pieces
-      });
+          });
+      }
+    });
+  }).then(() => {
+    debug('Updated record', rec.symbol);
+    
+    return this.emitGlobal('stock-update', {
+      'stockid': rec.symbol,
+      'lastvalue': rec.lastTradePrice * 10000,
+      'ask': rec.ask * 10000,
+      'bid': rec.bid * 10000,
+      'name': rec.name,
+      'leader': null,
+      'leadername': null,
+      'exchange': rec.exchange,
+      'pieces': rec.pieces
     });
   }
   
@@ -207,7 +206,7 @@ class StocksRegularTasks extends api.Component {
     });
   }
   
-   handle(query, ctx) {
+   handle(query, ctx, cfg) {
     if (ctx.getProperty('readonly')) {
       return;
     }
@@ -220,15 +219,15 @@ class StocksRegularTasks extends api.Component {
       return this.cleanUpUnusedStocks(ctx);
     }).then(() => {
       cuusET = Date.now();
-      return this.updateStockValues(ctx);
+      return this.updateStockValues(ctx, cfg);
     }).then(() => {
       usvET = Date.now();
-      return this.load('UpdateLeaderMatrix').handle(ctx);
+      return this.load('UpdateLeaderMatrix').handle(ctx, cfg);
     }).then(() => {
       ulmET = Date.now();
       
       if (query.provisions) {
-        return this.load('UpdateProvisions').handle(ctx);
+        return this.load('UpdateProvisions').handle(ctx, cfg);
       }
     }).then(() => {
       upET = Date.now();
@@ -413,17 +412,14 @@ class StockValueUpdater extends api.Component {
     });
   }
   
-  updateStockValues(ctx) {
+  updateStockValues(ctx, cfg) {
     debug('Update stock values');
     
     let stocklist = [];
-    let cfg;
-    return this.getServerConfig().then(cfg_ => {
-      cfg = cfg_;
-      return ctx.query('SELECT * FROM stocks ' +
-        'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
-      [cfg.lrutimeLimit, cfg.refetchLimit]);
-    }).then(res => {
+    
+    return ctx.query('SELECT * FROM stocks ' +
+      'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
+    [cfg.lrutimeLimit, cfg.refetchLimit]).then(res => {
       stocklist = _.map(res, 'stocktextid');
       return this.request({name: 'neededStocksDQ'}); // XXX
     }).then(dqNeededStocks => {
@@ -479,7 +475,7 @@ class StockSearch extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     let str = String(query.name);
     if (!str || str.length < 3) {
       throw new this.ClientError('name-too-short');
@@ -497,7 +493,6 @@ class StockSearch extends api.Requestable {
     
     let localResults;
     return Promise.all([
-      this.getServerConfig(),
       ctx.query('SELECT stocks.stockid, stocks.stocktextid, stocks.lastvalue, stocks.ask, stocks.bid, ' +
         'stocks.leader, users.name AS leadername, wprovision, lprovision '+
         'FROM users ' +
@@ -508,7 +503,7 @@ class StockSearch extends api.Requestable {
         'FROM stocks ' +
         'WHERE (name LIKE ? OR stocktextid LIKE ?) AND leader IS NULL',
         [xstr, xstr])
-    ]).then(spread((cfg, localResults_, externalStocks) => {
+    ]).then(spread((localResults_, externalStocks) => {
       localResults = cfg.forbidLeaderTrades ? [] : localResults_;
       const externalStocksIDs = _.map(externalStocks, 'stocktextid');
 
@@ -734,9 +729,7 @@ class StockTrade extends api.Requestable {
     
     debug('Buy stock', query.leader, query.stocktextid, opt);
     
-    return this.getServerConfig().then(cfg_ => {
-      cfg = cfg_;
-      
+    return Promise.resolve().then(() => {
       if (opt.skipTest || opt.testOnly) {
         return { code: 200, skippedTest: true }; // [sic]
       }
@@ -1081,18 +1074,16 @@ class TradeInfo extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     const tradeid = query.tradeid;
     
     let r;
-    return Promise.all([
-      this.getServerConfig(),
-      ctx.query('SELECT oh.* ,s.*, u.name, events.eventid AS eventid, trader.delayorderhist FROM orderhistory AS oh ' +
+    return ctx.query('SELECT oh.* ,s.*, u.name, events.eventid AS eventid, trader.delayorderhist FROM orderhistory AS oh ' +
         'LEFT JOIN stocks AS s ON s.leader = oh.leader ' +
         'LEFT JOIN events ON events.type = "trade" AND events.targetid = oh.orderid ' +
         'LEFT JOIN users AS u ON u.uid = oh.leader ' +
         'LEFT JOIN users AS trader ON trader.uid = oh.uid WHERE oh.orderid = ?', [tradeid])
-    ]).then(spread((cfg, oh_res) => {
+        .then(oh_res => {
       if (oh_res.length === 0) {
         throw new this.ClientError('info-notfound');
       }
@@ -1147,21 +1138,20 @@ class PopularStocks extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     let days = parseInt(query.days);
     
-    return this.getServerConfig().then(cfg => {
-      if (days !== days || (days > cfg.popularStocksDays && !ctx.access.has('stocks'))) {
-        days = cfg.popularStocksDays;
-      }
-      
-      return ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
-        'SUM(ABS(money)) AS moneysum, ' +
-        'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
-        'FROM orderhistory AS oh ' +
-        'WHERE buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
-        'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days]);
-    }).then(popular => {
+    if (days !== days || (days > cfg.popularStocksDays && !ctx.access.has('stocks'))) {
+      days = cfg.popularStocksDays;
+    }
+    
+    return ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
+      'SUM(ABS(money)) AS moneysum, ' +
+      'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
+      'FROM orderhistory AS oh ' +
+      'WHERE buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
+      'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days])
+    .then(popular => {
       return { code: 200, data: popular };
     });
   }

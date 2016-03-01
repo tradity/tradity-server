@@ -54,7 +54,9 @@ class ErrorHandler extends api.Component {
     let cfg, longErrorText;
     const catchstack = new Error().stack; // current stack
     
-    this.getServerConfig().catch(e2 => {
+    Promise.resolve().then(() => {
+      return this.load('Config').config();
+    }).catch(e2 => {
       console.error('Could not get server config due to', e2);
       return null;
     }).then(cfg_ => {

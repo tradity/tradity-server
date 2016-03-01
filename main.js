@@ -49,7 +49,7 @@ class Main extends bus.BusComponent {
     this.mainBus = new bus.Bus();
     this.defaultStockLoaderDeferred = Promise.defer();
     this.defaultStockLoader = this.defaultStockLoaderDeferred.promise;
-    this.readonly = this.getServerConfig().readonly;
+    this.readonly = this.getServerConfig().readonly; // XXX
     this.managerCTX = null;
     this.useCluster = opt.useCluster == null ? !process.env.SOTRADE_NO_CLUSTER : opt.useCluster;
     this.isWorker = opt.isWorker == null ? cluster.isWorker : opt.isWorker;

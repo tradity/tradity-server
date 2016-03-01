@@ -142,21 +142,17 @@ class UpdateLeaderMatrix extends api.Component {
     });
   }
   
-  handle(ctx) {
+  handle(ctx, cfg) {
     const lmuStart = Date.now();
     let conn, cfg;
     
     debug('Update leader matrix');
     
-    return Promise.all([
-      this.getServerConfig(),
-      ctx.startTransaction({
-        depot_stocks: { alias: 'ds', mode: 'r' },
-        users_finance: { mode: 'w' },
-        stocks: { alias: 's', mode: 'w' }
-      })
-    ]).then(spread((cfg_, conn_) => {
-      cfg = cfg_;
+    return ctx.startTransaction({
+      depot_stocks: { alias: 'ds', mode: 'r' },
+      users_finance: { mode: 'w' },
+      stocks: { alias: 's', mode: 'w' }
+    }).then(conn_ => {
       conn = conn_;
       
       return Promise.all([

@@ -18,6 +18,7 @@
 
 const Cache = require('./lib/minicache.js').Cache;
 const promiseEvents = require('promise-events');
+const deepFreeze = require('deep-freeze');
 
 const registryInit = Symbol('registryInit');
 const _registry = Symbol('_registry');
@@ -267,6 +268,11 @@ class Requestable extends Component {
   // XXX: readonly? can we handle that one better?
   // XXX: regexp check for code:\s*['"]
   // XXX: default identifier to class name
+  // XXX: server debug handlers
+  // XXX: replace server config push
+  // XXX: requiredLogin
+  // XXX: requiredAccess
+  // XXX: checkAchievements on /config and /login
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg, xdata) {
@@ -277,16 +283,40 @@ class Requestable extends Component {
     throw new this.MissingHandler();
   }
   
+  getQContext(req) {
+    // XXX okay this should definitely be in server.js
+    if (req.socket._qcontext) {
+      return req.socket._qcontext;
+    }
+    
+    const ctx = new qctx.QContext({parentComponent: this});
+    req.socket._qcontext = ctx;
+    
+    ctx.addProperty({name: 'lastSessionUpdate', value: null});
+    ctx.addProperty({name: 'pendingTicks', value: 0});
+    
+    req.socket.on('disconnect', () => {
+      return this.load('UpdateUserStatistics').handle(ctx.user, ctx, true).then(() => {
+        ctx.user = null;
+        ctx.access = new Access();
+        ctx.setProperty('lastSessionUpdate', null);
+        ctx.setProperty('pendingTicks', 0);
+      });
+    });
+  }
+  
   _handleRequest(req, res, uriMatch) {
     // get the remote address asap since it is lost with early disconnects
     const remoteAddress = req.socket.remoteAddress;
     
     return Promise.resolve().then(() => {
-      if (req.method === 'GET')
+      if (req.method === 'GET') {
         return {};
+      }
       
-      if (!req.headers['content-type'].match(/^application\/(x-)?json/i))
+      if (!(req.headers['content-type'] || '').match(/^application\/(x-)?json/i)) {
         return {};
+      }
       
       return new Promise((resolve, reject) => {
         const jsonStream = req.pipe(JSONStream.parse());
@@ -299,7 +329,32 @@ class Requestable extends Component {
       }
     }).then(postData => {
       const query = Object.assign({}, uriMatch, postData);
-      const ctx = new qctx.QContext({parentComponent: this});
+      const ctx = this.getQContext(req);
+      
+      const headerKey = req.headers['authorization'] || req.headers['x-authorization'];
+      if (headerKey) {
+        query.key = headerKey;
+      }
+      
+      // XXX this would better be handled using https client certs
+      if (!query.signedContent) {
+        return { query: query, masterAuthorization: false };
+      }
+      
+      this.load('SignedMessaging').verifySignedMessage(query.signedContent, 900).then(verified => {
+        if (verified) {
+          return { query: verified, masterAuthorization: true };
+        } else {
+          return { query: null, masterAuthorization: false };
+        }
+      });
+    }).then(queryInfo => {
+      const query = queryInfo.query;
+      deepFreeze(query);
+      
+      if (queryInfo.masterAuthorization) {
+        ctx.
+      }
       
       return this.handleWithRequestInfo(query, ctx, this.load('Config').config(), {
         remoteip: remoteAddress

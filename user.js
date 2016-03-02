@@ -427,6 +427,7 @@ class EmailVerify extends api.Requestable {
 class UpdateUserStatistics extends api.Component {
   constructor() {
     super({
+      identifier: 'UpdateUserStatistics',
       description: 'Write session and statistics information to the database.',
       notes: 'Sets the session’s last use date to make sure it does not expire.\n' +
         'This function usually writes data at most once per minute to reduce database writes.'

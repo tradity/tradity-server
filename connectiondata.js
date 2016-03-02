@@ -89,18 +89,13 @@ class ConnectionData extends buscomponent.BusComponent {
     this.ctx.addProperty({name: 'remoteClientSoftware', value: null});
     this.ctx.addProperty({name: 'compressionSupport', value: {}});
     this.ctx.addProperty({name: 'isBusTransport', value: false});
-    this.ctx.debugHandlers.push(args => this.dbgHandler(args));
+    this.ctx.debugHandlers.push(args => this.dbgHandler(args)); // XXX
     this.ctx.errorHandlers.push(err => this.ISEHandler(err));
     
     this.queryCount = 0;
     this.queryCompressionInfo = {
       supported: {lzma: 0, s:0},
       used: {lzma: 0, s:0, si:0}
-    };
-    
-    this.versionInfo = {
-      minimum: 1,
-      current: 1
     };
     
     this.query_ = query => this.queryHandler(query);
@@ -377,7 +372,7 @@ ConnectionData.prototype.response = function(data) {
  * Callback which will be invoked when a user just logged in or connected.
  * 
  * @function module:connectiondata~ConnectionData#onUserConnected
- */
+ */ // XXX
 ConnectionData.prototype.onUserConnected = function() {
   assert.ok(this.ctx.user);
   assert.ok(this.ctx.user.uid);
@@ -391,6 +386,7 @@ ConnectionData.prototype.onUserConnected = function() {
  * @function module:connectiondata~ConnectionData#onLogout
  */
 ConnectionData.prototype.onLogout = function() {
+  // XXX
   debug('Logout handler invoked', this.cdid, this.ctx.user && this.ctx.user.uid);
   
   return this.request({name: 'updateUserStatistics', ctx: this.ctx.clone(), user: this.ctx.user, force: true}).then(() => {

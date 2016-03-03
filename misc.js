@@ -72,10 +72,10 @@ class SetClientstorage extends api.Requestable {
     try {
       storage = new Buffer(query.storage);
     } catch (e) {
-      throw new this.FormatError(e);
+      throw new this.BadRequest(e);
     }
     
-    return ctx.query('UPDATE users_data SET clientstorage = ? WHERE uid = ?', [storage, ctx.user.uid]).then(function() {
+    return ctx.query('UPDATE users_data SET clientstorage = ? WHERE uid = ?', [storage, ctx.user.uid]).then(() => {
       return { code: 204 };
     });
   }
@@ -138,19 +138,19 @@ class ArtificialDeadlock extends api.Requestable {
     let conn1, conn2, id;
     const deferred = Promise.defer();
     
-    return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))').then(function() {
+    return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))').then(() => {
       return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)');
-    }).then(function(r) {
+    }).then(r => {
       id = r.insertId;
-      return ctx.startTransaction({}, {restart: function() {
-        return ctx.query('DROP TABLE deadlocktest').then(function() {
+      return ctx.startTransaction({}, {restart: () => {
+        return ctx.query('DROP TABLE deadlocktest').then(() => {
           return deferred.resolve({ code: 204 });
         });
       }});
-    }).then(function(conn1_) {
+    }).then(conn1_ => {
       conn1 = conn1_;
       return ctx.startTransaction();
-    }).then(function(conn2_) {
+    }).then(conn2_ => {
       conn2 = conn2_;
       return conn1.query('UPDATE deadlocktest SET value = 1 WHERE id = ?', [id]);
     }).then(() => {
@@ -236,8 +236,8 @@ class ArtificialDBError {
   handle(query, ctx) {
     debug('Query with invalid SQL');
     
-    return ctx.query('INVALID SQL').catch(function(err) {
-      return { code: 200, err: err };
+    return ctx.query('INVALID SQL').catch(err => {
+      return { code: 200, data: { err: err } };
     });
   }
 }
@@ -260,7 +260,7 @@ class GatherPublicStatistics extends api.Requestable {
       ctx.query('SELECT COUNT(*) AS c FROM users WHERE deletiontime IS NULL'),
       ctx.query('SELECT COUNT(*) AS c FROM orderhistory'),
       ctx.query('SELECT COUNT(*) AS c FROM schools')
-    ]).then(spread(function(ures, ores, sres) {
+    ]).then(spread((ures, ores, sres) => {
       return {
         code: 200,
         userCount: ures[0].c,

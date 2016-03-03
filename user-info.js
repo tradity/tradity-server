@@ -69,7 +69,7 @@ class UserInfo extends api.Requestable {
       methods: ['GET'],
       returns: [
         { code: 200 },
-        { code: 404, 'user-notfound' }
+        { code: 404, 'user-not-found' }
       ],
       schema: {
         type: 'object',
@@ -153,7 +153,7 @@ class UserInfo extends api.Requestable {
         [Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
     }).then(users => {
       if (users.length === 0) {
-        throw new this.SoTradeClientError('get-user-info-notfound');
+        throw new this.ClientError('user-not-found');
       }
       
       xuser = users[0];

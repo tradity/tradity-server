@@ -311,7 +311,7 @@ AchievementList.push({
   name: 'TRADE_SPLIT_BUY',
   fireOn: { 'feed-trade': (ev, ctx) => [ev.srcuser] },
   xp: 250,
-  check: function(uid, userAchievements, cfg, ctx) {
+  check: (uid, userAchievements, cfg, ctx) => {
     return ctx.query('SELECT COUNT(*) AS tradecount FROM orderhistory WHERE uid = ? AND amount > 0 AND prevamount > 0', [uid])
       .then(res => (res[0].tradecount > 0));
   },
@@ -413,7 +413,7 @@ AchievementList.push({
   name: 'LEADER_DESC_CHANGE',
   fireOn: { 'feed-user-descchange': (ev, ctx) => [ev.srcuser] },
   xp: 150,
-  check: function(uid, userAchievements, cfg, ctx) {
+  check: (uid, userAchievements, cfg, ctx) => {
     return ctx.query('SELECT `desc` FROM users_data WHERE uid = ?', [uid]).then(res => {
       assert.equal(res.length, 1);
       return res[0].desc !== '';

@@ -70,7 +70,7 @@ class SoTradeServer extends api.Component {
       gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
     }
     
-    const ret = {
+    return {
       pid: process.pid,
       hostname: os.hostname(),
       isBackgroundWorker: this.info.isBackgroundWorker,
@@ -82,19 +82,10 @@ class SoTradeServer extends api.Component {
       connectionCount: this.connectionCount,
       deadQueryCount: this.deadQueryCount,
       now: Date.now(),
-      qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
+      qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null,
+      readonly: this.load('Main').readonly,
+      dbstats: this.load('Database').usageStatistics()
     };
-    
-    return Promise.all([
-      this.request({name: 'get-readability-mode'}),
-      this.request({name: 'dbUsageStatistics'})
-    ]).then(spread((readonlyReply, dbstats) => {
-      ret.readonly = readonlyReply.readonly;
-      ret.dbstats = dbstats;
-      
-      debug('Collected internal server statistics', ret.bus.id);
-      return ret;
-    }));
   }
 
   /**

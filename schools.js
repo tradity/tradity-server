@@ -39,7 +39,7 @@ class SchoolUtilRequestable extends api.Requestable {
    *                                 is not set.
    *                                 This is useful when a request does not always require privileges
    *                                 but rather only when it is applied to a school.
-   * @param {Array} [status] Passed to {@link busreq~isSchoolAdmin}
+   * @param {Array} [status] Passed to `isSchoolAdmin`
    */
   requireSchoolAdmin(query, ctx, soft, status) {
     soft = soft || false;
@@ -253,6 +253,7 @@ class SchoolUtilRequestable extends api.Requestable {
 class GetSchoolInfo extends SchoolUtilRequestable {
   constructor() {
     super({
+      identifier: 'GetSchoolInfo',
       url: '/school/:lookfor',
       methods: ['GET'],
       returns: [

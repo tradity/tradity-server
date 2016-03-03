@@ -78,7 +78,7 @@ class TemplateReader extends api.Component {
         const headerName = h.substr(0, headerNameEnd).trim();
         const headerValue = h.substr(headerNameEnd + 1).trim();
         
-        const camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, function(w) { return w.toUpperCase(); }).replace(/-/g, '');
+        const camelCaseHeaderName = headerName.toLowerCase().replace(/-\w/g, w => w.toUpperCase()).replace(/-/g, '');
         
         if (['subject', 'from', 'to'].indexOf(camelCaseHeaderName) !== -1) {
           opt[camelCaseHeaderName] = headerValue;

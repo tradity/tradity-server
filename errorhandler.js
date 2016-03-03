@@ -31,11 +31,15 @@ class ErrorHandler extends api.Component {
       identifier: 'ErrorHandler',
       description: 'Provides methods for handling, logging, and notifying about errors.'
     });
+    
     this.sem = new PSemaphore();
     this.throttle = ratelimit(10000);
   }
+  
+  init() {
+    this.load('PubSub').on('error', e => this.handleError(e));
+  }
 
-  // XXX was listener for error
   /**
    * Listener for <code>error</code> events.
    * 
@@ -44,7 +48,7 @@ class ErrorHandler extends api.Component {
    * The exact behaviour, such as the e-mail recipient, can be set
    * in the server configuration.
    */
-  ErrorHandler.prototype.err = buscomponent.listener('error', function(e, noemail) {
+  handleError(e, noemail) {
     if (!e) {
       return this.err(new Error('Error without Error object caught -- abort'), true);
     }
@@ -97,7 +101,7 @@ class ErrorHandler extends api.Component {
           if (cfg && cfg.mail) {
             const opt = _.clone(cfg.mail['errorBase']);
             opt.text = longErrorText;
-            return this.request({name: 'sendMail', mailtype: 'error', opt: opt});
+            return this.load('Mailer').sendMail(opt, null, null, 'error');
           } else {
             console.warn('Could not send error mail due to missing config!');
           }

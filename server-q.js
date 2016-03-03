@@ -59,7 +59,7 @@ const socket = new sotradeClient.SoTradeConnection({
 });
 
 if (query['q-timeout']) {
-  setTimeout(function() {
+  setTimeout(() => {
     console.log('timeout exceeded');
     process.exit(1);
   }, query['q-timeout'] * 1000);
@@ -67,7 +67,7 @@ if (query['q-timeout']) {
 
 socket.once('server-config').then(function() {
   return socket.emit(query.type, query);
-}).then(function(data) {
+}).then(data => {
   if (query.resultPath) {
     const path = String(query.resultPath).split('.');
     

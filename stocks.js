@@ -127,7 +127,7 @@ class StockQuoteLoaderInterface extends api.Component {
           'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), NULL, ?, ?, ?) ON DUPLICATE KEY ' +
           'UPDATE ' + updateQueryString,
           [rec.symbol, rec.lastTradePrice * 10000, rec.ask * 10000, rec.bid * 10000,
-          rec.name, rec.exchange, rec.pieces].concat(updateParams)).then(function(res) {
+          rec.name, rec.exchange, rec.pieces].concat(updateParams)).then(res => {
             if (res.affectedRows === 1) { // insert took place
               return knownStockIDs[rec.symbol] = res.insertId;
             }
@@ -205,7 +205,9 @@ class StocksRegularTasks extends api.Component {
     });
   }
   
-   handle(query, ctx, cfg) {
+  handle(query, ctx) {
+    const cfg = this.load('Config').config();
+    
     if (this.load('Main').readonly) {
       return;
     }
@@ -420,8 +422,9 @@ class StockValueUpdater extends api.Component {
       'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
     [cfg.lrutimeLimit, cfg.refetchLimit]).then(res => {
       stocklist = _.map(res, 'stocktextid');
-      return this.request({name: 'neededStocksDQ'}); // XXX
-    }).then(dqNeededStocks => {
+      
+      const dqNeededStocks = this.load('DelayedQueries').getNeededStocks();
+      
       stocklist = _.union(stocklist, dqNeededStocks);
       
       stocklist = stocklist.filter(s => !leaderStockTextIDFormat.test(s));
@@ -701,6 +704,7 @@ class StockTrade extends api.Requestable {
         { code: 503, identifier: 'sxnotopen' },
         { code: 200, identifier: 'autodelay-sxnotopen' },
         { code: 403, identifier: 'not-enough-stocks' },
+        { code: 403, identifier: 'ouf-of-money' },
         { code: 403, identifier: 'over-pieces-limit' },
         { code: 403, identifier: 'single-paper-share-exceeded' }
       ],
@@ -807,7 +811,7 @@ class StockTrade extends api.Requestable {
       
       amount = parseInt(query.amount);
       if (amount < -r.amount || amount !== amount) {
-        throw new this.SoTradeClientError('stock-buy-not-enough-stocks');
+        throw new this.ClientError('not-enough-stocks');
       }
       
       ta_value = amount > 0 ? r.ask : r.bid;
@@ -831,18 +835,18 @@ class StockTrade extends api.Requestable {
       price = amount * ta_value;
       if (price > ures[0].freemoney && price >= 0) {
         debug('Trying to buy stocks with too few money', price, ures[0].freemoney, ctx.user.uid);
-        throw new this.SoTradeClientError('stock-buy-out-of-money');
+        throw new this.ClientError('out-of-money');
       }
       
       const tradedToday = ohr[0].amount || 0;
       
       if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSingleStockShare'] && price >= 0 &&
           !ctx.access.has('stocks')) {
-        throw new this.SoTradeClientError('stock-buy-single-paper-share-exceed');
+        throw new this.ClientError('single-paper-share-exceed');
       }
       
       if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {
-        throw new this.SoTradeClientError('stock-buy-over-pieces-limit');
+        throw new this.ClientError('over-pieces-limit');
       }
       
       // point of no return
@@ -1045,7 +1049,7 @@ class ListTransactions extends api.Requestable {
         results[i].json = results[i].json ? JSON.parse(results[i].json) : {};
       }
 
-      return { code: 'list-transactions-success',  results: results  };
+      return { code: 200, data: results  };
     });
   }
 }
@@ -1098,7 +1102,7 @@ class TradeInfo extends api.Requestable {
       
       assert.equal(r.uid, parseInt(r.uid));
       
-      return { code: 200, 'trade': r };
+      return { code: 200, data: r };
     }));
   }
 }

@@ -41,15 +41,15 @@ class ProcessBlogs extends api.Requestable {
       'FROM feedblogs ' + 
       'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
       'WHERE feedblogs.active ' +
-      'GROUP BY blogid FOR UPDATE').then(function(res) {
+      'GROUP BY blogid FOR UPDATE').then(res => {
       return Promise.all(res.map(function(bloginfo) {
         const wp = new WP({endpoint: bloginfo.endpoint});
         const catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
         
         debug('Fetching blog posts', bloginfo.endpoint, bloginfo.category);
         
-        return Promise.resolve(wp.posts().filter(catFilter)).then(function(posts) {
-          return Promise.all(posts.filter(function(post) {
+        return Promise.resolve(wp.posts().filter(catFilter)).then(posts => {
+          return Promise.all(posts.filter(post => {
             post.date_unix = new Date(post.date_gmt).getTime() / 1000;
             
             if (bloginfo.lastposttime === null) {
@@ -57,10 +57,10 @@ class ProcessBlogs extends api.Requestable {
             }
             
             return post.date_unix > bloginfo.lastposttime;
-          }).map(function(post) {
+          }).map(post => {
             return ctx.query('INSERT INTO blogposts (blogid, posttime, postjson) ' +
               'VALUES (?, ?, ?)',
-              [bloginfo.blogid, post.date_unix, JSON.stringify(post)]).then(function(r) {
+              [bloginfo.blogid, post.date_unix, JSON.stringify(post)]).then(r => {
               assert.ok(r.insertId);
               
               debug('Adding blog post', bloginfo.endpoint, bloginfo.category, post.title);
@@ -102,7 +102,7 @@ class ListFeeds extends api.Requestable {
       'LEFT JOIN users ON feedblogs.bloguser = users.uid ' +
       'LEFT JOIN schools ON feedblogs.schoolid = schools.schoolid ' +
       'WHERE feedblogs.active ' +
-      'GROUP BY blogid').then(function(res) {
+      'GROUP BY blogid').then(res => {
       return { code: 200, data: res };
     });
   }
@@ -198,7 +198,7 @@ class RemoveFeed extends api.Requestable {
   handle(query, ctx) {
     debug('Remove blog', query.blogid);
 
-    return ctx.query('UPDATE feedblogs SET active = 0 WHERE blogid = ?', [query.blogid]).then(function() {
+    return ctx.query('UPDATE feedblogs SET active = 0 WHERE blogid = ?', [query.blogid]).then(() => {
       return { code: 204 };
     });
   }

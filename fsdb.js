@@ -231,7 +231,7 @@ class FSDBPublish extends api.Requestable {
       }
       
       if (cfg.fsdb.allowroles.indexOf(role) === -1) {
-        throw new this.SoTradeClientError('inacceptable-role');
+        throw new this.ClientError('inacceptable-role');
       }
       
       return (new Promise((resolve, reject) => {

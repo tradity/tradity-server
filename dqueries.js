@@ -180,7 +180,7 @@ class DelayedQueries extends api.Component {
       cl = cl.trim();
       const terms = cl.split(/[<>]/);
       if (terms.length !== 2) {
-        throw new this.FormatError('condition clause must contain exactly one < or > expression');
+        throw new RangeError('condition clause must contain exactly one < or > expression');
       }
       
       const lt = cl.indexOf('<') !== -1;
@@ -197,7 +197,7 @@ class DelayedQueries extends api.Component {
           break;
         case 'stock':
           if (variable.length !== 3) {
-            throw new this.FormatError('expecting level 3 nesting for stock variable');
+            throw new RangeError('expecting level 3 nesting for stock variable');
           }
           
           const stocktextid = String(variable[1]);
@@ -224,7 +224,7 @@ class DelayedQueries extends api.Component {
               break;
             default:
               if (!/^[A-Za-z0-9_]+$/.test(fieldname)) {
-                throw new this.FormatError('bad fieldname');
+                throw new RangeError('bad fieldname');
               }
               
               cchecks.push(ctx => {
@@ -237,7 +237,7 @@ class DelayedQueries extends api.Component {
           }
           break;
         default:
-          throw new this.FormatError('unknown variable type');
+          throw new RangeError('unknown variable type');
       }
     });
     
@@ -265,7 +265,7 @@ class DelayedQueries extends api.Component {
    * 
    * @param {object} query  The delayed query.
    */
-  executeQuery = function(query) {
+  executeQuery(query) {
     debug('Execute dquery', query.queryid);
     
     const ctx = new qctx.QContext({user: query.userinfo, access: query.accessinfo, parentComponent: this});
@@ -277,6 +277,7 @@ class DelayedQueries extends api.Component {
     
     assert.strictEqual(this.queries[query.queryid], query);
     
+    // XXX
     return query.executionPromise = this.request({
       name: 'client-' + query.query.type,
       query: query.query,
@@ -457,7 +458,7 @@ class DelayedQueryAdd {
     try {
       qstr = JSON.stringify(query.query);
     } catch (e) {
-      throw new this.FormatError();
+      throw new this.BadRequest(e);
     }
     
     if (this.queryTypes.indexOf(query.query.type) === -1) {

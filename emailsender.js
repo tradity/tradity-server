@@ -58,11 +58,11 @@ class Mailer extends api.Component {
   sendTemplateMail(variables, template, ctx, lang, mailtype, uid) {
     debug('Send templated mail', template, lang, ctx.user && ctx.user.lang);
     
-    return this.request({name: 'readEMailTemplate', 
-      template: template,
-      lang: lang || (ctx.user && ctx.user.lang),
-      variables: variables || {},
-    }).then(opt => {
+    return this.load('TemplateReader').readEMailTemplate(
+      template,
+      lang || (ctx.user && ctx.user.lang),
+      variables || {}
+    ).then(opt => {
       return this.sendMail(opt, ctx, template, mailtype || (opt && opt.headers && opt.headers['X-Mailtype']) || '', uid);
     });
   }
@@ -144,7 +144,8 @@ class BouncedMailHandler {
       url: '/bounced-mail',
       methods: ['POST'],
       returns: [
-        { code: 204 }
+        { code: 204 },
+        { code: 404, identifer: 'mail-not-found' }
       ],
       schema: {
         type: 'object',
@@ -181,7 +182,7 @@ class BouncedMailHandler {
       return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
         [String(query.messageId)]).then(r => {
         if (r.length === 0) {
-          throw new this.SoTradeClientError('email-bounced-notfound');
+          throw new this.ClientError('mail-not-found');
         }
         
         assert.equal(r.length, 1);

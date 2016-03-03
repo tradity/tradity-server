@@ -334,9 +334,6 @@ class CommentPost extends api.Requestable {
   
   handle(query, ctx) {
     const eventid = parseInt(query.eventid);
-    if (!query.comment || eventid !== eventid) {
-      throw new this.FormatError();
-    }
     
     let feedschool = null;
     let feedchat = null;

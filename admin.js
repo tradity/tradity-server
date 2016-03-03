@@ -79,7 +79,8 @@ class ImpersonateUser extends api.Requestable {
       url: '/impersonate/:uid',
       methods: ['POST'],
       returns: [
-        { code: 200 }
+        { code: 200 },
+        { code: 404, identifier: 'user-not-found' }
       ],
       schema: {
         type: 'object',
@@ -104,7 +105,7 @@ class ImpersonateUser extends api.Requestable {
     return ctx.query('SELECT COUNT(*) AS c FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid]).then(r => {
       assert.equal(r.length, 1);
       if (r[0].c === 0) {
-        throw new this.SoTradeClientError('impersonate-user-notfound');
+        throw new this.ClientError('user-not-found');
       }
     
       return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [uid, ctx.user.sid]);
@@ -143,7 +144,7 @@ class DeleteUser extends api.Requestable {
     const uid = query.uid;
     
     if (ctx.user.uid === uid) {
-      throw new this.SoTradeClientError('delete-user-self-notallowed');
+      throw new this.ClientError('self-not-allowed');
     }
     
     debug('Deleting user', ctx.user.uid, uid);
@@ -488,7 +489,7 @@ class MergeSchools extends api.Requestable {
           ctx.query('DELETE FROM schooladmins WHERE schoolid = ?', [query.subschool])
         ]);
       }
-    })).then(function() {
+    })).then(() => {
       return ctx.query('DELETE FROM schools WHERE schoolid = ?', [query.subschool]);
     }).then(() => {
       return { code: 204 };
@@ -567,7 +568,7 @@ class TickStatistics extends api.Requestable {
       'WHERE time >= ? AND time < ? ' +
       'GROUP BY timeindex',
       [dt, dt, timespanStart, todayStart]).then(res => {
-      return { code: 'get-ticks-statistics-success', results: res };
+      return { code: 200, data: res };
     });
   }
 }

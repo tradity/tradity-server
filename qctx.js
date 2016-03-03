@@ -104,8 +104,6 @@ class QContext extends api.Component {
   /**
    * Call context-specific error handlers and pass on to
    * {@link module:buscomponent~BusComponent#emitError}.
-   * 
-   * @function module:qctx~QContext#emitError
    */
   emitError(e) {
     this.debug('Caught error', e);
@@ -116,421 +114,403 @@ class QContext extends api.Component {
     
     super.emitError(this, e);
   }
-}
 
-QContext.masterQueryContext = null;
-
-QContext.getMasterQueryContext = function() {
-  if (QContext.masterQueryContext) {
-    return QContext.masterQueryContext;
-  }
-  
-  QContext.masterQueryContext = new QContext({isMasterQCTX: true});
-};
-
-/**
- * Return a copy of this QContext.
- * 
- * @return {module:qctx~QContext}  A shallow copy of this QContext.
- * @function module:qctx~QContext#clone
- */
-QContext.prototype.clone = function() {
-  const c = new QContext({
-    user: this.user,
-    access: this.access.clone(),
-    parentComponent: this
-  });
-  
-  c.properties = _.clone(this.properties);
-  c.debugHandlers = this.debugHandlers.slice();
-  c.errorHandlers = this.errorHandlers.slice();
-  
-  return c;
-};
-
-/**
- * Serialize this QContext into a raw JS object.
- * 
- * @return {object}  An object to be passed to {@link module:qctx~fromJSON}
- * @function module:qctx~QContext#toJSON
- */
-QContext.prototype.toJSON = function() {
-  return { user: this.user, access: this.access.toJSON(), properties: this.properties };
-};
-
-/**
- * Shorthand method for pushing feed entries.
- * See {@link busreq~feed}.
- * 
- * @return {object}  A Promise corresponding to successful completion
- * @function module:qctx~QContext#feed
- */
-QContext.prototype.feed = function(data) {
-  let conn = data.conn || this.contextTransaction || null;
-  const onEventId = data.onEventId || (() => {});
-  delete data.conn;
-  delete data.onEventId;
-  
-  let release = null;
-  
-  // keep in mind that self.contextTransaction may be a promise or null
-  // use Promise.resolve(…) to clarify that before all else
-  return Promise.resolve(conn).then(conn_ => {
-    // connection is there? -> set conn to the resolved promise
-    if (conn_) {
-      return conn = conn_;
-    }
+  /**
+   * Return a copy of this QContext.
+   * 
+   * @return {module:qctx~QContext}  A shallow copy of this QContext.
+   */
+  clone() {
+    const c = new QContext({
+      user: this.user,
+      access: this.access.clone(),
+      parentComponent: this
+    });
     
-    return this.startTransaction().then(conn_ => {
-      return conn = release = conn_;
-    });
-  }).then(() => {
-    return this.load('FeedInserter').insert(data, this, conn, onEventId);
-  }).then(retval => {
-    // release is never a promise
-    if (release) {
-      return release.commit().then(() => retval);
-    }
-  }).catch(e => {
-    if (release) {
-      return release.rollbackAndThrow(e);
-    }
-    throw e;
-  });
-};
+    c.properties = _.clone(this.properties);
+    c.debugHandlers = this.debugHandlers.slice();
+    c.errorHandlers = this.errorHandlers.slice();
+    
+    return c;
+  }
 
-QContext.prototype.txwrap = function(fn) {
-  const self = this;
-  
-  assert.ok(self.startTransactionOnQuery);
-  assert.ok(!self.contextTransaction);
-  
-  return function() {
-    return Promise.resolve(fn.apply(this, arguments)).then(v => {
-      return self.commit().then(() => {
-        self.contextTransaction = null;
-        return v;
-      });
-    }).catch(err => {
-      return self.rollback().then(() => {
-        self.contextTransaction = null;
-        throw err;
-      });
-    });
+  /**
+   * Serialize this QContext into a raw JS object.
+   * 
+   * @return {object}  An object to be passed to {@link module:qctx~fromJSON}
+   */
+  toJSON() {
+    return { user: this.user, access: this.access.toJSON(), properties: this.properties };
   };
-};
 
-QContext.prototype.enterTransactionOnQuery = function(tables, options) {
-  assert.ok(!this.startTransactionOnQuery);
-  assert.ok(!this.contextTransaction);
-  
-  this.startTransactionOnQuery = {tables: tables, options: options};
-  
-  return this;
-};
-
-QContext.prototype.commit = function() {
-  const args = arguments;
-  
-  if (!this.contextTransaction) {
-    return Promise.resolve();
-  }
-  
-  return Promise.resolve(this.contextTransaction).then(conn => {
-    return conn.commit.apply(this, args);
-  });
-};
-
-QContext.prototype.rollback = function() {
-  const args = arguments;
-  
-  if (!this.contextTransaction) {
-    return Promise.resolve();
-  }
-  
-  return Promise.resolve(this.contextTransaction).then(conn => {
-    return conn.rollback.apply(this, args);
-  });
-};
-
-QContext.prototype.rollbackAndThrow = function(e) {
-  return this.rollback().then(() => {
-    throw e;
-  });
-};
-
-/**
- * Shorthand method for executing database queries.
- * See {@link busreq~dbQuery}.
- * 
- * @return {object}  A Promise corresponding to successful completion
- * @function module:qctx~QContext#query
- */
-QContext.prototype.query = function(query, args, readonly) {
-  const queryArgs = arguments;
-  const sToQ = this.startTransactionOnQuery;
-  
-  if (this.contextTransaction) {
-    assert.ok(sToQ);
+  /**
+   * Shorthand method for pushing feed entries.
+   * See {@link busreq~feed}.
+   * 
+   * @return {object}  A Promise corresponding to successful completion
+   */
+  feed(data) {
+    let conn = data.conn || this.contextTransaction || null;
+    const onEventId = data.onEventId || (() => {});
+    delete data.conn;
+    delete data.onEventId;
     
-    return Promise.resolve(this.contextTransaction).then(function(conn) {
-      return conn.query.apply(this, queryArgs);
+    let release = null;
+    
+    // keep in mind that self.contextTransaction may be a promise or null
+    // use Promise.resolve(…) to clarify that before all else
+    return Promise.resolve(conn).then(conn_ => {
+      // connection is there? -> set conn to the resolved promise
+      if (conn_) {
+        return conn = conn_;
+      }
+      
+      return this.startTransaction().then(conn_ => {
+        return conn = release = conn_;
+      });
+    }).then(() => {
+      return this.load('FeedInserter').insert(data, this, conn, onEventId);
+    }).then(retval => {
+      // release is never a promise
+      if (release) {
+        return release.commit().then(() => retval);
+      }
+    }).catch(e => {
+      if (release) {
+        return release.rollbackAndThrow(e);
+      }
+      throw e;
     });
   }
-  
-  if (sToQ) {
+
+  txwrap(fn) {
+    const self = this;
+    
+    assert.ok(self.startTransactionOnQuery);
+    assert.ok(!self.contextTransaction);
+    
+    return function() {
+      return Promise.resolve(fn.apply(this, arguments)).then(v => {
+        return self.commit().then(() => {
+          self.contextTransaction = null;
+          return v;
+        });
+      }).catch(err => {
+        return self.rollback().then(() => {
+          self.contextTransaction = null;
+          throw err;
+        });
+      });
+    };
+  }
+
+  enterTransactionOnQuery(tables, options) {
+    assert.ok(!this.startTransactionOnQuery);
     assert.ok(!this.contextTransaction);
     
-    this.contextTransaction = this.startTransaction(sToQ.tables, sToQ.options);
+    this.startTransactionOnQuery = {tables: tables, options: options};
     
-    // equivalent to goto to the above case
-    return this.query.apply(this, queryArgs);
+    return this;
   }
-  
-  this.debug('Executing query [unbound]', query, args);
-  this.incompleteQueryCount++;
-  
-  return this.load('Database').query(query, args, readonly).then(data => {
-    this.incompleteQueryCount--;
-    this.queryCount++;
-    
-    return data;
-  });
-};
 
-/**
- * Shorthand method for fetching a single connection for database queries.
- * Mostly, see {@link busreq~dbGetConnection}.
- * 
- * @param {boolean} readonly  Whether the connection requires no write access.
- * @param {function} restart  Callback that will be invoked when the current transaction
- *                            needs restarting.
- * 
- * @return {object}  A Promise corresponding to successful completion
- *          (with an Object with `conn`, `commit` and `rollback` entries)
- * @function module:qctx~QContext#getConnection
- */
-QContext.prototype.getConnection = function(readonly, restart) {
-  const oci = this.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
-  let conn;
-  
-  const postTransaction = doRelease => {
-    delete this.openConnections[oci];
-    if (_.compact(this.openConnections).length === 0) {
-      this.openConnections = [];
+  commit() {
+    const args = arguments;
+    
+    if (!this.contextTransaction) {
+      return Promise.resolve();
     }
     
-    if (typeof doRelease === 'undefined') {
-      doRelease = true;
-    }
-    
-    if (doRelease) {
-      return conn.release();
-    }
-  };
-  
-  const oldrestart = restart;
-  restart = () => {
-    return Promise.resolve(postTransaction()).then(oldrestart);
-  };
-  
-  return this.load('Database').getConnection(readonly, restart).then(conn_ => {
-    conn = conn_;
-    assert.ok(conn);
-    
-    /* return wrapper object for better debugging, no semantic change */
-    conn_ = {
-      release: () => conn.release(),
-      query: (query, args) => {
-        this.debug('Executing query [bound]', query, args);
-        return conn.query(query, args);
-      },
-      
-      /* convenience functions for rollback and commit with implicit release */
-      commit: doRelease => {
-        return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;').then(() => {
-          return postTransaction(doRelease);
-        });
-      },
-      rollback: doRelease => {
-        return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;').then(() => {
-          return postTransaction(doRelease);
-        });
-      }
-    };
-    
-    return conn_;
-  }); 
-};
-
-/**
- * Fetch a single connection and prepare a transaction on it,
- * optionally locking tables.
- * 
- * @param {object} [tablelocks={}]  An map of <code>table-name -> 'r' or 'w'</code> indicating 
- *                                  which tables to lock. The dictionary values can also be
- *                                  objects with the properties <code>mode, alias</code>,
- *                                  or you can use an array with a <code>name</code> property.
- * @param {object} [options={}]  Options for this transaction:
- * @param {boolean} [options.readonly=false]  Whether the transaction requires no write access.
- * @param {function} [options.restart=true]  A callback that will be invoked when the transaction needs
- *                                           restarting, e.g. in case of database deadlocks. Use
- *                                           <code>true</code> to just rollback and call the
- *                                           startTransaction callback again.
- * @param {string} [options.isolationLevel='READ COMMITTED']  The transaction isolation level for
- *                                                            this transaction.
- * 
- * @return {object}  A Promise corresponding to successful completion, including
- *          .commit() and .rollback() shortcuts (both releasing the connection).
- * @function module:qctx~QContext#startTransaction
- */
-QContext.prototype.startTransaction = function(tablelocks, options) {
-  const args = arguments;
-  
-  options = options || {};
-  tablelocks = tablelocks || {};
-  
-  const readonly = !!options.readonly;
-  
-  let tli = null;
-  let notifyTimer = null;
-  
-  if (tablelocks) {
-    tli = this.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
-  }
-  
-  debug('Starting transaction', tli);
-  const cleanTLEntry = () => {
-    debug('Ended transaction', tli);
-    
-    if (tli === null) {
-      return;
-    }
-    
-    if (notifyTimer) {
-      clearTimeout(notifyTimer);
-    }
-    
-    notifyTimer = null;
-    delete this.tableLocks[tli];
-    if (_.compact(this.tableLocks).length === 0) {
-      this.tableLocks = [];
-    }
-    
-    tli = null;
-  };
-  
-  let conn;
-  const oldrestart = options.restart || (() => {
-    (conn ? conn.rollback() : Promise.resolve()).then(() => {
-      this.startTransaction.apply(this, args);
+    return Promise.resolve(this.contextTransaction).then(conn => {
+      return conn.commit.apply(this, args);
     });
-  });
-  
-  const restart = () => {
-    cleanTLEntry();
-    return oldrestart.apply(this, arguments);
-  };
-  
-  return this.getConnection(readonly, restart).then(conn_ => {
-    conn = conn_;
+  }
+
+  rollback() {
+    const args = arguments;
     
-    const oldCommit = conn.commit, oldRollback = conn.rollback;
-    conn.commit = v => {
-      cleanTLEntry();
-      return Promise.resolve(oldCommit.call(conn, true)).then(() => v);
-    };
+    if (!this.contextTransaction) {
+      return Promise.resolve();
+    }
     
-    conn.commitWithoutRelease = v => {
-      cleanTLEntry();
-      return Promise.resolve(oldCommit.call(conn, false)).then(() => v);
-    };
+    return Promise.resolve(this.contextTransaction).then(conn => {
+      return conn.rollback.apply(this, args);
+    });
+  }
+
+  rollbackAndThrow(e) {
+    return this.rollback().then(() => {
+      throw e;
+    });
+  }
+
+  /**
+   * Shorthand method for executing database queries.
+   * See {@link busreq~dbQuery}.
+   * 
+   * @return {object}  A Promise corresponding to successful completion
+   */
+  query(query, args, readonly) {
+    const queryArgs = arguments;
+    const sToQ = this.startTransactionOnQuery;
     
-    conn.rollback = () => {
-      cleanTLEntry();
-      return oldRollback.apply(conn, arguments);
-    };
-    
-    conn.rollbackAndThrow = e => {
-      return conn.rollback().then(() => {
-        throw e;
+    if (this.contextTransaction) {
+      assert.ok(sToQ);
+      
+      return Promise.resolve(this.contextTransaction).then(function(conn) {
+        return conn.query.apply(this, queryArgs);
       });
+    }
+    
+    if (sToQ) {
+      assert.ok(!this.contextTransaction);
+      
+      this.contextTransaction = this.startTransaction(sToQ.tables, sToQ.options);
+      
+      // equivalent to goto to the above case
+      return this.query.apply(this, queryArgs);
+    }
+    
+    this.debug('Executing query [unbound]', query, args);
+    this.incompleteQueryCount++;
+    
+    return this.load('Database').query(query, args, readonly).then(data => {
+      this.incompleteQueryCount--;
+      this.queryCount++;
+      
+      return data;
+    });
+  }
+
+  /**
+   * Shorthand method for fetching a single connection for database queries.
+   * Mostly, see {@link busreq~dbGetConnection}.
+   * 
+   * @param {boolean} readonly  Whether the connection requires no write access.
+   * @param {function} restart  Callback that will be invoked when the current transaction
+   *                            needs restarting.
+   * 
+   * @return {object}  A Promise corresponding to successful completion
+   *          (with an Object with `conn`, `commit` and `rollback` entries)
+   */
+  getConnection(readonly, restart) {
+    const oci = this.openConnections.push([{readonly: readonly, time: Date.now(), stack: getStack()}]) - 1;
+    let conn;
+    
+    const postTransaction = doRelease => {
+      delete this.openConnections[oci];
+      if (_.compact(this.openConnections).length === 0) {
+        this.openConnections = [];
+      }
+      
+      if (typeof doRelease === 'undefined') {
+        doRelease = true;
+      }
+      
+      if (doRelease) {
+        return conn.release();
+      }
     };
     
-    const tables = Object.keys(tablelocks);
-    let init = 'SET autocommit = 0; ';
+    const oldrestart = restart;
+    restart = () => {
+      return Promise.resolve(postTransaction()).then(oldrestart);
+    };
     
-    init += 'SET TRANSACTION ISOLATION LEVEL ' + ({
-      'RU': 'READ UNCOMMITTED',
-      'RC': 'READ COMMITTED',
-      'RR': 'REPEATABLE READ',
-      'S': 'SERIALIZABLE'
-    }[(options.isolationLevel || 'RC').toUpperCase()] || options.isolationLevel).toUpperCase() + '; ';
+    return this.load('Database').getConnection(readonly, restart).then(conn_ => {
+      conn = conn_;
+      assert.ok(conn);
+      
+      /* return wrapper object for better debugging, no semantic change */
+      conn_ = {
+        release: () => conn.release(),
+        query: (query, args) => {
+          this.debug('Executing query [bound]', query, args);
+          return conn.query(query, args);
+        },
+        
+        /* convenience functions for rollback and commit with implicit release */
+        commit: doRelease => {
+          return conn.query('COMMIT; UNLOCK TABLES; SET autocommit = 1;').then(() => {
+            return postTransaction(doRelease);
+          });
+        },
+        rollback: doRelease => {
+          return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1;').then(() => {
+            return postTransaction(doRelease);
+          });
+        }
+      };
+      
+      return conn_;
+    }); 
+  }
+
+  /**
+   * Fetch a single connection and prepare a transaction on it,
+   * optionally locking tables.
+   * 
+   * @param {object} [tablelocks={}]  An map of <code>table-name -> 'r' or 'w'</code> indicating 
+   *                                  which tables to lock. The dictionary values can also be
+   *                                  objects with the properties <code>mode, alias</code>,
+   *                                  or you can use an array with a <code>name</code> property.
+   * @param {object} [options={}]  Options for this transaction:
+   * @param {boolean} [options.readonly=false]  Whether the transaction requires no write access.
+   * @param {function} [options.restart=true]  A callback that will be invoked when the transaction needs
+   *                                           restarting, e.g. in case of database deadlocks. Use
+   *                                           <code>true</code> to just rollback and call the
+   *                                           startTransaction callback again.
+   * @param {string} [options.isolationLevel='READ COMMITTED']  The transaction isolation level for
+   *                                                            this transaction.
+   * 
+   * @return {object}  A Promise corresponding to successful completion, including
+   *          .commit() and .rollback() shortcuts (both releasing the connection).
+   */
+  startTransaction(tablelocks, options) {
+    const args = arguments;
     
-    if (tables.length === 0) {
-      init += 'START TRANSACTION ';
-    } else {
-      init += 'LOCK TABLES ';
+    options = options || {};
+    tablelocks = tablelocks || {};
+    
+    const readonly = !!options.readonly;
+    
+    let tli = null;
+    let notifyTimer = null;
+    
+    if (tablelocks) {
+      tli = this.tableLocks.push([{locks: tablelocks, time: Date.now(), stack: getStack()}]) - 1;
     }
     
-    for (let i = 0; i < tables.length; ++i) {
-      const name = tables[i];
-      const mode = tablelocks[name].mode || tablelocks[name];
-      const alias = tablelocks[name].alias;
-      const tablename = tablelocks[name].name || name;
+    debug('Starting transaction', tli);
+    const cleanTLEntry = () => {
+      debug('Ended transaction', tli);
       
-      const modeString = {'r': 'READ', 'w': 'WRITE'}[mode];
-      assert.ok(mode);
-      
-      init += tablename + (alias ? ' AS ' + alias : '') + ' ' + modeString;
-      
-      if (i < tables.length - 1) {
-        init +=  ', ';
-      }
-    }
-    
-    init += ';';
-    
-    return conn.query(init);
-  }).then(() => {
-    // install timer to notify in case that the transaction gets 'lost'
-    notifyTimer = setTimeout(() => {
       if (tli === null) {
         return;
       }
       
-      this.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
-    }, 90000);
+      if (notifyTimer) {
+        clearTimeout(notifyTimer);
+      }
+      
+      notifyTimer = null;
+      delete this.tableLocks[tli];
+      if (_.compact(this.tableLocks).length === 0) {
+        this.tableLocks = [];
+      }
+      
+      tli = null;
+    };
     
-    return conn;
-  });
-};
+    let conn;
+    const oldrestart = options.restart || (() => {
+      (conn ? conn.rollback() : Promise.resolve()).then(() => {
+        this.startTransaction.apply(this, args);
+      });
+    });
+    
+    const restart = () => {
+      cleanTLEntry();
+      return oldrestart.apply(this, arguments);
+    };
+    
+    return this.getConnection(readonly, restart).then(conn_ => {
+      conn = conn_;
+      
+      const oldCommit = conn.commit, oldRollback = conn.rollback;
+      conn.commit = v => {
+        cleanTLEntry();
+        return Promise.resolve(oldCommit.call(conn, true)).then(() => v);
+      };
+      
+      conn.commitWithoutRelease = v => {
+        cleanTLEntry();
+        return Promise.resolve(oldCommit.call(conn, false)).then(() => v);
+      };
+      
+      conn.rollback = () => {
+        cleanTLEntry();
+        return oldRollback.apply(conn, arguments);
+      };
+      
+      conn.rollbackAndThrow = e => {
+        return conn.rollback().then(() => {
+          throw e;
+        });
+      };
+      
+      const tables = Object.keys(tablelocks);
+      let init = 'SET autocommit = 0; ';
+      
+      init += 'SET TRANSACTION ISOLATION LEVEL ' + ({
+        'RU': 'READ UNCOMMITTED',
+        'RC': 'READ COMMITTED',
+        'RR': 'REPEATABLE READ',
+        'S': 'SERIALIZABLE'
+      }[(options.isolationLevel || 'RC').toUpperCase()] || options.isolationLevel).toUpperCase() + '; ';
+      
+      if (tables.length === 0) {
+        init += 'START TRANSACTION ';
+      } else {
+        init += 'LOCK TABLES ';
+      }
+      
+      for (let i = 0; i < tables.length; ++i) {
+        const name = tables[i];
+        const mode = tablelocks[name].mode || tablelocks[name];
+        const alias = tablelocks[name].alias;
+        const tablename = tablelocks[name].name || name;
+        
+        const modeString = {'r': 'READ', 'w': 'WRITE'}[mode];
+        assert.ok(mode);
+        
+        init += tablename + (alias ? ' AS ' + alias : '') + ' ' + modeString;
+        
+        if (i < tables.length - 1) {
+          init +=  ', ';
+        }
+      }
+      
+      init += ';';
+      
+      return conn.query(init);
+    }).then(() => {
+      // install timer to notify in case that the transaction gets 'lost'
+      notifyTimer = setTimeout(() => {
+        if (tli === null) {
+          return;
+        }
+        
+        this.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
+      }, 90000);
+      
+      return conn;
+    });
+  };
 
-/**
- * Return some statistical information on this QContext,
- * including its properties.
- * 
- * @function module:qctx~QContext#getStatistics
- */
-QContext.prototype.getStatistics = function(recurse) {
-  assert.ok(recurse === true || recurse === false);
-  
-  const rv = {};
-  
-  for (let i in this.properties) {
-    rv[i] = this.properties[i].value;
+  /**
+   * Return some statistical information on this QContext,
+   * including its properties.
+   */
+  getStatistics(recurse) {
+    assert.ok(recurse === true || recurse === false);
+    
+    const rv = {};
+    
+    for (let i in this.properties) {
+      rv[i] = this.properties[i].value;
+    }
+    
+    rv.tableLocks = _.compact(this.tableLocks);
+    rv.openConnections = _.compact(this.openConnections);
+    rv.queryCount = this.queryCount;
+    rv.incompleteQueryCount = this.incompleteQueryCount;
+    
+    rv.creationTime = this.creationTime;
+    rv.creationStack = this.creationStack;
+    
+    return rv;
   }
-  
-  rv.tableLocks = _.compact(this.tableLocks);
-  rv.openConnections = _.compact(this.openConnections);
-  rv.queryCount = this.queryCount;
-  rv.incompleteQueryCount = this.incompleteQueryCount;
-  
-  rv.creationTime = this.creationTime;
-  rv.creationStack = this.creationStack;
-  
-  return rv;
-};
+}
 
 exports.QContext = QContext;
 

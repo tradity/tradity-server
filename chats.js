@@ -91,18 +91,10 @@ class GetChat extends api.Requestable {
     let chatid = typeof query.chatid === 'undefined' || query.chatid === null ?
       null : parseInt(query.chatid);
     
-    if (!query.endpoints || !query.endpoints.length) {
-      if (isNaN(chatid)) {
-        throw new this.FormatError();
-      }
-      
+    if (!query.endpoints || !query.endpoints.length) {      
       whereString += ' chatid = ?';
       params.push(chatid);
     } else {
-      if (chatid !== null) {
-        throw new this.FormatError();
-      }
-      
       let containsOwnChats = false;
       for (let i = 0; i < query.endpoints.length; ++i) {
         const uid = parseInt(query.endpoints[i]);

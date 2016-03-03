@@ -159,12 +159,11 @@ class UserManagementRequestable extends api.Requestable {
         .replace(/\{\$uid\}/g, ctx.user.uid));
       
       debug('Send register email', data.email, data.lang, data.name, ctx.user.uid);
-      return this.request({name: 'sendTemplateMail', 
-        template: 'register-email.eml',
-        ctx: ctx,
-        lang: data.lang,
-        variables: {'url': url, 'username': data.name, 'email': data.email}
-      });
+      return this.load('sendTemplateMail').sendTemplateMail(
+        {'url': url, 'username': data.name, 'email': data.email},
+        'register-email.eml',
+        ctx, data.lang
+      );
     }).then(() => {
       loginResp.code = 204;
       return loginResp;
@@ -292,23 +291,20 @@ class Login extends UserManagementRequestable {
         debug('Sign session key', xdata.remoteip, name, uid, today);
         
         let ret;
-        return this.request({
-          name: 'createSignedMessage',
-          msg: {
-            uid: uid,
-            sid: key,
-            date: today
-          }
+        return this.load('SignedMessaging').createSignedMessage({
+          uid: uid,
+          sid: key,
+          date: today
         }).then(sid => {
           ret = { code: 200,
             key: ':' + sid,
             uid: uid,
-            extra: 'repush' };
+            extra: 'repush' }; // XXX
           
           return ret;
         });
       } else {
-        return this.regularCallback({}, ctx).then(function() {
+        return this.regularCallback({}, ctx).then(() => {
           return ctx.startTransaction();
         }).then(conn => {
           debug('Add session to table', xdata.remoteip, name, uid, today);
@@ -353,7 +349,10 @@ class EmailVerify extends api.Requestable {
       methods: ['POST'],
       returns: [
         { code: 200 },
-        { code: 403, 'already-verified' }
+        { code: 403, 'already-verified' },
+        { code: 403, 'other-already-verified' },
+        { code: 404, 'email-not-found' },
+        { code: 404, 'code-not-found' }
       ],
       writing: true,
       requiredLogin: false,
@@ -387,12 +386,12 @@ class EmailVerify extends api.Requestable {
       return conn.query('SELECT email_verif, email FROM users WHERE uid = ? LOCK IN SHARE MODE', [uid])
       .then(res => {
         if (res.length !== 1) {
-          throw new this.SoTradeClientError('email-verify-failure');
+          throw new this.ClientError('email-not-found');
         }
         
         email = res[0].email;
         if (res[0].email_verif) {
-          throw new this.SoTradeClientError('email-verify-already-verified');
+          throw new this.ClientError('already-verified');
         }
         
         return conn.query('SELECT COUNT(*) AS c FROM email_verifcodes WHERE uid = ? AND `key` = ? FOR UPDATE', [uid, key]);
@@ -400,13 +399,13 @@ class EmailVerify extends api.Requestable {
         assert.equal(res.length, 1);
         
         if (res[0].c < 1 && !ctx.access.has('userdb')) {
-          throw new this.SoTradeClientError('email-verify-failure');
+          throw new this.ClientError('code-not-found');
         }
         
         return conn.query('SELECT COUNT(*) AS c FROM users WHERE email = ? AND email_verif = 1 AND uid != ? LOCK IN SHARE MODE', [email, uid]);
       }).then(res => {
         if (res[0].c > 0) {
-          throw new this.SoTradeClientError('email-verify-other-already-verified');
+          throw new this.ClientError('other-already-verified');
         }
       
         return conn.query('DELETE FROM email_verifcodes WHERE uid = ?', [uid]);
@@ -483,10 +482,8 @@ class LoadSessionUser extends api.Component {
       }
       
       // was signed login, e. g. during read-only period
-      return this.request({
-        name: 'verifySignedMessage',
-        msg: key.substr(1),
-      }).then(msg => {
+      return this.load('SignedMessaging').verifySignedMessage(key.substr(1))
+        .then(msg => {
         const today = parseInt(Date.now() / 86400);
         if (!msg || msg.date <= today - 1) { // message at least 24 hours old
           return null;
@@ -608,7 +605,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
       query.gender = query.gender ? String(query.gender) : null;
       
       if (query.gender !== null && genders.genders.indexOf(query.gender) === -1) {
-        throw new this.SoTradeClientError('reg-unknown-gender');
+        throw new this.ClientError('reg-unknown-gender');
       }
       
       query.giv_name = String(query.giv_name || '');
@@ -623,12 +620,12 @@ class UpdateUserRequestable extends UserManagementRequestable {
       
       if (query.wprovision < cfg.minWProvision || query.wprovision > cfg.maxWProvision ||
         query.lprovision < cfg.minLProvision || query.lprovision > cfg.maxLProvision) {
-        throw new this.SoTradeClientError('invalid-provision');
+        throw new this.ClientError('invalid-provision');
       }
       
       query.lang = String(query.lang || cfg.languages[0].id);
       if (_.chain(cfg.languages).map('id').indexOf(query.lang).value() === -1) {
-        throw new this.SoTradeClientError('reg-invalid-language');
+        throw new this.ClientError('reg-invalid-language');
       }
       
       if (!query.school) { // e. g., empty string
@@ -648,7 +645,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     }).then(βkey => {
       if (cfg.betakeyRequired && (βkey.length === 0 || βkey[0].key !== betakey[1]) && 
         type === 'register' && !ctx.access.has('userdb')) {
-        throw new this.SoTradeClientError('reg-beta-necessary');
+        throw new this.ClientError('reg-beta-necessary');
       }
       
       if (query.school === null) {
@@ -659,7 +656,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     }).then(res => {
       if (res.length === 0 && query.school !== null) {
         if (parseInt(query.school) === parseInt(query.school) || !query.school) {
-          throw new this.SoTradeClientError('reg-unknown-school');
+          throw new this.ClientError('reg-unknown-school');
         }
         
         let possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');
@@ -925,7 +922,7 @@ class ValidateUsername extends api.Requestable {
     
     if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
       parseInt(query.name) === parseInt(query.name)) {
-      throw new this.SoTradeClientError('reg-name-invalid-char');
+      throw new this.ClientError('reg-name-invalid-char');
     }
     
     return ctx.query('SELECT uid FROM users ' +
@@ -933,7 +930,7 @@ class ValidateUsername extends api.Requestable {
       [query.name, uid]).then(res => {
       
       if (res.length > 0 && res[0].uid !== uid) {
-        throw new this.SoTradeClientError('reg-name-already-present');
+        throw new this.ClientError('reg-name-already-present');
       }
       
       return { code: 'validate-username-valid' };
@@ -975,14 +972,14 @@ class ValidateEmail extends api.Requestable {
     query.email = String(query.email);
     
     if (!validator.isEmail(query.email)) {
-      throw new this.SoTradeClientError('reg-invalid-email');
+      throw new this.ClientError('invalid-email');
     }
     
     return ctx.query('SELECT uid FROM users ' +
       'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
       [query.email, uid]).then(res => {
       if (res.length > 0 && res[0].uid !== uid) {
-        throw new this.SoTradeClientError('reg-email-already-present');
+        throw new this.ClientError('already-present');
       }
       
       return { code: 'validate-email-valid' };
@@ -1030,7 +1027,8 @@ class ResetUser extends api.Requestable {
       ],
       writing: true,
       requiredAccess: 'userdb',
-      description: 'Resets the current user financially into their initial state.'
+      description: 'Resets the current user financially into their initial state.',
+      depends: ['SellAllStocks']
     });
   }
   
@@ -1051,7 +1049,7 @@ class ResetUser extends api.Requestable {
         'wprov_sum = 0, lprov_sum = 0 ' + 
         'WHERE uid = ?', [cfg.defaultStartingMoney, cfg.defaultStartingMoney, ctx.user.uid]);
     }).then(() => {
-      return this.request({name: 'sellAll', query: query, ctx: ctx});
+      return this.load('SellAllStocks').handle(query, ctx);
     }).then(() => {
       const val = cfg.defaultStartingMoney / 1000;
       
@@ -1061,7 +1059,7 @@ class ResetUser extends api.Requestable {
           [val, val, val, val, val, ctx.user.uid]),
         ctx.query('DELETE FROM valuehistory WHERE uid = ?', [ctx.user.uid]),
         ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid}),
-        this.request({name: 'dqueriesResetUser', ctx: ctx})
+        this.request({name: 'dqueriesResetUser', ctx: ctx}) // XXX
       ]);
     }).then(() => ({ code: 204 }));
   }
@@ -1117,6 +1115,7 @@ class ResetPassword extends api.Requestable {
       methods: ['POST'],
       returns: [
         { code: 200 },
+        { code: 404, identifier: 'user-not-found' },
         { code: 403, identifier: 'already-logged-in' },
       ],
       schema: {
@@ -1149,7 +1148,7 @@ class ResetPassword extends api.Requestable {
       'LIMIT 1 FOR UPDATE',
       [name, name]).then(res => {
       if (res.length === 0) {
-        throw new this.SoTradeClientError('password-reset-notfound');
+        throw new this.ClientError('user-not-found');
       }
       
       u = res[0];
@@ -1160,12 +1159,10 @@ class ResetPassword extends api.Requestable {
       pw = buf.toString('hex');
       return this.generatePassword(pw, 'issuetime', u.uid, ctx);
     }).then(() => {
-      return this.request({name: 'sendTemplateMail', 
-        template: 'password-reset-email.eml',
-        ctx: ctx,
-        uid: u.uid,
-        lang: u.lang,
-        variables: {'password': pw, 'username': query.name, 'email': u.email},
+      return this.load('Mailer').sendTemplateMail(
+        {'password': pw, 'username': query.name, 'email': u.email},
+        'password-reset-email.eml',
+        ctx, u.lang, null, u.uid
       });
     }).then(() => ({ code: 200 }));
   }
@@ -1196,21 +1193,25 @@ class InviteKeyInfo extends api.Requestable {
     return ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?',
       [String(query.invitekey)]).then(res) => {
       if (res.length === 0) {
-        throw new this.SoTradeClientError('get-invitekey-info-notfound');
+        throw new this.ClientError('key-not-found');
       }
     
       assert.equal(res.length, 1);
       
       res[0].url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, String(query.invitekey)));
       
-      return { code: 200, result: res[0] };
+      return { code: 200, data: res[0] };
     });
   }
 }
 
 class CreateInviteLink extends api.Component {
   constructor() {
-    super();
+    super({
+      identifier: 'CreateInviteLink',
+      description: 'Sends an invite e-mail to a user.',
+      depends: ['Mailer']
+    });
   }
 
   /**
@@ -1227,11 +1228,11 @@ class CreateInviteLink extends api.Component {
    */
   sendInviteEmail(data, ctx) {
     debug('Send invite email', data.email, data.url, ctx.user && ctx.user.uid);
-    return this.request({name: 'sendTemplateMail',
-      template: 'invite-email.eml',
-      ctx: ctx,
-      variables: {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url}
-    }).then(() => ({ code: 204 }));
+    
+    return this.load('Mailer').sendTemplateMail(
+      {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url},
+      'invite-email.eml', ctx
+    ).then(() => ({ code: 204 }));
   }
   
   handle(query, ctx, cfg, ErrorProvider) {
@@ -1243,7 +1244,7 @@ class CreateInviteLink extends api.Component {
     let key, url, cfg;
     
     if (query.schoolid && parseInt(query.schoolid) !== parseInt(query.schoolid)) {
-      throw new ErrorProvider.FormatError();
+      throw new ErrorProvider.BadRequest(new Error('Need school id'));
     }
     
     return Promise.resolve().then(() => {

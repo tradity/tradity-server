@@ -205,7 +205,7 @@ class QuestionnaireDatabase extends api.Component {
       return _.mapValues(ret, list => _.omit(list[0], 'language'));
     };
     
-    loadQuestionnaire = function(questionnaire) {
+    loadQuestionnaire = questionnaire => {
       return Promise.all([
         ctx.query('SELECT language, qtext FROM qn_questionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id]).then(groupByLanguage),
         ctx.query('SELECT qn_questions.question_id, question_multiple_answers, `order` ' + 
@@ -227,7 +227,7 @@ class QuestionnaireDatabase extends api.Component {
       });
     };
     
-    loadQuestion = function(question) {
+    loadQuestion = question => {
       return Promise.all([
         ctx.query('SELECT language, qtext  FROM qn_questions_texts WHERE question_id = ?', [question.question_id]).then(groupByLanguage),
         ctx.query('SELECT qn_answers.answer_id, answer_freetext, `order` ' +
@@ -245,7 +245,7 @@ class QuestionnaireDatabase extends api.Component {
       }));
     };
     
-    loadAnswer = function(answer) {
+    loadAnswer = answer => {
       return ctx.query('SELECT language, atext FROM qn_answer_texts WHERE answer_id = ?', [answer.answer_id]).then(groupByLanguage)
       .then(texts => {
         return _.mapValues(texts, entry => {

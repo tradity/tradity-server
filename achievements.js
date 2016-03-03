@@ -355,11 +355,6 @@ class ClientDLAchievement extends api.Requestable {
   
   handle(query, ctx) {
     const uid = ctx.user.uid;
-    
-    if (!query.certs || !query.certs.map) {
-      throw new this.FormatError();
-    }
-      
     const cfg = this.load('Config').config();
 
     return Promise.all(query.certs.map(cert => 

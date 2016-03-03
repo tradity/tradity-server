@@ -43,10 +43,6 @@ class BackgroundWorker extends api.Requestable {
     
     assert.ok(ctx.access);
     
-    if (!ctx.access.has('server')) {
-      throw new this.SoTradeClientError('prod-not-allowed');
-    }
-    
     let starttime, userdbtime;
     
     return this.sem.add(() => {
@@ -54,7 +50,7 @@ class BackgroundWorker extends api.Requestable {
     
       return this.regularCallbackUser(query, ctx).then(() => {
         userdbtime = Date.now();
-        return this.request({name: 'regularCallbackStocks', query: query, ctx: ctx}); // XXX
+        return this.load('StocksRegularTasks').handle(query, ctx);
       });
     }).then(() => {
       return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };

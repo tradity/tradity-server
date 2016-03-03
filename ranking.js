@@ -141,8 +141,10 @@ class RankingListing extends api.Requestable {
             type: 'boolean',
             description: 'Whether users should be included that are not considered qualified for ranking entries (e.g. without verified e-mail address)'
           }
-        }
-      }
+        },
+        required: []
+      },
+      depends: ['GetSchoolInfo']
     });
   }
   
@@ -173,8 +175,7 @@ class RankingListing extends api.Requestable {
       likestringWhere += 'AND (p.schoolid = ? OR p.path = ?) ';
       likestringUnit.push(String(query.schoolid), String(query.schoolid).toLowerCase());
       
-      return this.request({name: 'isSchoolAdmin', ctx: ctx, status: ['xadmin'], schoolid: query.schoolid})
-        .then(ISAResult => {
+      return this.load('GetSchoolInfo').isSchoolAdmin(ctx, ['xadmin'], query.schoolid).then(ISAResult => {
         assert.equal(typeof ISAResult.ok, 'boolean');
         
         return ISAResult.ok;

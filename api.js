@@ -22,6 +22,7 @@ const deepFreeze = require('deep-freeze');
 const zlib = require('zlib');
 const lzma = require('lzma-native');
 const assert = require('assert');
+const ZSchema = require("z-schema");
 
 const registryInit = Symbol('registryInit');
 const _registry = Symbol('_registry');
@@ -213,13 +214,13 @@ class Requestable extends Component {
     }
     
     if (this.options.schema) {
-      const s = this.options.schema;
-      if (!s.$schema) {
-        s.$schema = "http://json-schema.org/draft-04/schema#";
+      this.schema = Object.assign({}, this.options.schema};
+      if (!this.schema.$schema) {
+        this.schema.$schema = "http://json-schema.org/draft-04/schema#";
       }
       
-      if (!s.title) {
-        s.title = requestable.url + ' (' + this.options.methods.join(', ') + ')';
+      if (!this.schema.title) {
+        this.schema.title = requestable.url + ' (' + this.options.methods.join(', ') + ')';
       }
     }
     
@@ -263,25 +264,16 @@ class Requestable extends Component {
   }
   
   // XXX: drop “school” from public API
-  // XXX: schema validation
-  // XXX: .request
-  // XXX: remove SoTradeClientError, PermissionDenied, FormatError
-  // XXX: Markdown
-  // XXX: other XXXes
-  // XXX: /** */
+  // XXX: test schema validation
+  // XXX: decide on PermissionDenied
   // XXX: Docs?
   // XXX: Publicize code-based documentation
   // XXX: Check for parseInt/parseFloat/isNan/etc.
-  // XXX: special handling for 204s
   // XXX: console.warn for 204/200 mismatch
-  // XXX: Check data: wrappers
-  // XXX: access.has
+  // XXX: Check `data:` wrappers
+  // XXX: enforce requiredAccess:
   // XXX: validation for non-Requestable components?
-  // XXX: there may be some .freeze() missing for the registry components?
-  // XXX: check for old onBusConnect entries
-  // XXX: check old buscomponent.listener entries
   // XXX: dependencies which have not been explicitly loaded into the registry
-  // XXX: check for literal 'function' entries
   // XXX: check for .result(s)
   // XXX: schema forwarding/inclusion
   // XXX: readonly? can we handle that one better?
@@ -298,6 +290,10 @@ class Requestable extends Component {
   // XXX: qctx parentComponent?
   // XXX: forbid identifier collisions
   // XXX: dquery??
+  // XXX: Markdown
+  // XXX: other XXXes
+  // XXX: check .emit calls
+  // XXX: handle writing: or transactional:
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg, xdata) {
@@ -380,6 +376,20 @@ class Requestable extends Component {
       });
     }).then(() => {
       deepFreeze(query);
+      
+      if (this.schema) {
+        const validator = new ZSchema({
+          noTypeless: true,
+          assumeAdditional: ['key'],
+          forceItems: true,
+          forceProperties: true
+        });
+        
+        const isValid = validator.validate(query, this.schema);
+        if (!isValid) {
+          throw new this.BadRequest(validator.getLastError());
+        }
+      }
       
       const hadUser = !!this.ctx.user;
       

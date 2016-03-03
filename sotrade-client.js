@@ -57,7 +57,7 @@ function NodeSoTradeConnection (opt) {
   
   const url = opt.url;
   if (url && !opt.connect) {
-    opt.connect = function() {
+    opt.connect = () => {
       debug('Connecting', url, socketopts);
       return sio.connect(url, socketopts);
     };

@@ -20,7 +20,7 @@ const _ = require('lodash');
 const assert = require('assert');
 const qctx = require('./qctx.js');
 const Access = require('./access.js').Access;
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 const debug = require('debug')('sotrade:dqueries');
 
 /**
@@ -38,8 +38,6 @@ const debug = require('debug')('sotrade:dqueries');
  * @property {string[]} queryTypes  A list of {@link c2s} query types which may be delayed.
  * 
  * @public
- * @constructor module:dqueries~DelayedQueries
- * @augments module:stbuscomponent~STBusComponent
  */
 class DelayedQueries extends api.Component {
   constructor() {

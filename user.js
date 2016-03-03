@@ -440,17 +440,17 @@ class UpdateUserStatistics extends api.Component {
     }
     
     const now = Date.now();
-    const lastSessionUpdate = ctx.getProperty('lastSessionUpdate');
+    const lastSessionUpdate = ctx.properties.get('lastSessionUpdate');
     
     if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly') || !user) {
       // don't update things yet
-      ctx.setProperty('pendingTicks', ctx.getProperty('pendingTicks') + 1);
+      ctx.properties.set('pendingTicks', ctx.properties.get('pendingTicks') + 1);
       
       return Promise.resolve();
     } else {
-      const ticks = ctx.getProperty('pendingTicks');
-      ctx.setProperty('pendingTicks', 0);
-      ctx.setProperty('lastSessionUpdate', now);
+      const ticks = ctx.properties.get('pendingTicks');
+      ctx.properties.set('pendingTicks', 0);
+      ctx.properties.set('lastSessionUpdate', now);
       
       debug('Adding ticks', user.uid, ticks);
       

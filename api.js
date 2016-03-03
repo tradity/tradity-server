@@ -19,6 +19,7 @@
 const Cache = require('./lib/minicache.js').Cache;
 const promiseEvents = require('promise-events');
 const deepFreeze = require('deep-freeze');
+const assert = require('assert');
 
 const registryInit = Symbol('registryInit');
 const _registry = Symbol('_registry');
@@ -29,7 +30,7 @@ class _Component extends promiseEvents.EventEmitter {
     
     options = options || {};
     this.depends = options.depends || [];
-    this[_registry] = new Map();
+    this[_registry] = null;
     
     this.identifier = options.identifier;
     this.anonymous = !!options.anonymous;
@@ -44,6 +45,13 @@ class _Component extends promiseEvents.EventEmitter {
     return Promise.all(this.depends.map(dependency => {
       return registry.load(dependency);
     }));
+  }
+  
+  initRegistryFromParent(obj) {
+    assert.ok(obj[_registry]);
+    assert.ok(this.anonymous);
+    
+    this[registryInit](obj[_registry]);
   }
   
   init() {
@@ -314,15 +322,15 @@ class Requestable extends Component {
     const ctx = new qctx.QContext({parentComponent: this});
     req.socket._qcontext = ctx;
     
-    ctx.addProperty({name: 'lastSessionUpdate', value: null});
-    ctx.addProperty({name: 'pendingTicks', value: 0});
+    ctx.properties.set('lastSessionUpdate', null);
+    ctx.properties.set('pendingTicks', 0);
     
     req.socket.on('disconnect', () => {
       return this.load('UpdateUserStatistics').handle(ctx.user, ctx, true).then(() => {
         ctx.user = null;
         ctx.access = new Access();
-        ctx.setProperty('lastSessionUpdate', null);
-        ctx.setProperty('pendingTicks', 0);
+        ctx.properties.set('lastSessionUpdate', null);
+        ctx.properties.set('pendingTicks', 0);
       });
     });
   }

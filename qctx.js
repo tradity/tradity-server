@@ -19,7 +19,7 @@
 const Access = require('./access.js').Access;
 const assert = require('assert');
 const weak = require('weak');
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 const _ = require('lodash');
 const debug = require('debug')('sotrade:qctx');
 
@@ -55,17 +55,18 @@ const debug = require('debug')('sotrade:qctx');
  *                                         this context will be appended
  * 
  * @public
- * @constructor module:qctx~QContext
- * @augments module:stbuscomponent~STBusComponent
  */
-class QContext extends buscomponent.BusComponent {
+class QContext extends api.Component {
   constructor(obj) {
-    super();
+    super({
+      anonymous: true,
+      depends: ['FeedInserter']
+    });
     
     obj = obj || {};
     this.user = obj.user || null;
     this.access = obj.access || new Access();
-    this.properties = {};
+    this.properties = new Map();
     this.debugHandlers = [];
     this.errorHandlers = [];
     
@@ -80,18 +81,8 @@ class QContext extends buscomponent.BusComponent {
     this.startTransactionOnQuery = null;
     this.contextTransaction = null;
     
-    let parentQCtx = null;
-    
     if (obj.parentComponent) {
-      if (obj.isQContext) {
-        parentQCtx = obj.parentComponent;
-      }
-      
-      this.setBusFromParent(obj.parentComponent);
-    }
-    
-    if (!parentQCtx && !obj.isMasterQCTX) {
-      parentQCtx = QContext.getMasterQueryContext();
+      this.initRegistryFromParent(obj.parentComponent);
     }
     
     const ondestroy = _ctx => {
@@ -108,12 +99,6 @@ class QContext extends buscomponent.BusComponent {
         }, 1500);
       }
     };
-    
-    if (parentQCtx) {
-      parentQCtx.childContexts.push(weak(this, ondestroy));
-    }
-    
-    this.addProperty({name: 'debugEnabled', value: false, access: 'server'});
   }
 
   /**
@@ -164,49 +149,6 @@ QContext.prototype.clone = function() {
 };
 
 /**
- * List all child QContexts of this query context.
- * Garbage collected QContexts are automatically excluded.
- * 
- * @return {module:qctx~QContext[]}  A list of QContexts.
- * @function module:qctx~QContext#getChildContexts
- */
-QContext.prototype.getChildContexts = function() {
-  const rv = [];
-  
-  for (let i = 0; i < this.childContexts.length; ++i) {
-    if (weak.isDead(this.childContexts[i])) {
-      delete this.childContexts[i];
-    } else {
-      rv.push(this.childContexts[i]);
-    }
-  }
-  
-  // remove deleted indices
-  this.childContexts = _.compact(this.childContexts);
-  
-  return rv;
-};
-
-QContext.prototype.onBusConnect = function() {
-  return this.request({name: 'get-readability-mode'}).then(reply => {
-    assert.ok(reply.readonly === true || reply.readonly === false);
-    
-    if (!this.hasProperty('readonly')) {
-      return this.addProperty({
-        name: 'readonly',
-        value: reply.readonly
-      });
-    }
-  });
-};
-
-QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readability-mode', function(event) {
-  if (this.hasProperty('readonly')) {
-    return this.setProperty('readonly', event.readonly);
-  }
-});
-
-/**
  * Serialize this QContext into a raw JS object.
  * 
  * @return {object}  An object to be passed to {@link module:qctx~fromJSON}
@@ -214,105 +156,6 @@ QContext.prototype.changeReadabilityMode = buscomponent.listener('change-readabi
  */
 QContext.prototype.toJSON = function() {
   return { user: this.user, access: this.access.toJSON(), properties: this.properties };
-};
-
-/**
- * Deserialize this JS object into a new QContext.
- * 
- * @param {object} j  A serialized version as returned by {@link module:qctx~QContext#toJSON}.
- * @param {module:buscomponent~BusComponent} parentComponent  A parent component whose bus 
- *                                                            should be connected to.
- * 
- * @return {object}  A freshly created {@link module:qctx~QContext}.
- * @function module:qctx~QContext.fromJSON
- */
-exports.fromJSON =
-QContext.fromJSON = function(j, parentComponent) {
-  const ctx = new QContext({parentComponent: parentComponent});
-  if (!j) {
-    return ctx;
-  }
-  
-  ctx.user = j.user || null;
-  ctx.access = Access.fromJSON(j.access);
-  ctx.properties = j.properties || {};
-  
-  return ctx;
-};
-
-/**
- * Adds a new property to the list of context properties.
- * 
- * @param {object} propInfo
- * @param {string} propInfo.name  The name of this property
- * @param {module:access~Access} propInfo.access  Access restrictions for
- *                                                changing this property
- * @param propInfo.value  The default/initial value for this property
- * 
- * @function module:qctx~QContext#addProperty
- */
-QContext.prototype.addProperty = function(propInfo) {
-  this.properties[propInfo.name] = propInfo;
-};
-
-/**
- * Fetches a property value.
- * 
- * @param {string} name  The property name.
- * @return  The property value.
- * 
- * @function module:qctx~QContext#getProperty
- */
-QContext.prototype.getProperty = function(name) {
-  if (!this.hasProperty(name)) {
-    return undefined;
-  }
-  
-  return this.properties[name].value;
-};
-
-/**
- * Returns whether a given property value exists.
- * 
- * @param {string} name  The property name.
- * @return  True iff such a property exists.
- * 
- * @function module:qctx~QContext#hasProperty
- */
-QContext.prototype.hasProperty = function(name) {
-  return this.properties[name] ? true : false;
-};
-
-/**
- * Sets a property value.
- * 
- * @param {string} name  The property name.
- * @param value  The new property value.
- * @param {?boolean} hasAccess  If true, pass all access checks.
- * 
- * @function module:qctx~QContext#setProperty
- */
-QContext.prototype.setProperty = function(name, value, hasAccess) {
-  if (!this.hasProperty(name)) {
-    throw new Error('Property ' + name + ' not defined yet');
-  }
-  
-  const requiredAccess = this.properties[name].access;
-  if (!requiredAccess) {
-    hasAccess = true;
-  } else if (typeof requiredAccess === 'string') {
-    hasAccess = hasAccess || this.access.has(requiredAccess);
-  } else if (typeof requiredAccess === 'function') {
-    hasAccess = hasAccess || requiredAccess(this);
-  } else {
-    throw new Error('Unknown access restriction ' + JSON.stringify(requiredAccess));
-  }
-  
-  if (hasAccess) {
-    this.properties[name].value = value;
-  } else {
-    throw new Error('Access for changing property ' + name + ' not granted ' + requiredAccess);
-  }
 };
 
 /**
@@ -342,7 +185,7 @@ QContext.prototype.feed = function(data) {
       return conn = release = conn_;
     });
   }).then(() => {
-    return this.request({name: 'feed', data: data, ctx: this, onEventId: onEventId, conn: conn});
+    return this.load('FeedInserter').insert(data, this, conn, onEventId);
   }).then(retval => {
     // release is never a promise
     if (release) {
@@ -447,7 +290,7 @@ QContext.prototype.query = function(query, args, readonly) {
   this.debug('Executing query [unbound]', query, args);
   this.incompleteQueryCount++;
   
-  return this.request({name: 'dbQuery', query: query, args: args, readonly: readonly}).then(data => {
+  return this.load('Database').query(query, args, readonly).then(data => {
     this.incompleteQueryCount--;
     this.queryCount++;
     
@@ -491,7 +334,7 @@ QContext.prototype.getConnection = function(readonly, restart) {
     return Promise.resolve(postTransaction()).then(oldrestart);
   };
   
-  return this.request({readonly: readonly, restart: restart, name: 'dbGetConnection'}).then(conn_ => {
+  return this.load('Database').getConnection(readonly, restart).then(conn_ => {
     conn = conn_;
     assert.ok(conn);
     
@@ -664,25 +507,8 @@ QContext.prototype.startTransaction = function(tablelocks, options) {
 };
 
 /**
- * If debugging is enabled, pass the arguments of this method to the debug handlers.
- * 
- * @function module:qctx~QContext#debug
- */
-QContext.prototype.debug = function() {
-  if (!this.hasProperty('debugEnabled') || !this.getProperty('debugEnabled')) {
-    return;
-  }
-  
-  for (let i = 0; i < this.debugHandlers.length; ++i) {
-    this.debugHandlers[i](Array.prototype.slice.call(arguments));
-  }
-};
-
-/**
  * Return some statistical information on this QContext,
  * including its properties.
- * 
- * @param {boolean} recurse  If true, include all <code>.childContexts</code>’ statistics.
  * 
  * @function module:qctx~QContext#getStatistics
  */
@@ -702,10 +528,6 @@ QContext.prototype.getStatistics = function(recurse) {
   
   rv.creationTime = this.creationTime;
   rv.creationStack = this.creationStack;
-  
-  if (recurse) {
-    rv.childContexts = this.childContexts.map(c => c.getStatistics(true));
-  }
   
   return rv;
 };

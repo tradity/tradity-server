@@ -21,7 +21,7 @@ const fs = require('fs');
 const util = require('util');
 const PSemaphore = require('promise-semaphore');
 const ratelimit = require('promise-ratelimit');
-const buscomponent = require('./stbuscomponent.js');
+const api = require('./api.js');
 const debug = require('debug')('sotrade:error');
 const promiseUtil = require('./lib/promise-util.js');
 

@@ -195,6 +195,11 @@ class Database extends api.Component {
       };
       
       const query = (q, args) => {
+        if (/^\s*(REPLACE|DELETE|UPDATE|INSERT)/i.test(q)) {
+          return Promise.reject(new RangeError('Won’t execute this query on a readonly connection. ' +
+            'This mission is too important for me to allow you to jeopardize it.'));
+        }
+        
         this.queryCount++;
         
         const rollback = () => {

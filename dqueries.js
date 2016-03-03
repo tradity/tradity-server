@@ -83,7 +83,7 @@ class DelayedQueries extends api.Component {
    * @param {Query} query  The delayed query to be checked.
    */
   checkAndExecute(ctx, query) {
-    if (ctx.getProperty('readonly')) {
+    if (this.load('Main').readonly) {
       return;
     }
     

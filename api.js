@@ -303,6 +303,7 @@ class Requestable extends Component {
   // XXX: use URI like /api/v1
   // XXX: qctx parentComponent?
   // XXX: check remaining getServerConfig calls
+  // XXX: forbid identifier collisions
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg, xdata) {
@@ -422,7 +423,9 @@ class Requestable extends Component {
       }
       
       return this.handleWithRequestInfo(query, ctx, this.load('Config').config(), {
-        remoteip: remoteAddress
+        remoteip: remoteAddress,
+        headers: req.headers,
+        rawRequest: req
       });
     }).catch(err => {
       if (typeof err.code === 'number') {
@@ -458,6 +461,7 @@ class Requestable extends Component {
         error: e.toString(),
         stack: JSON.stringify(e.stack)
       }));
+      
       this.publish('error', e);
     });
   }

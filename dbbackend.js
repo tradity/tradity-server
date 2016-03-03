@@ -91,7 +91,7 @@ class Database extends api.Component {
       
       this.writableNodes = _.without(this.writableNodes, nodeId);
       if (this.writableNodes.length === 0) {
-        return this.emitImmediate('change-readability-mode', { readonly: true });
+        return this.load('Main').readonly = true;
       }
     });
     

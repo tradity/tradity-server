@@ -90,7 +90,6 @@ module.exports = {
   'minAskPrice': 10,
   'infopushMinDelta': 60000,
   'fsdb': {
-    'reqregex': /^(\/\w+)?\/dynamic\/files\/([-+_,\w.]+)\/?$/,
     'puburl': '/dynamic/files/{$name}',
     'userquota': 3000000, // 3 MB
     'uniqroles': {

@@ -99,7 +99,7 @@ class StockQuoteLoaderInterface extends api.Component {
     
     assert.notStrictEqual(rec.pieces, null);
     
-    if (ctx.getProperty('readonly')) {
+    if (this.load('Main').readonly) {
       return;
     }
     
@@ -206,7 +206,7 @@ class StocksRegularTasks extends api.Component {
   }
   
    handle(query, ctx, cfg) {
-    if (ctx.getProperty('readonly')) {
+    if (this.load('Main').readonly) {
       return;
     }
       
@@ -533,7 +533,7 @@ class StockSearch extends api.Requestable {
       results = _.uniq(results, false, r => r.stocktextid);
       let symbols = _.map(results, 'stocktextid');
       
-      if (symbols.length > 0 && !ctx.getProperty('readonly')) {
+      if (symbols.length > 0 && !this.load('Main').readonly) {
         symbols = symbols.map(encodeURIComponent);
         ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
           'WHERE stocktextid IN (' + symbols.map(() => '?').join(',') + ')', symbols);

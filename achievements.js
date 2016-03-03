@@ -44,7 +44,7 @@ class Achievements extends api.Component {
   checkAchievements(ctx) {
     debug('Checking achievements for current user', ctx.user.uid);
     
-    if (ctx.getProperty('readonly')) { // XXX
+    if (this.load('Main').readonly) {
       return;
     }
     

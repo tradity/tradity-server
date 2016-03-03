@@ -75,7 +75,7 @@ class BackgroundWorker extends api.Requestable {
    * @function busreq~regularCallbackUser
    */
   regularCallbackUser(query, ctx) {
-    if (ctx.getProperty('readonly')) {
+    if (this.load('Main').readonly) {
       return Promise.resolve();
     }
     

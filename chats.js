@@ -136,7 +136,7 @@ class GetChat extends api.Requestable {
         return chatlist[0];
       }
       
-      if (query.failOnMissing || !query.endpoints || ctx.getProperty('readonly')) {
+      if (query.failOnMissing || !query.endpoints || this.load('Main').readonly) {
         return null;
       }
       
@@ -177,7 +177,7 @@ class GetChat extends api.Requestable {
     }).then(chat_ => {
       chat = chat_;
       if (chat === null) {
-        if (ctx.getProperty('readonly')) {
+        if (this.load('Main').readonly) {
           throw new this.ClientError('server-readonly'); // XXX
         } else {
           throw new this.ClientError('not-found');

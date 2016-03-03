@@ -99,7 +99,7 @@ class Mailer extends api.Component {
     opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
     
     return Promise.resolve().then(() => {
-      if (ctx && !ctx.getProperty('readonly')) {
+      if (ctx && !this.load('Main').readonly) {
         return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
           'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
           [uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,

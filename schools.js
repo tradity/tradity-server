@@ -652,12 +652,13 @@ class PublishBanner extends SchoolUtilRequestable {
     });
   }
   
-  handle(query, ctx, cfg) {
+  handleWithRequestInfo(query, ctx, cfg, xdata) {
     return this.requireSchoolAdmin(query, ctx, false).then(() => {
-      query.role = 'schools.banner';
-      
-      return this.load('PublishFile').handle(query, ctx, cfg, groupassoc);
-    }
+      return this.load('PublishFile').handle(query, ctx, cfg, xdata, {
+        groupassoc: query.schoolid,
+        role: 'schools.banner'
+      });
+    });
   }
 }
 

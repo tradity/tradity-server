@@ -218,7 +218,7 @@ class Login extends UserManagementRequestable {
         'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
         'ORDER BY email_verif DESC, users.uid DESC, changetime DESC FOR UPDATE';
 
-      if (ctx.getProperty('readonly') || !useTransaction) {
+      if (this.load('Main').readonly || !useTransaction) {
         return ctx.query(query, [name, name]);
       }
       
@@ -270,7 +270,7 @@ class Login extends UserManagementRequestable {
       assert.equal(parseInt(r.pwid), r.pwid);
       assert.equal(parseInt(uid), uid);
       
-      if (ctx.getProperty('readonly')) {
+      if (this.load('Main').readonly) {
         return;
       }
       
@@ -286,7 +286,7 @@ class Login extends UserManagementRequestable {
       key = buf.toString('hex');
       
       const today = parseInt(Date.now() / 86400);
-      if (ctx.getProperty('readonly')) {
+      if (this.load('Main').readonly) {
         key = key.substr(0, 6);
         
         debug('Sign session key', xdata.remoteip, name, uid, today);
@@ -442,7 +442,10 @@ class UpdateUserStatistics extends api.Component {
     const now = Date.now();
     const lastSessionUpdate = ctx.properties.get('lastSessionUpdate');
     
-    if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) || ctx.getProperty('readonly') || !user) {
+    if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) ||
+      this.load('Main').readonly ||
+      !user)
+    {
       // don't update things yet
       ctx.properties.set('pendingTicks', ctx.properties.get('pendingTicks') + 1);
       
@@ -490,7 +493,7 @@ class LoadSessionUser extends api.Component {
         }
         
         debug('Verified user in readonly mode', msg.uid);
-        return {uid: msg.uid, key: msg.sid};
+        return { uid: msg.uid, key: msg.sid };
       });
     }).then(loginInfo => {
       if (!loginInfo) {
@@ -507,7 +510,7 @@ class LoadSessionUser extends api.Component {
         'LEFT JOIN schoolmembers AS sm ON sm.uid = users.uid ' +
         'LEFT JOIN schools ON schools.schoolid = sm.schoolid ' +
         'WHERE ' + (signedLogin ? 'users.uid = ? ' : '`key` = ? ' +
-        (ctx.getProperty('readonly') ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
+        (this.load('Main').readonly ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
         'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
       .then(res => {
         if (res.length === 0) {

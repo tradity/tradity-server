@@ -213,8 +213,7 @@ class ForceReadonly extends api.Requestable {
   handle(query, ctx) {
     debug('Force into readability mode', query.readonly);
     
-    // XXX
-    this.emitImmediate('change-readability-mode', { readonly: query.readonly ? true : false });
+    this.load('Main').readonly = query.readonly;
     
     return { code: 204 };
   }

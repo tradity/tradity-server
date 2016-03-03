@@ -33,6 +33,7 @@
     "nodemailer-sendmail-transport": "^1.0.0"
   },
   "dependencies": {
+    "bl": "^1.1.2",
     "datejs": "1.0.0-rc3",
     "deep-freeze": "^0.0.1",
     "genders": "^1.0.1",

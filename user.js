@@ -466,6 +466,7 @@ class UpdateUserStatistics extends api.Component {
 class LoadSessionUser extends api.Component {
   constructor() {
     super({
+      identifier: 'LoadSessionUser',
       description: 'Load information on the current user from the database.'
     });
   }

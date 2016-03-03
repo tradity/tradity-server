@@ -47,7 +47,7 @@ const spread = promiseUtil.spread;
  * @public
  */
 class SoTradeServer extends api.Component {
-  constructor(info) {
+  constructor(info, requestables) {
     super();
     
     this.httpServer = null;
@@ -64,6 +64,7 @@ class SoTradeServer extends api.Component {
     
     this.connectionCount = 0;
     this.info = info || {};
+    this.requestables = requestables;
   }
   
   internalServerStatistics(qctxDebug) {

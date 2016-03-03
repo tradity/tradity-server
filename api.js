@@ -151,6 +151,8 @@ class URLMatcher {
   }
 }
 
+// XXX
+// this class is as new as it gets and still should kinda be refactored. sigh.
 class Requestable extends Component {
   constructor(options) {
     super(options);
@@ -273,6 +275,10 @@ class Requestable extends Component {
   // XXX: requiredLogin
   // XXX: requiredAccess
   // XXX: checkAchievements on /config and /login
+  // XXX: lzma support
+  // XXX: cs -> client version -> user-agent
+  // XXX: use URI like /api/v1
+  // XXX: qctx parentComponent?
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg, xdata) {
@@ -308,6 +314,9 @@ class Requestable extends Component {
   _handleRequest(req, res, uriMatch) {
     // get the remote address asap since it is lost with early disconnects
     const remoteAddress = req.socket.remoteAddress;
+    const ctx = this.getQContext(req);
+    
+    let query, masterAuthorization = false;
     
     return Promise.resolve().then(() => {
       if (req.method === 'GET') {
@@ -328,32 +337,64 @@ class Requestable extends Component {
         });
       }
     }).then(postData => {
-      const query = Object.assign({}, uriMatch, postData);
-      const ctx = this.getQContext(req);
+      query = Object.assign({}, uriMatch, postData);
       
       const headerKey = req.headers['authorization'] || req.headers['x-authorization'];
       if (headerKey) {
         query.key = headerKey;
       }
       
+      query.key = String(query.key);
+      
       // XXX this would better be handled using https client certs
       if (!query.signedContent) {
-        return { query: query, masterAuthorization: false };
+        return;
       }
       
       this.load('SignedMessaging').verifySignedMessage(query.signedContent, 900).then(verified => {
         if (verified) {
-          return { query: verified, masterAuthorization: true };
+          query = verified;
+          masterAuthorization = true;
         } else {
-          return { query: null, masterAuthorization: false };
+          throw new this.PermissionDenied();
         }
       });
-    }).then(queryInfo => {
-      const query = queryInfo.query;
+    }).then(() => {
       deepFreeze(query);
       
-      if (queryInfo.masterAuthorization) {
-        ctx.
+      const hadUser = !!this.ctx.user;
+      
+      return this.load('LoadSessionUser').handle(query.key, ctx);
+    }).then(user => {
+      debug('Session loading returned user', user && user.uid);
+      
+      const access = new Access();
+      if (user !== null) {
+        access.update(Access.fromJSON(user.access));
+      }
+      
+      ctx.access.update(access);
+      
+      if (masterAuthorization) {
+        ctx.access.grantAny();
+        if (user === null && typeof query.uid !== 'undefined' && query.uid !== null) {
+          user = {uid: query.uid};
+        }
+      }
+      
+      ctx.user = user;
+      ctx.access[['grant', 'drop'][ctx.user && ctx.user.email_verif ? 0 : 1]]('email_verif');
+      
+      if (!hadUser && ctx.user !== null) {
+        // XXX
+        this.load('CheckAchievements').handle(ctx.clone());
+      }
+      
+      if (this.options.requiredLogin &&
+          ctx.user === null &&
+          !ctx.access.has('login-override')
+      {
+        throw new this.LoginRequired();
       }
       
       return this.handleWithRequestInfo(query, ctx, this.load('Config').config(), {

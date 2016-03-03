@@ -59,7 +59,7 @@ class StockIDCache extends api.Component {
 class StockQuoteLoaderInterface extends api.Component {
   constructor() {
     super({
-      depends: [StocksFilter]
+      depends: [StocksFilter, 'StockQuoteLoaderProvider']
     });
     
     this.quoteLoader = null;
@@ -69,14 +69,13 @@ class StockQuoteLoaderInterface extends api.Component {
     // XXX as property?
     const ctx = new qctx.QContext({parentComponent: this});
     
-    // XXX
-    return this.request({name: 'getStockQuoteLoader'}).then(ql => {
-      this.quoteLoader = ql;
-      
+    this.quoteLoader = this.load('StockQuoteLoaderProvider').resolve();
+    
+    this.quoteLoader.on('record', rec => {
       return Promise.resolve().then(() => {
         return this.updateRecord(ctx, rec);
       });
-    }
+    });
   }
   
   /**

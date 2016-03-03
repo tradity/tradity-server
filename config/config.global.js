@@ -158,5 +158,6 @@ module.exports = {
     'pbkdf2Iterations': 18,
     'pbkdf2MinIterations': 18
   },
-  'forbidLeaderTrades': true
+  'forbidLeaderTrades': true,
+  'redis': { '_channel': 'sotrade' }
 };

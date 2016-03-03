@@ -247,18 +247,7 @@ class UserInfo extends api.Requestable {
         
         return result;
       });
-    })).then(result => {
-      if (cacheable) {
-        result.cc__ = {
-          fields: ['result', 'orders', 'achievements', 'values'],
-          validity: 60000,
-          key: resultCacheKey,
-          cache: this.cache
-        };
-      }
-      
-      return result;
-    });
+    }));
   }
 }
 

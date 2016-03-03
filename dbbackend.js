@@ -33,7 +33,6 @@ const promiseUtil = require('./lib/promise-util.js');
  * @property {object} rConnectionPool  A connection pool for connections
  *                                     not requiring write access.
  * @property {int} openConnections  The current count of in-use connections
- * @property {boolean} isShuttingDown  Flag that indicates server shutdown
  */
 class Database extends api.Component {
   constructor() {
@@ -98,18 +97,12 @@ class Database extends api.Component {
     this.wConnectionPool.on('remove', () => this.emitError(new Error('DB lost write connection')));
     this.rConnectionPool.on('remove', () => this.emitError(new Error('DB lost read connection')));
     
+    this.load('Main').on('shutdown', () => this.shutdown());
+    
     this.inited = true;
     this.openConnections = 0;
-    
-    /*
-     * Note: We don't set isShuttingDown = true here.
-     * This happens so we can actually resurrect the database connection
-     * during the shutdown process temporarily, so other components can complete
-     * any remaining work in progress.
-     */
   }
 
-  // XXX was event handler for localMasterShutdown
   shutdown() {
     this.isShuttingDown = true;
     

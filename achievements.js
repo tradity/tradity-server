@@ -178,7 +178,7 @@ class Achievements extends api.Component {
     const ctx = new qctx.QContext({parentComponent: this});
 
     return _.each(achievementEntry.fireOn, (checkCallback, eventName) => {
-      this.on(eventName, (data) => {
+      this.load('PubSub').on(eventName, data => {
         return Promise.resolve(checkCallback.call(achievementEntry, data, ctx)).then(userIDs => {
           assert.ok(userIDs);
           assert.notEqual(typeof userIDs.length, 'undefined');
@@ -322,8 +322,7 @@ class ClientAchievement extends api.Requestable {
     
     return ctx.query('REPLACE INTO achievements_client (uid, achname, verified) VALUES(?, ?, ?)',
       [ctx.user.uid, query.name, verified || 0]).then(() => {
-      // XXX
-      return this.emitImmediate('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
+      return this.load('PubSub').publish('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
     }).then(() => ({ code: 204 }));
   }
 }
@@ -361,11 +360,11 @@ class ClientDLAchievement extends api.Requestable {
       throw new this.FormatError();
     }
       
-    return this.getServerConfig().then(cfg => {
-      return Promise.all(query.certs.map(cert => 
-        this.load('SignedMessaging').verifySignedMessage(cert, cfg.DLAValidityDays * 24 * 60 * 60)
-      ));
-    }).then(verifiedCerts => {
+    const cfg = this.load('Config').config();
+
+    return Promise.all(query.certs.map(cert => 
+      this.load('SignedMessaging').verifySignedMessage(cert, cfg.DLAValidityDays * 24 * 60 * 60)
+    )).then(verifiedCerts => {
       const dates = verifiedCerts
         .filter(c => c && c.uid === uid && c.certType === 'wasOnline')
         .map(c => new Date(c.date))

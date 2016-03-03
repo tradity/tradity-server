@@ -41,12 +41,6 @@ function NodeSoTradeConnection (opt) {
   } catch (e) {
     console.error(e);
   }
-
-  try {
-    opt.lzma = opt.lzma || new require('lzma-native').LZMA();
-  } catch (e) {
-    console.error(e);
-  }
   
   const socketopts = opt.socketopts || {};
   if (!socketopts.transports) {

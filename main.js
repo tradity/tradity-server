@@ -19,8 +19,9 @@
 
 const _ = require('lodash');
 const assert = require('assert');
-const https = require('https');
+const https = require('https'); // XXX
 const cluster = require('cluster');
+const redis = require('redis');
 
 const qctx = require('./qctx.js');
 const api = require('./api.js');
@@ -63,6 +64,36 @@ class StockQuoteLoaderProvider extends api.Component {
   }
 }
 
+class PubSub extends api.Component {
+  constructor() {
+    super({
+      identifier: 'PubSub',
+      description: 'Shortcut redis interface.'
+    });
+    
+    this.client = null;
+    this.cfg = null;
+  }
+  
+  init() {
+    this.cfg = this.load('Config').config().redis;
+    this.client = redis.createClient(this.cfg);
+    this.client.subscribe(this.cfg._channel);
+    
+    this.client.on('message', (channel, message) => {
+      const msg = JSON.parse(message);
+      this.emit(msg.name, msg.data);
+    });
+  }
+  
+  publish(name, data) {
+    this.client.publish(this.cfg._channel, JSON.stringify({
+      name: name,
+      data: data
+    }));
+  }
+}
+
 // XXX split this into PrimaryMain and WorkerMain
 class Main extends api.Component {
   constructor(opt) {
@@ -87,6 +118,10 @@ class Main extends api.Component {
     this.port = opt.port || null;
     
     this.registry = new api.Registry();
+    this.registry.addComponentClass(StockQuoteLoaderProvider);
+    this.registry.addComponentClass(PubSub);
+    this.registry.addIndependentInstance(this);
+    
     this.componentModules = [
       './errorhandler.js', './emailsender.js', './signedmsg.js',
       './dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js',
@@ -109,9 +144,8 @@ class Main extends api.Component {
       let isAlreadyShuttingDownDueToError = false;
       const unhandledSomething = err => {
         this.emitError(err);
-        // XXX
         if (!isAlreadyShuttingDownDueToError) {
-          this.emitImmediate('localShutdown');
+          this.emit('shutdown');
         }
         
         isAlreadyShuttingDownDueToError = true;
@@ -127,27 +161,32 @@ class Main extends api.Component {
         return unhandledSomething(reason);
       });
       
-      // XXX
-      this.mainBus.on('localShutdown', () => {
+      this.on('shutdown', () => {
         setTimeout(() => {
-          debug('Quitting after localShutdown', process.pid);
+          debug('Quitting after "shutdown" event', process.pid);
           process.exit(0);
         }, 250);
       });
       
       for (let i = 0; i < this.shutdownSignals.length; ++i) {
-        process.on(this.shutdownSignals[i], () => this.emitLocal('globalShutdown'));
+        process.on(this.shutdownSignals[i], () => {
+          this.emit('shutdown')
+        
+          this.workers.forEach(w => {
+            w.kill(this.shutdownSignals[i]);
+          });
+        });
       }
       
       if (this.isWorker) {
         return this.worker();
+      } else {
+        debug('Starting master', process.pid);
+        assert.ok(cluster.isMaster);
+        return this.startMaster().then(() => {
+          debug('Started master', process.pid);
+        });
       }
-      
-      debug('Starting master', process.pid);
-      assert.ok(cluster.isMaster);
-      return this.startMaster().then(() => {
-        debug('Started master', process.pid);
-      });
     }).then(() => {
       debug('Startup complete!', process.pid);
     });
@@ -160,7 +199,7 @@ class Main extends api.Component {
       this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) !== -1);
     }
     
-    const freePorts = _.difference(this.getServerConfig().wsports, _.map(this.assignedPorts, 'port'));
+    const freePorts = _.difference(this.load('Config').config().wsports, _.map(this.assignedPorts, 'port'));
     assert.ok(freePorts.length > 0);
     this.assignedPorts.push({pid: pid, port: freePorts[0]});
     return freePorts[0];
@@ -240,11 +279,11 @@ class Main extends api.Component {
     return Promise.resolve().then(() => {
       const workerStartedPromises = [];
       
-      if (this.getServerConfig().startBackgroundWorker) {
+      if (this.load('Config').config().startBackgroundWorker) {
         workerStartedPromises.push(Promise.resolve().then(() => this.forkBackgroundWorker()));
       }
       
-      for (let i = 0; i < this.getServerConfig().wsports.length; ++i) {
+      for (let i = 0; i < this.load('Config').config().wsports.length; ++i) {
         workerStartedPromises.push(Promise.resolve().then(() => this.forkStandardWorker()));
       }
       
@@ -255,8 +294,7 @@ class Main extends api.Component {
       debug('All workers started', process.pid);
       
       let shuttingDown = false;
-      this.mainBus.on('globalShutdown', () => this.mainBus.emitLocal('localShutdown'));
-      this.mainBus.on('localShutdown', () => { shuttingDown = true; });
+      this.on('shutdown', () => { shuttingDown = true; });
       
       cluster.on('exit', (worker, code, signal) => {
         this.workers = this.workers.filter(w => (w.process.pid !== worker.process.pid));

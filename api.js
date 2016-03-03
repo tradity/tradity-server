@@ -19,6 +19,8 @@
 const Cache = require('./lib/minicache.js').Cache;
 const promiseEvents = require('promise-events');
 const deepFreeze = require('deep-freeze');
+const zlib = require('zlib');
+const lzma = require('lzma-native');
 const assert = require('assert');
 
 const registryInit = Symbol('registryInit');
@@ -70,14 +72,6 @@ class Component extends _Component {
     options.depends = (options.depends || []).concat(['PubSub', 'Config']);
     super(options);
   }
-  
-  publish(name, data) {
-    this.load('PubSub').publish(name, data);
-  }
-  
-  subscribe(name, handler) {
-    this.load('PubSub').subscribe(name, handler);
-  }
 }
 
 const addComponentInstance = Symbol('addComponentInstance');
@@ -112,6 +106,10 @@ class Registry extends _Component {
   
   [addComponentInstance](instance) {
     this._dependencyIndex.put(Cls, instance);
+    this.addIndependentInstance(instance);
+  }
+  
+  addIndependentInstance(instance) {
     this._dependencyIndex.put(instance.constructor, instance);
     
     if (instance.identifier) {
@@ -264,11 +262,7 @@ class Requestable extends Component {
     };
   }
   
-  // XXX: freeze query object
   // XXX: drop “school” from public API
-  // XXX: cc__
-  // XXX: server config (xdata)
-  // XXX: getServerConfig
   // XXX: schema validation
   // XXX: .request
   // XXX: remove SoTradeClientError, PermissionDenied, FormatError
@@ -302,8 +296,8 @@ class Requestable extends Component {
   // XXX: cs -> client version -> user-agent
   // XXX: use URI like /api/v1
   // XXX: qctx parentComponent?
-  // XXX: check remaining getServerConfig calls
   // XXX: forbid identifier collisions
+  // XXX: dquery??
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg, xdata) {
@@ -434,7 +428,21 @@ class Requestable extends Component {
       
       throw err;
     }).then(answer => {
-      res.writeHead(answer.code, {'Content-Type': 'application/json;charset=utf-8'});
+      const headers = {
+        'Content-Type': 'application/json;charset=utf-8'
+      };
+      
+      let compressor;
+      
+      if (req.headers['accept-encoding'].match(/lzma/)) {
+        headers['Content-Encoding'] = 'lzma';
+        compressor = lzma.createStream('aloneEncoder');
+      } else if (req.headers['accept-encoding'].match(/gzip/)) {
+        headers['Content-Encoding'] = 'gzip';
+        compressor = zlib.createGzip();
+      }
+      
+      res.writeHead(answer.code, headers);
       if (answer.code === 204) {
         // If we say “no content”, we stick to it.
       } else {
@@ -445,7 +453,12 @@ class Requestable extends Component {
           outJSON.on('error', reject);
         });
         
-        outJSON.pipe(res);
+        if (compressor) {
+          outJSON.pipe(compressor).pipe(res);
+        } else {
+          outJSON.pipe(res);
+        }
+        
         outJSON.end(answer);
       }
     });

@@ -72,33 +72,6 @@ class ListAllEvents extends api.Requestable {
   }
 }
 
-class Shutdown extends api.Requestable {
-  constructor() {
-    super({
-      url: '/shutdown',
-      methods: ['POST'],
-      returns: [
-        { code: 200 }
-      ],
-      requiredAccess: 'server',
-      description: 'Shuts down the server.'
-    });
-  }
-  
-  handle(query, ctx) {
-    debug('Administrative server shutdown');
-    
-    if (!ctx.access.has('server')) {
-      throw new this.PermissionDenied();
-    }
-    
-    // XXX
-    promiseUtil.delay(2000).then(() => this.emit('globalShutdown'));
-    
-    return { code: 200 };
-  }
-}
-
 // XXX make impersonation *and* privileges permanent
 class ImpersonateUser extends api.Requestable {
   constructor() {
@@ -647,7 +620,6 @@ class EventStatistics extends api.Requestable {
 exports.components = [
   ListAllUsers,
   ListAllEvents,
-  Shutdown,
   ImpersonateUser,
   DeleteUser,
   ChangeUserEmail,

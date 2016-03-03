@@ -4,6 +4,7 @@ node_js:
 sudo: false
 services:
   - mysql
+  - redis
 mysql:
   - adapter: mysql2
   - username: sotrade

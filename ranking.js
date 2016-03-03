@@ -215,13 +215,7 @@ class RankingListing extends api.Requestable {
     }).then(ranking => {
       return {
         code: 200,
-        data: ranking,
-        cc__: {
-          fields: ['data'],
-          validity: 30000,
-          key: cacheKey,
-          cache: this.cache
-        }
+        data: ranking
       };
     });
   }

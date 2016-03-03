@@ -59,10 +59,6 @@ class SoTradeServer extends api.Component {
     this.creationTime = Date.now() / 1000;
     
     this.deadQueryCount = 0;
-    this.deadQueryCompressionInfo = {
-      supported: {lzma: 0, s: 0},
-      used: {lzma: 0, s: 0, si: 0}
-    };
     
     this.connectionCount = 0;
     this.info = info || {};
@@ -85,7 +81,6 @@ class SoTradeServer extends api.Component {
       msgLZMACount: this.msgLZMACount,
       connectionCount: this.connectionCount,
       deadQueryCount: this.deadQueryCount,
-      deadQueryCompressionInfo: this.deadQueryCompressionInfo,
       now: Date.now(),
       qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null
     };
@@ -211,28 +206,6 @@ class SoTradeServer extends api.Component {
       }));
     }
   }
-
-  /**
-   * Sets this server instance into shutdown mode.
-   */
-  // XXX was listener for localShutdown, globalShutdown
-  shutdown() {
-    debug('Server shutdown');
-    
-    this.isShuttingDown = true;
-    
-    if (this.clients.length === 0) {
-      this.emitImmediate('localMasterShutdown').catch(e => {
-        console.error(e);
-      });
-      
-      if (this.httpServer) {
-        this.httpServer.close();
-      }
-      
-      return this.unplugBus();
-    }
-  });
 }
 
 exports.Server = SoTradeServer;

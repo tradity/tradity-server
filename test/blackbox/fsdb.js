@@ -19,7 +19,8 @@
 const assert = require('assert');
 const fs = require('fs');
 const testHelpers = require('./test-helpers.js');
-const cfg = require('../../config.js').config();
+const Config = require('../../config.js');
+const cfg = new Config().reloadConfig().config();
 const promiseUtil = require('../../lib/promise-util.js');
 const readFile = promiseUtil.ncall(fs.readFile);
 

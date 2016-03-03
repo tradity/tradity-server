@@ -82,6 +82,8 @@ class Config extends api.Component {
         return this.cfg[varname];
       });
     };
+    
+    return this;
   }
 
   init() {
@@ -271,7 +273,9 @@ class ConfigInfo extends api.Requestable {
   }
 }
 
-exports.components = [
+module.exports = Config;
+
+Config.components = [
   Config,
   ConfigInfo
 ];

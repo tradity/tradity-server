@@ -150,11 +150,11 @@ class Main extends api.Component {
   }
   
   start() {
-    this.readonly = this.load('Config').config().readonly;
-    
     debug('Starting');
     
     return this.loadComponents().then(() => {
+      this.readonly = this.load('Config').config().readonly;
+      
       let isAlreadyShuttingDownDueToError = false;
       const unhandledSomething = err => {
         this.load('PubSub').publish('error', err);

@@ -41,11 +41,12 @@ const qctx = require('./qctx.js');
  */
 
 /** */
-class BouncedMailHandler {
+class BouncedMailHandler extends api.Requestable {
   constructor() {
     super({
       url: '/bounced-mail',
       methods: ['POST'],
+      writing: true,
       returns: [
         { code: 204 },
         { code: 404, identifer: 'mail-not-found' }

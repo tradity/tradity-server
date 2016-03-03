@@ -10,7 +10,7 @@
     "test": "mocha --recursive -s 20000 -t 50000",
     "test-cov": "istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 20000 -t 80000 && istanbul report html",
     "jshint": "jshint .",
-    "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js && ./compile-templates.sh && ./generate_docs.sh"
+    "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js && ./compile-templates.sh"
   },
   "repository": {
     "type": "git",
@@ -28,14 +28,13 @@
   "devDependencies": {
     "coveralls": "^2.11.6",
     "istanbul": "*",
-    "jsdoc": "^3.4.0",
     "jshint": "*",
     "mocha": "*",
     "nodemailer-sendmail-transport": "^1.0.0"
   },
   "dependencies": {
     "datejs": "1.0.0-rc3",
-    "deep-freeze": "0.0.1",
+    "deep-freeze": "^0.0.1",
     "genders": "^1.0.1",
     "lapack": "^0.1.0",
     "lodash": "^4.0.0",

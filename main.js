@@ -24,7 +24,6 @@ const cluster = require('cluster');
 
 const qctx = require('./qctx.js');
 const api = require('./api.js');
-const sotradeClient = require('./sotrade-client.js');
 const promiseUtil = require('./lib/promise-util.js');
 const debug = require('debug')('sotrade:main');
 
@@ -51,7 +50,7 @@ class StockQuoteLoaderProvider extends api.Component {
       
       const stockloaderConfig = _.clone(cfg.stockloaders[i]);
       stockloaderConfig.userAgent = cfg.userAgent;
-      stockloaderConfig.ctx = this.managerCTX.clone();
+      stockloaderConfig.ctx = new qctx.QContext({parentComponent: this});
       
       const slModule = require(stockloaderConfig.path);
       stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
@@ -64,21 +63,19 @@ class StockQuoteLoaderProvider extends api.Component {
   }
 }
 
-/**
- * Main entry point of this software.
- * This manages – mostly – initial setup, loading modules and
- * coordinating workers.
- */
 // XXX split this into PrimaryMain and WorkerMain
 class Main extends api.Component {
   constructor(opt) {
     Main.init_();
     
-    super();
+    super({
+      identifier: 'Main',
+      description: 'Main entry point of this software.',
+      notes: 'This manages – mostly – initial setup, loading modules and coordinating workers'
+    });
     
     opt = opt || {};
     this.readonly = this.getServerConfig().readonly; // XXX
-    this.managerCTX = null;
     this.useCluster = opt.useCluster == null ? !process.env.SOTRADE_NO_CLUSTER : opt.useCluster;
     this.isWorker = opt.isWorker == null ? cluster.isWorker : opt.isWorker;
     this.isBackgroundWorker = opt.isBackgroundWorker || null;
@@ -89,14 +86,15 @@ class Main extends api.Component {
     this.hasReceivedStartCommand = false;
     this.port = opt.port || null;
     
+    this.registry = new api.Registry();
     this.componentModules = [
       './errorhandler.js', './emailsender.js', './signedmsg.js',
       './dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js',
       './user.js', './misc.js',
-      './background-worker.js', './dqueries.js'
+      './background-worker.js',
       './admin.js', './schools.js', './fsdb.js', './achievements.js', './chats.js',
       './watchlist.js', './wordpress-feed.js', './questionnaires.js',
-      './user-info.js', './ranking.js',
+      './user-info.js', './ranking.js'
     ];
     
     this.shutdownSignals = ['SIGTERM', 'SIGINT'];
@@ -106,8 +104,6 @@ class Main extends api.Component {
     debug('Starting');
     
     return this.loadComponents().then(() => {
-      this.managerCTX = new qctx.QContext({parentComponent: this});
-      
       let isAlreadyShuttingDownDueToError = false;
       const unhandledSomething = err => {
         this.emitError(err);
@@ -169,29 +165,15 @@ class Main extends api.Component {
   }
 
   newNonClusterWorker(isBackgroundWorker, port) {
-    const ev = new promiseUtil.EventEmitter();
-    const toMaster = new bus.DirectTransport(ev, 1, true);
-    const toWorker = new bus.DirectTransport(ev, 1, true);
-    
     assert.ok(isBackgroundWorker || port);
     const m = new Main({
       isBackgroundWorker: isBackgroundWorker,
       isWorker: true,
-      transportToMaster: toMaster,
       useCluster: false,
       port: port
     });
     
-    return m.start().then(() => {
-      debug('Adding transport to non-cluster worker');
-      return this.mainBus.addTransport(toWorker).then(() => {
-        debug('Added transport to non-cluster worker');
-      });
-    });
-  }
-
-  registerWorker(w) {
-    return this.mainBus.addTransport(new bus.ProcessTransport(w));
+    return m.start();
   }
 
   forkBackgroundWorker() {
@@ -210,7 +192,7 @@ class Main extends api.Component {
         if (msg.cmd === 'startRequest' && !sentSBW) {
           sentSBW = true;
           
-          debug('Sending SBW to', bw.process.pid);
+          debug('Sending SBW to ' + bw.process.pid);
           return bw.send({cmd: 'startBackgroundWorker'});
         }
       });
@@ -240,7 +222,7 @@ class Main extends api.Component {
             sentSSW = true;
             const port = this.getFreePort(w.process.pid);
             
-            debug('Sending SSW[', port, '] to', w.process.pid);
+            debug('Sending SSW[' + port + '] to ' + w.process.pid);
             
             w.send({
               cmd: 'startStandardWorker',
@@ -294,7 +276,7 @@ class Main extends api.Component {
             return this.forkStandardWorker();
           }
         } else {
-          setTimeout(function() {
+          setTimeout(() => {
             process.exit(0);
           }, 1500);
         }
@@ -350,20 +332,15 @@ class Main extends api.Component {
     
     debug('loading', process.pid);
     
-    return this.loadComponents(componentsForLoading).then(() => {
+    return this.loadComponents().then(() => {
       const server = require('./server.js');
-      const stserver = new server.SoTradeServer({isBackgroundWorker: this.isBackgroundWorker});
+      const stserver = new server.Server({isBackgroundWorker: this.isBackgroundWorker});
       
-      return stserver.setBus(this.mainBus, 'serverMaster').then(() => stserver);
+      return; // XXX somehow connect stserver to the registry
     }).then(stserver => {
       debug('loaded', process.pid);
       
-      if (this.isBackgroundWorker) {
-        debug('BW started at', process.pid, 'connecting to remotes...');
-        return this.connectToSocketIORemotes().then(() => {
-          debug('BW connected to remotes', process.pid);
-        });
-      } else {
+      if (!this.isBackgroundWorker) {
         return stserver.start(this.port).then(() => {
           debug('Server started!', process.pid);
         });
@@ -371,69 +348,18 @@ class Main extends api.Component {
     });
   }
 
-  connectToSocketIORemotes() {
-    return Promise.all(
-      this.getServerConfig().socketIORemotes.map(
-        remote => this.connectToSocketIORemote(remote)
-      )
-    );
-  }
-
-  connectToSocketIORemote(remote) {
-    debug('Connecting to socket.io remote', process.pid, remote.url);
-    const sslOpts = remote.ssl || this.getServerConfig().ssl;
-    let socket = new sotradeClient.SoTradeConnection({
-      url: remote.url,
-      socketopts: {
-        transports: ['websocket'],
-        agent: sslOpts && /^(https|wss)/.test(remote.url) ? new https.Agent(sslOpts) : null
-      },
-      serverConfig: this.getServerConfig()
-    });
-
-    this.mainBus.on('localShutdown', () => {
-      if (socket) {
-        socket.raw().io.reconnectionAttempts(0);
-        socket.raw().close();
+  loadComponents() {
+    return Promise.all(this.componentModules.map(moduleName => {
+      const components = require(moduleName).components;
+      
+      if (!components) {
+        return;
       }
       
-      socket = null;
-    });
-    
-    return socket.once('server-config').then(() => {
-      debug('Received server-config from remote', process.pid, remote.url);
-      
-      return socket.emit('init-bus-transport', {
-        weight: remote.weight
-      });
-    }).then(r => {
-      debug('init-bus-transport returned', process.pid, r.code);
-      
-      if (r.code === 'init-bus-transport-success') {
-        return this.mainBus.addTransport(new bus.DirectTransport(socket.raw(), remote.weight || 10, false));
-      } else {
-        return this.emitError(new Error('Could not connect to socket.io remote: ' + r.code));
-      }
-    });
-  }
-
-  loadComponents(componentsForLoading) {
-    return Promise.all(componentsForLoading.map(componentName => {
-      const component = require(componentName);
-      
-      return Promise.all(_.map(component, ComponentClass => {
-        if (!ComponentClass || !ComponentClass.prototype.setBus) {
-          return Promise.resolve();
-        }
-        
-        const componentID = componentName.replace(/\.[^.]+$/, '').replace(/[^\w]/g, '');
-        return new ComponentClass().setBus(this.mainBus, componentID);
+      return Promise.all(component.map(Class => {
+        return this.registry.addComponentClass(Class);
       }));
     }));
-  }
-
-  ctx() {
-    return this.managerCTX;
   }
 }
 

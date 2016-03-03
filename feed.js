@@ -151,7 +151,7 @@ class FeedInserter extends api.Component {
   }
 }
 
-class FeedFetcher {
+class FeedFetcher extends api.Component {
   constructor() {
     super({
       identifier: 'FeedFetcher',

@@ -26,6 +26,7 @@ before_install:
 before_script:
   - mysql -e 'CREATE DATABASE IF NOT EXISTS sotrade_test'
 script:
+  - ./config
   - npm run jshint
   - npm run test-cov
 after_success:

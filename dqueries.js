@@ -57,7 +57,7 @@ class DelayedQueries extends api.Component {
   init() {
     const ctx = new qctx.QContext({parentComponent: this});
     
-    this.on('stock-update', ev => {
+    this.on('stock-update', ev => { // XXX
       if (this.neededStocks['s-'+ev.stockid]) {
         _.each(this.neededStocks['s-'+ev.stockid], entryid => {
           return this.checkAndExecute(ctx, this.queries[entryid]);

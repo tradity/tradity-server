@@ -25,9 +25,18 @@ const _registry = Symbol('_registry');
 
 class _Component extends promiseEvents.EventEmitter {
   constructor(options) {
+    super();
+    
     options = options || {};
     this.depends = options.depends || [];
     this[_registry] = new Map();
+    
+    this.identifier = options.identifier;
+    this.anonymous = !!options.anonymous;
+    
+    if (!this.identifier && !this.anonymous) {
+      throw new TypeError('Component instances need either an identifier or be anonymous');
+    }
   }
   
   [registryInit](registry) {
@@ -112,7 +121,7 @@ class Registry extends _Component {
     this._inited = true;
     
     return Promise.all( this._instances.map(i => i[registryInit]()) ).then(() => 
-           Promise.all( this._instances.map(i => i.init()) );
+           Promise.all( this._instances.map(i => i.init()) ));
   }
   
   load(dependency) {
@@ -155,6 +164,16 @@ class URLMatcher {
 // this class is as new as it gets and still should kinda be refactored. sigh.
 class Requestable extends Component {
   constructor(options) {
+    if (!options.url) {
+      throw new TypeError('Requestable instances need url property');
+    }
+    
+    if (!options.identifier && !options.anonymous) {
+      options = Object.assign({
+        identifier: '_API: ' + options.url
+      }, options);
+    }
+    
     super(options);
     
     this.options = Object.assign({}, {
@@ -166,10 +185,6 @@ class Requestable extends Component {
       requiredLogin: true,
       schema: null
     }, options);
-    
-    if (!this.options.url) {
-      throw new TypeError('Requestable instances need url property');
-    }
     
     this.urlMatcher = new URLMatcher(this.options.url);
     
@@ -279,6 +294,7 @@ class Requestable extends Component {
   // XXX: cs -> client version -> user-agent
   // XXX: use URI like /api/v1
   // XXX: qctx parentComponent?
+  // XXX: check remaining getServerConfig calls
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg, xdata) {
@@ -335,7 +351,7 @@ class Requestable extends Component {
         jsonStream.on('error', e => {
           reject(new this.BadRequest(e));
         });
-      }
+      });
     }).then(postData => {
       query = Object.assign({}, uriMatch, postData);
       
@@ -392,7 +408,7 @@ class Requestable extends Component {
       
       if (this.options.requiredLogin &&
           ctx.user === null &&
-          !ctx.access.has('login-override')
+          !ctx.access.has('login-override'))
       {
         throw new this.LoginRequired();
       }

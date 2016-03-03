@@ -250,7 +250,8 @@ for (let i = 0; i < ClientAchievements.length; ++i) {
     prereqAchievements: achievement.prereqAchievements || [],
     implicatingAchievements: achievement.implicatingAchievements || [],
     category: achievement.category,
-    requireVerified: achievement.requireVerified
+    requireVerified: achievement.requireVerified,
+    isClientAchievement: true
   });
 }
 
@@ -422,7 +423,7 @@ AchievementList.push({
   category: 'LEADER'
 });
 
-const api = require('api');
+const api = require('./api.js');
 
 class AchievementListProvider extends api.Component {
   constructor() {

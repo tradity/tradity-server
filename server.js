@@ -48,7 +48,9 @@ const spread = promiseUtil.spread;
  */
 class SoTradeServer extends api.Component {
   constructor(info, requestables) {
-    super();
+    super({
+      description: 'Provides the HTTP endpoint for all client connections'
+    });
     
     this.httpServer = null;
     this.io = null;
@@ -233,6 +235,4 @@ class SoTradeServer extends api.Component {
   });
 }
 
-exports.components = [
-  SoTradeServer
-];
+exports.Server = SoTradeServer;

@@ -306,7 +306,7 @@ class FSDBPublish extends api.Requestable {
           switch (fieldname) {
             case 'uid': dataarr.push(ctx.user.uid); break;
             case 'groupassoc': dataarr.push(groupassoc); break;
-            default: this.emitError(new Error('Unknown uniqrole field: ' + fieldname));
+            default: this.load('PubSub').publish('error', new Error('Unknown uniqrole field: ' + fieldname));
           }
         }
         
@@ -327,7 +327,7 @@ class FSDBPublish extends api.Requestable {
         });
       }
     }).then(() => {
-      return { code: 204 }; // XXX had repush
+      return { code: 204, repush: true };
     });
   }
 }

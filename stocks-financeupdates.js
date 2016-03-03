@@ -277,7 +277,7 @@ class UpdateLeaderMatrix extends api.Component {
         const sgesvST = Date.now();
         const res = lapack.sgesv(A, B);
         if (!res) {
-          return this.emitError(new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
+          return this.load('PubSub').publish('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
         }
         
         const sgesvET = Date.now();
@@ -329,7 +329,7 @@ class UpdateLeaderMatrix extends api.Component {
           (lmuEnd - lmuComputationsComplete) + ' ms writing');
         
         return res.map(r => {
-          return this.emitGlobal('stock-update', r);
+          return this.load('PubSub').publish('stock-update', r);
         });
       });
     }));

@@ -129,7 +129,7 @@ class FeedInserter extends api.Component {
         for (let i = 0; i < additional.length; ++i) {
           const additionalUser = parseInt(additional[i]);
           if (additionalUser !== additionalUser) { // NaN
-            return this.emitError(new Error('Bad additional user for feed event: ' + additional[i]));
+            return this.load('PubSub').publish('error', new Error('Bad additional user for feed event: ' + additional[i]));
           }
           
           subselects.push('SELECT ?, ?');
@@ -144,8 +144,7 @@ class FeedInserter extends api.Component {
       return conn.query(query, params);
     }).then(() => {
       debug('Invoking push-events', data.type);
-      this.emitGlobal('feed-' + data.type, data);
-      this.emitGlobal('push-events');
+      this.load('PubSub').publish('error', 'feed-' + data.type, data);
       return eventid;
     });
   }

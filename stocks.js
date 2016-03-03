@@ -145,7 +145,7 @@ class StockQuoteLoaderInterface extends api.Component {
   }).then(() => {
     debug('Updated record', rec.symbol);
     
-    return this.emitGlobal('stock-update', {
+    return this.load('PubSub').publish('stock-update', {
       'stockid': rec.symbol,
       'lastvalue': rec.lastTradePrice * 10000,
       'ask': rec.ask * 10000,
@@ -572,7 +572,7 @@ class StockExchangeIsOpen extends api.Component {
     
     const sxdata = cfg.stockExchanges[sxname];
     if (!sxdata) {
-      this.emitError(new Error('Unknown SX: ' + sxname));
+      this.load('PubSub').publish('error', new Error('Unknown SX: ' + sxname));
       return false;
     }
 
@@ -852,7 +852,7 @@ class StockTrade extends api.Requestable {
       // point of no return
       if (opt.testOnly) {
         // XXX
-        throw { code: 'stock-buy-success', testOnly: true };
+        throw { code: 200, testOnly: true };
       }
       
       fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
@@ -941,7 +941,7 @@ class StockTrade extends api.Requestable {
     }).then(() => {
       return conn.commit();
     }).then(() => {
-      return { code: 200, fee: fee, tradeid: tradeID }; // XXX had repush set
+      return { code: 200, data: { fee: fee, tradeid: tradeID }, repush: true };
     }).catch(err => {
       return (conn ? conn.rollback() : Promise.resolve()).then(() => {
         // XXX i don’t know why exactly but this can’t possibly work

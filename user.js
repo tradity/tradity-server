@@ -296,12 +296,11 @@ class Login extends UserManagementRequestable {
           sid: key,
           date: today
         }).then(sid => {
-          ret = { code: 200,
+          return { code: 200,
             key: ':' + sid,
             uid: uid,
-            extra: 'repush' }; // XXX
-          
-          return ret;
+            repush: true
+          };
         });
       } else {
         return this.regularCallback({}, ctx).then(() => {
@@ -842,7 +841,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     }).then(conn.commit, conn.rollbackAndThrow);
     }).then(() => {
       if ((ctx.user && query.email === ctx.user.email) || (ctx.access.has('userdb') && query.nomail)) {
-        return { code: 'reg-success', uid: uid, extra: 'repush' };
+        return { code: 200, data: { uid: uid }, repush: true };
       }
       
       return this.sendRegisterEmail(query,
@@ -933,7 +932,7 @@ class ValidateUsername extends api.Requestable {
         throw new this.ClientError('reg-name-already-present');
       }
       
-      return { code: 'validate-username-valid' };
+      return { code: 200 };
     });
   }
 }
@@ -982,7 +981,7 @@ class ValidateEmail extends api.Requestable {
         throw new this.ClientError('already-present');
       }
       
-      return { code: 'validate-email-valid' };
+      return { code: 200 };
     });
   }
 }

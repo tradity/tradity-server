@@ -115,7 +115,7 @@ class Mailer extends api.Component {
       this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, true);
         
       if (err) {
-        return this.emitError(err);
+        return this.load('PubSub').publish('error', err);
       }
     });
   }
@@ -206,7 +206,7 @@ class BouncedMailHandler {
         });
       }).then(conn.commit, conn.rollbackAndThrow);
     }).then(() => {
-      return { code: 'email-bounced-success' };
+      return { code: 200 };
     });
   }
 }

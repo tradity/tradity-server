@@ -53,7 +53,7 @@ class BackgroundWorker extends api.Requestable {
         return this.load('StocksRegularTasks').handle(query, ctx);
       });
     }).then(() => {
-      return { code: 'prod-ready', 'utime': userdbtime - starttime, 'stime': Date.now() - userdbtime };
+      return { code: 200, utime: userdbtime - starttime, stime: Date.now() - userdbtime };
     });
   }
 

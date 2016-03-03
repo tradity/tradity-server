@@ -182,7 +182,7 @@ class GetChat extends api.Requestable {
       chat.endpoints = query.endpoints;
       
       if (query.noMessages) {
-        return { code: 'chat-get-success', chat: chat };
+        return { code: 200, data: chat };
       }
       
       return ctx.query('SELECT u.name AS username, u.uid AS uid, url AS profilepic ' +
@@ -216,7 +216,7 @@ class GetChat extends api.Requestable {
           return c;
         });
         
-        return { code: 200, chat: chat };
+        return { code: 200, data: chat };
       }); 
     });
   }

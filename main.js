@@ -55,7 +55,7 @@ class StockQuoteLoaderProvider extends api.Component {
       
       const slModule = require(stockloaderConfig.path);
       stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
-      stockLoaders[i].on('error', e => this.emitError(e)); // XXX
+      stockLoaders[i].on('error', e => this.load('PubSub').publish('error', e));
     }
 
     this.defaultStockLoader = stockLoaders[cfg.stockloaders._defaultStockLoader];
@@ -87,9 +87,21 @@ class PubSub extends api.Component {
   }
   
   publish(name, data) {
+    let kind = 'object';
+    
+    if (data instanceof Error) {
+      kind = 'error';
+      data = {
+        message: data.message,
+        name: data.name,
+        stack: data.stack
+      };
+    }
+    
     this.client.publish(this.cfg._channel, JSON.stringify({
       name: name,
-      data: data
+      data: data,
+      kind: kind
     }));
   }
 }
@@ -143,7 +155,7 @@ class Main extends api.Component {
     return this.loadComponents().then(() => {
       let isAlreadyShuttingDownDueToError = false;
       const unhandledSomething = err => {
-        this.emitError(err);
+        this.load('PubSub').publish('error', err);
         if (!isAlreadyShuttingDownDueToError) {
           this.emit('shutdown');
         }

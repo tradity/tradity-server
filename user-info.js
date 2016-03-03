@@ -62,6 +62,8 @@ const spread = promiseUtil.spread;
  * 
  * @property {boolean} isSelf  Indicates whether this user object corresponds to the user which requested it.
  */
+
+/** */
 class UserInfo extends api.Requestable {
   constructor() {
     super({
@@ -189,7 +191,7 @@ class UserInfo extends api.Requestable {
        * before they actually do a lot of harm. */
       const levelArray = schools.map(s => s.path.replace(/[^\/]/g, '').length); // count '/'
       if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length !== levelArray.length) {
-        return this.emitError(new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
+        return this.load('PubSub').publish('error', new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
       }
       
       xuser.schools = schools;

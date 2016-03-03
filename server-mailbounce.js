@@ -32,6 +32,7 @@ function notifyServer() {
   debug('Notifying server', diagnostic_code, messageId);
   
   notifying = true;
+  // XXX
   return socket.emit('email-bounced', { diagnostic_code: diagnostic_code, messageId: messageId }).then(() => {
     process.exit(0);
   });

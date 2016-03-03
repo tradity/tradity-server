@@ -114,7 +114,7 @@ class ArtificialError extends api.Requestable {
   
   handle(query, ctx) {
     debug('Creating artificial error');
-    ctx.emitError(new Error('Client-induced non-failure'));
+    this.load('PubSub').publish('error', new Error('Client-induced non-failure'));
     return { code: 204 };
   });
 }

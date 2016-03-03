@@ -118,7 +118,9 @@ class Achievements extends api.Component {
       if (userAchievements[achievementEntry.name]) {
         const dbver = userAchievements[achievementEntry.name].version;
         if (dbver > achievementEntry.version) {
-          this.emitError(new Error('Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version));
+          this.load('PubSub').publish('error', new Error(
+            'Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version
+          ));
         }
         
         if (dbver >= achievementEntry.version) {

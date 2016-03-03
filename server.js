@@ -131,7 +131,7 @@ class SoTradeServer extends api.Component {
     let listenSuccess = false;
     
     const listenHandler = () => {
-      this.httpServer.on('error', e => this.emitError(e));
+      this.httpServer.on('error', e => this.load('PubSub').publish('error', e));
       
       listenSuccess = true;
       deferred.resolve();
@@ -177,16 +177,19 @@ class SoTradeServer extends api.Component {
   handleHTTPRequest(req, res) {
     debug('HTTP Request', req.url);
     
-    const loc = url.parse(req.url, true);
+    const parsedURI = url.parse(req.url, true);
+    
     let handled = false;
-    for (let rq of this.requestables) {
-      const uriMatch = rq.getURLMatcher().match(loc.pathname);
-      if (!uriMatch) {
-        continue;
+    if (parsedURI.pathname.match(/^\/api\/v1/)) {
+      for (let rq of this.requestables) {
+        const uriMatch = rq.getURLMatcher().match(parsedURI.pathname);
+        if (!uriMatch) {
+          continue;
+        }
+        
+        handled = true;
+        rq.handleRequest(req, res, uriMatch, parsedURI);
       }
-      
-      handled = true;
-      rq.handleRequest(req, res, uriMatch);
     }
     
     if (!handled) {

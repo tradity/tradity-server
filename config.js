@@ -254,6 +254,23 @@ class Config extends api.Component {
   }
 }
 
+class ConfigInfo extends api.Requestable {
+  constructor() {
+    super({
+      url: '/config',
+      methods: ['GET'],
+      returns: [
+        { code: 200 }
+      ],
+      description: 'Show the current server config.'
+    });
+  }
+  
+  handle(query, ctx, cfg) {
+    return { code: 200, data: _.pick(cfg, cfg.clientconfig) };
+  }
+}
+
 if (require.main === module) {
   const options = minimist(process.argv.slice(2));
   const path = options._;

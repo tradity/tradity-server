@@ -106,15 +106,19 @@ class Registry extends _Component {
   }
   
   [addComponentInstance](instance) {
-    this._dependencyIndex.put(Cls, instance);
+    this._dependencyIndex.set(Cls, instance);
     this.addIndependentInstance(instance);
   }
   
   addIndependentInstance(instance) {
-    this._dependencyIndex.put(instance.constructor, instance);
+    this._dependencyIndex.set(instance.constructor, instance);
     
     if (instance.identifier) {
-      this._dependencyIndex.put(instance.identifier, instance);
+      if (this._dependencyIndex.has(instance.identifier)) {
+        throw new Error('Registry already has entry for identifier ' + JSON.stringify(instance.identifier));
+      }
+      
+      this._dependencyIndex.set(instance.identifier, instance);
     }
     
     this._instances.push(instance);
@@ -261,6 +265,26 @@ class Requestable extends Component {
         this.identifier = 'missing-handler';
       }
     };
+    
+    this.LoginRequired =
+    class LoginRequired extends Error {
+      constructor() {
+        super('Login required');
+        
+        this.code = 401;
+        this.identifier = 'login-required';
+      }
+    };
+    
+    this.Forbidden =
+    class Forbidden extends Error {
+      constructor() {
+        super('Insufficient privileges');
+        
+        this.code = 403;
+        this.identifier = 'insufficient-privileges';
+      }
+    };
   }
   
   // XXX: drop “school” from public API
@@ -274,26 +298,14 @@ class Requestable extends Component {
   // XXX: enforce requiredAccess:
   // XXX: validation for non-Requestable components?
   // XXX: dependencies which have not been explicitly loaded into the registry
-  // XXX: check for .result(s)
   // XXX: schema forwarding/inclusion
   // XXX: readonly? can we handle that one better?
-  // XXX: regexp check for code:\s*['"]
-  // XXX: default identifier to class name
-  // XXX: server debug handlers
-  // XXX: replace server config push
-  // XXX: requiredLogin
-  // XXX: requiredAccess
-  // XXX: checkAchievements on /config and /login
-  // XXX: lzma support
-  // XXX: cs -> client version -> user-agent
-  // XXX: use URI like /api/v1
-  // XXX: qctx parentComponent?
-  // XXX: forbid identifier collisions
+  // XXX: test requiredAccess
   // XXX: dquery??
   // XXX: Markdown
   // XXX: other XXXes
-  // XXX: check .emit calls
   // XXX: handle writing: or transactional:
+  // XXX: repush
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg, xdata) {
@@ -426,6 +438,10 @@ class Requestable extends Component {
         throw new this.LoginRequired();
       }
       
+      if (this.options.requiredAccess && !ctx.access.has('requiredAccess')) {
+        throw new this.Forbidden();
+      }
+      
       return this.handleWithRequestInfo(query, ctx, this.load('Config').config(), {
         remoteip: remoteAddress,
         headers: req.headers,
@@ -474,7 +490,25 @@ class Requestable extends Component {
     });
   }
   
-  handleRequest(req, res, uriMatch) {
+  handleRequest(req, res, uriMatch, parsedURI) {
+    const qsParameters = parsedURI.query;
+    
+    // convert ?x=0 from { x: '0' } to { x: 0 } when indicated by schema
+    if (this.schema) {
+      for (let key of Object.keys(qsParameters)) {
+        if (this.schema.properties && this.schema.properties[key]) {
+          const type = this.schema.properties[key].type;
+          if (type === 'integer') {
+            qsParameters[key] = parseInt(qsParameters[key]);
+          } else if (type === 'float') {
+            qsParameters[key] = parseFloat(qsParameters[key]);
+          }
+        }
+      }
+    }
+    
+    uriMatch = Object.assign({}, qsParameters, uriMatch);
+    
     return Promise.resolve().then(() => {
       return this._handleRequest(req, res, uriMatch);
     }).catch(e => {

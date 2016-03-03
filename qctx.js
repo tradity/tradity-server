@@ -36,9 +36,6 @@ const debug = require('debug')('sotrade:qctx');
  * @property {?object} user  The current user’s object
  * @property {module:access~Access} access  The current privilege level
  * @property {object} properties  Various high-level properties
- * @property {function[]} debugHandlers  Debug functions to be called when debugging is enabled
- * @property {function[]} errorHandlers  Handlers in case of failures during code execution
- *                                       under this context.
  * @property {module:qctx~QContext[]} childContexts  A list of weak references to child QContexts
  *                                                   (e.g. for debugging resource usage)
  * @property {object[]} openConnections  A list of open database connections.
@@ -67,8 +64,6 @@ class QContext extends api.Component {
     this.user = obj.user || null;
     this.access = obj.access || new Access();
     this.properties = new Map();
-    this.debugHandlers = [];
-    this.errorHandlers = [];
     
     this.isQContext = true;
     this.childContexts = [];
@@ -91,7 +86,7 @@ class QContext extends api.Component {
         console.warn(JSON.stringify(_ctx));
         
         try {
-          _ctx.emitError(new Error('Query context cannot be destroyed with held resources'));
+          this.load('PubSub').publish('error', new Error('Query context cannot be destroyed with held resources'));
         } catch (e) { console.log(e); }
         
         setTimeout(() => {
@@ -99,20 +94,6 @@ class QContext extends api.Component {
         }, 1500);
       }
     };
-  }
-
-  /**
-   * Call context-specific error handlers and pass on to
-   * {@link module:buscomponent~BusComponent#emitError}.
-   */
-  emitError(e) {
-    this.debug('Caught error', e);
-    
-    for (let i = 0; i < this.errorHandlers.length; ++i) {
-      this.errorHandlers[i](e);
-    }
-    
-    super.emitError(this, e);
   }
 
   /**
@@ -128,8 +109,6 @@ class QContext extends api.Component {
     });
     
     c.properties = _.clone(this.properties);
-    c.debugHandlers = this.debugHandlers.slice();
-    c.errorHandlers = this.errorHandlers.slice();
     
     return c;
   }
@@ -480,7 +459,7 @@ class QContext extends api.Component {
           return;
         }
         
-        this.emitError(new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
+        this.load('PubSub').publish('error', new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
       }, 90000);
       
       return conn;

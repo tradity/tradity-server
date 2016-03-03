@@ -301,10 +301,12 @@ class SchoolExists extends SchoolUtilRequestable {
     return ctx.query('SELECT schoolid, path FROM schools WHERE ? IN (schoolid, path, name) OR LOWER(?) IN (schoolid, path, name)',
       [String(query.lookfor), String(query.lookfor)]).then(res => {
       return {
-        code: 'school-exists-success',
-        exists: res.length > 0,
-        path: res.length > 0 ? res[0].path : null,
-        schoolid: res.length > 0 ? res[0].schoolid : null
+        code: 200,
+        data: {
+          exists: res.length > 0,
+          path: res.length > 0 ? res[0].path : null,
+          schoolid: res.length > 0 ? res[0].schoolid : null
+        }
       };
     });
   }

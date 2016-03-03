@@ -110,7 +110,7 @@ class ImpersonateUser extends api.Requestable {
     
       return ctx.query('UPDATE sessions SET uid = ? WHERE id = ?', [uid, ctx.user.sid]);
     }).then(() => {
-      return { code: 'impersonate-user-success', extra: 'repush' };
+      return { code: 200, repush: true };
     });
   }
 }

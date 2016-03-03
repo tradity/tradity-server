@@ -94,8 +94,8 @@ class Database extends api.Component {
       }
     });
     
-    this.wConnectionPool.on('remove', () => this.emitError(new Error('DB lost write connection')));
-    this.rConnectionPool.on('remove', () => this.emitError(new Error('DB lost read connection')));
+    this.wConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error('DB lost write connection')));
+    this.rConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error(('DB lost read connection')));
     
     this.load('Main').on('shutdown', () => this.shutdown());
     
@@ -241,12 +241,12 @@ class Database extends api.Component {
               const datajson = JSON.stringify(args);
               const querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
             
-              this.emitError(q ? new Error(
+              this.load('PubSub').publish('error', q ? new Error(
                 err + '\nCaused by ' + querydesc
               ) : err);
             } else {
               // exception in callback
-              this.emitError(exception);
+              this.load('PubSub').publish('error', exception);
             }
           }
           
@@ -283,8 +283,6 @@ class Database extends api.Component {
         query: (q, data) => {
           data = data || [];
           
-          // emitting self has the sole purpose of it showing up in the bus log
-          this.emitImmediate('dbBoundQueryLog', [q, data]);
           return cn.query(q, data);
         },
         release: () => {

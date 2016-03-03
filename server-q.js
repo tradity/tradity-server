@@ -66,6 +66,7 @@ if (query['q-timeout']) {
 }
 
 socket.once('server-config').then(function() {
+  // XXX
   return socket.emit(query.type, query);
 }).then(data => {
   if (query.resultPath) {

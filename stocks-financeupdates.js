@@ -144,7 +144,7 @@ class UpdateLeaderMatrix extends api.Component {
   
   handle(ctx, cfg) {
     const lmuStart = Date.now();
-    let conn, cfg;
+    let conn;
     
     debug('Update leader matrix');
     
@@ -169,7 +169,7 @@ class UpdateLeaderMatrix extends api.Component {
         conn.query('SELECT s.leader AS luid, ds.uid AS fuid, ds.amount AS amount ' +
           'FROM depot_stocks AS ds JOIN stocks AS s ON s.leader IS NOT NULL AND s.stockid = ds.stockid')
       ]);
-    })).then(spread((users, res_static, res_static2, res_leader) => {
+    }).then(spread((users, res_static, res_static2, res_leader) => {
       res_static = res_static.concat(res_static2);
       users = _.uniq(_.map(users, 'uid'));
       

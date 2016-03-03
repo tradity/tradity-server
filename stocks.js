@@ -56,6 +56,28 @@ class StockIDCache extends api.Component {
   }
 }
 
+class StocksFilter extends api.Component {
+  constructor() {
+    super();
+  }
+  
+  /**
+   * Indicates whether a [stock record]{@link StockRecord} is admissible for this game instance.
+   * This checks the stock exchange and the currency of the record against the game config.
+   * 
+   * @param {object} cfg   The server main config.
+   * @param {StockRecord}  rec The record to test.
+   * 
+   * @return {boolean} Whether the record is admissible for this game instance.
+   */
+  test(cfg, rec) {
+    return Object.keys(cfg.stockExchanges).indexOf(rec.exchange) !== -1 &&
+        rec.currency_name === cfg.requireCurrency &&
+        rec.ask * 10000 >= cfg.minAskPrice &&
+        rec.lastTradePrice > 0;
+  }
+}
+
 class StockQuoteLoaderInterface extends api.Component {
   constructor() {
     super({
@@ -141,49 +163,59 @@ class StockQuoteLoaderInterface extends api.Component {
             });
           });
       }
-    });
-  }).then(() => {
-    debug('Updated record', rec.symbol);
-    
-    return this.load('PubSub').publish('stock-update', {
-      'stockid': rec.symbol,
-      'lastvalue': rec.lastTradePrice * 10000,
-      'ask': rec.ask * 10000,
-      'bid': rec.bid * 10000,
-      'name': rec.name,
-      'leader': null,
-      'leadername': null,
-      'exchange': rec.exchange,
-      'pieces': rec.pieces
+    }).then(() => {
+      debug('Updated record', rec.symbol);
+      
+      return this.load('PubSub').publish('stock-update', {
+        'stockid': rec.symbol,
+        'lastvalue': rec.lastTradePrice * 10000,
+        'ask': rec.ask * 10000,
+        'bid': rec.bid * 10000,
+        'name': rec.name,
+        'leader': null,
+        'leadername': null,
+        'exchange': rec.exchange,
+        'pieces': rec.pieces
+      });
     });
   }
   
   loadQuotesList(stockIDs) {
     const filter = this.load(StocksFilter);
+    const cfg = this.load('Config').config();
     
     return this.quoteLoader.loadQuotesList(_.uniq(stockIDs), rec => filter.test(cfg, rec));
   }
 }
 
-class StocksFilter extens api.Component {
+class StockValueUpdater extends api.Component {
   constructor() {
-    super();
+    super({
+      description: 'Updates the stock tables.',
+      depends: [StockQuoteLoaderInterface]
+    });
   }
   
-  /**
-   * Indicates whether a [stock record]{@link StockRecord} is admissible for this game instance.
-   * This checks the stock exchange and the currency of the record against the game config.
-   * 
-   * @param {object} cfg   The server main config.
-   * @param {StockRecord}  rec The record to test.
-   * 
-   * @return {boolean} Whether the record is admissible for this game instance.
-   */
-  test(cfg, rec) {
-    return Object.keys(cfg.stockExchanges).indexOf(rec.exchange) !== -1 &&
-        rec.currency_name === cfg.requireCurrency &&
-        rec.ask * 10000 >= cfg.minAskPrice &&
-        rec.lastTradePrice > 0;
+  updateStockValues(ctx, cfg) {
+    debug('Update stock values');
+    
+    let stocklist = [];
+    
+    return ctx.query('SELECT * FROM stocks ' +
+      'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
+    [cfg.lrutimeLimit, cfg.refetchLimit]).then(res => {
+      stocklist = _.map(res, 'stocktextid');
+      
+      const dqNeededStocks = this.load('DelayedQueries').getNeededStocks();
+      
+      stocklist = _.union(stocklist, dqNeededStocks);
+      
+      stocklist = stocklist.filter(s => !leaderStockTextIDFormat.test(s));
+      
+      if (stocklist.length > 0) {
+        return this.load(StockQuoteLoaderInterface).loadQuotesList(stocklist);
+      }
+    });
   }
 }
 
@@ -201,7 +233,7 @@ class StocksRegularTasks extends api.Component {
         },
         required: []
       },
-      depends: ['UpdateProvisions', 'UpdateLeaderMatrix']
+      depends: ['UpdateProvisions', 'UpdateLeaderMatrix', StockIDCache, StockValueUpdater]
     });
   }
   
@@ -220,7 +252,7 @@ class StocksRegularTasks extends api.Component {
       return this.cleanUpUnusedStocks(ctx);
     }).then(() => {
       cuusET = Date.now();
-      return this.updateStockValues(ctx, cfg);
+      return this.load(StockValueUpdater).updateStockValues(ctx, cfg);
     }).then(() => {
       usvET = Date.now();
       return this.load('UpdateLeaderMatrix').handle(ctx, cfg);
@@ -252,7 +284,7 @@ class StocksRegularTasks extends api.Component {
       }
     }).then(() => {
       usicST = Date.now();
-      return this.updateStockIDCache(ctx);
+      return this.load(StockIDCache).updateStockIDCache(ctx);
     }).then(() => {
       rcbET = Date.now();
       console.log('cleanUpDepotDuplicates:   ' + (cddET   - rcbST)  + ' ms');
@@ -405,37 +437,6 @@ class StocksRegularTasks extends api.Component {
   }
 }
 
-class StockValueUpdater extends api.Component {
-  constructor() {
-    super({
-      description: 'Updates the stock tables.'
-      depends: [StockQuoteLoaderInterface]
-    });
-  }
-  
-  updateStockValues(ctx, cfg) {
-    debug('Update stock values');
-    
-    let stocklist = [];
-    
-    return ctx.query('SELECT * FROM stocks ' +
-      'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
-    [cfg.lrutimeLimit, cfg.refetchLimit]).then(res => {
-      stocklist = _.map(res, 'stocktextid');
-      
-      const dqNeededStocks = this.load('DelayedQueries').getNeededStocks();
-      
-      stocklist = _.union(stocklist, dqNeededStocks);
-      
-      stocklist = stocklist.filter(s => !leaderStockTextIDFormat.test(s));
-      
-      if (stocklist.length > 0) {
-        return this.load(StockQuoteLoaderInterface).loadQuotesList(stocklist);
-      }
-    });
-  }
-}
-
 /**
  * Represents the values and properties of a stock at a given time.
  * @typedef module:stocks~StockRecord
@@ -551,7 +552,7 @@ class StockExchangeIsOpen extends api.Component {
   constructor() {
     super({
       identifier: 'StockExchangeIsOpen'
-    })
+    });
   }
   
   /**
@@ -583,41 +584,6 @@ class StockExchangeIsOpen extends api.Component {
     const res = now.getTime() >= opentime && now.getTime() < closetime && sxdata.days.indexOf(now.getUTCDay()) !== -1;
     
     return res;
-  }
-}
-
-class SellAllStocks extends api.Component {
-  constructor() {
-    super({
-      identifier: 'SellAllStocks',
-      description: 'Sells all shares held by a given user.',
-      depends: [StockTrade]
-    });
-  }
-  
-  handle(query, ctx) {
-    debug('Sell all stocks', ctx.user && ctx.user.uid);
-    
-    return ctx.query('SELECT s.*, ds.* ' +
-      'FROM stocks AS s ' +
-      'JOIN depot_stocks AS ds ON ds.stockid = s.stockid ' +
-      'WHERE s.leader = ?', [ctx.user.uid]).then(depotEntries => {
-      
-      return Promise.all(depotEntries.map(depotentry => {
-        const newCtx = new qctx.QContext({
-          parentComponent: this,
-          user: {uid: depotentry.uid},
-          access: ctx.access
-        });
-        
-        return this.load(StockTrade).handle({
-          amount: -depotentry.amount,
-          leader: ctx.user.uid,
-        }, newCtx, {
-          forceNow: true
-        });
-      }));
-    });
   }
 }
 
@@ -716,7 +682,7 @@ class StockTrade extends api.Requestable {
   }
   
   handle(query, ctx, cfg, opt) {
-    let conn, cfg, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
+    let conn, r, hadDepotStocksEntry, amount, price, ta_value, ures, ohr;
     let fee, oh_res = null, tradeID = null, perffull = null, forceNow;
     
     /*
@@ -1103,7 +1069,7 @@ class TradeInfo extends api.Requestable {
       assert.equal(r.uid, parseInt(r.uid));
       
       return { code: 200, data: r };
-    }));
+    });
   }
 }
 
@@ -1156,6 +1122,41 @@ class PopularStocks extends api.Requestable {
       'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days])
     .then(popular => {
       return { code: 200, data: popular };
+    });
+  }
+}
+
+class SellAllStocks extends api.Component {
+  constructor() {
+    super({
+      identifier: 'SellAllStocks',
+      description: 'Sells all shares held by a given user.',
+      depends: [StockTrade]
+    });
+  }
+  
+  handle(query, ctx) {
+    debug('Sell all stocks', ctx.user && ctx.user.uid);
+    
+    return ctx.query('SELECT s.*, ds.* ' +
+      'FROM stocks AS s ' +
+      'JOIN depot_stocks AS ds ON ds.stockid = s.stockid ' +
+      'WHERE s.leader = ?', [ctx.user.uid]).then(depotEntries => {
+      
+      return Promise.all(depotEntries.map(depotentry => {
+        const newCtx = new qctx.QContext({
+          parentComponent: this,
+          user: {uid: depotentry.uid},
+          access: ctx.access
+        });
+        
+        return this.load(StockTrade).handle({
+          amount: -depotentry.amount,
+          leader: ctx.user.uid,
+        }, newCtx, {
+          forceNow: true
+        });
+      }));
     });
   }
 }

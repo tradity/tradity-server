@@ -25,6 +25,95 @@ const promiseUtil = require('./lib/promise-util.js');
 const api = require('./api.js');
 const qctx = require('./qctx.js');
 
+/**
+ * Information about an email which could not be delivered.
+ * 
+ * @typedef s2c~email-bounced
+ * @type {Event}
+ * 
+ * @property {string} messageid  The RFC822 Message-Id of the non-delivered e-mail.
+ * @property {int} sendingtime  The unix timestamp of the message leaving the server.
+ * @property {int} bouncetime  The unix timestamp of receiving the failure notification.
+ * @property {string} mailtype  The e-mail type as set by the caller of
+ *                              {@link busreq~sendMail}.
+ * @property {string} mailrecipient  The <code>To:</code> mail adress.
+ * @property {string} diagnostic_code  The diagnostic code send by the rejecting server.
+ */
+
+/** */
+class BouncedMailHandler {
+  constructor() {
+    super({
+      url: '/bounced-mail',
+      methods: ['POST'],
+      returns: [
+        { code: 204 },
+        { code: 404, identifer: 'mail-not-found' }
+      ],
+      schema: {
+        type: 'object',
+        properties: {
+          messageId: {
+            type: 'string',
+            description: 'The RFC822 Message-Id of the e-mail as set by this server during sending of the mail.'
+          },
+          diagnostic_code: {
+            type: 'string',
+            description: 'A diagnostic code set in the e-mail that may help users with troubleshooting.'
+          }
+        },
+        required: ['messageId']
+      },
+      description: 'Notifies the server about the non-delivery of mails.',
+      requiredAccess: 'email-bounces'
+    });
+  }
+  
+  handle(query, ctx, cfg, internal) {
+    if (!ctx) {
+      ctx = new qctx.QContext({parentComponent: this});
+    }
+    
+    if (!internal && !ctx.access.has('email-bounces')) {
+      throw new this.PermissionDenied();
+    }
+    
+    debug('Email bounced', query.messageId);
+    
+    let mail;
+    return ctx.startTransaction().then(conn => {
+      return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
+        [String(query.messageId)]).then(r => {
+        if (r.length === 0) {
+          throw new this.ClientError('mail-not-found');
+        }
+        
+        assert.equal(r.length, 1);
+        mail = r[0];
+        
+        assert.ok(mail);
+        
+        return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
+          [String(query.diagnostic_code || ''), mail.mailid]);
+      }).then(() => {
+        if (!mail) {
+          return;
+        }
+        
+        return ctx.feed({
+          'type': 'email-bounced',
+          'targetid': mail.mailid,
+          'srcuser': mail.uid,
+          'noFollowers': true,
+          conn: conn
+        });
+      }).then(conn.commit, conn.rollbackAndThrow);
+    }).then(() => {
+      return { code: 200 };
+    });
+  }
+}
+
 class Mailer extends api.Component {
   constructor() {
     super({
@@ -117,96 +206,6 @@ class Mailer extends api.Component {
       if (err) {
         return this.load('PubSub').publish('error', err);
       }
-    });
-  }
-}
-
-
-/**
- * Information about an email which could not be delivered.
- * 
- * @typedef s2c~email-bounced
- * @type {Event}
- * 
- * @property {string} messageid  The RFC822 Message-Id of the non-delivered e-mail.
- * @property {int} sendingtime  The unix timestamp of the message leaving the server.
- * @property {int} bouncetime  The unix timestamp of receiving the failure notification.
- * @property {string} mailtype  The e-mail type as set by the caller of
- *                              {@link busreq~sendMail}.
- * @property {string} mailrecipient  The <code>To:</code> mail adress.
- * @property {string} diagnostic_code  The diagnostic code send by the rejecting server.
- */
-
-/** */
-class BouncedMailHandler {
-  constructor() {
-    super({
-      url: '/bounced-mail',
-      methods: ['POST'],
-      returns: [
-        { code: 204 },
-        { code: 404, identifer: 'mail-not-found' }
-      ],
-      schema: {
-        type: 'object',
-        properties: {
-          messageId: {
-            type: 'string',
-            description: 'The RFC822 Message-Id of the e-mail as set by this server during sending of the mail.'
-          },
-          diagnostic_code: {
-            type: 'string',
-            description: 'A diagnostic code set in the e-mail that may help users with troubleshooting.'
-          }
-        },
-        required: ['messageId']
-      },
-      description: 'Notifies the server about the non-delivery of mails.',
-      requiredAccess: 'email-bounces'
-    });
-  }
-  
-  handle(query, ctx, cfg, internal) {
-    if (!ctx) {
-      ctx = new qctx.QContext({parentComponent: this});
-    }
-    
-    if (!internal && !ctx.access.has('email-bounces')) {
-      throw new this.PermissionDenied();
-    }
-    
-    debug('Email bounced', query.messageId);
-    
-    let mail;
-    return ctx.startTransaction().then(conn => {
-      return conn.query('SELECT mailid, uid FROM sentemails WHERE messageid = ? FOR UPDATE',
-        [String(query.messageId)]).then(r => {
-        if (r.length === 0) {
-          throw new this.ClientError('mail-not-found');
-        }
-        
-        assert.equal(r.length, 1);
-        mail = r[0];
-        
-        assert.ok(mail);
-        
-        return conn.query('UPDATE sentemails SET bouncetime = UNIX_TIMESTAMP(), diagnostic_code = ? WHERE mailid = ?',
-          [String(query.diagnostic_code || ''), mail.mailid]);
-      }).then(() => {
-        if (!mail) {
-          return;
-        }
-        
-        return ctx.feed({
-          'type': 'email-bounced',
-          'targetid': mail.mailid,
-          'srcuser': mail.uid,
-          'noFollowers': true,
-          conn: conn
-        });
-      }).then(conn.commit, conn.rollbackAndThrow);
-    }).then(() => {
-      return { code: 200 };
     });
   }
 }

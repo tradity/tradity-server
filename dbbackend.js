@@ -95,7 +95,7 @@ class Database extends api.Component {
     });
     
     this.wConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error('DB lost write connection')));
-    this.rConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error(('DB lost read connection')));
+    this.rConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error('DB lost read connection')));
     
     this.load('Main').on('shutdown', () => this.shutdown());
     

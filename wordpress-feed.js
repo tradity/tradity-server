@@ -120,7 +120,7 @@ class AddFeed extends api.Requestable {
         { code: 200 },
         { code: 400, identifier: 'missingdata',
           description: 'in case no general blog previous blog entry was found in order to choose endpoint' }
-      ]
+      ],
       schema: {
         type: 'object',
         properties: {
@@ -170,7 +170,7 @@ class AddFeed extends api.Requestable {
     }).then(() => {
       return { code: 200 };
     });
-  })
+  }
 }
 
 class RemoveFeed extends api.Requestable {

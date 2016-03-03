@@ -18,6 +18,7 @@
 
 const assert = require('assert');
 const api = require('./api.js');
+const Access = require('./access.js').Access;
 const PSemaphore = require('promise-semaphore');
 const debug = require('debug')('sotrade:bw');
 
@@ -102,5 +103,5 @@ class BackgroundWorker extends api.Requestable {
 }
 
 exports.components = [
-  BackgroundWorker;
+  BackgroundWorker
 ];

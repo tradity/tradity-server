@@ -17,12 +17,15 @@
 "use strict";
 
 const Cache = require('./lib/minicache.js').Cache;
+const Access = require('./access.js').Access;
 const promiseEvents = require('promise-events');
 const deepFreeze = require('deep-freeze');
+const JSONStream = require('JSONStream');
 const zlib = require('zlib');
 const lzma = require('lzma-native');
 const assert = require('assert');
-const ZSchema = require("z-schema");
+const ZSchema = require('z-schema');
+const debug = require('debug')('sotrade:api');
 
 const registryInit = Symbol('registryInit');
 const _registry = Symbol('_registry');
@@ -102,10 +105,10 @@ class Registry extends _Component {
     
     assert.strictEqual(instance.constructor, Cls);
     
-    return this[addComponentInstance](instance);
+    return this[addComponentInstance](instance, Cls);
   }
   
-  [addComponentInstance](instance) {
+  [addComponentInstance](instance, Cls) {
     this._dependencyIndex.set(Cls, instance);
     this.addIndependentInstance(instance);
   }
@@ -218,13 +221,13 @@ class Requestable extends Component {
     }
     
     if (this.options.schema) {
-      this.schema = Object.assign({}, this.options.schema};
+      this.schema = Object.assign({}, this.options.schema);
       if (!this.schema.$schema) {
         this.schema.$schema = "http://json-schema.org/draft-04/schema#";
       }
       
       if (!this.schema.title) {
-        this.schema.title = requestable.url + ' (' + this.options.methods.join(', ') + ')';
+        this.schema.title = this.options.url + ' (' + this.options.methods.join(', ') + ')';
       }
     }
     
@@ -308,11 +311,11 @@ class Requestable extends Component {
   // XXX: repush
   
   // wrap this.handle() for some backwards compatibility
-  handleWithRequestInfo(query, ctx, cfg, xdata) {
+  handleWithRequestInfo(query, ctx, cfg /*, xdata */) {
     return this.handle(query, ctx, cfg);
   }
   
-  handle(query, ctx, cfg) {
+  handle(/*query, ctx, cfg*/) {
     throw new this.MissingHandler();
   }
   
@@ -322,6 +325,7 @@ class Requestable extends Component {
       return req.socket._qcontext;
     }
     
+    const qctx = require('./qctx.js');
     const ctx = new qctx.QContext({parentComponent: this});
     req.socket._qcontext = ctx;
     
@@ -343,7 +347,7 @@ class Requestable extends Component {
     const remoteAddress = req.socket.remoteAddress;
     const ctx = this.getQContext(req);
     
-    let query, masterAuthorization = false;
+    let query, masterAuthorization = false, hadUser;
     
     return Promise.resolve().then(() => {
       if (req.method === 'GET') {
@@ -403,7 +407,7 @@ class Requestable extends Component {
         }
       }
       
-      const hadUser = !!this.ctx.user;
+      hadUser = !!this.ctx.user;
       
       return this.load('LoadSessionUser').handle(query.key, ctx);
     }).then(user => {
@@ -471,10 +475,12 @@ class Requestable extends Component {
       res.writeHead(answer.code, headers);
       if (answer.code === 204) {
         // If we say “no content”, we stick to it.
+        assert.equal(Object.keys(answer), ['code']);
+        res.end();
       } else {
         const outJSON = JSONStream.stringify('', '', '');
         
-        return new Promise((resolve, reject) => {
+        const ret = new Promise((resolve, reject) => {
           outJSON.on('end', resolve);
           outJSON.on('error', reject);
         });
@@ -486,6 +492,8 @@ class Requestable extends Component {
         }
         
         outJSON.end(answer);
+        
+        return ret;
       }
     });
   }

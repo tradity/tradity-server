@@ -33,6 +33,7 @@
     "nodemailer-sendmail-transport": "^1.0.0"
   },
   "dependencies": {
+    "JSONStream": "^1.1.1",
     "bl": "^1.1.2",
     "datejs": "1.0.0-rc3",
     "deep-freeze": "^0.0.1",
@@ -52,9 +53,9 @@
     "request": "^2.67.0",
     "tradity-connection": "^0.10.0",
     "unionfind": "^0.0.3",
-    "validator": "^4.0.0",
+    "validator": "^5.1.0",
     "weak": "^1.0.0",
-    "wordpress-rest-api": "^0.5.0",
+    "wordpress-rest-api": "^0.6.0",
     "z-schema": "^3.16.1"
   },
   "private": true

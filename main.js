@@ -19,13 +19,11 @@
 
 const _ = require('lodash');
 const assert = require('assert');
-const https = require('https'); // XXX
 const cluster = require('cluster');
 const redis = require('redis');
 
 const qctx = require('./qctx.js');
 const api = require('./api.js');
-const promiseUtil = require('./lib/promise-util.js');
 const debug = require('debug')('sotrade:main');
 
 class StockQuoteLoaderProvider extends api.Component {
@@ -44,6 +42,10 @@ class StockQuoteLoaderProvider extends api.Component {
   
   init() {
     const stockLoaders = {};
+    const cfg = this.load('Config').config();
+    
+    Error.stackTraceLimit = cfg.stackTraceLimit || 20;
+    
     for (let i in cfg.stockloaders) {
       if (!cfg.stockloaders[i] || !cfg.stockloaders[i].path) {
         continue;
@@ -181,8 +183,8 @@ class Main extends api.Component {
       });
       
       for (let i = 0; i < this.shutdownSignals.length; ++i) {
-        process.on(this.shutdownSignals[i], () => {
-          this.emit('shutdown')
+        process.on(this.shutdownSignals[i], () => { // jshint ignore:line
+          this.emit('shutdown');
         
           this.workers.forEach(w => {
             w.kill(this.shutdownSignals[i]);
@@ -378,17 +380,14 @@ class Main extends api.Component {
     });
   }
 
-  startWorker() {
-    const componentsForLoading = this.basicComponents
-      .concat(this.isBackgroundWorker ? this.bwComponents : this.regularComponents);
-    
+  startWorker() {    
     debug('loading', process.pid);
     
     return this.loadComponents().then(() => {
       const server = require('./server.js');
       const stserver = new server.Server({isBackgroundWorker: this.isBackgroundWorker});
       
-      return; // XXX somehow connect stserver to the registry
+      return stserver; // XXX somehow connect stserver to the registry
     }).then(stserver => {
       debug('loaded', process.pid);
       
@@ -408,7 +407,7 @@ class Main extends api.Component {
         return;
       }
       
-      return Promise.all(component.map(Class => {
+      return Promise.all(components.map(Class => {
         return this.registry.addComponentClass(Class);
       }));
     }));
@@ -416,7 +415,6 @@ class Main extends api.Component {
 }
 
 Main.init_ = function() {
-  Error.stackTraceLimit = cfg.stackTraceLimit || 20;
   require('events').EventEmitter.defaultMaxListeners = 0;
   require('promise-events').EventEmitter.defaultMaxListeners = 0;
   process.setMaxListeners(0);

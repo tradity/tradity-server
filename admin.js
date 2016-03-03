@@ -414,7 +414,7 @@ class MergeSchools extends api.Requestable {
       returns: [
         { code: 204 },
         { code: 404, identifier: 'school-not-found' },
-        { code: 403, identifier: 'different-parents' }
+        { code: 403, identifier: 'different-parents' },
         { code: 403, identifier: 'no-subschools-allowed' }
       ],
       schema: {

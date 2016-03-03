@@ -48,13 +48,13 @@ class SchoolUtilRequestable extends api.Requestable {
       return;
     }
     
-    return this.isSchoolAdmin(ctx, status, schoolid).then(schoolAdminResult => {
+    return this.isSchoolAdmin(ctx, status, query.schoolid).then(schoolAdminResult => {
       if (!schoolAdminResult.ok) {
         throw new this.PermissionDenied(); // XXX
       }
       
       // in the case that schoolid was not numerical before
-      query.schoolid = schoolAdminResult.schoolid;
+      return schoolAdminResult.schoolid;
     });
   }
   
@@ -340,9 +340,9 @@ class ChangeSchoolDescription extends SchoolUtilRequestable {
   }
   
   handle(query, ctx) {
-    this.requireSchoolAdmin(query, ctx).then(() => {
+    this.requireSchoolAdmin(query, ctx).then(schoolid => {
       return ctx.query('UPDATE schools SET descpage = ? WHERE schoolid = ?',
-        [String(query.descpage), query.schoolid]);
+        [String(query.descpage), schoolid]);
     }).then(() => ({ code: 204 }));
   }
 }
@@ -379,19 +379,20 @@ class ChangeMemberStatus extends SchoolUtilRequestable {
   }
   
   handle(query, ctx) {
-    this.requireSchoolAdmin(query, ctx).then(() => {
+    let schoolid;
+    this.requireSchoolAdmin(query, ctx).then(schoolid_ => {
       const uid = query.uid;
-      const schoolid = query.schoolid;
+      schoolid = schoolid_;
       
       return ctx.query('UPDATE schoolmembers SET pending = 0 WHERE schoolid = ? AND uid = ?',
         [uid, schoolid]);
     }).then(() => {
       if (query.status === 'member') {
         return ctx.query('DELETE FROM schooladmins WHERE uid = ? AND schoolid = ?',
-          [uid, schoolid]);
+          [query.uid, schoolid]);
       } else {
         return ctx.query('REPLACE INTO schooladmins (uid, schoolid, status) VALUES(?, ?, ?)',
-          [uid, schoolid, String(query.status)]);
+          [query.uid, schoolid, query.status]);
       }
     }).then(() => {
       return { code: 204 };
@@ -427,11 +428,11 @@ class DeleteComment extends SchoolUtilRequestable {
   }
   
   handle(query, ctx) {
-    this.requireSchoolAdmin(query, ctx).then(() => {
+    this.requireSchoolAdmin(query, ctx).then(schoolid => {
       return ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
         'JOIN events AS e ON e.eventid = c.eventid ' +
         'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
-        [parseInt(query.commentid), parseInt(query.schoolid)]);
+        [parseInt(query.commentid), schoolid]);
     }).then(res => {
       if (res.length === 0) {
         throw new this.PermissionDenied();
@@ -476,9 +477,11 @@ class KickUser extends SchoolUtilRequestable {
   }
   
   handle(query, ctx) {
-    return this.requireSchoolAdmin(query, ctx).then(() => {
-      const uid = query.uid;
-      const schoolid = query.schoolid;
+    const uid = query.uid;
+    let schoolid;
+    
+    return this.requireSchoolAdmin(query, ctx).then(schoolid_ => {
+      schoolid = schoolid_;
       
       return ctx.query('DELETE FROM schoolmembers WHERE uid = ? AND schoolid = ?', 
         [uid, schoolid]);
@@ -656,9 +659,9 @@ class PublishBanner extends SchoolUtilRequestable {
   }
   
   handleWithRequestInfo(query, ctx, cfg, xdata) {
-    return this.requireSchoolAdmin(query, ctx, false).then(() => {
+    return this.requireSchoolAdmin(query, ctx, false).then(schoolid => {
       return this.load('PublishFile').handle(query, ctx, cfg, xdata, {
-        groupassoc: query.schoolid,
+        groupassoc: schoolid,
         role: 'schools.banner'
       });
     });
@@ -697,10 +700,22 @@ class CreateInviteLinkGroup extends SchoolUtilRequestable {
   }
   
   handle(query, ctx, cfg) {
-    return this.requireSchoolAdmin(query, ctx, true).then(() => {
-      return this.load('CreateInviteLink').handle(query, ctx, cfg, this);
+    return this.requireSchoolAdmin(query, ctx, true).then(schoolid => {
+      return this.load('CreateInviteLink').handle(query, ctx, cfg, this, schoolid);
     });
   }
 }
 
-exports.Schools = Schools;
+exports.components = [
+  GetSchoolInfo,
+  SchoolExists,
+  ChangeSchoolDescription,
+  ChangeMemberStatus,
+  DeleteComment,
+  KickUser,
+  CreateSchool,
+  ListSchools,
+  PublishBanner,
+  CreateInviteLinkGroup
+];
+

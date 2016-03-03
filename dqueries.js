@@ -133,7 +133,7 @@ class DelayedQueries extends api.Component {
     this.queries[entryid] = query;
     query.neededStocks.forEach(stocktextid => this.addNeededStock(query.queryid, stocktextid));
     return this.checkAndExecute(ctx, query);
-  };
+  }
 
   /**
    * Indicate that a delayed query requires information on a certain stock.
@@ -148,7 +148,7 @@ class DelayedQueries extends api.Component {
     } else {
       this.neededStocks['s-'+stocktextid] = [queryid];
     }
-  };
+  }
 
   /**
    * Parse a delayed query condition string.
@@ -214,11 +214,10 @@ class DelayedQueries extends api.Component {
                     return false;
                   }
                   
-                  const cfg = this.load('Config');
+                  const cfg = this.load('Config').config();
+                  const isOpen = this.load('StockExchangeIsOpen').test(r[0].exchange, cfg);
                   
-                  if (this.load('StockExchangeIsOpen').test(r[0].exchange, cfg)) {
-                    return lt ? isOpen < value : isOpen > value;
-                  }
+                  return lt ? isOpen < value : isOpen > value;
                 });
               });
               break;
@@ -248,7 +247,7 @@ class DelayedQueries extends api.Component {
       },
       neededStocks: stocks
     };
-  };
+  }
 
   /**
    * Informs users of delayed queries having been executed.
@@ -305,7 +304,7 @@ class DelayedQueries extends api.Component {
         delete query.executionPromise;
       }
     });
-  };
+  }
 
   /**
    * Removes a delayed query from the local structures and the database.
@@ -326,7 +325,7 @@ class DelayedQueries extends api.Component {
         }
       });
     });
-  };
+  }
 
   /**
    * Removes a delayed query from the local structures and the database.
@@ -348,7 +347,7 @@ class DelayedQueries extends api.Component {
     for (let i = 0; i < toBeDeleted.length; ++i) {
       this.removeQuery(toBeDeleted[i], ctx);
     }
-  });
+  }
 }
 
 class DelayedQueryList extends api.Requestable {

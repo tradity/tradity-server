@@ -94,6 +94,11 @@ class QContext extends api.Component {
         }, 1500);
       }
     };
+    
+    QContext.weakInstances = QContext.weakInstances || [];
+    
+    QContext.weakInstances.push(weak(this, ondestroy));
+    QContext.weakInstances = QContext.weakInstances.filter(w => !w.isDead());
   }
 
   /**
@@ -120,7 +125,7 @@ class QContext extends api.Component {
    */
   toJSON() {
     return { user: this.user, access: this.access.toJSON(), properties: this.properties };
-  };
+  }
 
   /**
    * Shorthand method for pushing feed entries.
@@ -464,7 +469,7 @@ class QContext extends api.Component {
       
       return conn;
     });
-  };
+  }
 
   /**
    * Return some statistical information on this QContext,

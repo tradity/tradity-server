@@ -16,10 +16,8 @@
 
 "use strict";
 
+const assert = require('assert.js');
 const api = require('./api.js');
-const debug = require('debug')('sotrade:ranking');
-
-// XXX includeme
 
 /**
  * Represents the information publicly available about a single user.

@@ -271,6 +271,11 @@ class ConfigInfo extends api.Requestable {
   }
 }
 
+exports.components = [
+  Config,
+  ConfigInfo
+];
+
 if (require.main === module) {
   const options = minimist(process.argv.slice(2));
   const path = options._;
@@ -282,10 +287,10 @@ if (require.main === module) {
         console.log(config.otherConfigFiles[i]);
       }
     } else if (path.length > 0) {
-      console.log(_.get(cfg, path));
+      console.log(_.get(config.config(), path));
     } else {
       console.log('Config files:', config.otherConfigFiles);
-      console.log('Config:', config.cfg);
+      console.log('Config:', config.config());
     }
   });
 }

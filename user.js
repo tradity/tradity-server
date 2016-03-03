@@ -18,11 +18,11 @@
 
 const crypto = require('crypto');
 const assert = require('assert');
+const _ = require('lodash');
 const validator = require('validator');
 const genders = require('genders');
 const sha256 = require('./lib/sha256.js');
 const api = require('./api.js');
-const Access = require('./access.js').Access;
 const qctx = require('./qctx.js');
 const debug = require('debug')('sotrade:user');
 const promiseUtil = require('./lib/promise-util.js');
@@ -103,7 +103,7 @@ class UserManagementRequestable extends api.Requestable {
     if (pbkdf2Match) {
       const iterations = parseInt(pbkdf2Match[1]);
       
-      const cfg 0 this.load('Config').config();
+      const cfg = this.load('Config').config();
       
       if (iterations < cfg.passwords.pbkdf2MinIterations) {
         return false;
@@ -277,7 +277,7 @@ class Login extends UserManagementRequestable {
       return Promise.all([
         ctx.query('DELETE FROM passwords WHERE pwid != ? AND uid = ?', [r.pwid, uid]),
         r.issuetime !== null ? ctx.query('UPDATE passwords SET changetime = UNIX_TIMESTAMP() WHERE pwid = ?', [r.pwid]) : Promise.resolve(),
-        User.deprecatedPasswordAlgorithms.test(r.algorithm) ? this.generatePassword(pw, 'changetime', uid, ctx) : Promise.resolve()
+        this.isDeprecatedPasswordAlgorithm(r.algorithm) ? this.generatePassword(pw, 'changetime', uid, ctx) : Promise.resolve()
       ]);
     }).then(() => {
       return randomBytes(16);
@@ -290,7 +290,6 @@ class Login extends UserManagementRequestable {
         
         debug('Sign session key', xdata.remoteip, name, uid, today);
         
-        let ret;
         return this.load('SignedMessaging').createSignedMessage({
           uid: uid,
           sid: key,
@@ -348,10 +347,10 @@ class EmailVerify extends api.Requestable {
       methods: ['POST'],
       returns: [
         { code: 200 },
-        { code: 403, 'already-verified' },
-        { code: 403, 'other-already-verified' },
-        { code: 404, 'email-not-found' },
-        { code: 404, 'code-not-found' }
+        { code: 403, identifier: 'already-verified' },
+        { code: 403, identifier: 'other-already-verified' },
+        { code: 404, identifier: 'email-not-found' },
+        { code: 404, identifier: 'code-not-found' }
       ],
       writing: true,
       requiredLogin: false,
@@ -368,7 +367,7 @@ class EmailVerify extends api.Requestable {
           }
         },
         required: ['uid', 'key']
-      }
+      },
       description: 'Verify a user’s e-mail address with the key from the confirmation link.',
       depends: [Login]
     });
@@ -539,6 +538,106 @@ class LoadSessionUser extends api.Component {
   }
 }
 
+class ValidateUsername extends api.Requestable {
+  constructor() {
+    super({
+      url: '/validate-user/:name',
+      methods: ['POST'],
+      returns: [
+        { code: 200 },
+        { code: 403, identifier: 'invalid-char' },
+        { code: 403, identifier: 'already-present' },
+      ],
+      requiredLogin: false,
+      description: 'Checks that a username is valid.',
+      schema: {
+        type: 'object',
+        properties: {
+          name: {
+            type: 'string',
+            description: 'The (possible) user name'
+          },
+          uid: {
+            type: 'integer',
+            description: '(Used internally)'
+          }
+        },
+        required: ['name']
+      }
+    });
+  }
+  
+  handle(query, ctx) {
+    query.name = String(query.name);
+    const uid = query.uid;
+    
+    if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
+      parseInt(query.name) === parseInt(query.name)) {
+      throw new this.ClientError('reg-name-invalid-char');
+    }
+    
+    return ctx.query('SELECT uid FROM users ' +
+      'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
+      [query.name, uid]).then(res => {
+      
+      if (res.length > 0 && res[0].uid !== uid) {
+        throw new this.ClientError('reg-name-already-present');
+      }
+      
+      return { code: 200 };
+    });
+  }
+}
+
+class ValidateEmail extends api.Requestable {
+  constructor() {
+    super({
+      url: '/validate-email/:email',
+      methods: ['POST'],
+      returns: [
+        { code: 200 },
+        { code: 403, identifier: 'invalid-email' },
+        { code: 403, identifier: 'already-present' },
+      ],
+      requiredLogin: false,
+      description: 'Checks that an email address is valid.',
+      schema: {
+        type: 'object',
+        properties: {
+          email: {
+            type: 'string',
+            description: 'The (possible) email address.'
+          },
+          uid: {
+            type: 'integer',
+            description: '(Used internally)'
+          }
+        },
+        required: ['email']
+      }
+    });
+  }
+  
+  handle(query, ctx) {
+    const uid = query.uid;
+    query.email = String(query.email);
+    
+    if (!validator.isEmail(query.email)) {
+      throw new this.ClientError('invalid-email');
+    }
+    
+    return ctx.query('SELECT uid FROM users ' +
+      'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
+      [query.email, uid]).then(res => {
+      if (res.length > 0 && res[0].uid !== uid) {
+        throw new this.ClientError('already-present');
+      }
+      
+      return { code: 200 };
+    });
+  }
+}
+
 class UpdateUserRequestable extends UserManagementRequestable {
   constructor(options) {
     super(Object.assign({}, {
@@ -578,10 +677,10 @@ class UpdateUserRequestable extends UserManagementRequestable {
           invitekey: { type: 'string' }
         },
         required: ['email', 'name']
-      }
+      },
       writing: true,
       depends: [ValidateEmail, ValidateUsername]
-    }, options);
+    }, options));
   }
   
   updateUser(query, type, ctx, cfg, xdata) {
@@ -589,7 +688,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     
     const betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
     
-    let uid, cfg;
+    let uid;
     let gainUIDCBs = [];
     
     return Promise.resolve().then(() => {
@@ -849,7 +948,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
           parentComponent: this}),
         xdata);
     });
-  };
+  }
 }
 
 class Register extends UpdateUserRequestable {
@@ -883,106 +982,6 @@ class ChangeOptions extends UpdateUserRequestable {
   
   handleWithRequestInfo(query, ctx, cfg, xdata) {
     return this.updateUser(query, 'change', ctx, cfg, xdata);
-  }
-}
-
-class ValidateUsername extends api.Requestable {
-  constructor() {
-    super({
-      url: '/validate-user/:name',
-      methods: ['POST'],
-      returns: [
-        { code: 200 },
-        { code: 403, 'invalid-char' },
-        { code: 403, 'already-present' },
-      ],
-      requiredLogin: false,
-      description: 'Checks that a username is valid.',
-      schema: {
-        type: 'object',
-        properties: {
-          name: {
-            type: 'string',
-            description: 'The (possible) user name'
-          },
-          uid: {
-            type: 'integer',
-            description: '(Used internally)'
-          }
-        },
-        required: ['name']
-      }
-    });
-  }
-  
-  handle(query, ctx) {
-    query.name = String(query.name);
-    const uid = query.uid;
-    
-    if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
-      parseInt(query.name) === parseInt(query.name)) {
-      throw new this.ClientError('reg-name-invalid-char');
-    }
-    
-    return ctx.query('SELECT uid FROM users ' +
-      'WHERE (name = ?) ORDER BY NOT(uid != ?) FOR UPDATE',
-      [query.name, uid]).then(res => {
-      
-      if (res.length > 0 && res[0].uid !== uid) {
-        throw new this.ClientError('reg-name-already-present');
-      }
-      
-      return { code: 200 };
-    });
-  }
-}
-
-class ValidateEmail extends api.Requestable {
-  constructor() {
-    super({
-      url: '/validate-email/:email',
-      methods: ['POST'],
-      returns: [
-        { code: 200 },
-        { code: 403, 'invalid-email' },
-        { code: 403, 'already-present' },
-      ],
-      requiredLogin: false,
-      description: 'Checks that an email address is valid.',
-      schema: {
-        type: 'object',
-        properties: {
-          email: {
-            type: 'string',
-            description: 'The (possible) email address.'
-          },
-          uid: {
-            type: 'integer',
-            description: '(Used internally)'
-          }
-        },
-        required: ['email']
-      }
-    });
-  }
-  
-  handle(query, ctx) {
-    const uid = query.uid;
-    query.email = String(query.email);
-    
-    if (!validator.isEmail(query.email)) {
-      throw new this.ClientError('invalid-email');
-    }
-    
-    return ctx.query('SELECT uid FROM users ' +
-      'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
-      [query.email, uid]).then(res => {
-      if (res.length > 0 && res[0].uid !== uid) {
-        throw new this.ClientError('already-present');
-      }
-      
-      return { code: 200 };
-    });
   }
 }
 
@@ -1162,7 +1161,7 @@ class ResetPassword extends api.Requestable {
         {'password': pw, 'username': query.name, 'email': u.email},
         'password-reset-email.eml',
         ctx, u.lang, null, u.uid
-      });
+      );
     }).then(() => ({ code: 200 }));
   }
 }
@@ -1188,9 +1187,9 @@ class InviteKeyInfo extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     return ctx.query('SELECT email, schoolid FROM invitelink WHERE `key` = ?',
-      [String(query.invitekey)]).then(res) => {
+      [String(query.invitekey)]).then(res => {
       if (res.length === 0) {
         throw new this.ClientError('key-not-found');
       }
@@ -1234,15 +1233,17 @@ class CreateInviteLink extends api.Component {
     ).then(() => ({ code: 204 }));
   }
   
-  handle(query, ctx, cfg, ErrorProvider) {
+  handle(query, ctx, cfg, ErrorProvider, schoolid) {
     ctx = ctx.clone(); // so we can’t lose the user object during execution
     
-    debug('Create invite link for', ctx.user.uid, query.email, query.schoolid);
+    debug('Create invite link for', ctx.user.uid, query.email, schoolid);
     
     let sendKeyToCaller = ctx.access.has('userdb');
-    let key, url, cfg;
+    let key, url;
     
-    if (query.schoolid && parseInt(query.schoolid) !== parseInt(query.schoolid)) {
+    schoolid = typeof schoolid !== 'undefined' ? schoolid : query.schoolid;
+    
+    if (schoolid && isNaN(parseInt(query.schoolid))) {
       throw new ErrorProvider.BadRequest(new Error('Need school id'));
     }
     
@@ -1261,10 +1262,10 @@ class CreateInviteLink extends api.Component {
       
       return Promise.all([
         pseudoRandomBytes(16),
-        ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [query.schoolid])
+        ctx.query('SELECT COUNT(*) AS c FROM schools WHERE schoolid = ?', [schoolid])
       ]);
     }).then(spread((buf, schoolcountres) => {
-      if (query.schoolid && schoolcountres[0].c !== 1) {
+      if (schoolid && schoolcountres[0].c !== 1) {
         throw new ErrorProvider.ClientError('school-not-found');
       }
       
@@ -1272,7 +1273,7 @@ class CreateInviteLink extends api.Component {
       return ctx.query('INSERT INTO invitelink ' +
         '(uid, `key`, email, ctime, schoolid) VALUES ' +
         '(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-        [ctx.user.uid, key, query.email, query.schoolid ? parseInt(query.schoolid) : null]);
+        [ctx.user.uid, key, query.email, typeof schoolid !== 'undefined' ? parseInt(query.schoolid) : null]);
     })).then(() => {
       url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
     
@@ -1305,7 +1306,7 @@ exports.components = [
   ChangeOptions,
   ValidateUsername,
   ValidateEmail,
-  ResetUser
+  ResetUser,
   ListGenders,
   ResetPassword,
   InviteKeyInfo,

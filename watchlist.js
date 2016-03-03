@@ -184,7 +184,7 @@ class WatchlistShow extends api.Requestable {
       'LEFT JOIN sessions ON sessions.lastusetime = (SELECT MAX(lastusetime) FROM sessions WHERE uid = rw.watched) AND sessions.uid = rw.watched ' +
       'WHERE w.watcher = ?', [ctx.user.uid]).then(res => {
       return { code: 200, data: res };
-    }
+    });
   }
 }
 

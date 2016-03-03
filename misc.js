@@ -19,7 +19,6 @@
 const _ = require('lodash');
 const assert = require('assert');
 const api = require('./api.js');
-const qctx = require('./qctx.js');
 const debug = require('debug')('sotrade:misc');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
@@ -112,11 +111,11 @@ class ArtificialError extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(/*query, ctx*/) {
     debug('Creating artificial error');
     this.load('PubSub').publish('error', new Error('Client-induced non-failure'));
     return { code: 204 };
-  });
+  }
 }
 
 class ArtificialDeadlock extends api.Requestable {
@@ -210,7 +209,7 @@ class ForceReadonly extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handle(query/*, ctx*/) {
     debug('Force into readability mode', query.readonly);
     
     this.load('Main').readonly = query.readonly;

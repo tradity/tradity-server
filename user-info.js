@@ -17,12 +17,10 @@
 "use strict";
 
 const _ = require('lodash');
+const assert = require('assert');
 const api = require('./api.js');
-const debug = require('debug')('sotrade:user-info');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
-
-// XXX includeme
 
 /**
  * Represents the information publicly available about a single user including some performance data,
@@ -71,7 +69,7 @@ class UserInfo extends api.Requestable {
       methods: ['GET'],
       returns: [
         { code: 200 },
-        { code: 404, 'user-not-found' }
+        { code: 404, identifier: 'user-not-found' }
       ],
       schema: {
         type: 'object',
@@ -86,7 +84,7 @@ class UserInfo extends api.Requestable {
           }
         },
         required: ['lookfor']
-      }
+      },
       description: 'Return all available information on a single user.'
     });
   }

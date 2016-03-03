@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const os = require('os');
 const assert = require('assert');
 const http = require('http');
@@ -26,9 +25,7 @@ const sio = require('socket.io');
 const debug = require('debug')('sotrade:server');
 const api = require('./api.js');
 const qctx = require('./qctx.js');
-const ConnectionData = require('./connectiondata.js').ConnectionData;
 const promiseUtil = require('./lib/promise-util.js');
-const spread = promiseUtil.spread;
 
 /**
  * Provides the HTTP endpoint for all client connections

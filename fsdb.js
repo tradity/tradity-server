@@ -20,13 +20,11 @@ const _ = require('lodash');
 const http = require('http');
 const https = require('https');
 const assert = require('assert');
+const bl = require('bl');
 const sha256 = require('./lib/sha256.js');
-const deepupdate = require('./lib/deepupdate.js');
 const qctx = require('./qctx.js');
 const api = require('./api.js');
 const debug = require('debug')('sotrade:fsdb');
-const promiseUtil = require('./lib/promise-util.js');
-const spread = promiseUtil.spread;
 
 class FSDBRequestable extends api.Requestable {
   constructor() {
@@ -35,7 +33,7 @@ class FSDBRequestable extends api.Requestable {
       methods: ['GET'],
       returns: [
         { code: 200 },
-        { code: 404, 'not-found' }
+        { code: 404, identifier: 'not-found' }
       ],
       schema: {
         type: 'object',
@@ -46,7 +44,7 @@ class FSDBRequestable extends api.Requestable {
           }
         },
         required: ['filename']
-      }
+      },
       description: 'Handles an HTTP file request for user-uploaded resources.'
     });
   }
@@ -56,6 +54,7 @@ class FSDBRequestable extends api.Requestable {
     const cfg = this.load('Config').config();
     
     const filename = uriMatch.filename;
+    let headers, r;
     
     debug('Requested file', filename);
     
@@ -68,9 +67,9 @@ class FSDBRequestable extends api.Requestable {
       
       assert.equal(rows.length, 1);
       
-      const r = rows[0];
+      r = rows[0];
       
-      const headers = {
+      headers = {
         'Date': new Date().toString(),
         'Access-Control-Allow-Origin': '*',
         'X-Sotrade-Hash': r.hash,
@@ -119,7 +118,7 @@ class FSDBRequestable extends api.Requestable {
         
         preq.setHeader('User-Agent', cfg.userAgent);
         preq.end();
-      }
+      });
     }).then(resultInfo => {
       if (!resultInfo) {
         return;
@@ -127,7 +126,7 @@ class FSDBRequestable extends api.Requestable {
       
       let sendHeaders = headers;
       if (r.headers) {
-        sendHeaders = deepupdate(headers, JSON.parse(r.headers));
+        sendHeaders = Object.assign({}, headers, JSON.parse(r.headers));
       }
       
       res.writeHead(resultInfo.code, sendHeaders);
@@ -174,10 +173,10 @@ class FSDBPublish extends api.Requestable {
       methods: ['POST'],
       returns: [
         { code: 204 },
-        { code: 403, 'proxy-not-allowed' },
-        { code: 403, 'inacceptable-role' },
-        { code: 415, 'inacceptable-mime' },
-        { code: 413, 'quota-exceeded' }
+        { code: 403, identifier: 'proxy-not-allowed' },
+        { code: 403, identifier: 'inacceptable-role' },
+        { code: 415, identifier: 'inacceptable-mime' },
+        { code: 413, identifier: 'quota-exceeded' }
       ],
       transactional: true,
       schema: {
@@ -195,17 +194,16 @@ class FSDBPublish extends api.Requestable {
           }
         },
         required: []
-      }
+      },
       description: 'Publishes a file.',
       notes: 'The Content-Length and Content-Type headers need to be set.'
     });
   }
   
   handleWithRequestInfo(query, ctx, cfg, xdata, groupInfo) {
-    const cfg = this.load('Config').config();
     groupInfo = groupInfo || {};
     
-    let uniqrole, filehash, filename, url, mime, length, groupassoc, totalUsedBytes;
+    let uniqrole, filehash, filename, url, mime, length, groupassoc, totalUsedBytes, content;
     const role = groupInfo.role || query.role;
     
     return Promise.resolve().then(() => {
@@ -217,7 +215,7 @@ class FSDBPublish extends api.Requestable {
       uniqrole = cfg.fsdb.uniqroles[role];
     
       return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
-        [ctx.user ? ctx.user.uid : null])
+        [ctx.user ? ctx.user.uid : null]);
     }).then(res => {
       totalUsedBytes = uniqrole ? 0 : res[0].total;
       

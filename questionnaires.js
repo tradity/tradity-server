@@ -23,6 +23,85 @@ const debug = require('debug')('sotrade:questionnaires');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
+class QuestionnaireDatabase extends api.Component {
+  constructor() {
+    super({
+      description: 'Perform the initial load of all questionnaires.',
+    });
+  }
+  
+  loadQuestionnaires(ctx) {
+    debug('loadQuestionnaires', !!this.questionnaires);
+    if (this.questionnaires) {
+      return this.questionnaires;
+    }
+    
+    let loadQuestionnaire, loadQuestion, loadAnswer, groupByLanguage;
+    
+    groupByLanguage = listWithLangAttribute => {
+      const ret = _.groupBy(listWithLangAttribute, 'language');
+      return _.mapValues(ret, list => _.omit(list[0], 'language'));
+    };
+    
+    loadQuestionnaire = questionnaire => {
+      return Promise.all([
+        ctx.query('SELECT language, qtext FROM qn_questionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id]).then(groupByLanguage),
+        ctx.query('SELECT qn_questions.question_id, question_multiple_answers, `order` ' + 
+          'FROM qn_questions_questionnaires AS qlist ' +
+          'JOIN qn_questions ON qn_questions.question_id = qlist.question_id ' +
+          'WHERE qlist.questionnaire_id = ? ORDER BY `order` ASC', [questionnaire.questionnaire_id])
+          .then(res => {
+          return Promise.all(res.map(loadQuestion));
+        })
+      ]).then(spread((texts, questions) => {
+        return _.mapValues(texts, (entry, lang) => {
+          return _.extend(entry, questionnaire, {
+            questions: _.map(questions, lang)
+          });
+        });
+      })).then(questionnaireObject => {
+        questionnaireObject.questionnaire_id = questionnaire.questionnaire_id;
+        return questionnaireObject;
+      });
+    };
+    
+    loadQuestion = question => {
+      return Promise.all([
+        ctx.query('SELECT language, qtext  FROM qn_questions_texts WHERE question_id = ?', [question.question_id]).then(groupByLanguage),
+        ctx.query('SELECT qn_answers.answer_id, answer_freetext, `order` ' +
+          'FROM qn_questions_answers AS alist ' +
+          'JOIN qn_answers ON qn_answers.answer_id = alist.answer_id ' +
+          'WHERE alist.question_id = ? ORDER BY `order` ASC', [question.question_id]).then(res => {
+          return Promise.all(res.map(loadAnswer));
+        })
+      ]).then(spread((texts, answers) => {
+        return _.mapValues(texts, (entry, lang) => {
+          return _.extend(entry, question, {
+            answers: _.map(answers, lang)
+          });
+        });
+      }));
+    };
+    
+    loadAnswer = answer => {
+      return ctx.query('SELECT language, atext FROM qn_answer_texts WHERE answer_id = ?', [answer.answer_id]).then(groupByLanguage)
+      .then(texts => {
+        return _.mapValues(texts, entry => {
+          return _.extend(entry, answer);
+        });
+      });
+    };
+    
+    return this.questionnaires = ctx.query('SELECT * FROM qn_questionnaires').then(res => {
+      return Promise.all(res.map(loadQuestionnaire));
+    }).then(questionnaires => {
+      debug('Loaded questionnaires', questionnaires.length);
+      
+      return _.mapValues(_.groupBy(questionnaires, 'questionnaire_id'), 0);
+    });
+  }
+}
+
 class QuestionnairesList extends api.Requestable {
   constructor() {
     super({
@@ -117,6 +196,9 @@ class QuestionnaireSave extends api.Requestable {
   }
   
   handle(query, ctx) {
+    const questionnaireId = query.questionnaire;
+    const fill_time = query.fill_time;
+    
     const resultsQuery = [];
     const resultsArguments = [];
     
@@ -181,85 +263,6 @@ class QuestionnaireSave extends api.Requestable {
         resultsQuery.join(',').replace(/%resultSetID%/g, resultSetID), resultsArguments);
     }).then(() => {
       return { code: 204 };
-    });
-  }
-}
-
-class QuestionnaireDatabase extends api.Component {
-  constructor() {
-    super({
-      description: 'Perform the initial load of all questionnaires.',
-    });
-  }
-  
-  loadQuestionnaires(ctx) {
-    debug('loadQuestionnaires', !!this.questionnaires);
-    if (this.questionnaires) {
-      return this.questionnaires;
-    }
-    
-    let loadQuestionnaire, loadQuestion, loadAnswer, groupByLanguage;
-    
-    groupByLanguage = listWithLangAttribute => {
-      const ret = _.groupBy(listWithLangAttribute, 'language');
-      return _.mapValues(ret, list => _.omit(list[0], 'language'));
-    };
-    
-    loadQuestionnaire = questionnaire => {
-      return Promise.all([
-        ctx.query('SELECT language, qtext FROM qn_questionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id]).then(groupByLanguage),
-        ctx.query('SELECT qn_questions.question_id, question_multiple_answers, `order` ' + 
-          'FROM qn_questions_questionnaires AS qlist ' +
-          'JOIN qn_questions ON qn_questions.question_id = qlist.question_id ' +
-          'WHERE qlist.questionnaire_id = ? ORDER BY `order` ASC', [questionnaire.questionnaire_id])
-          .then(res => {
-          return Promise.all(res.map(loadQuestion));
-        })
-      ]).then(spread((texts, questions) => {
-        return _.mapValues(texts, (entry, lang) => {
-          return _.extend(entry, questionnaire, {
-            questions: _.map(questions, lang)
-          });
-        });
-      })).then(questionnaireObject => {
-        questionnaireObject.questionnaire_id = questionnaire.questionnaire_id;
-        return questionnaireObject;
-      });
-    };
-    
-    loadQuestion = question => {
-      return Promise.all([
-        ctx.query('SELECT language, qtext  FROM qn_questions_texts WHERE question_id = ?', [question.question_id]).then(groupByLanguage),
-        ctx.query('SELECT qn_answers.answer_id, answer_freetext, `order` ' +
-          'FROM qn_questions_answers AS alist ' +
-          'JOIN qn_answers ON qn_answers.answer_id = alist.answer_id ' +
-          'WHERE alist.question_id = ? ORDER BY `order` ASC', [question.question_id]).then(res => {
-          return Promise.all(res.map(loadAnswer));
-        })
-      ]).then(spread((texts, answers) => {
-        return _.mapValues(texts, (entry, lang) => {
-          return _.extend(entry, question, {
-            answers: _.map(answers, lang)
-          });
-        });
-      }));
-    };
-    
-    loadAnswer = answer => {
-      return ctx.query('SELECT language, atext FROM qn_answer_texts WHERE answer_id = ?', [answer.answer_id]).then(groupByLanguage)
-      .then(texts => {
-        return _.mapValues(texts, entry => {
-          return _.extend(entry, answer);
-        });
-      });
-    };
-    
-    return this.questionnaires = ctx.query('SELECT * FROM qn_questionnaires').then(res => {
-      return Promise.all(res.map(loadQuestionnaire));
-    }).then(questionnaires => {
-      debug('Loaded questionnaires', questionnaires.length);
-      
-      return _.mapValues(_.groupBy(questionnaires, 'questionnaire_id'), 0);
     });
   }
 }

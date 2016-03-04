@@ -136,7 +136,7 @@ class SoTradeServer extends api.Component {
     let listenSuccess = false;
     
     const listenHandler = () => {
-      this.httpServer.on('error', e => this.load('PubSub').publish('error', e));
+      this.httpServer.on('error', e => this.load('PubSub').emit('error', e));
       
       listenSuccess = true;
       deferred.resolve();

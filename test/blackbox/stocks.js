@@ -56,7 +56,6 @@ describe('stocks', function() {
   const standardISIN = 'DE000BAY0017';
   const umlautNameISIN = 'DE0005565204';
 
-  if (!testHelpers.testPerformance) {
   describe('prod', function() {
     it('Works', function() {
       return socket.emit('prod', {
@@ -66,7 +65,6 @@ describe('stocks', function() {
       });
     });
   });
-  }
   
   describe('stock-search', function() {
     it('Returns information based on the ISIN', function() {

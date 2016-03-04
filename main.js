@@ -58,7 +58,7 @@ class StockQuoteLoaderProvider extends api.Component {
       
       const slModule = require(stockloaderConfig.path);
       stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
-      stockLoaders[i].on('error', e => this.load('PubSub').publish('error', e));
+      stockLoaders[i].on('error', e => this.load('PubSub').emit('error', e));
     }
 
     this.defaultStockLoader = stockLoaders[cfg.stockloaders._defaultStockLoader];
@@ -179,7 +179,7 @@ class Main extends api.Component {
       
       let isAlreadyShuttingDownDueToError = false;
       const unhandledSomething = err => {
-        this.load('PubSub').publish('error', err);
+        this.load('PubSub').emit('error', err);
         if (!isAlreadyShuttingDownDueToError) {
           this.load('PubSub').emit('shutdown');
         }

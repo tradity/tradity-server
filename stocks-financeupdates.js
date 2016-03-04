@@ -277,7 +277,7 @@ class UpdateLeaderMatrix extends api.Component {
         const sgesvST = Date.now();
         const res = lapack.sgesv(A, B);
         if (!res) {
-          return this.load('PubSub').publish('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
+          return this.load('PubSub').emit('error', new Error('SLE solution not found for\nA = ' + A + '\nB = ' + B));
         }
         
         const sgesvET = Date.now();

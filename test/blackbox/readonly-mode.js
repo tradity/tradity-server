@@ -38,7 +38,6 @@ afterEach(function() {
   });
 });
 
-if (!testHelpers.testPerformance) {
 describe('Readonly Login', function() {
   it('Provides means of logging in when the server has entered read-only mode', function() {
     return socket.emit('force-readonly', {
@@ -66,4 +65,3 @@ describe('Readonly Login', function() {
     });
   });
 });
-}

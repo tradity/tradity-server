@@ -55,22 +55,23 @@ function NodeSoTradeConnection (opt) {
     headers: {
       'User-Agent': opt.clientSoftwareVersion
     },
-    hawk: {
-      credentials: cfg.hawk || {
-        id: 'KCHpWKIpisiKqUN',
-        key: cfg.db.password,
-        algorithm: 'sha256'
-      }
-    },
     json: true
   });
   
   let key = null;
-  return options => {
+  
+  const fn = options => {
     options = Object.assign({
       headers: Object.assign({
         'Authorization': key
-      }, options.headers)
+      }, options.headers),
+      hawk: (!opt.noSignByDefault || options.__sign__) ? {
+        credentials: cfg.hawk || {
+          id: 'KCHpWKIpisiKqUN',
+          key: cfg.db.password,
+          algorithm: 'sha256'
+        }
+      } : undefined,
     }, options);
       
     return new Promise((resolve, reject) => {
@@ -79,13 +80,25 @@ function NodeSoTradeConnection (opt) {
           return reject(err);
         }
         
-        return resolve({
-          response: httpResponse,
-          content: body
-        });
+        body._success = httpResponse.statusCode >= 200 && httpResponse.statusCode <= 299;
+        
+        if (body.key) {
+          debug('Setting session key', body.key);
+          key = body.key;
+        }
+        
+        return resolve(body);
       });
     });
   }
+  
+  fn.get    = (uri, opt) => fn(Object.assign({ uri: uri, method: 'GET'    }, opt || {}));
+  fn.post   = (uri, opt) => fn(Object.assign({ uri: uri, method: 'POST'   }, opt || {}));
+  fn.delete = (uri, opt) => fn(Object.assign({ uri: uri, method: 'DELETE' }, opt || {}));
+  fn.update = (uri, opt) => fn(Object.assign({ uri: uri, method: 'UPDATE' }, opt || {}));
+  fn.put    = (uri, opt) => fn(Object.assign({ uri: uri, method: 'PUT'    }, opt || {}));
+  
+  return fn;
 }
 
 exports.SoTradeConnection = NodeSoTradeConnection;

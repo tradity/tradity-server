@@ -87,7 +87,7 @@ class QContext extends api.Component {
         console.warn(JSON.stringify(_ctx));
         
         try {
-          this.load('PubSub').publish('error', new Error('Query context cannot be destroyed with held resources'));
+          this.load('PubSub').emit('error', new Error('Query context cannot be destroyed with held resources'));
         } catch (e) { console.log(e); }
         
         setTimeout(() => {
@@ -467,7 +467,7 @@ class QContext extends api.Component {
           return;
         }
         
-        this.load('PubSub').publish('error', new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
+        this.load('PubSub').emit('error', new Error('Transaction did not close within timeout: ' + JSON.stringify(this.tableLocks[tli])));
       }, 90000);
       
       return conn;

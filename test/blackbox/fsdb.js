@@ -24,7 +24,6 @@ const cfg = new Config().reloadConfig().config();
 const promiseUtil = require('../../lib/promise-util.js');
 const readFile = promiseUtil.ncall(fs.readFile);
 
-if (!testHelpers.testPerformance) {
 describe('fsdb', function() {
   let socket, user;
 
@@ -79,4 +78,3 @@ describe('fsdb', function() {
     });
   });
 });
-}

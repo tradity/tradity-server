@@ -25,6 +25,7 @@ const zlib = require('zlib');
 const lzma = require('lzma-native');
 const assert = require('assert');
 const ZSchema = require('z-schema');
+const Hawk = require('hawk');
 const debug = require('debug')('sotrade:api');
 
 const registryInit = Symbol('registryInit');
@@ -223,7 +224,10 @@ class Requestable extends Component {
     }
     
     options = Object.assign({}, options, {
-      depends: (options.depends || []).concat(['ReadonlyStore', 'UpdateUserStatistics', 'LoadSessionUser'])
+      depends: (options.depends || []).concat([
+        'ReadonlyStore', 'UpdateUserStatistics', 'LoadSessionUser',
+        'Achievements'
+      ])
     });
     
     super(options);
@@ -399,6 +403,7 @@ class Requestable extends Component {
     // get the remote address asap since it is lost with early disconnects
     const remoteAddress = req.socket.remoteAddress;
     const ctx = this.getQContext(req);
+    const cfg = this.load('Config').config();
     
     let query, masterAuthorization = false, hadUser;
     
@@ -500,7 +505,7 @@ class Requestable extends Component {
       ctx.access[['grant', 'drop'][ctx.user && ctx.user.email_verif ? 0 : 1]]('email_verif');
       
       if (!hadUser && ctx.user !== null) {
-        this.load('CheckAchievements').handle(ctx.clone());
+        this.load('Achievements').checkAchievements(ctx.clone());
       }
       
       if (this.options.requiredLogin &&
@@ -522,7 +527,7 @@ class Requestable extends Component {
         handler = useCTX.txwrap(handler);
       }
       
-      return this.handleWithRequestInfo(query, useCTX, this.load('Config').config(), {
+      return this.handleWithRequestInfo(query, useCTX, cfg, {
         remoteip: remoteAddress,
         headers: req.headers,
         rawRequest: req
@@ -540,14 +545,15 @@ class Requestable extends Component {
       
       let compressor;
       
-      if (req.headers['accept-encoding'].match(/lzma/)) {
+      if ((req.headers['accept-encoding'] || '').match(/lzma/)) {
         headers['Content-Encoding'] = 'lzma';
         compressor = lzma.createStream('aloneEncoder');
-      } else if (req.headers['accept-encoding'].match(/gzip/)) {
+      } else if ((req.headers['accept-encoding'] || '').match(/gzip/)) {
         headers['Content-Encoding'] = 'gzip';
         compressor = zlib.createGzip();
       }
       
+      debug('Answering request with code', answer.code);
       res.writeHead(answer.code, headers);
       if (answer.code === 204) {
         // If we say “no content”, we stick to it.
@@ -597,13 +603,13 @@ class Requestable extends Component {
       return this._handleRequest(req, res, uriMatch);
     }).catch(e => {
       res.writeHead(500, {'Content-Type': 'application/json;charset=utf-8'});
-      res.write(JSON.stringify({
+      res.end(JSON.stringify({
         code: 500,
         error: e.toString(),
         stack: JSON.stringify(e.stack)
       }));
       
-      this.load('PubSub').publish('error', e);
+      this.load('PubSub').emit('error', e);
     });
   }
   

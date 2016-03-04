@@ -120,7 +120,7 @@ class Achievements extends api.Component {
       if (userAchievements[achievementEntry.name]) {
         const dbver = userAchievements[achievementEntry.name].version;
         if (dbver > achievementEntry.version) {
-          this.load('PubSub').publish('error', new Error(
+          this.load('PubSub').emit('error', new Error(
             'Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version
           ));
         }
@@ -259,8 +259,7 @@ class GetDailyLoginCertificate extends api.Requestable {
             type: 'string',
             description: 'If executed with appropiate privileges, sets the date for the certificate.'
           }
-        },
-        required: []
+        }
       },
       description: 'Return a string to the user that can be used for verifying that ' +
         'they have been active on a given day.',
@@ -273,7 +272,7 @@ class GetDailyLoginCertificate extends api.Requestable {
     
     if (query.today) {
       if (!ctx.access.has('achievements')) {
-        throw new this.PermissionDenied();
+        throw new this.Forbidden();
       }
       
       today = String(query.today);

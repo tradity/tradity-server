@@ -56,7 +56,7 @@ class TemplateReader extends api.Component {
       throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
     }
     
-    return t;
+    return Promise.resolve(t);
   }
 
   readEMailTemplate(template, lang, variables) {

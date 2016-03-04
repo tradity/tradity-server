@@ -366,7 +366,7 @@ class RenameSchool extends api.Requestable {
   }
   
   handle(query, ctx) {
-    query.schoolpath = String(query.schoolpath || '/').toLowerCase();
+    const schoolpath = String(query.schoolpath || '/').toLowerCase();
     
     let oldpath;
     return ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [parseInt(query.schoolid)]).then(r => {
@@ -379,28 +379,28 @@ class RenameSchool extends api.Requestable {
       assert.ok(oldpath.length > 1);
 
       return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ? LOCK IN SHARE MODE',
-        [parentPath(query.schoolpath)]);
+        [parentPath(schoolpath)]);
     }).then(pr => {
       assert.equal(pr.length, 1);
-      if (pr[0].c !== (parentPath(query.schoolpath) !== '/' ? 1 : 0)) {
+      if (pr[0].c !== (parentPath(schoolpath) !== '/' ? 1 : 0)) {
         throw new this.ClientError('parent-not-found');
       }
       
-      return ctx.query('SELECT path FROM schools WHERE path = ? FOR UPDATE', [query.schoolpath]);
+      return ctx.query('SELECT path FROM schools WHERE path = ? FOR UPDATE', [schoolpath]);
     }).then(er => {
-      if (query.schoolpath !== '/' && er.length > 0 && er[0].path.toLowerCase() === query.schoolpath) {
+      if (schoolpath !== '/' && er.length > 0 && er[0].path.toLowerCase() === schoolpath) {
         throw new this.ClientError('already-exists');
       }
       
       return ctx.query('UPDATE schools SET name = ? WHERE schoolid = ?',
         [String(query.schoolname), parseInt(query.schoolid)]);
     }).then(() => {
-      if (query.schoolpath === '/') {
+      if (schoolpath === '/') {
         return;
       }
         
       return ctx.query('UPDATE schools SET path = CONCAT(?, SUBSTR(path, ?)) WHERE path LIKE ? OR path = ?',
-        [query.schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
+        [schoolpath, oldpath.length + 1, oldpath + '/%', oldpath]);
     }).then(() => {
       return { code: 204 };
     });
@@ -440,13 +440,6 @@ class MergeSchools extends api.Requestable {
   }
   
   handle(query, ctx) {
-    query.masterschool = parseInt(query.masterschool);
-    query.subschool    = parseInt(query.subschool);
-    
-    if (query.masterschool !== query.masterschool) {
-      query.masterschool = null;
-    }
-    
     return Promise.all([
       ctx.query('SELECT path FROM schools WHERE schoolid = ? LOCK IN SHARE MODE', [query.masterschool]),
       ctx.query('SELECT path FROM schools WHERE schoolid = ? FOR UPDATE', [query.subschool]),
@@ -547,8 +540,7 @@ class TickStatistics extends api.Requestable {
             type: 'integer',
             description: 'Number of days to look into the past. Defaults to 365.'
           }
-        },
-        required: []
+        }
       },
       requiredAccess: 'userdb',
       description: 'Returns game usage statistics.'
@@ -593,8 +585,7 @@ class EventStatistics extends api.Requestable {
             type: 'string',
             description: 'Comma-separated list of event types to filer for'
           }
-        },
-        required: []
+        }
       },
       requiredAccess: 'feed',
       description: 'Returns a per-day histogram of event frequency.'

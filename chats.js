@@ -78,8 +78,7 @@ class GetChat extends api.Requestable {
             type: 'boolean',
             description: 'If set, do not load the chat messages.'
           }
-        },
-        required: []
+        }
       },
       description: 'Fetch or create a specific chat.'
     });

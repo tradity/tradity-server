@@ -228,7 +228,7 @@ class Login extends UserManagementRequestable {
     }).then(res => {
       if (res.length === 0) {
         if (!useTransaction) {
-          return this.login(query, ctx, xdata, true, ignorePassword);
+          return this.handleWithRequestInfo(query, ctx, cfg, xdata, true, ignorePassword);
         }
         
         throw new this.ClientError('wrong-username-pw');
@@ -303,9 +303,7 @@ class Login extends UserManagementRequestable {
           };
         });
       } else {
-        return this.regularCallback({}, ctx).then(() => {
-          return ctx.startTransaction();
-        }).then(conn => {
+        return ctx.startTransaction().then(conn => {
           debug('Add session to table', xdata.remoteip, name, uid, today);
           
           return conn.query('INSERT INTO sessions(uid, `key`, logintime, lastusetime, endtimeoffset)' +
@@ -337,7 +335,7 @@ class Logout extends UserManagementRequestable {
     debug('Logout', query.key);
     
     return ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)]).then(() => {
-      return { code: 200 };
+      return { code: 200, key: null };
     });
   }
 }
@@ -465,13 +463,12 @@ class UpdateUserStatistics extends api.Component {
   }
 }
 
-
 class LoadSessionUser extends api.Component {
   constructor() {
     super({
       identifier: 'LoadSessionUser',
       description: 'Load information on the current user from the database.',
-      depends: ['ReadonlyStore']
+      depends: ['ReadonlyStore', 'UpdateUserStatistics']
     });
   }
   
@@ -536,7 +533,9 @@ class LoadSessionUser extends api.Component {
         
         debug('Loaded user', user.uid);
         
-        return this.updateUserStatistics(user, ctx).then(() => user);
+        return Promise.resolve().then(() => {
+          return this.load('UpdateUserStatistics').handle(user, ctx);
+        }).then(() => user);
       });
     });
   }
@@ -662,19 +661,19 @@ class UpdateUserRequestable extends UserManagementRequestable {
           betakey: { type: 'string' },
           email: { type: 'string' },
           name: { type: 'string' },
-          gender: { type: 'string' },
-          giv_name: { type: 'string' },
-          fam_name: { type: 'string' },
-          wprovision: { type: 'integer' },
-          lprovision: { type: 'integer' },
-          birthday: { type: 'integer' },
-          desc: { type: 'string' },
-          street: { type: 'string' },
-          town: { type: 'string' },
-          zipcode: { type: 'string' },
-          lang: { type: 'string' },
+          gender: { type: ['string', 'null'] },
+          giv_name: { type: ['string', 'null'] },
+          fam_name: { type: ['string', 'null'] },
+          wprovision: { type: ['integer', 'null'] },
+          lprovision: { type: ['integer', 'null'] },
+          birthday: { type: ['integer', 'null'] },
+          desc: { type: ['string', 'null'] },
+          street: { type: ['string', 'null'] },
+          town: { type: ['string', 'null'] },
+          zipcode: { type: ['string', 'null'] },
+          lang: { type: ['string', 'null'] },
           school: { type: ['string', 'integer'] },
-          schoolclass: { type: 'string' },
+          schoolclass: { type: ['string', 'null'] },
           realnamepublish: { type: 'boolean' },
           invitekey: { type: 'string' }
         },
@@ -685,7 +684,10 @@ class UpdateUserRequestable extends UserManagementRequestable {
     }, options));
   }
   
-  updateUser(query, type, ctx, cfg, xdata) {
+  updateUser(query_, type, ctx, cfg, xdata) {
+    // make a copy since we actually want to provide defaults for some values here
+    const query = Object.assign({}, query_);
+    
     debug('Update user', type, ctx.user && ctx.user.uid);
     
     const betakey = query.betakey ? String(query.betakey).split('-') : [0,0];
@@ -700,10 +702,6 @@ class UpdateUserRequestable extends UserManagementRequestable {
         throw new this.ClientError('too-short-pw');
       }
       
-      query.email = String(query.email);
-      query.name = String(query.name);
-      query.gender = query.gender ? String(query.gender) : null;
-      
       if (query.gender !== null && genders.genders.indexOf(query.gender) === -1) {
         throw new this.ClientError('reg-unknown-gender');
       }
@@ -713,7 +711,6 @@ class UpdateUserRequestable extends UserManagementRequestable {
       query.wprovision = parseInt(query.wprovision) || cfg.defaultWProvision;
       query.lprovision = parseInt(query.lprovision) || cfg.defaultLProvision;
       query.birthday = query.birthday ? parseInt(query.birthday) : null;
-      query.desc = String(query.desc);
       query.street = query.street ? String(query.street) : null;
       query.town = query.town ? String(query.town) : null;
       query.zipcode = query.zipcode ? String(query.zipcode) : null;
@@ -728,7 +725,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
         throw new this.ClientError('reg-invalid-language');
       }
       
-      if (!query.school) { // e. g., empty string
+      if (!query.school) { // e.g. empty string
         query.school = null;
       }
       
@@ -1036,7 +1033,7 @@ class ResetUser extends api.Requestable {
     debug('Reset user', ctx.user.uid);
     
     if (!cfg.resetAllowed && !ctx.access.has('userdb')) {
-      throw new this.PermissionDenied();
+      throw new this.Forbidden();
     }
     
     assert.ok(ctx.user);
@@ -1073,6 +1070,7 @@ class ListGenders extends api.Requestable {
       returns: [
         { code: 200 }
       ],
+      requiredLogin: false,
       description: 'Returns a list of genders for users to pick from.'
     });
   }
@@ -1108,7 +1106,7 @@ class ListGenders extends api.Requestable {
   }
 }
 
-class ResetPassword extends api.Requestable {
+class ResetPassword extends UserManagementRequestable {
   constructor() {
     super({
       url: '/reset-password',
@@ -1127,7 +1125,8 @@ class ResetPassword extends api.Requestable {
       },
       requiredLogin: false,
       writing: true,
-      description: 'Resets the current user’s password.'
+      description: 'Resets the current user’s password.',
+      depends: ['Mailer']
     });
   }
   
@@ -1241,7 +1240,7 @@ class CreateInviteLink extends api.Component {
     debug('Create invite link for', ctx.user.uid, query.email, schoolid);
     
     let sendKeyToCaller = ctx.access.has('userdb');
-    let key, url;
+    let key, url, email;
     
     schoolid = typeof schoolid !== 'undefined' ? schoolid : query.schoolid;
     
@@ -1250,10 +1249,10 @@ class CreateInviteLink extends api.Component {
     }
     
     return Promise.resolve().then(() => {
-      query.email = query.email ? String(query.email) : null;
+      email = query.email ? String(query.email) : null;
       
       if (!ctx.access.has('userdb')) {
-        if (query.email && !/([\w_+.-]+)@([\w.-]+)$/.test(query.email)) { // XXX validator.js
+        if (email && !/([\w_+.-]+)@([\w.-]+)$/.test(email)) { // XXX validator.js
           throw new ErrorProvider.ClientError('invalid-email');
         }
         
@@ -1275,14 +1274,14 @@ class CreateInviteLink extends api.Component {
       return ctx.query('INSERT INTO invitelink ' +
         '(uid, `key`, email, ctime, schoolid) VALUES ' +
         '(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-        [ctx.user.uid, key, query.email, typeof schoolid !== 'undefined' ? parseInt(query.schoolid) : null]);
+        [ctx.user.uid, key, email, typeof schoolid !== 'undefined' ? parseInt(query.schoolid) : null]);
     })).then(() => {
       url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
     
       if (query.email) {
         return this.sendInviteEmail({
           sender: ctx.user,
-          email: query.email,
+          email: email,
           url: url
         }, ctx);
       } else {

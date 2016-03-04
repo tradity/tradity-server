@@ -18,7 +18,6 @@
 
 const assert = require('assert');
 const nodemailer = require('nodemailer');
-const commonUtil = require('tradity-connection');
 const debug = require('debug')('sotrade:emailsender');
 const sha256 = require('./lib/sha256.js');
 const promiseUtil = require('./lib/promise-util.js');
@@ -49,7 +48,7 @@ class BouncedMailHandler extends api.Requestable {
       writing: true,
       returns: [
         { code: 204 },
-        { code: 404, identifer: 'mail-not-found' }
+        { code: 404, identifier: 'mail-not-found' }
       ],
       schema: {
         type: 'object',
@@ -77,7 +76,7 @@ class BouncedMailHandler extends api.Requestable {
     }
     
     if (!internal && !ctx.access.has('email-bounces')) {
-      throw new this.PermissionDenied();
+      throw new this.Forbidden();
     }
     
     debug('Email bounced', query.messageId);
@@ -121,7 +120,7 @@ class Mailer extends api.Component {
     super({
       identifier: 'Mailer',
       description: 'Provides methods for sending e-mails.',
-      depends: [BouncedMailHandler]
+      depends: [BouncedMailHandler, 'TemplateReader', 'ReadonlyStore']
     });
     
     this.mailer = null;
@@ -166,7 +165,7 @@ class Mailer extends api.Component {
    *                      (i.e. <code>nodemailer</code>).
    * @param {module:qctx~QContext} ctx  A QContext to provide database access.
    * @param {string} template  The name of the template used for e-mail generation.
-   * @param {string} mailtype  An identifer describing the kind of sent mail.
+   * @param {string} mailtype  An identifier describing the kind of sent mail.
    *                           This is useful for displaying it to the user in case
    *                           of delivery failure.
    */
@@ -200,13 +199,13 @@ class Mailer extends api.Component {
       return promiseUtil.ncall(this.mailer.sendMail.bind(this.mailer))(opt);
     }).then(status => {
       if (status && status.rejected && status.rejected.length > 0) {
-        this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, true);
+        this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, cfg, true);
       }
     }, err => {
-      this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, true);
+      this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, cfg, true);
         
       if (err) {
-        return this.load('PubSub').publish('error', err);
+        return this.load('PubSub').emit('error', err);
       }
     });
   }

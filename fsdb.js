@@ -193,8 +193,7 @@ class FSDBPublish extends api.Requestable {
             description: 'A string identifying the role of this file',
             notes: 'Allowed roles and user-unique roles can be specified in the server config.'
           }
-        },
-        required: []
+        }
       },
       description: 'Publishes a file.',
       notes: 'The Content-Length and Content-Type headers need to be set.'
@@ -305,7 +304,7 @@ class FSDBPublish extends api.Requestable {
           switch (fieldname) {
             case 'uid': dataarr.push(ctx.user.uid); break;
             case 'groupassoc': dataarr.push(groupassoc); break;
-            default: this.load('PubSub').publish('error', new Error('Unknown uniqrole field: ' + fieldname));
+            default: this.load('PubSub').emit('error', new Error('Unknown uniqrole field: ' + fieldname));
           }
         }
         

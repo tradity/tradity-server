@@ -139,8 +139,7 @@ class RankingListing extends api.Requestable {
             type: 'boolean',
             description: 'Whether users should be included that are not considered qualified for ranking entries (e.g. without verified e-mail address)'
           }
-        },
-        required: []
+        }
       },
       depends: ['GetSchoolInfo']
     });
@@ -181,18 +180,18 @@ class RankingListing extends api.Requestable {
     }).then(schoolAdminResult => {
       const fullData = schoolAdminResult.ok;
       
-      query.since = parseInt(query.since) || 0;
-      query.upto = parseInt(query.upto) || 'now';
+      const since = parseInt(query.since) || 0;
+      let   upto = parseInt(query.upto) || 'now';
       const now = Date.now();
       
-      cacheKey = JSON.stringify(['ranking', query.since, query.upto, query.search, query.schoolid, query.includeAll, fullData]);
+      cacheKey = JSON.stringify(['ranking', since, upto, query.search, query.schoolid, query.includeAll, fullData]);
       if (this.cache.has(cacheKey)) {
         return this.cache.use(cacheKey);
       }
       
-      if (query.upto === 'now') {
+      if (upto === 'now') {
         // upto is rounded so that the SQL query cache will be used more effectively
-        query.upto = parseInt(now / 20000) * 20;
+        upto = parseInt(now / 20000) * 20;
       }
       
       return this.cache.add(cacheKey, 30000, ctx.query('SELECT u.uid AS uid, u.name AS name, ' +
@@ -210,7 +209,7 @@ class RankingListing extends api.Requestable {
         join + /* needs query.since and query.upto parameters */
         'WHERE hiddenuser != 1 AND deletiontime IS NULL ' +
         likestringWhere,
-        [query.since, query.upto].concat(likestringUnit)));
+        [since, upto].concat(likestringUnit)));
     }).then(ranking => {
       return {
         code: 200,

@@ -90,15 +90,15 @@ class UserInfo extends api.Requestable {
   }
   
   handle(query, ctx, cfg) {
-    let xuser;
+    let xuser, queryLookfor;
     
     let resultCacheKey = '';
     const cacheable = !(ctx.access.has('caching') && query.noCache);
     
-    query.nohistory = !!query.nohistory;
-    
     if (query.lookfor === '$self' && ctx.user) {
-      query.lookfor = ctx.user.uid;
+      queryLookfor = ctx.user.uid;
+    } else {
+      queryLookfor = query.lookfor;
     }
     
     const columns = (ctx.access.has('userdb') || query.lookfor === ctx.user.uid ? [
@@ -123,11 +123,11 @@ class UserInfo extends api.Requestable {
       'day_va.totalvalue  AS daystarttotalvalue'
     ]).join(', ');
     
-    let lookfor = parseInt(query.lookfor), lookforColumn;
-    if (String(lookfor) === String(query.lookfor)) {
+    let lookfor = parseInt(queryLookfor), lookforColumn;
+    if (String(lookfor) === String(queryLookfor)) {
       lookforColumn = 'uid';
     } else {
-      lookfor = String(query.lookfor);
+      lookfor = String(queryLookfor);
       lookforColumn = 'name';
     }
     
@@ -189,7 +189,7 @@ class UserInfo extends api.Requestable {
        * before they actually do a lot of harm. */
       const levelArray = schools.map(s => s.path.replace(/[^\/]/g, '').length); // count '/'
       if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length !== levelArray.length) {
-        return this.load('PubSub').publish('error', new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
+        return this.load('PubSub').emit('error', new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
       }
       
       xuser.schools = schools;

@@ -236,8 +236,7 @@ class StocksRegularTasks extends api.Component {
           weekly: { type: 'boolean' },
           daily: { type: 'boolean' },
           provisions: { type: 'boolean' }
-        },
-        required: []
+        }
       },
       depends: ['UpdateProvisions', 'UpdateLeaderMatrix', StockIDCache, StockValueUpdater, 'ReadonlyStore']
     });
@@ -579,7 +578,7 @@ class StockExchangeIsOpen extends api.Component {
     
     const sxdata = cfg.stockExchanges[sxname];
     if (!sxdata) {
-      this.load('PubSub').publish('error', new Error('Unknown SX: ' + sxname));
+      this.load('PubSub').emit('error', new Error('Unknown SX: ' + sxname));
       return false;
     }
 
@@ -703,6 +702,7 @@ class StockTrade extends api.Requestable {
     opt.skipTest = opt.skipTest || false;
     
     debug('Buy stock', query.leader, query.stocktextid, opt);
+    let stocktextid;
     
     return Promise.resolve().then(() => {
       if (opt.skipTest || opt.testOnly) {
@@ -717,9 +717,8 @@ class StockTrade extends api.Requestable {
       assert.ok(ctx.user);
       assert.ok(ctx.access);
       
-      if (query.leader !== null) {
+      stocktextid = query.leader === null ? query.stocktextid : 
         query.stocktextid = '__LEADER_' + query.leader + '__';
-      }
       
       if (opt.testOnly) {
         return {
@@ -742,7 +741,7 @@ class StockTrade extends api.Requestable {
         'FROM stocks ' +
         'LEFT JOIN depot_stocks ON depot_stocks.uid = ? AND depot_stocks.stockid = stocks.stockid ' +
         'LEFT JOIN users_finance AS l ON stocks.leader = l.uid AND depot_stocks.uid != l.uid ' +
-        'WHERE stocks.stocktextid = ? FOR UPDATE', [ctx.user.uid, String(query.stocktextid)]);
+        'WHERE stocks.stocktextid = ? FOR UPDATE', [ctx.user.uid, stocktextid]);
     }).then(res => {
       if (res.length === 0 || res[0].lastvalue === 0 || res[0].ask < cfg.minAskPrice) {
         throw new this.ClientError('stock-not-found');
@@ -761,7 +760,7 @@ class StockTrade extends api.Requestable {
       if (r.money === null)  { r.money = 0; }
       if (r.amount === null) { r.amount = 0; }
       
-      if (leaderStockTextIDFormat.test(query.stocktextid) && !ctx.access.has('email_verif') && !opt.forceNow) {
+      if (leaderStockTextIDFormat.test(stocktextid) && !ctx.access.has('email_verif') && !opt.forceNow) {
         throw new this.ClientError('email-not-verif');
       }
       
@@ -769,10 +768,13 @@ class StockTrade extends api.Requestable {
       
       if (!this.load(StockExchangeIsOpen).test(r.exchange, cfg) && !forceNow) {
         if (!query._isDelayed) {
-          query.retainUntilCode = 200;
+          const dquery = Object.assign({
+            retainUntilCode: 200
+          }, query);
+          
           this.load('PubSub').publish('dquery-should-be-added', { 
             condition: 'stock::' + r.stocktextid + '::exchange-open > 0',
-            query: query
+            query: dquery
           });
           
           throw new this.ClientError('autodelay-sxnotopen');
@@ -1095,8 +1097,7 @@ class PopularStocks extends api.Requestable {
             description: 'A number of days specifying how long into the past ' +
               'the popular stocks list should reach.'
           }
-        },
-        required: []
+        }
       },    
       description: 'Lists the most popular stocks.',
       notes: 'These are ordered according to a weighted average of the money amounts ' +

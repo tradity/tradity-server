@@ -19,7 +19,7 @@
 const assert = require('assert');
 const _ = require('lodash');
 const sha256 = require('../../lib/sha256.js');
-const parentPath = require('./lib/parentpath.js');
+const parentPath = require('../../lib/parentpath.js');
 const testHelpers = require('./test-helpers.js');
 const promiseUtil = require('../../lib/promise-util.js');
 const spread = promiseUtil.spread;
@@ -38,13 +38,11 @@ describe('admin', function() {
   after(testHelpers.standardTeardown);
 
   describe('list-all-users', function() {
-    if (!testHelpers.testPerformance) {
     it('Should fail for non-admin users', function() {
       return socket.emit('list-all-users').then(result => {
         assert.equal(result.code, 'permission-denied');
       });
     });
-    }
     
     it('Should provide a list of all users', function() {
       return socket.emit('list-all-users', { __sign__: true }).then(result => {
@@ -63,7 +61,6 @@ describe('admin', function() {
     });
   });
   
-  if (!testHelpers.testPerformance) {
   describe('impersonate-user', function() {
     it('Should fail for non-admin users', function() {
       return socket.emit('impersonate-user').then(result => {
@@ -108,7 +105,6 @@ describe('admin', function() {
       });
     });
   });
-  }
   
   describe('change-user-email', function() {
     it('Should fail for invalid user ids', function() {
@@ -374,7 +370,6 @@ describe('admin', function() {
     });
   });
   
-  if (!testHelpers.testPerformance) {
   describe('get-server-statistics', function() {
     it('Should return a list of servers', function() {
       return socket.emit('get-server-statistics', {
@@ -385,9 +380,7 @@ describe('admin', function() {
       });
     });
   });
-  } 
   
-  if (!testHelpers.testPerformance) {
   describe('get-ticks-statistics', function() {
     it('Should return a timeline of tick statistics', function() {
       return socket.emit('prod', { __sign__: true }).then(() => {
@@ -400,9 +393,7 @@ describe('admin', function() {
       });
     });
   });
-  }
   
-  if (!testHelpers.testPerformance) {
   describe('get-event-statistics', function() {
     it('Should return a histogram of event counts', function() {
       return socket.emit('get-event-statistics', {
@@ -437,7 +428,6 @@ describe('admin', function() {
       });
     });
   });
-  }
   
   describe('list-all-events', function() {
     it('Should return all events within a given timespan', function() {

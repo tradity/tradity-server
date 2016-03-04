@@ -20,7 +20,6 @@ const assert = require('assert');
 const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 
-if (!testHelpers.testPerformance) {
 describe('wordpress-feed', function() {
   let socket, user;
   
@@ -82,4 +81,3 @@ describe('wordpress-feed', function() {
     });
   });
 });
-}

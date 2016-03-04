@@ -94,8 +94,8 @@ class Database extends api.Component {
       }
     });
     
-    this.wConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error('DB lost write connection')));
-    this.rConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error('DB lost read connection')));
+    this.wConnectionPool.on('remove', () => this.load('PubSub').emit('error', new Error('DB lost write connection')));
+    this.rConnectionPool.on('remove', () => this.load('PubSub').emit('error', new Error('DB lost read connection')));
     
     this.load('PubSub').on('shutdown', () => this.shutdown());
     
@@ -188,7 +188,8 @@ class Database extends api.Component {
       };
       
       const query = (q, args) => {
-        if (/^\s*(REPLACE|DELETE|UPDATE|INSERT)/i.test(q)) {
+        if (/^\s*(REPLACE|DELETE|UPDATE|INSERT)/i.test(q) && readonly) {
+          debug('Refusing to execute query without write connection', q);
           return Promise.reject(new RangeError('Won’t execute this query on a readonly connection. ' +
             'This mission is too important for me to allow you to jeopardize it.'));
         }
@@ -241,12 +242,12 @@ class Database extends api.Component {
               const datajson = JSON.stringify(args);
               const querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
             
-              this.load('PubSub').publish('error', q ? new Error(
+              this.load('PubSub').emit('error', q ? new Error(
                 err + '\nCaused by ' + querydesc
               ) : err);
             } else {
               // exception in callback
-              this.load('PubSub').publish('error', exception);
+              this.load('PubSub').emit('error', exception);
             }
           }
           

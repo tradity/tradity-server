@@ -525,7 +525,7 @@ class DelayedQueryCheckAll extends api.Requestable {
     debug('Check all dqueries');
     
     if (!ctx.access.has('dqueries')) {
-      throw new this.PermissionDenied();
+      throw new this.Forbidden();
     }
     
     const db = this.load(DelayedQueries);

@@ -50,7 +50,7 @@ class SchoolUtilRequestable extends api.Requestable {
     
     return this.isSchoolAdmin(ctx, status, query.schoolid).then(schoolAdminResult => {
       if (!schoolAdminResult.ok) {
-        throw new this.PermissionDenied(); // XXX
+        throw new this.Forbidden();
       }
       
       // in the case that schoolid was not numerical before
@@ -435,7 +435,7 @@ class DeleteComment extends SchoolUtilRequestable {
         [parseInt(query.commentid), schoolid]);
     }).then(res => {
       if (res.length === 0) {
-        throw new this.PermissionDenied();
+        throw new this.Forbidden();
       }
       
       assert.ok(res.length === 1);
@@ -539,24 +539,21 @@ class CreateSchool extends api.Requestable {
   }
   
   handle(query, ctx) {
-    query.schoolname = String(query.schoolname || '');
-    
-    if (!query.schoolpath) {
-      query.schoolpath = '/' + query.schoolname.toLowerCase().replace(/[^\w_-]/g, '');
-    }
+    const schoolpath = query.schoolpath ||
+      query.schoolname.toLowerCase().replace(/[^\w_-]/g, '');
       
-    return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [String(query.schoolpath)]).then(r => {
+    return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [schoolpath]).then(r => {
       assert.equal(r.length, 1);
       if (r[0].c === 1 || !query.schoolname.trim() || 
-        !/^(\/[\w_-]+)+$/.test(query.schoolpath)) {
+        !/^(\/[\w_-]+)+$/.test(schoolpath)) {
         throw new this.ClientError('already-exists');
       }
       
-      if (String(query.schoolpath).replace(/[^\/]/g, '').length === 1) {
+      if (schoolpath.replace(/[^\/]/g, '').length === 1) {
         return [{c: 1}];
       } else {
         return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
-        [parentPath(String(query.schoolpath))]);
+        [parentPath(schoolpath)]);
       }
     }).then(r => {
       assert.equal(r.length, 1);
@@ -566,7 +563,7 @@ class CreateSchool extends api.Requestable {
       }
       
       return ctx.query('INSERT INTO schools (name, path) VALUES(?, ?)',
-        [String(query.schoolname), String(query.schoolpath)]);
+        [query.schoolname, schoolpath]);
     }).then(res => {
       return ctx.feed({
         'type': 'school-create',
@@ -574,7 +571,7 @@ class CreateSchool extends api.Requestable {
         'srcuser': ctx.user.uid
       });
     }).then(() => {
-      return { code: 200, path: String(query.schoolpath) };
+      return { code: 200, path: schoolpath };
     });
   }
 }
@@ -598,21 +595,21 @@ class ListSchools extends api.Requestable {
             type: 'string',
             description: 'Search group paths and names for this string'
           }
-        },
-        required: []
+        }
       },
-      description: 'Creates a new school.'
+      requiredLogin: false,
+      description: 'Lists existing schools.'
     });
   }
   
   handle(query, ctx) {
-    query.parentPath = String(query.parentPath || '').toLowerCase();
+    const parentPath = String(query.parentPath || '').toLowerCase();
     
     let where = 'WHERE 1 ';
     let params = [];
-    if (query.parentPath) {
+    if (parentPath) {
       where = 'AND p.path LIKE ? OR p.path = ? ';
-      params.push(query.parentPath + '/%', query.parentPath);
+      params.push(parentPath + '/%', parentPath);
     }
     
     if (query.search) {
@@ -691,8 +688,7 @@ class CreateInviteLinkGroup extends SchoolUtilRequestable {
             type: 'string',
             description: 'The email to send the invite link to'
           }
-        },
-        required: []
+        }
       },
       description: 'Create an invite link, optionally for a given school/group and/or send it to an email adress.',
       depends: ['CreateInviteLink']

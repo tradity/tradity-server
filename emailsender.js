@@ -186,7 +186,7 @@ class Mailer extends api.Component {
       opt.from = cfg.mail.forceFrom;
     }
     
-    shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + commonUtil.locallyUnique();
+    shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + Math.random();
     opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
     
     return Promise.resolve().then(() => {

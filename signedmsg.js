@@ -134,6 +134,7 @@ class SignedMessaging extends api.Component {
   }
 }
 
+exports.SignedMessaging = SignedMessaging;
 exports.components = [
   SignedMessaging
 ];

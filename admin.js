@@ -16,7 +16,7 @@
 
 "use strict";
 
-const commonUtil = require('tradity-connection');
+const parentPath = require('./lib/parentpath.js');
 const assert = require('assert');
 const debug = require('debug')('sotrade:admin');
 const api = require('./api.js');
@@ -379,10 +379,10 @@ class RenameSchool extends api.Requestable {
       assert.ok(oldpath.length > 1);
 
       return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ? LOCK IN SHARE MODE',
-        [commonUtil.parentPath(query.schoolpath)]);
+        [parentPath(query.schoolpath)]);
     }).then(pr => {
       assert.equal(pr.length, 1);
-      if (pr[0].c !== (commonUtil.parentPath(query.schoolpath) !== '/' ? 1 : 0)) {
+      if (pr[0].c !== (parentPath(query.schoolpath) !== '/' ? 1 : 0)) {
         throw new this.ClientError('parent-not-found');
       }
       
@@ -458,7 +458,7 @@ class MergeSchools extends api.Requestable {
         throw new this.ClientError('school-not-found');
       }
       
-      if (mr.length > 0 && commonUtil.parentPath(mr[0].path) !== commonUtil.parentPath(sr[0].path)) {
+      if (mr.length > 0 && parentPath(mr[0].path) !== parentPath(sr[0].path)) {
         throw new this.ClientError('different-parents');
       }
       

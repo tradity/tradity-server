@@ -19,7 +19,7 @@
 const assert = require('assert');
 const _ = require('lodash');
 const sha256 = require('../../lib/sha256.js');
-const commonUtil = require('tradity-connection');
+const parentPath = require('./lib/parentpath.js');
 const testHelpers = require('./test-helpers.js');
 const promiseUtil = require('../../lib/promise-util.js');
 const spread = promiseUtil.spread;
@@ -230,7 +230,7 @@ describe('admin', function() {
       
       return socket.emit('list-schools').then(res => {
         assert.ok(res.result.length > 0);
-        school = res.result.filter(s => commonUtil.parentPath(s) === '/')[0];
+        school = res.result.filter(s => parentPath(s) === '/')[0];
         
         return socket.emit('rename-school', {
           __sign__: true,

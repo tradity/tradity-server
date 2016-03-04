@@ -425,7 +425,8 @@ class Requestable extends Component {
         });
       });
     }).then(postData => {
-      query = Object.assign({}, uriMatch, postData);
+      // key: undefined filters any possible ?key=… from the query string
+      query = Object.assign({}, uriMatch, { key: undefined }, postData);
       
       const headerKey = req.headers['authorization'] || req.headers['x-authorization'];
       if (headerKey) {
@@ -437,20 +438,6 @@ class Requestable extends Component {
       } else {
         query.key = null;
       }
-      
-      // XXX this would better be handled using https client certs
-      if (!query.signedContent) {
-        return;
-      }
-      
-      this.load('SignedMessaging').verifySignedMessage(query.signedContent, 900).then(verified => {
-        if (verified) {
-          query = verified;
-          masterAuthorization = true;
-        } else {
-          throw new this.PermissionDenied();
-        }
-      });
     }).then(() => {
       deepFreeze(query);
       
@@ -470,7 +457,24 @@ class Requestable extends Component {
       
       hadUser = !!ctx.user;
       
-      if (query.key) {
+      if (query.key && /^Hawk /.test(query.key)) {
+        return new Promise((resolve, reject) => {
+          Hawk.server.authenticate(req, (id, cb) => {
+            return cb(null, cfg.hawk || {
+              key: cfg.db.password,
+              algorithm: 'sha256',
+              user: 'DB-authorized user'
+            });
+          }, {}, (err, credentials, artifacts) => {
+            if (err) {
+              return reject(err);
+            }
+            
+            masterAuthorization = true;
+            resolve(null);
+          });
+        });
+      } else if (query.key) {
         return this.load('LoadSessionUser').handle(query.key, ctx);
       } else {
         return null;

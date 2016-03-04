@@ -16,8 +16,8 @@
 
 "use strict";
 
-const commonAPI = require('tradity-connection');
 const debug = require('debug')('sotrade:s-client');
+const request = require('request');
 
 function NodeSoTradeConnection (opt) {
   opt = opt || {};
@@ -27,7 +27,7 @@ function NodeSoTradeConnection (opt) {
   
   if (!opt.url) {
     const port = cfg.wsporte || cfg.wsports[parseInt(Math.random() * cfg.wsports.length)];
-    opt.url = cfg.protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + port;
+    opt.url = cfg.protocol + '://' + (cfg.wshoste || cfg.wshost) + ':' + port + '/api/v1/';
   }
   
   try {
@@ -50,8 +50,42 @@ function NodeSoTradeConnection (opt) {
   
   opt.clientSoftwareVersion = opt.clientSoftwareVersion || ownVersion;
   
-  debug('Setting up connection', opt.url);
-  return new commonAPI.SoTradeConnection(opt);
+  const req = request.defaults({
+    baseUrl: opt.url,
+    headers: {
+      'User-Agent': opt.clientSoftwareVersion
+    },
+    hawk: {
+      credentials: cfg.hawk || {
+        id: 'KCHpWKIpisiKqUN',
+        key: cfg.db.password,
+        algorithm: 'sha256'
+      }
+    },
+    json: true
+  });
+  
+  let key = null;
+  return options => {
+    options = Object.assign({
+      headers: Object.assign({
+        'Authorization': key
+      }, options.headers)
+    }, options);
+      
+    return new Promise((resolve, reject) => {
+      req(options, (err, httpResponse, body) => {
+        if (err) {
+          return reject(err);
+        }
+        
+        return resolve({
+          response: httpResponse,
+          content: body
+        });
+      });
+    });
+  }
 }
 
 exports.SoTradeConnection = NodeSoTradeConnection;

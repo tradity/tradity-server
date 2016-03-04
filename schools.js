@@ -16,7 +16,7 @@
 
 "use strict";
 
-const commonUtil = require('tradity-connection');
+const parentPath = require('./lib/parentpath.js');
 const deepupdate = require('./lib/deepupdate.js');
 const _ = require('lodash');
 const assert = require('assert');
@@ -193,7 +193,7 @@ class SchoolUtilRequestable extends api.Requestable {
             'GROUP BY blogid', [s.schoolid]), // feedblogs
         Promise.resolve().then(() => {
           if (s.path.replace(/[^\/]/g, '').length !== 1) { // need higher-level 
-            s.parentPath = commonUtil.parentPath(s.path);
+            s.parentPath = parentPath(s.path);
           }
           
           return s.parentPath ? this.loadSchoolInfo(s.parentPath, ctx, cfg) :
@@ -556,7 +556,7 @@ class CreateSchool extends api.Requestable {
         return [{c: 1}];
       } else {
         return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?',
-        [commonUtil.parentPath(String(query.schoolpath))]);
+        [parentPath(String(query.schoolpath))]);
       }
     }).then(r => {
       assert.equal(r.length, 1);

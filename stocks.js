@@ -30,7 +30,9 @@ const leaderStockTextIDFormat = /^__LEADER_(\d+)__$/;
 
 class StockIDCache extends api.Component {
   constructor() {
-    super();
+    super({
+      local: true
+    });
     
     this.knownStockIDs = null; // ISIN list for more efficient stock updating
   }
@@ -58,7 +60,9 @@ class StockIDCache extends api.Component {
 
 class StocksFilter extends api.Component {
   constructor() {
-    super();
+    super({
+      local: true
+    });
   }
   
   /**
@@ -81,17 +85,18 @@ class StocksFilter extends api.Component {
 class StockQuoteLoaderInterface extends api.Component {
   constructor() {
     super({
-      depends: [StocksFilter, 'StockQuoteLoaderProvider']
+      depends: [StocksFilter, 'StockQuoteLoaderProvider'],
+      local: true
     });
     
     this.quoteLoader = null;
   }
   
   init() {
-    // XXX as property?
     const ctx = new qctx.QContext({parentComponent: this});
     
     this.quoteLoader = this.load('StockQuoteLoaderProvider').resolve();
+    assert.ok(this.quoteLoader);
     
     this.quoteLoader.on('record', rec => {
       return Promise.resolve().then(() => {
@@ -192,7 +197,8 @@ class StockValueUpdater extends api.Component {
   constructor() {
     super({
       description: 'Updates the stock tables.',
-      depends: [StockQuoteLoaderInterface]
+      depends: [StockQuoteLoaderInterface],
+      local: true
     });
   }
   
@@ -614,6 +620,7 @@ class StockExchangeIsOpen extends api.Component {
 class StockTrade extends api.Requestable {
   constructor() {
     super({
+      identifier: 'StockTrade',
       description: 'Buys or sells a given amount of a given stock.',
       notes: 'Selling is indicated by buying negative amounts.\n' +
         'You can only specify amounts by integer numbers; ' +
@@ -705,7 +712,7 @@ class StockTrade extends api.Requestable {
       
       const modifiedOptions = _.clone(opt);
       modifiedOptions.testOnly = true;
-      return this.buyStock(query, ctx, modifiedOptions); // may throw exception!
+      return this.handle(query, ctx, cfg, modifiedOptions); // may throw exception!
     }).then(result => {
       assert.strictEqual(result.code, 200); // everything else should have thrown
       assert.ok(ctx.user);
@@ -763,8 +770,8 @@ class StockTrade extends api.Requestable {
       
       if (!this.load(StockExchangeIsOpen).test(r.exchange, cfg) && !forceNow) {
         if (!query._isDelayed) {
-          query.retainUntilCode = 200; // XXX
-          this.load('DelayedQueryAdd').handle({ 
+          query.retainUntilCode = 200;
+          this.load('DelayedQueryAdd').handleViaPubSub({ 
             condition: 'stock::' + r.stocktextid + '::exchange-open > 0',
             query: query
           }, ctx);

@@ -28,6 +28,8 @@ class Achievements extends api.Component {
       identifier: 'Achievements',
       depends: ['AchievementListProvider']
     });
+    
+    this.achievementList = [];
   }
   
   init() {
@@ -200,7 +202,7 @@ class Achievements extends api.Component {
    */
   registerAchievements(list) {
     list = list.map(achievementEntry => {
-      const e = _.defaults(achievementEntry, {
+      const e = Object.assign({}, achievementEntry, {
         requireAchievementInfo: [],
         prereqAchievements: [],
         implicatingAchievements: []
@@ -230,14 +232,14 @@ class ListAllAchievements extends api.Requestable {
         { code: 200 },
       ],
       description: 'Lists all achievement types.',
-      depends: ['AchievementListProvider']
+      depends: ['Achievements']
     });
   }
   
   handle() {
     return {
       code: 200,
-      data: this.load('AchievementListProvider').getAchievementList()
+      data: this.load('Achievements').achievementList
     };
   }
 }

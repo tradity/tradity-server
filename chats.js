@@ -56,7 +56,7 @@ class GetChat extends api.Requestable {
         { code: 200 },
         { code: 404, identifier: 'not-found' }
       ],
-      transactional: true,
+      transactional: 'maybe',
       schema: {
         type: 'object',
         properties: {
@@ -170,7 +170,7 @@ class GetChat extends api.Requestable {
       chat = chat_;
       if (chat === null) {
         if (this.load('Main').readonly) {
-          throw new this.ClientError('server-readonly'); // XXX
+          throw new this.ServerReadonly();
         } else {
           throw new this.ClientError('not-found');
         }

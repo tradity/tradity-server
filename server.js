@@ -179,6 +179,10 @@ class SoTradeServer extends api.Component {
     let handled = false;
     if (parsedURI.pathname.match(/^\/api\/v1/)) {
       for (let rq of this.requestables) {
+        if (!rq.handlesMethod(req.method)) {
+          continue;
+        }
+        
         const uriMatch = rq.getURLMatcher().match(parsedURI.pathname);
         if (!uriMatch) {
           continue;

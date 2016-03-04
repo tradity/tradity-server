@@ -26,6 +26,7 @@ const spread = promiseUtil.spread;
 class QuestionnaireDatabase extends api.Component {
   constructor() {
     super({
+      local: true,
       description: 'Perform the initial load of all questionnaires.',
     });
   }

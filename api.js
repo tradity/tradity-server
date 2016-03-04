@@ -28,6 +28,8 @@ const ZSchema = require('z-schema');
 const debug = require('debug')('sotrade:api');
 
 const registryInit = Symbol('registryInit');
+const runUserInit = Symbol('runUserInit');
+const runUserInitPromise = Symbol('runUserInitPromise');
 const _registry = Symbol('_registry');
 
 class _Component extends promiseEvents.EventEmitter {
@@ -37,34 +39,57 @@ class _Component extends promiseEvents.EventEmitter {
     options = options || {};
     this.depends = options.depends || [];
     this[_registry] = null;
+    this[runUserInitPromise] = null;
     
     this.identifier = options.identifier;
     this.anonymous = !!options.anonymous;
+    this.local = !!options.local;
     
-    if (!this.identifier && !this.anonymous) {
-      throw new TypeError('Component instances need either an identifier or be anonymous');
+    if (!this.identifier && !this.anonymous && !this.local) {
+      throw new TypeError('Component instances need either an identifier or be anonymous or local');
     }
-  }
-  
-  [registryInit](registry) {
-    this[_registry] = registry;
-    return Promise.all(this.depends.map(dependency => {
-      return registry.load(dependency);
-    }));
   }
   
   initRegistryFromParent(obj) {
     assert.ok(obj[_registry]);
     assert.ok(this.anonymous);
     
-    this[registryInit](obj[_registry]);
+    return Promise.resolve().then(() => {
+      return this[registryInit](obj[_registry]);
+    }).then(() => {
+      return this[runUserInit]();
+    });
+  }
+  
+  [registryInit](registry) {
+    this[_registry] = registry;
+  }
+  
+  [runUserInit]() {
+    if (this[runUserInitPromise]) {
+      return this[runUserInitPromise];
+    }
+    
+    return this[runUserInitPromise] =
+    Promise.all(this.depends.map(dependency => {
+      return Promise.resolve(this[_registry].load(dependency))
+        .then(dep => {
+        assert.strictEqual(typeof dep[runUserInit], 'function',
+          'Dependency ' + dependency + ' has no [runUserInit]()');
+        
+        return dep[runUserInit]();
+      });
+    })).then(() => this.init());
   }
   
   init() {
   }
   
   load(dependency) {
-    assert.ok(this.depends.indexOf(dependency) !== -1);
+    assert.ok(this[runUserInitPromise], 'Cannot call load() before initialization');
+    
+    assert.ok(this.depends.indexOf(dependency) !== -1,
+      'Dependency ' + JSON.stringify(dependency) + ' not explicitly listed');
     
     return this[_registry].load(dependency);
   }
@@ -73,7 +98,7 @@ class _Component extends promiseEvents.EventEmitter {
 class Component extends _Component {
   constructor(options) {
     options = options || {};
-    options.depends = (options.depends || []).concat(['PubSub', 'Config']);
+    options.depends = ['Config', 'PubSub'].concat(options.depends || []);
     super(options);
   }
 }
@@ -90,13 +115,7 @@ class Registry extends _Component {
     this[addComponentInstance](this, Registry);
   }
   
-  [registryInit]() {}
-  
   addComponentClass(Cls) {
-    if (this._inited) {
-      throw new Error('Cannot add classes after init() was called');
-    }
-    
     if (this._dependencyIndex.has(Cls)) {
       throw new Error('Dependency already registered: ' + String(Cls));
     }
@@ -110,7 +129,7 @@ class Registry extends _Component {
   
   [addComponentInstance](instance, Cls) {
     this._dependencyIndex.set(Cls, instance);
-    this.addIndependentInstance(instance);
+    return this.addIndependentInstance(instance);
   }
   
   addIndependentInstance(instance) {
@@ -125,23 +144,32 @@ class Registry extends _Component {
     }
     
     this._instances.push(instance);
+    return instance;
   }
   
   init() {
     if (this._inited) {
-      throw new Error('Registry.init() called twice');
+      return Promise.resolve();
     }
     
     this._inited = true;
     
-    return Promise.all( this._instances.map(i => i[registryInit]()) ).then(() => 
-           Promise.all( this._instances.map(i => i.init()) ));
+    return Promise.all( this._instances.map(i => i[registryInit](this)) ).then(() => 
+           Promise.all( this._instances.map(i => i[runUserInit]()) ));
   }
   
   load(dependency) {
     const result = this._dependencyIndex.get(dependency);
     
     if (!result) {
+      if (typeof dependency === 'function') {
+        const instance = this.addComponentClass(dependency);
+        return Promise.resolve()
+          .then(() => instance[registryInit](this))
+          .then(() => instance[runUserInit]())
+          .then(() => instance);
+      }
+      
       throw new Error('Dependency not found: ' + String(dependency));
     }
     
@@ -184,7 +212,7 @@ class Requestable extends Component {
     
     if (!options.identifier && !options.anonymous) {
       options = Object.assign({
-        identifier: '_API: ' + options.url
+        identifier: '_API: ' + options.url + '@[' + (options.methods || ['GET']).join(',') + ']'
       }, options);
     }
     
@@ -207,16 +235,20 @@ class Requestable extends Component {
     }
     
     if (this.options.transactional) {
-      this.options.writing = true;
+      this.options.writing = this.options.transactional;
     }
     
     this.options.methods = this.options.methods.map(m => m.toUpperCase());
     
-    if (this.options.writing && this.options.methods.indexOf('GET') !== -1) {
+    assert.notEqual([true, false, 'maybe'].indexOf(this.options.writing), -1);
+    
+    if (this.options.writing === true &&
+        this.options.methods.indexOf('GET') !== -1) {
       throw new TypeError('Writing Requestable instances cannot use GET');
     }
     
-    if (!this.options.writing && this.options.methods.indexOf('GET') === -1) {
+    if (this.options.writing === false &&
+        this.options.methods.indexOf('GET') === -1) {
       throw new TypeError('Non-writing Requestable instances must allow GET');
     }
     
@@ -288,6 +320,16 @@ class Requestable extends Component {
         this.identifier = 'insufficient-privileges';
       }
     };
+    
+    this.ServerReadonly =
+    class ServerReadonly extends Error {
+      constructor() {
+        super('Server is read-only');
+        
+        this.code = 503;
+        this.identifier = 'server-readonly';
+      }
+    };
   }
   
   // XXX: drop “school” from public API
@@ -350,6 +392,10 @@ class Requestable extends Component {
     let query, masterAuthorization = false, hadUser;
     
     return Promise.resolve().then(() => {
+      if (this.load('Main').readonly && this.options.writing === true) {
+        throw this.ServerReadonly();
+      }
+      
       if (req.method === 'GET') {
         return {};
       }
@@ -431,7 +477,6 @@ class Requestable extends Component {
       ctx.access[['grant', 'drop'][ctx.user && ctx.user.email_verif ? 0 : 1]]('email_verif');
       
       if (!hadUser && ctx.user !== null) {
-        // XXX
         this.load('CheckAchievements').handle(ctx.clone());
       }
       
@@ -446,7 +491,15 @@ class Requestable extends Component {
         throw new this.Forbidden();
       }
       
-      return this.handleWithRequestInfo(query, ctx, this.load('Config').config(), {
+      let useCTX = ctx;
+      let handler = (query, ctx, cfg, xdata) => this.handleWithRequestInfo(query, ctx, cfg, xdata);
+      
+      if (this.options.transactional) {
+        useCTX = ctx.clone().enterTransactionOnQuery();
+        handler = useCTX.txwrap(handler);
+      }
+      
+      return this.handleWithRequestInfo(query, useCTX, this.load('Config').config(), {
         remoteip: remoteAddress,
         headers: req.headers,
         rawRequest: req
@@ -534,8 +587,13 @@ class Requestable extends Component {
   getURLMatcher() {
     return this.urlMatcher;
   }
+  
+  handlesMethod(m) {
+    return this.options.methods.indexOf(m) !== -1;
+  }
 }
 
 exports.Registry = Registry;
 exports.Component = Component;
+exports._Component = _Component;
 exports.Requestable = Requestable;

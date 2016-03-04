@@ -181,6 +181,7 @@ class Login extends UserManagementRequestable {
         { code: 200 },
         { code: 403, identifier: 'wrong-username-pw' }
       ],
+      writing: 'maybe',
       description: 'Logs a user into their account.',
       schema: {
         type: 'object',
@@ -327,6 +328,7 @@ class Logout extends UserManagementRequestable {
       returns: [
         { code: 200 }
       ],
+      writing: true,
       description: 'Logs a user out of their account.'
     });
   }
@@ -542,7 +544,7 @@ class ValidateUsername extends api.Requestable {
   constructor() {
     super({
       url: '/validate-user/:name',
-      methods: ['POST'],
+      methods: ['GET'],
       returns: [
         { code: 200 },
         { code: 403, identifier: 'invalid-char' },
@@ -593,7 +595,7 @@ class ValidateEmail extends api.Requestable {
   constructor() {
     super({
       url: '/validate-email/:email',
-      methods: ['POST'],
+      methods: ['GET'],
       returns: [
         { code: 200 },
         { code: 403, identifier: 'invalid-email' },

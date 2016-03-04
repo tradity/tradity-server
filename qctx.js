@@ -57,7 +57,7 @@ class QContext extends api.Component {
   constructor(obj) {
     super({
       anonymous: true,
-      depends: ['FeedInserter']
+      depends: ['FeedInserter', 'Database']
     });
     
     obj = obj || {};
@@ -75,9 +75,10 @@ class QContext extends api.Component {
     this.creationTime = Date.now();
     this.startTransactionOnQuery = null;
     this.contextTransaction = null;
+    this.initedPromise = Promise.resolve();
     
     if (obj.parentComponent) {
-      this.initRegistryFromParent(obj.parentComponent);
+      this.initedPromise = this.initRegistryFromParent(obj.parentComponent);
     }
     
     const ondestroy = _ctx => {
@@ -98,7 +99,7 @@ class QContext extends api.Component {
     QContext.weakInstances = QContext.weakInstances || [];
     
     QContext.weakInstances.push(weak(this, ondestroy));
-    QContext.weakInstances = QContext.weakInstances.filter(w => !w.isDead());
+    QContext.weakInstances = QContext.weakInstances.filter(w => !weak.isDead(w));
   }
 
   /**
@@ -254,10 +255,11 @@ class QContext extends api.Component {
       return this.query.apply(this, queryArgs);
     }
     
-    this.debug('Executing query [unbound]', query, args);
     this.incompleteQueryCount++;
     
-    return this.load('Database').query(query, args, readonly).then(data => {
+    return this.initedPromise.then(() => {
+      return this.load('Database').query(query, args, readonly);
+    }).then(data => {
       this.incompleteQueryCount--;
       this.queryCount++;
       
@@ -300,7 +302,9 @@ class QContext extends api.Component {
       return Promise.resolve(postTransaction()).then(oldrestart);
     };
     
-    return this.load('Database').getConnection(readonly, restart).then(conn_ => {
+    return this.initedPromise.then(() => {
+      return this.load('Database').getConnection(readonly, restart);
+    }).then(conn_ => {
       conn = conn_;
       assert.ok(conn);
       
@@ -308,7 +312,6 @@ class QContext extends api.Component {
       conn_ = {
         release: () => conn.release(),
         query: (query, args) => {
-          this.debug('Executing query [bound]', query, args);
           return conn.query(query, args);
         },
         

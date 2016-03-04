@@ -17,7 +17,6 @@
 "use strict";
 
 const commonAPI = require('tradity-connection');
-const https = require('https');
 const debug = require('debug')('sotrade:s-client');
 
 function NodeSoTradeConnection (opt) {

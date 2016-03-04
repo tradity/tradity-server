@@ -50,6 +50,7 @@ class SetClientstorage extends api.Requestable {
     super({
       url: '/options/clientstorage',
       methods: ['PUT'],
+      writing: true,
       schema: {
         type: 'object',
         properties: {
@@ -83,6 +84,7 @@ class SetClientstorage extends api.Requestable {
 class Ping extends api.Requestable {
   constructor() {
     super({
+      identifier: 'Ping',
       url: '/ping',
       methods: ['GET'],
       returns: [
@@ -103,6 +105,7 @@ class ArtificialError extends api.Requestable {
     super({
       url: '/artificial-error',
       methods: ['POST'],
+      writing: 'maybe',
       returns: [
         { code: 204 }
       ],
@@ -194,6 +197,7 @@ class ForceReadonly extends api.Requestable {
     super({
       url: '/force-readonly',
       methods: ['POST'],
+      writing: 'maybe',
       returns: [
         { code: 204 }
       ],
@@ -218,7 +222,7 @@ class ForceReadonly extends api.Requestable {
   }
 }
 
-class ArtificialDBError {
+class ArtificialDBError extends api.Requestable {
   constructor() {
     super({
       url: '/artificial-db-error',

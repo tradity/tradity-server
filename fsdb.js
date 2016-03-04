@@ -169,6 +169,7 @@ class FSDBRequestable extends api.Requestable {
 class FSDBPublish extends api.Requestable {
   constructor() {
     super({
+      identifier: 'PublishFile',
       url: '/dynamic/files',
       methods: ['POST'],
       returns: [

@@ -82,6 +82,7 @@ class ImpersonateUser extends api.Requestable {
         { code: 200 },
         { code: 404, identifier: 'user-not-found' }
       ],
+      writing: true,
       schema: {
         type: 'object',
         properties: {

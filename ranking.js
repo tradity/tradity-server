@@ -16,7 +16,7 @@
 
 "use strict";
 
-const assert = require('assert.js');
+const assert = require('assert');
 const api = require('./api.js');
 
 /**

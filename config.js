@@ -27,7 +27,7 @@ const debug = require('debug')('sotrade:config');
 const api = require('./api.js');
 const deepupdate = require('./lib/deepupdate.js');
 
-class Config extends api.Component {
+class Config extends api._Component {
   constructor() {
     super({
       identifier: 'Config',
@@ -87,7 +87,7 @@ class Config extends api.Component {
   }
 
   init() {
-    return Promise.resolve().then(() => this.reloadConfig());
+    return this.reloadConfig();
   }
   
   /**

@@ -46,23 +46,25 @@ class DelayedQueries extends api.Component {
       depends: ['StockExchangeIsOpen']
     });
     
-    this.queries = {};
+    this.queries = {}; // XXX make this a map
     
-    this.neededStocks = {};
-    this.queryTypes = ['stock-buy', 'dquery-remove', 'ping'];
+    this.neededStocks = {}; // XXX make this a map
+    this.allowedQueryTypes = ['DelayedQueryDelete', 'StockTrade', 'Ping'];
   }
   
   init() {
     const ctx = new qctx.QContext({parentComponent: this});
     
-    this.load('PubSub').on('stock-update', ev => {
+    return this.load('PubSub').on('stock-update', ev => {
       if (this.neededStocks['s-'+ev.stockid]) {
         _.each(this.neededStocks['s-'+ev.stockid], entryid => {
           return this.checkAndExecute(ctx, this.queries[entryid]);
         });
       }
     });
-    
+  }
+  
+  enable() {
     return this.loadDelayedQueries();
   }
 
@@ -122,6 +124,13 @@ class DelayedQueries extends api.Component {
    */
   addQuery(ctx, query) {
     assert.ok(query);
+    
+    // XXX backwards compatibility
+    // can be removed after next reset
+    if (query.query.type === 'stock-buy') {
+      query.query.type = 'StockTrade';
+      query.retainUntilCode = 'success';
+    }
 
     const cond = this.parseCondition(query.condition);
     
@@ -276,23 +285,28 @@ class DelayedQueries extends api.Component {
     
     assert.strictEqual(this.queries[query.queryid], query);
     
-    // XXX
-    return query.executionPromise = this.request({
-      name: 'client-' + query.query.type,
-      query: query.query,
-      ctx: ctx
-    }).catch(e => {
-      if (typeof e.toJSON !== 'function') {
-        throw e;
+    const cfg = this.load('Config').config();
+    
+    return query.executionPromise = Promise.resolve().then(() => {
+      return this.load(query.query.type).handle(query, ctx, cfg);
+    }).catch(err => {
+      // this duplicates some logic from api.Requestable
+      // XXX should be considered when refactoring over there
+      if (typeof err.code === 'number') {
+        return err;
       }
       
-      return e.toJSON();
+      throw err;
     }).then(result => {
       debug('Executed dquery', query.queryid, result.code);
       const json = query.query.dquerydata || {};
       json.result = result.code;
       
-      if (!query.query.retainUntilCode || query.query.retainUntilCode === result.code) {
+      if (!query.query.retainUntilCode ||
+          query.query.retainUntilCode === result.code ||
+          (query.query.retainUntilCode === 'success' &&
+            result.code >= 200 && result.code <= 299))
+      {
         return ctx.feed({
           'type': 'dquery-exec',
           'targetid': null,
@@ -378,6 +392,7 @@ class DelayedQueryDelete extends api.Requestable {
   constructor() {
     super({
       url: '/dqueries/:queryid',
+      identifier: 'DelayedQueryDelete',
       methods: ['DELETE'],
       returns: [
         { code: 204 },
@@ -415,7 +430,7 @@ class DelayedQueryDelete extends api.Requestable {
   }
 }
 
-class DelayedQueryAdd {
+class DelayedQueryAdd extends api.Requestable {
   constructor() {
     super({
       identifier: 'DelayedQueryAdd',
@@ -445,14 +460,24 @@ class DelayedQueryAdd {
     });
   }
   
-  // XXX query.query.retainUntilCode
-  // XXX how does dqueries work now anyway?
+  init() {
+    const ctx = new qctx.QContext({parentComponent: this});
+    
+    this.load('PubSub').on('dquery-should-be-added', query => {
+      return this.handle(query, ctx);
+    });
+  }
+  
+  handleViaPubSub(query/*, ctx*/) {
+    return this.load('PubSub').publish('dquery-should-be-added', query);
+  }
+  
   handle(query, ctx) {
     debug('Add dquery', query.condition);
     const db = this.load(DelayedQueries);
     
     let qstr = null;
-    db.parseCondition(query.condition); // XXX
+    db.parseCondition(query.condition);
     
     try {
       qstr = JSON.stringify(query.query);
@@ -460,7 +485,7 @@ class DelayedQueryAdd {
       throw new this.BadRequest(e);
     }
     
-    if (this.queryTypes.indexOf(query.query.type) === -1) {
+    if (db.allowedQueryTypes.indexOf(query.query.type) === -1) {
       throw new this.Client('unknown-query-type');
     }
     
@@ -483,7 +508,7 @@ class DelayedQueryAdd {
   }
 }
 
-class DelayedQueryCheckAll {
+class DelayedQueryCheckAll extends api.Requestable {
   constructor() {
     super({
       url: '/dqueries/check-all',

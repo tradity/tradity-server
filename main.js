@@ -41,6 +41,7 @@ class StockQuoteLoaderProvider extends api.Component {
   }
   
   init() {
+    debug('Running StockQuoteLoaderProvider init');
     const stockLoaders = {};
     const cfg = this.load('Config').config();
     
@@ -66,11 +67,12 @@ class StockQuoteLoaderProvider extends api.Component {
   }
 }
 
-class PubSub extends api.Component {
+class PubSub extends api._Component {
   constructor() {
     super({
       identifier: 'PubSub',
-      description: 'Shortcut redis interface.'
+      description: 'Shortcut redis interface.',
+      depends: ['Config']
     });
     
     this.client = null;
@@ -137,11 +139,12 @@ class Main extends api.Component {
     this.registry.addIndependentInstance(this);
     
     this.componentModules = [
-      './errorhandler.js', './emailsender.js', './signedmsg.js',
+      './config.js', './errorhandler.js', './emailsender.js', './signedmsg.js',
       './dbbackend.js', './feed.js', './template-loader.js', './stocks.js', './stocks-financeupdates.js',
-      './user.js', './misc.js',
+      './user.js', './misc.js', './dqueries.js',
       './background-worker.js',
-      './admin.js', './schools.js', './fsdb.js', './achievements.js', './chats.js',
+      './admin.js', './schools.js', './fsdb.js', './achievements.js',
+      './achievement-list.js', './chats.js',
       './watchlist.js', './wordpress-feed.js', './questionnaires.js',
       './user-info.js', './ranking.js'
     ];
@@ -153,7 +156,7 @@ class Main extends api.Component {
     debug('Starting');
     
     return this.loadComponents().then(() => {
-      this.readonly = this.load('Config').config().readonly;
+      debug('Loaded components');
       
       let isAlreadyShuttingDownDueToError = false;
       const unhandledSomething = err => {
@@ -174,6 +177,10 @@ class Main extends api.Component {
         debug('Unhandled rejection', reason, reason && reason.stack);
         return unhandledSomething(reason);
       });
+      
+      debug('Set up error handlers');
+      
+      this.readonly = this.load('Config').config().readonly;
       
       this.on('shutdown', () => {
         setTimeout(() => {
@@ -242,7 +249,7 @@ class Main extends api.Component {
 
     this.workers.push(bw);
 
-    return this.registerWorker(bw).then(() => {
+    return Promise.resolve().then(() => {
       bw.on('message', msg => {
         if (msg.cmd === 'startRequest' && !sentSBW) {
           sentSBW = true;
@@ -271,7 +278,7 @@ class Main extends api.Component {
     this.workers.push(w);
     
     return w.on('online', () => {
-      return this.registerWorker(w).then(() => {
+      return Promise.resolve().then(() => {
         w.on('message', msg => {
           if (msg.cmd === 'startRequest' && !sentSSW) {
             sentSSW = true;
@@ -310,7 +317,7 @@ class Main extends api.Component {
       let shuttingDown = false;
       this.on('shutdown', () => { shuttingDown = true; });
       
-      cluster.on('exit', (worker, code, signal) => {
+      return cluster.on('exit', (worker, code, signal) => {
         this.workers = this.workers.filter(w => (w.process.pid !== worker.process.pid));
         
         let shouldRestart = !shuttingDown;
@@ -334,10 +341,6 @@ class Main extends api.Component {
             process.exit(0);
           }, 1500);
         }
-      });
-      
-      return this.connectToSocketIORemotes().then(() => {
-        debug('Connected to socket.io remotes', process.pid);
       });
     });
   }
@@ -363,6 +366,7 @@ class Main extends api.Component {
         debug('received SBW', process.pid);
         
         this.isBackgroundWorker = true;
+        this.load('DelayedQueries').enable();
       } else if (msg.cmd === 'startStandardWorker') {
         assert.ok(msg.port);
         
@@ -410,7 +414,10 @@ class Main extends api.Component {
       return Promise.all(components.map(Class => {
         return this.registry.addComponentClass(Class);
       }));
-    }));
+    })).then(() => {
+      debug('Running registry init');
+      return this.registry.init();
+    });
   }
 }
 
@@ -424,5 +431,8 @@ Main.init_ = function() {
 exports.Main = Main;
 
 if (require.main === module) {
-  new Main().start();
+  new Main().start().catch(err => {
+    console.log('Starting failed: ', err);
+    process.exit(1);
+  });
 }

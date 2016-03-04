@@ -39,7 +39,7 @@ class Database extends api.Component {
     super({
       identifier: 'Database',
       description: 'Provides database access to other components.',
-      depends: ['Config']
+      depends: ['Main']
     });
     
     this.dbmod = null;
@@ -293,4 +293,6 @@ class Database extends api.Component {
   }
 }
 
-exports.Database = Database;
+exports.components = [
+  Database
+];

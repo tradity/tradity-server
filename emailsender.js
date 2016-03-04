@@ -66,7 +66,8 @@ class BouncedMailHandler extends api.Requestable {
         required: ['messageId']
       },
       description: 'Notifies the server about the non-delivery of mails.',
-      requiredAccess: 'email-bounces'
+      requiredAccess: 'email-bounces',
+      depends: ['ReadonlyStore']
     });
   }
   
@@ -189,7 +190,7 @@ class Mailer extends api.Component {
     opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
     
     return Promise.resolve().then(() => {
-      if (ctx && !this.load('Main').readonly) {
+      if (ctx && !this.load('ReadonlyStore').readonly) {
         return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
           'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
           [uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,

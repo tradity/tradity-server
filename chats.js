@@ -128,7 +128,7 @@ class GetChat extends api.Requestable {
         return chatlist[0];
       }
       
-      if (query.failOnMissing || !query.endpoints || this.load('Main').readonly) {
+      if (query.failOnMissing || !query.endpoints || this.load('ReadonlyStore').readonly) {
         return null;
       }
       
@@ -169,7 +169,7 @@ class GetChat extends api.Requestable {
     }).then(chat_ => {
       chat = chat_;
       if (chat === null) {
-        if (this.load('Main').readonly) {
+        if (this.load('ReadonlyStore').readonly) {
           throw new this.ServerReadonly();
         } else {
           throw new this.ClientError('not-found');

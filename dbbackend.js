@@ -39,7 +39,7 @@ class Database extends api.Component {
     super({
       identifier: 'Database',
       description: 'Provides database access to other components.',
-      depends: ['Main']
+      depends: ['ReadonlyStore']
     });
     
     this.dbmod = null;
@@ -90,14 +90,14 @@ class Database extends api.Component {
       
       this.writableNodes = _.without(this.writableNodes, nodeId);
       if (this.writableNodes.length === 0) {
-        return this.load('Main').readonly = true;
+        return this.load('ReadonlyStore').readonly = true;
       }
     });
     
     this.wConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error('DB lost write connection')));
     this.rConnectionPool.on('remove', () => this.load('PubSub').publish('error', new Error('DB lost read connection')));
     
-    this.load('Main').on('shutdown', () => this.shutdown());
+    this.load('PubSub').on('shutdown', () => this.shutdown());
     
     this.inited = true;
     this.openConnections = 0;

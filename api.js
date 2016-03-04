@@ -117,7 +117,7 @@ class Registry extends _Component {
   
   addComponentClass(Cls) {
     if (this._dependencyIndex.has(Cls)) {
-      throw new Error('Dependency already registered: ' + String(Cls));
+      return this._dependencyIndex.get(Cls);
     }
     
     const instance = new Cls();
@@ -158,6 +158,10 @@ class Registry extends _Component {
            Promise.all( this._instances.map(i => i[runUserInit]()) ));
   }
   
+  listInstances() {
+    return this._instances;
+  }
+  
   load(dependency) {
     const result = this._dependencyIndex.get(dependency);
     
@@ -186,7 +190,7 @@ class URLMatcher {
     this.regexp = new RegExp('^' + path.replace(/\((\?:?)?/g, '(?:')
       .replace(/:([^/]+?)\b/g, (match, name) => {
       this.parameters[i++] = name;
-      return '([^/]+)';
+      return '([^/]*)';
     }) + '$');
   }
   
@@ -197,7 +201,9 @@ class URLMatcher {
     }
     
     return Object.assign.apply(Object, [{}, match].concat(
-      match.map((content, index) => ({ [this.parameters[index]]: content }))
+      match.map((content, index) => (
+        this.parameters[index] ? { [this.parameters[index]]: content } : {}
+      ))
     ));
   }
 }
@@ -215,6 +221,10 @@ class Requestable extends Component {
         identifier: '_API: ' + options.url + '@[' + (options.methods || ['GET']).join(',') + ']'
       }, options);
     }
+    
+    options = Object.assign({}, options, {
+      depends: (options.depends || []).concat(['ReadonlyStore', 'UpdateUserStatistics', 'LoadSessionUser'])
+    });
     
     super(options);
     
@@ -254,9 +264,6 @@ class Requestable extends Component {
     
     if (this.options.schema) {
       this.schema = Object.assign({}, this.options.schema);
-      if (!this.schema.$schema) {
-        this.schema.$schema = "http://json-schema.org/draft-04/schema#";
-      }
       
       if (!this.schema.title) {
         this.schema.title = this.options.url + ' (' + this.options.methods.join(', ') + ')';
@@ -270,12 +277,12 @@ class Requestable extends Component {
     this.ClientError = 
     class ClientError extends Error {
       constructor(identifier) {
-        const info = requestable.returns.filter(r => r.identifier === identifier);
+        const info = requestable.options.returns.filter(r => r.identifier === identifier)[0];
         if (!info) {
           throw new TypeError('No identifier info available for ' + identifier);
         }
         
-        super(requestable.url + ': ' + info.code + ': ' + identifier);
+        super(requestable.options.url + ': ' + info.code + ': ' + identifier);
         
         Object.assign(this, info);
       }
@@ -288,6 +295,8 @@ class Requestable extends Component {
         
         this.code = 400;
         this.identifier = 'bad-request';
+        this.schema = requestable.schema;
+        this.underlying = underlying;
       }
     };
     
@@ -382,6 +391,8 @@ class Requestable extends Component {
         ctx.properties.set('pendingTicks', 0);
       });
     });
+    
+    return ctx;
   }
   
   _handleRequest(req, res, uriMatch) {
@@ -392,7 +403,7 @@ class Requestable extends Component {
     let query, masterAuthorization = false, hadUser;
     
     return Promise.resolve().then(() => {
-      if (this.load('Main').readonly && this.options.writing === true) {
+      if (this.load('ReadonlyStore').readonly && this.options.writing === true) {
         throw this.ServerReadonly();
       }
       
@@ -421,7 +432,11 @@ class Requestable extends Component {
         query.key = headerKey;
       }
       
-      query.key = String(query.key);
+      if (query.key) {
+        query.key = String(query.key);
+      } else {
+        query.key = null;
+      }
       
       // XXX this would better be handled using https client certs
       if (!query.signedContent) {
@@ -442,7 +457,7 @@ class Requestable extends Component {
       if (this.schema) {
         const validator = new ZSchema({
           noTypeless: true,
-          assumeAdditional: ['key'],
+          noExtraKeywords: false,
           forceItems: true,
           forceProperties: true
         });
@@ -453,9 +468,13 @@ class Requestable extends Component {
         }
       }
       
-      hadUser = !!this.ctx.user;
+      hadUser = !!ctx.user;
       
-      return this.load('LoadSessionUser').handle(query.key, ctx);
+      if (query.key) {
+        return this.load('LoadSessionUser').handle(query.key, ctx);
+      } else {
+        return null;
+      }
     }).then(user => {
       debug('Session loading returned user', user && user.uid);
       
@@ -506,7 +525,7 @@ class Requestable extends Component {
       });
     }).catch(err => {
       if (typeof err.code === 'number') {
-        return err;
+        return Object.assign({}, { message: err.message }, err);
       }
       
       throw err;
@@ -580,7 +599,7 @@ class Requestable extends Component {
         stack: JSON.stringify(e.stack)
       }));
       
-      this.publish('error', e);
+      this.load('PubSub').publish('error', e);
     });
   }
   

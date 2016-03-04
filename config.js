@@ -87,7 +87,7 @@ class Config extends api._Component {
   }
 
   init() {
-    return this.reloadConfig();
+    return Promise.resolve(this.reloadConfig());
   }
   
   /**
@@ -101,9 +101,6 @@ class Config extends api._Component {
    *                        as an options object.
    * @property {string} db.user  The database access user name.
    * @property {string} db.password  The database access password for the given user.
-   * @property {function} configureSocketIO  Called with a socket.io listener instance
-   *                                         and the server config. Can be used for
-   *                                         configuring socket.io in detail.
    * @property {string} wshost  The host/interface for the HTTP server to listen on.
    * @property {int[]} wsports  An array of ports for the HTTP server to listen on.
    * @property {string} userAgent  An HTTP User-Agent header to add to external HTTP
@@ -206,10 +203,6 @@ class Config extends api._Component {
    * @property {string} publicKeys  A list of files in which acceptable public keys are listed.
    * @property {boolean} startBackgroundWorker  Whether this server instance has a background
    *                                            worker process.
-   * @property {object[]} socketIORemotes  A list of other bus endpoints reachable via socket.io.
-   *                                       Each entry should have a <code>.url</code> propery
-   *                                       and may have <code>.ssl</code> set to a set of SSL
-   *                                       options or <code>'default'</code>.
    * @property {object} ssl  A standard node.js SSL configuration object.
    */
 

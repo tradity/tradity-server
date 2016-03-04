@@ -85,7 +85,7 @@ class StocksFilter extends api.Component {
 class StockQuoteLoaderInterface extends api.Component {
   constructor() {
     super({
-      depends: [StocksFilter, 'StockQuoteLoaderProvider'],
+      depends: [StocksFilter, 'StockQuoteLoaderProvider', 'ReadonlyStore'],
       local: true
     });
     
@@ -126,7 +126,7 @@ class StockQuoteLoaderInterface extends api.Component {
     
     assert.notStrictEqual(rec.pieces, null);
     
-    if (this.load('Main').readonly) {
+    if (this.load('ReadonlyStore').readonly) {
       return;
     }
     
@@ -239,14 +239,14 @@ class StocksRegularTasks extends api.Component {
         },
         required: []
       },
-      depends: ['UpdateProvisions', 'UpdateLeaderMatrix', StockIDCache, StockValueUpdater]
+      depends: ['UpdateProvisions', 'UpdateLeaderMatrix', StockIDCache, StockValueUpdater, 'ReadonlyStore']
     });
   }
   
   handle(query, ctx) {
     const cfg = this.load('Config').config();
     
-    if (this.load('Main').readonly) {
+    if (this.load('ReadonlyStore').readonly) {
       return;
     }
       
@@ -543,7 +543,7 @@ class StockSearch extends api.Requestable {
       results = _.uniq(results, false, r => r.stocktextid);
       let symbols = _.map(results, 'stocktextid');
       
-      if (symbols.length > 0 && !this.load('Main').readonly) {
+      if (symbols.length > 0 && !this.load('ReadonlyStore').readonly) {
         symbols = symbols.map(encodeURIComponent);
         ctx.query('UPDATE stocks SET lrutime = UNIX_TIMESTAMP() ' +
           'WHERE stocktextid IN (' + symbols.map(() => '?').join(',') + ')', symbols);
@@ -682,7 +682,6 @@ class StockTrade extends api.Requestable {
         { code: 403, identifier: 'single-paper-share-exceeded' }
       ],
       depends: [
-        'DelayedQueryAdd',
         StockExchangeIsOpen
       ]
     });
@@ -771,10 +770,10 @@ class StockTrade extends api.Requestable {
       if (!this.load(StockExchangeIsOpen).test(r.exchange, cfg) && !forceNow) {
         if (!query._isDelayed) {
           query.retainUntilCode = 200;
-          this.load('DelayedQueryAdd').handleViaPubSub({ 
+          this.load('PubSub').publish('dquery-should-be-added', { 
             condition: 'stock::' + r.stocktextid + '::exchange-open > 0',
             query: query
-          }, ctx);
+          });
           
           throw new this.ClientError('autodelay-sxnotopen');
         } else {

@@ -26,7 +26,7 @@ class Achievements extends api.Component {
   constructor() {
     super({
       identifier: 'Achievements',
-      depends: ['AchievementListProvider']
+      depends: ['AchievementListProvider', 'ReadonlyStore']
     });
     
     this.achievementList = [];
@@ -46,7 +46,7 @@ class Achievements extends api.Component {
   checkAchievements(ctx) {
     debug('Checking achievements for current user', ctx.user.uid);
     
-    if (this.load('Main').readonly) {
+    if (this.load('ReadonlyStore').readonly) {
       return;
     }
     

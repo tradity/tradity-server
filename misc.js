@@ -216,7 +216,7 @@ class ForceReadonly extends api.Requestable {
   handle(query/*, ctx*/) {
     debug('Force into readability mode', query.readonly);
     
-    this.load('Main').readonly = query.readonly;
+    this.load('ReadonlyStore').readonly = query.readonly;
     
     return { code: 204 };
   }

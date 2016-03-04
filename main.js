@@ -75,16 +75,18 @@ class PubSub extends api._Component {
       depends: ['Config']
     });
     
-    this.client = null;
+    this.subclient = null;
+    this.pubclient = null;
     this.cfg = null;
   }
   
   init() {
     this.cfg = this.load('Config').config().redis;
-    this.client = redis.createClient(this.cfg);
-    this.client.subscribe(this.cfg._channel);
+    this.pubclient = redis.createClient(this.cfg);
+    this.subclient = redis.createClient(this.cfg);
+    this.subclient.subscribe(this.cfg._channel);
     
-    this.client.on('message', (channel, message) => {
+    this.subclient.on('message', (channel, message) => {
       const msg = JSON.parse(message);
       this.emit(msg.name, msg.data);
     });
@@ -102,11 +104,26 @@ class PubSub extends api._Component {
       };
     }
     
-    this.client.publish(this.cfg._channel, JSON.stringify({
+    this.pubclient.publish(this.cfg._channel, JSON.stringify({
       name: name,
       data: data,
       kind: kind
     }));
+  }
+}
+
+class ReadonlyStore extends api._Component {
+  constructor() {
+    super({
+      identifier: 'ReadonlyStore',
+      depends: ['Config']
+    });
+    
+    this.readonly = null;
+  }
+  
+  init() {
+    this.readonly = this.load('Config').config().readonly;
   }
 }
 
@@ -118,7 +135,8 @@ class Main extends api.Component {
     super({
       identifier: 'Main',
       description: 'Main entry point of this software.',
-      notes: 'This manages – mostly – initial setup, loading modules and coordinating workers'
+      notes: 'This manages – mostly – initial setup, loading modules and coordinating workers',
+      depends: ['DelayedQueries']
     });
     
     opt = opt || {};
@@ -136,6 +154,7 @@ class Main extends api.Component {
     this.registry = new api.Registry();
     this.registry.addComponentClass(StockQuoteLoaderProvider);
     this.registry.addComponentClass(PubSub);
+    this.registry.addComponentClass(ReadonlyStore);
     this.registry.addIndependentInstance(this);
     
     this.componentModules = [
@@ -162,7 +181,7 @@ class Main extends api.Component {
       const unhandledSomething = err => {
         this.load('PubSub').publish('error', err);
         if (!isAlreadyShuttingDownDueToError) {
-          this.emit('shutdown');
+          this.load('PubSub').emit('shutdown');
         }
         
         isAlreadyShuttingDownDueToError = true;
@@ -182,7 +201,7 @@ class Main extends api.Component {
       
       this.readonly = this.load('Config').config().readonly;
       
-      this.on('shutdown', () => {
+      this.load('PubSub').on('shutdown', () => {
         setTimeout(() => {
           debug('Quitting after "shutdown" event', process.pid);
           process.exit(0);
@@ -191,7 +210,7 @@ class Main extends api.Component {
       
       for (let i = 0; i < this.shutdownSignals.length; ++i) {
         process.on(this.shutdownSignals[i], () => { // jshint ignore:line
-          this.emit('shutdown');
+          this.load('PubSub').emit('shutdown');
         
           this.workers.forEach(w => {
             w.kill(this.shutdownSignals[i]);
@@ -315,7 +334,7 @@ class Main extends api.Component {
       debug('All workers started', process.pid);
       
       let shuttingDown = false;
-      this.on('shutdown', () => { shuttingDown = true; });
+      this.load('PubSub').on('shutdown', () => { shuttingDown = true; });
       
       return cluster.on('exit', (worker, code, signal) => {
         this.workers = this.workers.filter(w => (w.process.pid !== worker.process.pid));
@@ -389,9 +408,11 @@ class Main extends api.Component {
     
     return this.loadComponents().then(() => {
       const server = require('./server.js');
-      const stserver = new server.Server({isBackgroundWorker: this.isBackgroundWorker});
+      const stserver = new server.Server({
+        isBackgroundWorker: this.isBackgroundWorker
+      }, this.registry.listInstances().filter(f => f instanceof api.Requestable));
       
-      return stserver; // XXX somehow connect stserver to the registry
+      return stserver.initRegistryFromParent(this).then(() => stserver);
     }).then(stserver => {
       debug('loaded', process.pid);
       

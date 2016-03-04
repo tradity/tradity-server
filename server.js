@@ -21,7 +21,6 @@ const assert = require('assert');
 const http = require('http');
 const https = require('https');
 const url = require('url');
-const sio = require('socket.io');
 const debug = require('debug')('sotrade:server');
 const api = require('./api.js');
 const qctx = require('./qctx.js');
@@ -31,14 +30,11 @@ const promiseUtil = require('./lib/promise-util.js');
  * Provides the HTTP endpoint for all client connections
  * 
  * @property {object} httpServer  The associated node.js HTTP(S) server
- * @property {object} io  The socket.io instance listening for incoming sockets
  * @property {module:connectiondata~ConnectionData[]} clients  Full list of currently
  *                                                             active clients
  * @property {boolean} isShuttingDown  Indicates whether the serve is in shut-down mode
  * @property {int} creationTime  Unix timestamp of the object creation
  * @property {int} deadQueryCount  Total number of queries of disconnected clients
- * @property {int} deadQueryCompressionInfo  Statistical compression support information 
- *                                           of disconnected clients
  * @property {int} connectionCount  Total number of client connections
  * 
  * @public
@@ -46,11 +42,12 @@ const promiseUtil = require('./lib/promise-util.js');
 class SoTradeServer extends api.Component {
   constructor(info, requestables) {
     super({
-      description: 'Provides the HTTP endpoint for all client connections'
+      anonymous: true,
+      description: 'Provides the HTTP endpoint for all client connections',
+      depends: ['Database', 'ReadonlyStore']
     });
     
     this.httpServer = null;
-    this.io = null;
     this.clients = [];
     this.isShuttingDown = false;
     this.creationTime = Date.now() / 1000;
@@ -60,6 +57,22 @@ class SoTradeServer extends api.Component {
     this.connectionCount = 0;
     this.info = info || {};
     this.requestables = requestables;
+    
+    this.apiv1Index = JSON.stringify({
+      code: 200,
+      name: 'API v1 index',
+      data: {
+        listing: this.requestables.map(rq => {
+          return {
+            info: Object.assign({}, rq.options, {
+              depends: undefined,
+              writing: undefined,
+              transactional: undefined
+            })
+          };
+        })
+      }
+    });
   }
   
   internalServerStatistics(qctxDebug) {
@@ -80,7 +93,7 @@ class SoTradeServer extends api.Component {
       deadQueryCount: this.deadQueryCount,
       now: Date.now(),
       qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null,
-      readonly: this.load('Main').readonly,
+      readonly: this.load('ReadonlyStore').readonly,
       dbstats: this.load('Database').usageStatistics()
     };
   }
@@ -104,12 +117,7 @@ class SoTradeServer extends api.Component {
     
     this.httpServer.on('request', (req, res) => this.handleHTTPRequest(req, res));
     
-    return this.listen(port, cfg.wshost).then(() => {
-      this.io = sio.listen(this.httpServer, cfg.configureSocketIO(sio, cfg));
-      debug('socket.io set up', process.pid, 'port ' + port);
-      
-      this.io.sockets.on('connection', socket => this.handleConnection(socket));
-    });
+    return this.listen(port, cfg.wshost);
   }
 
   /**
@@ -178,6 +186,13 @@ class SoTradeServer extends api.Component {
     
     let handled = false;
     if (parsedURI.pathname.match(/^\/api\/v1/)) {
+      parsedURI.pathname = parsedURI.pathname.replace(/^\/api\/v1/, '');
+      
+      if (parsedURI.pathname === '/index' || parsedURI.pathname === '/') {
+        res.writeHead(200, {'Content-Type': 'application/json;charset=utf-8'});
+        res.end(this.apiv1Index);
+      }
+      
       for (let rq of this.requestables) {
         if (!rq.handlesMethod(req.method)) {
           continue;
@@ -194,8 +209,9 @@ class SoTradeServer extends api.Component {
     }
     
     if (!handled) {
+      debug('No handler for URI', parsedURI.pathname);
       res.writeHead(404, {'Content-Type': 'application/json;charset=utf-8'});
-      res.write(JSON.stringify({
+      res.end(JSON.stringify({
         code: 404,
         identifier: 'unknown-uri'
       }));

@@ -35,21 +35,23 @@ const debug = require('debug')('sotrade:dqueries');
  * @property {object} queries  A local copy of the delayed queries table.
  * @property {object} neededStocks  A stock id -> list of delayed queries map; The latter
  *                                  will be informed about updates on the stock data.
- * @property {string[]} queryTypes  A list of {@link c2s} query types which may be delayed.
+ * @property {string[]} allowedQueryTypes  A list of query types which may be delayed.
  * 
  * @public
  */
 class DelayedQueries extends api.Component {
   constructor() {
+    const allowedQueryTypes = ['StockTrade', 'Ping'];
+    
     super({
       identifier: 'DelayedQueries',
-      depends: ['StockExchangeIsOpen']
+      depends: ['StockExchangeIsOpen', 'ReadonlyStore'].concat(allowedQueryTypes)
     });
     
     this.queries = {}; // XXX make this a map
     
     this.neededStocks = {}; // XXX make this a map
-    this.allowedQueryTypes = ['DelayedQueryDelete', 'StockTrade', 'Ping'];
+    this.allowedQueryTypes = allowedQueryTypes;
   }
   
   init() {
@@ -85,7 +87,7 @@ class DelayedQueries extends api.Component {
    * @param {Query} query  The delayed query to be checked.
    */
   checkAndExecute(ctx, query) {
-    if (this.load('Main').readonly) {
+    if (this.load('ReadonlyStore').readonly) {
       return;
     }
     
@@ -288,7 +290,7 @@ class DelayedQueries extends api.Component {
     const cfg = this.load('Config').config();
     
     return query.executionPromise = Promise.resolve().then(() => {
-      return this.load(query.query.type).handle(query, ctx, cfg);
+      return this.load(query.query.type).handle(query.query, ctx, cfg);
     }).catch(err => {
       // this duplicates some logic from api.Requestable
       // XXX should be considered when refactoring over there
@@ -466,10 +468,6 @@ class DelayedQueryAdd extends api.Requestable {
     this.load('PubSub').on('dquery-should-be-added', query => {
       return this.handle(query, ctx);
     });
-  }
-  
-  handleViaPubSub(query/*, ctx*/) {
-    return this.load('PubSub').publish('dquery-should-be-added', query);
   }
   
   handle(query, ctx) {

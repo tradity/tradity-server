@@ -218,7 +218,7 @@ class Login extends UserManagementRequestable {
         'WHERE (email = ? OR name = ?) AND deletiontime IS NULL ' +
         'ORDER BY email_verif DESC, users.uid DESC, changetime DESC FOR UPDATE';
 
-      if (this.load('Main').readonly || !useTransaction) {
+      if (this.load('ReadonlyStore').readonly || !useTransaction) {
         return ctx.query(query, [name, name]);
       }
       
@@ -270,7 +270,7 @@ class Login extends UserManagementRequestable {
       assert.equal(parseInt(r.pwid), r.pwid);
       assert.equal(parseInt(uid), uid);
       
-      if (this.load('Main').readonly) {
+      if (this.load('ReadonlyStore').readonly) {
         return;
       }
       
@@ -286,7 +286,7 @@ class Login extends UserManagementRequestable {
       key = buf.toString('hex');
       
       const today = parseInt(Date.now() / 86400);
-      if (this.load('Main').readonly) {
+      if (this.load('ReadonlyStore').readonly) {
         key = key.substr(0, 6);
         
         debug('Sign session key', xdata.remoteip, name, uid, today);
@@ -429,7 +429,8 @@ class UpdateUserStatistics extends api.Component {
       identifier: 'UpdateUserStatistics',
       description: 'Write session and statistics information to the database.',
       notes: 'Sets the session’s last use date to make sure it does not expire.\n' +
-        'This function usually writes data at most once per minute to reduce database writes.'
+        'This function usually writes data at most once per minute to reduce database writes.',
+      depends: ['ReadonlyStore']
     });
   }
   
@@ -442,7 +443,7 @@ class UpdateUserStatistics extends api.Component {
     const lastSessionUpdate = ctx.properties.get('lastSessionUpdate');
     
     if (((!lastSessionUpdate || (now - lastSessionUpdate) < 60000) && !force) ||
-      this.load('Main').readonly ||
+      this.load('ReadonlyStore').readonly ||
       !user)
     {
       // don't update things yet
@@ -469,7 +470,8 @@ class LoadSessionUser extends api.Component {
   constructor() {
     super({
       identifier: 'LoadSessionUser',
-      description: 'Load information on the current user from the database.'
+      description: 'Load information on the current user from the database.',
+      depends: ['ReadonlyStore']
     });
   }
   
@@ -507,7 +509,7 @@ class LoadSessionUser extends api.Component {
         'LEFT JOIN schoolmembers AS sm ON sm.uid = users.uid ' +
         'LEFT JOIN schools ON schools.schoolid = sm.schoolid ' +
         'WHERE ' + (signedLogin ? 'users.uid = ? ' : '`key` = ? ' +
-        (this.load('Main').readonly ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
+        (this.load('ReadonlyStore').readonly ? '' : 'AND lastusetime + endtimeoffset > UNIX_TIMESTAMP() ')) +
         'LIMIT 1', [signedLogin ? loginInfo.uid : loginInfo.key])
       .then(res => {
         if (res.length === 0) {
@@ -570,7 +572,6 @@ class ValidateUsername extends api.Requestable {
   }
   
   handle(query, ctx) {
-    query.name = String(query.name);
     const uid = query.uid;
     
     if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
@@ -583,7 +584,7 @@ class ValidateUsername extends api.Requestable {
       [query.name, uid]).then(res => {
       
       if (res.length > 0 && res[0].uid !== uid) {
-        throw new this.ClientError('reg-name-already-present');
+        throw new this.ClientError('already-present');
       }
       
       return { code: 200 };
@@ -622,7 +623,6 @@ class ValidateEmail extends api.Requestable {
   
   handle(query, ctx) {
     const uid = query.uid;
-    query.email = String(query.email);
     
     if (!validator.isEmail(query.email)) {
       throw new this.ClientError('invalid-email');

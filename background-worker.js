@@ -33,7 +33,8 @@ class BackgroundWorker extends api.Requestable {
       writing: true,
       requiredLogin: false,
       requiredAccess: 'server',
-      description: 'Performs cleanup and stock quote update work.'
+      description: 'Performs cleanup and stock quote update work.',
+      depends: ['StocksRegularTasks']
     });
     
     this.sem = new PSemaphore();
@@ -72,7 +73,7 @@ class BackgroundWorker extends api.Requestable {
    * @function busreq~regularCallbackUser
    */
   regularCallbackUser(query, ctx) {
-    if (this.load('Main').readonly) {
+    if (this.load('ReadonlyStore').readonly) {
       return Promise.resolve();
     }
     

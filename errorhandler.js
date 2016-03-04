@@ -29,7 +29,8 @@ class ErrorHandler extends api.Component {
   constructor() {
     super({
       identifier: 'ErrorHandler',
-      description: 'Provides methods for handling, logging, and notifying about errors.'
+      description: 'Provides methods for handling, logging, and notifying about errors.',
+      depends: ['Mailer']
     });
     
     this.sem = new PSemaphore();

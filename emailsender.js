@@ -200,15 +200,15 @@ class Mailer extends api.Component {
       return promiseUtil.ncall(this.mailer.sendMail.bind(this.mailer))(opt);
     }).then(status => {
       if (status && status.rejected && status.rejected.length > 0) {
-        this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, cfg, true);
+        return this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, cfg, true);
       }
     }, err => {
-      this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, cfg, true);
-        
-      if (err) {
-        err.fatal = false;
-        return this.load('PubSub').emit('error', err);
-      }
+      return this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, cfg, true).then(() => {
+        if (err) {
+          err.fatal = false;
+          return this.load('PubSub').emit('error', err);
+        }
+      });
     });
   }
 }

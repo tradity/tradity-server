@@ -72,11 +72,12 @@ const getTestUser = _.memoize(function() {
         assert.ok(result.data[i].banner === null || typeof result.data[i].banner === 'string');
         
         if (result.data[i].name === schoolid) {
-          schoolid = result.data[i].id;
+          schoolid = result.data[i].schoolid;
           break;
         }
       }
       
+      assert.ok(schoolid);
       return socket.get('/genders');
     }).then(result => {
       assert.ok(result._success);

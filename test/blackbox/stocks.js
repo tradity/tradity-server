@@ -43,10 +43,12 @@ describe('stocks', function() {
           body: {
             amount: -r.amount,
             value: null,
-            stocktextid: r.stockid,
+            stocktextid: r.stocktextid,
             leader: null,
             forceNow: true
           }
+        }).then(result => {
+          assert.ok(result._success);
         });
       }));
     });
@@ -143,7 +145,7 @@ describe('stocks', function() {
       }).then(result => {
         assert.ok(result._success);
         assert.ok(result.data);
-        assert.equal(result.data.length, 1);
+        assert.equal(result.data.length, 1, 'Depot has more than one entry: ' + JSON.stringify(result));
         assert.equal(result.data[0].stocktextid, standardISIN);
         assert.equal(result.data[0].amount, amount);
         

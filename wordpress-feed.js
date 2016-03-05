@@ -26,7 +26,7 @@ class ProcessBlogs extends api.Requestable {
     super({
       url: '/wordpress/processFeed',
       transactional: true,
-      methods: ['PUT'],
+      methods: ['POST'],
       returns: [ { code: 204 } ],
       requiredAccess: 'wordpress',
       requiredLogin: false,
@@ -125,19 +125,19 @@ class AddFeed extends api.Requestable {
         type: 'object',
         properties: {
           endpoint: {
-            type: 'string',
+            type: ['string', 'null'],
             description: 'The Wordpress API endpoint'
           },
           category: {
-            type: 'string',
+            type: ['string', 'null'],
             description: 'The relevant Wordpress category slug'
           },
           schoolid: {
-            type: 'integer',
+            type: ['integer', 'null'],
             description: 'The numerical school ID whose feed blogposts will be posted to'
           },
           bloguser: {
-            type: 'integer',
+            type: ['integer', 'null'],
             description: 'The numerical ID of the user to whom the events will be attributed to (as srcuser)'
           }
         }

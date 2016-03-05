@@ -102,7 +102,7 @@ class ErrorHandler extends api.Component {
           if (cfg && cfg.mail) {
             const opt = _.clone(cfg.mail['errorBase']);
             opt.text = longErrorText;
-            return this.load('Mailer').sendMail(opt, null, null, 'error');
+            return this.load('Mailer').sendMail(opt, null, null, 'error').catch(() => {});
           } else {
             console.warn('Could not send error mail due to missing config!');
           }

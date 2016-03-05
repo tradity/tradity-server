@@ -186,6 +186,7 @@ class Mailer extends api.Component {
     }
     
     shortId = sha256(Date.now() + JSON.stringify(opt)).substr(0, 24) + Math.random();
+    debug('Sending e-mail', shortId, template, mailtype, origTo);
     opt.messageId = '<' + shortId + '@' + cfg.mail.messageIdHostname + '>';
     
     return Promise.resolve().then(() => {
@@ -205,6 +206,7 @@ class Mailer extends api.Component {
       this.load(BouncedMailHandler).handle({messageId: shortId}, ctx, cfg, true);
         
       if (err) {
+        err.fatal = false;
         return this.load('PubSub').emit('error', err);
       }
     });

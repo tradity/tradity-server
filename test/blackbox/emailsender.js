@@ -33,13 +33,14 @@ describe('emailsender', function() {
   after(testHelpers.standardTeardown);
 
   it('Should directly bounce all e-mails in test mode', function() {
-    return socket.post('/create-invitelink', {
-      __sign__: true,
-      body: { email: user.email }
-    }).then(res => {
-      assert.ok(res._success);
-      
-      //return socket.once('email-bounced');
-    });
+    return Promise.all([
+      socket.post('/create-invitelink', {
+        __sign__: true,
+        body: { email: user.email }
+      }).then(res => {
+        assert.ok(res._success);
+      }),
+      socket.once('feed-email-bounced')
+    ]);
   });
 });

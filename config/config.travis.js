@@ -15,7 +15,7 @@ module.exports = {
     'user': 'travis',
     'password': ''
   },
-  'wshost': '::',
+  'wshost': 'localhost',
   'hostname': 'localhost',
   'protocol': 'http'
 };

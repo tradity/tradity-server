@@ -92,6 +92,8 @@ class DelayedQueries extends api.Component {
     }
     
     return query.check(ctx).then(condmatch => {
+      assert.equal(typeof condmatch, 'boolean');
+      
       if (condmatch) {
         return this.executeQuery(query);
       }
@@ -126,6 +128,9 @@ class DelayedQueries extends api.Component {
    */
   addQuery(ctx, query) {
     assert.ok(query);
+    
+    // create writable copy for us
+    query.query = Object.assign({}, query.query);
     
     // XXX backwards compatibility
     // can be removed after next reset

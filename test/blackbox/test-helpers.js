@@ -24,11 +24,14 @@ const _ = require('lodash');
 const fs = require('fs');
 const assert = require('assert');
 
+let server;
+
 const startServer = _.memoize(function() {
   return setup.setupDatabase().then(() => {
     return setup.generateKeys();
   }).then(() => {
-    return new main.Main().start();
+    server = new main.Main();
+    return server.start();
   }).then(() => {
     // test connectivity
     
@@ -45,6 +48,8 @@ const getSocket = _.memoize(function() {
     const socket = new sotradeClient.SoTradeConnection({
       noSignByDefault: true
     });
+    
+    socket.once = evname => server.load('PubSub').once(evname);
     
     return socket;
   });

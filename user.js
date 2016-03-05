@@ -549,7 +549,7 @@ class LoadSessionUser extends api.Component {
 class ValidateUsername extends api.Requestable {
   constructor() {
     super({
-      url: '/validate-user/:name',
+      url: '/validate-username/:name',
       methods: ['GET'],
       returns: [
         { code: 200 },
@@ -578,9 +578,9 @@ class ValidateUsername extends api.Requestable {
   handle(query, ctx) {
     const uid = query.uid;
     
-    if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}]+$/.test(query.name) ||
+    if (!/^[^\.,@<>\x00-\x20\x7f!"'\/\\$#()^?&{}%]+$/.test(query.name) ||
       parseInt(query.name) === parseInt(query.name)) {
-      throw new this.ClientError('reg-name-invalid-char');
+      throw new this.ClientError('invalid-char');
     }
     
     return ctx.query('SELECT uid FROM users ' +
@@ -635,6 +635,7 @@ class ValidateEmail extends api.Requestable {
     return ctx.query('SELECT uid FROM users ' +
       'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
       [query.email, uid]).then(res => {
+      console.log(query.email, uid, res);
       if (res.length > 0 && res[0].uid !== uid) {
         throw new this.ClientError('already-present');
       }

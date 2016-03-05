@@ -85,7 +85,7 @@ class StocksFilter extends api.Component {
 class StockQuoteLoaderInterface extends api.Component {
   constructor() {
     super({
-      depends: [StocksFilter, 'StockQuoteLoaderProvider', 'ReadonlyStore'],
+      depends: [StocksFilter, StockIDCache, 'StockQuoteLoaderProvider', 'ReadonlyStore'],
       local: true
     });
     
@@ -134,7 +134,7 @@ class StockQuoteLoaderInterface extends api.Component {
     
     // on duplicate key is likely to be somewhat slower than other options
     // -> check whether we already know the primary key
-    return Promise.resolve(this.knownStockIDs).then(knownStockIDs_ => {
+    return Promise.resolve(this.load(StockIDCache).knownStockIDs).then(knownStockIDs_ => {
       knownStockIDs = knownStockIDs_;
       return knownStockIDs[rec.symbol]; // might be a promise from INSERT INTO
     }).then(ksid => {
@@ -197,7 +197,7 @@ class StockValueUpdater extends api.Component {
   constructor() {
     super({
       description: 'Updates the stock tables.',
-      depends: [StockQuoteLoaderInterface],
+      depends: [StockQuoteLoaderInterface, 'DelayedQueries'],
       local: true
     });
   }
@@ -462,7 +462,7 @@ class StocksRegularTasks extends api.Component {
 class StockSearch extends api.Requestable {
   constructor() {
     super({
-      url: '/stocks/search/:name',
+      url: '/stocks/search',
       methods: ['GET'],
       returns: [
         { code: 200 },
@@ -639,12 +639,12 @@ class StockTrade extends api.Requestable {
         type: 'object',
         properties: {
           leader: {
-            type: 'integer',
+            type: ['integer', 'null'],
             description: 'The id of a leader to buy shares from',
             notes: 'Either leader or stocktextid must be given.'
           },
           stocktextid: {
-            type: 'string',
+            type: ['string', 'null'],
             description: 'The id of a stock to buy shares from',
             notes: 'Either leader or stocktextid must be given.'
           },

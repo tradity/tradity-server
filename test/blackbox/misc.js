@@ -59,7 +59,6 @@ describe('misc', function() {
         assert.ok(res._success);
         
         assert.ok(res.data.clientstorage);
-        console.log(res.data);
         assert.ok(testHelpers.bufferEqual(new Buffer(res.data.clientstorage), buf));
       });
     });

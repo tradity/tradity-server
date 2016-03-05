@@ -41,21 +41,22 @@ describe('fsdb', function() {
   describe('/dynamic/files', function() {
     it('Should publish files', function() {
       return readFile('res/bob.jpg').then(data => {
-        return socket.post('/dynamic/files', {
-          json: false,
-          body: data,
-          headers: {
-            'Content-Type': 'image/jpeg'
-          },
-          qs: {
-            role: 'profile.image',
-            name: 'bob.jpg'
-          }
-        });
-      }).then(res => {
-        assert.ok(res._success);
-        
-        //return socket.once('file-publish');
+        return Promise.all([
+          socket.post('/dynamic/files', {
+            json: false,
+            body: data,
+            headers: {
+              'Content-Type': 'image/jpeg'
+            },
+            qs: {
+              role: 'profile.image',
+              name: 'bob.jpg'
+            }
+          }).then(res => {
+            assert.ok(res._success);
+          }),
+          socket.once('feed-file-publish')
+        ]);
       }).then(() => {
         return socket.get('/user/$self', {
           cache: false, __sign__: true,

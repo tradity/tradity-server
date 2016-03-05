@@ -32,87 +32,85 @@ describe('watchlist', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('watchlist-add', function() {
+  describe('/watchlist (POST)', function() {
     it('Can add stocks to the watchlist', function() {
       let stock;
       
-      return socket.emit('list-popular-stocks', {
+      return socket.get('/stocks/popular', {
         __sign__: true,
-        days: 2000,
+        qs: { days: 10000 },
       }).then(res => {
-        assert.equal(res.code, 'list-popular-stocks-success');
-        assert.ok(res.results);
-        assert.ok(res.results.length > 0);
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.length > 0);
         
-        stock = res.results[0].stockid;
+        stock = res.data[0].stocktextid;
         
-        return socket.emit('watchlist-add', {
-          stockid: stock
+        return socket.post('/watchlist', {
+          body: { stockid: stock }
         });
       }).then(res => {
-        assert.equal(res.code, 'watchlist-add-success');
+        assert.ok(res._success);
       });
     });
     
     it('Can add leaders to the watchlist', function() {
       let stock;
       
-      return socket.emit('get-ranking').then(res => {
-        assert.equal(res.code, 'get-ranking-success');
-        assert.ok(res.result);
-        assert.ok(res.result.length > 0);
+      return socket.get('/ranking').then(res => {
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.length > 0);
         
-        stock = '__LEADER_' + res.result[0].uid + '__';
+        stock = '__LEADER_' + res.data[0].uid + '__';
         
-        return socket.emit('watchlist-add', {
-          stockid: stock
+        return socket.post('/watchlist', {
+          body: { stockid: stock }
         });
       }).then(res => {
-        assert.equal(res.code, 'watchlist-add-success');
+        assert.ok(res._success);
       });
     });
   });
   
-  describe('watchlist-remove', function() {
+  describe('/watchlist/… (DELETE)', function() {
     it('Can remove stocks from the watchlist', function() {
       let stock, uid;
       
-      return socket.emit('get-ranking').then(res => {
-        assert.equal(res.code, 'get-ranking-success');
-        assert.ok(res.result);
-        assert.ok(res.result.length > 0);
+      return socket.get('/ranking').then(res => {
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.length > 0);
         
-        uid = res.result[0].uid;
+        uid = res.data[0].uid;
         stock = '__LEADER_' + uid + '__';
         
-        return socket.emit('watchlist-add', {
-          stockid: stock
+        return socket.post('/watchlist', {
+          body: { stockid: stock }
         });
       }).then(res => {
-        assert.equal(res.code, 'watchlist-add-success');
+        assert.ok(res._success);
         
-        return socket.emit('watchlist-show');
+        return socket.get('/watchlist');
       }).then(res => {
-        assert.equal(res.code, 'watchlist-show-success');
-        assert.ok(res.results);
+        assert.ok(res._success);
+        assert.ok(res.data);
         
-        const entry = res.results.filter(function(watchlistEntry) {
-          return watchlistEntry.uid === uid;
-        })[0];
+        const entry = res.data
+          .filter(watchlistEntry => watchlistEntry.uid === uid)[0];
+        
         assert.ok(entry);
         
-        return socket.emit('watchlist-remove', {
-          stockid: entry.stockid
-        });
+        return socket.delete('/watchlist/' + entry.stockid);
       }).then(res => {
-        assert.equal(res.code, 'watchlist-remove-success');
+        assert.ok(res._success);
         
-        return socket.emit('watchlist-show');
+        return socket.get('/watchlist');
       }).then(res => {
-        assert.equal(res.code, 'watchlist-show-success');
-        assert.ok(res.results);
+        assert.ok(res._success);
+        assert.ok(res.data);
         
-        assert.equal(_.map(res.results, 'uid').indexOf(uid), -1);
+        assert.equal(_.map(res.data, 'uid').indexOf(uid), -1);
       });
     });
   });

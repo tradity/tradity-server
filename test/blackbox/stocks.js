@@ -32,19 +32,21 @@ describe('stocks', function() {
   beforeEach(function() {
     /* do standard reset, then clear depot */
     return testHelpers.standardReset().then(() => {
-      return socket.emit('list-own-depot');
-    }).then(data => {
-      assert.equal(data.code, 'list-own-depot-success');
-      assert.ok(data.results);
+      return socket.get('/depot');
+    }).then(result => {
+      assert.ok(result._success);
+      assert.ok(result.data);
       
-      return Promise.all(data.results.map(r => {
-        return socket.emit('stock-buy', {
+      return Promise.all(result.data.map(r => {
+        return socket.post('/trade', {
           __sign__: true,
-          amount: -r.amount,
-          value: null,
-          stocktextid: r.stockid,
-          leader: null,
-          forceNow: true
+          body: {
+            amount: -r.amount,
+            value: null,
+            stocktextid: r.stockid,
+            leader: null,
+            forceNow: true
+          }
         });
       }));
     });
@@ -56,24 +58,24 @@ describe('stocks', function() {
   const standardISIN = 'DE000BAY0017';
   const umlautNameISIN = 'DE0005565204';
 
-  describe('prod', function() {
+  describe('/regular-callback', function() {
     it('Works', function() {
-      return socket.emit('prod', {
+      return socket.post('/regular-callback', {
         __sign__: true
       }).then(res => {
-        assert.equal(res.code, 'prod-ready');
+        assert.ok(res._success);
       });
     });
   });
   
-  describe('stock-search', function() {
+  describe('/stocks/search', function() {
     it('Returns information based on the ISIN', function() {
-      return socket.emit('stock-search', {
-        name: standardISIN
+      return socket.get('/stocks/search', {
+        qs: { name: standardISIN }
       }).then(res => {
-        assert.equal(res.code, 'stock-search-success');
-        assert.equal(res.results.length, 1);
-        const stockinfo = res.results[0];
+        assert.ok(res._success);
+        assert.equal(res.data.length, 1);
+        const stockinfo = res.data[0];
         
         assert.ok(stockinfo);
         assert.strictEqual(stockinfo.stocktextid, standardISIN);
@@ -85,15 +87,15 @@ describe('stocks', function() {
     });
     
     it('Should handle umlauts correctly', function() {
-      return socket.emit('stock-search', {
-        name: umlautNameISIN
+      return socket.get('/stocks/search', {
+        qs: { name: umlautNameISIN }
       }).then(res => {
-        assert.equal(res.code, 'stock-search-success');
-        assert.equal(res.results.length, 1);
-        const stockinfo = res.results[0];
+        assert.ok(res._success);
+        assert.equal(res.data.length, 1);
+        const stockinfo = res.data[0];
         
         assert.ok(stockinfo);
-        assert.strictEqual(stockinfo.stockid, umlautNameISIN);
+        assert.strictEqual(stockinfo.stocktextid, umlautNameISIN);
         assert.strictEqual(stockinfo.leader, null);
         assert.strictEqual(stockinfo.leadername, null);
         assert.ok(/ü/.test(stockinfo.name));
@@ -101,12 +103,12 @@ describe('stocks', function() {
     });
     
     it('Returns information based on the username', function() {
-      return socket.emit('stock-search', {
-        name: user.name
+      return socket.get('/stocks/search', {
+        qs: { name: user.name }
       }).then(res => {
-        assert.equal(res.code, 'stock-search-success');
-        assert.equal(res.results.length, 1);
-        const stockinfo = res.results[0];
+        assert.ok(res._success);
+        assert.equal(res.data.length, 1);
+        const stockinfo = res.data[0];
         
         assert.ok(stockinfo);
         assert.strictEqual(stockinfo.leader, user.uid);
@@ -116,89 +118,93 @@ describe('stocks', function() {
     });
   });
   
-  describe('stock-buy', function() {
+  describe('/trade', function() {
     it('Can buy and sell stocks via forceNow', function() {
       const amount = 1;
       
       /* clear depot first */
-      return socket.emit('stock-buy', {
-        __sign__: true,
-        amount: amount,
-        value: null,
-        stocktextid: standardISIN,
-        leader: null,
-        forceNow: true,
-        skipTest: true
-      }).then(res => {
-        assert.equal(res.code, 'stock-buy-success');
-        
-        return socket.once('trade');
-      }).then(() => {
-        return socket.emit('list-own-depot');
-      }).then(data => {
-        assert.equal(data.code, 'list-own-depot-success');
-        assert.ok(data.results);
-        assert.equal(data.results.length, 1);
-        assert.equal(data.results[0].stockid, standardISIN);
-        assert.equal(data.results[0].amount, amount);
-        
-        return socket.emit('stock-buy', {
+      return Promise.all([
+        socket.post('/trade', {
           __sign__: true,
-          amount: -amount,
-          value: null,
-          stocktextid: standardISIN,
-          leader: null,
-          forceNow: true,
-          skipTest: true
-        });
-      }).then(res => {
-        assert.ok(res.code === 'stock-buy-success' ||
-                  res.code === 'stock-buy-not-enough-stocks');
+          body: {
+            amount: amount,
+            value: null,
+            stocktextid: standardISIN,
+            leader: null,
+            forceNow: true,
+            skipTest: true
+          }
+        }).then(res => {
+          assert.ok(res._success);
+        }),
+        socket.once('feed-trade')
+      ]).then(() => {
+        return socket.get('/depot');
+      }).then(result => {
+        assert.ok(result._success);
+        assert.ok(result.data);
+        assert.equal(result.data.length, 1);
+        assert.equal(result.data[0].stocktextid, standardISIN);
+        assert.equal(result.data[0].amount, amount);
         
-        return socket.once('trade');
-      }).then(() => {
-        return socket.emit('list-own-depot');
-      }).then(data => {
-        assert.equal(data.code, 'list-own-depot-success');
-        assert.ok(data.results);
-        assert.equal(data.results.length, 0);
-        
-        return socket.emit('stock-buy', {
+        return socket.post('/trade', {
           __sign__: true,
-          amount: -amount,
-          value: null,
-          stocktextid: standardISIN,
-          leader: null,
-          forceNow: true,
-          skipTest: true
-        });
-      }).then(data => {
-        assert.equal(data.code, 'stock-buy-not-enough-stocks');
-        
-        return socket.emit('list-transactions');
-      }).then(data => {
-        assert.equal(data.code, 'list-transactions-success');
-        assert.ok(data.results);
-        assert.ok(data.results.length > 0);
-        
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true
+          body: {
+            amount: -amount,
+            value: null,
+            stocktextid: standardISIN,
+            leader: null,
+            forceNow: true,
+            skipTest: true
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-user-info-success');
+        assert.ok(res.code === 200 ||
+                  res.identifier === 'not-enough-stocks');
+        
+        return socket.get('/depot');
+      }).then(result => {
+        assert.ok(result._success);
+        assert.ok(result.data);
+        assert.equal(result.data.length, 0);
+        
+        return socket.post('/trade', {
+          __sign__: true,
+          body: {
+            amount: -amount,
+            value: null,
+            stocktextid: standardISIN,
+            leader: null,
+            forceNow: true,
+            skipTest: true
+          }
+        });
+      }).then(result => {
+        assert.equal(result.code, 403);
+        assert.equal(result.identifier, 'not-enough-stocks');
+        
+        return socket.get('/transactions');
+      }).then(result => {
+        assert.ok(result._success);
+        assert.ok(result.data);
+        assert.ok(result.data.length > 0);
+        
+        return socket.get('/user/$self', {
+          qs: { lookfor: '$self' },
+          cache: false, __sign__: true
+        });
+      }).then(res => {
+        assert.ok(res._success);
         
         assert.ok(res.orders);
         assert.ok(res.orders.length > 0);
         
-        return socket.emit('get-trade-info', {
-          tradeid: res.orders[0].orderid
-        });
+        return socket.get('/trade/' + res.orders[0].orderid);
       }).then(res => {
-        assert.equal(res.code, 'get-trade-info-success');
+        assert.ok(res._success);
         
-        assert.ok(res.trade);
-        assert.equal(res.trade.uid, user.uid);
+        assert.ok(res.data);
+        assert.equal(res.data.uid, user.uid);
       });
     });
   });

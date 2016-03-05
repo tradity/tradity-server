@@ -23,19 +23,17 @@ Error.stackTraceLimit = Infinity;
 const assert = require('assert');
 const _ = require('lodash');
 
-const cfg = require('./config.js').config();
 const sotradeClient = require('./sotrade-client.js');
 
 const options = process.argv.splice(2);
 
 assert.ok(options.length > 0);
 
-const query = {
-  type: options[0],
-  id: 'server-q-query'
-};
+const method = options[0];
+const url = options[1];
+const query = {};
 
-for (let i = 1; i < options.length; ++i) {
+for (let i = 2; i < options.length; ++i) {
   const p = options[i].match(/^-{0,2}([\w_-]+)=(.*)$/);
   
   let value = p[2];
@@ -50,13 +48,7 @@ for (let i = 1; i < options.length; ++i) {
   query[p[1]] = value;
 }
 
-const protocol = cfg.protocol;
-const socket = new sotradeClient.SoTradeConnection({
-  url: query.wsurl || (protocol + '://' +
-    (query.wshost || cfg.wshoste || cfg.wshost) + ':' +
-    (query.wsport || cfg.wsporte || cfg.wsports[0])),
-  logDevCheck: !query['q-quiet']
-});
+const socket = new sotradeClient.SoTradeConnection();
 
 if (query['q-timeout']) {
   setTimeout(() => {
@@ -65,17 +57,16 @@ if (query['q-timeout']) {
   }, query['q-timeout'] * 1000);
 }
 
-socket.once('server-config').then(function() {
-  // XXX
-  return socket.emit(query.type, query);
-}).then(data => {
+return socket({
+  url: url,
+  method: method,
+  body: query
+}).then(result => {
   if (query.resultPath) {
     const path = String(query.resultPath).split('.');
     
-    console.log(_.reduce(path, _.result, data));
+    console.log(_.reduce(path, _.result, result));
   }
   
-  if (!query.lurk) {
-    process.exit(0);
-  }
+  process.exit(result._success ? 0 : 1);
 }).catch(e => console.trace(e));

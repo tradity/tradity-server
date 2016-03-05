@@ -194,17 +194,18 @@ describe('admin', function() {
   
   describe('/mod-notifications', function() {
     it('Should write events to all feeds', function() {
-      return socket.post('/mod-notifications', {
-        __sign__: true,
-        body: {
-          content: 'DON’T PANIC',
-          sticky: true
-        }
-      }).then(result => {
-        assert.ok(result._success);
-        
-        // XXX socket.once('mod-notification')
-      });
+      return Promise.all([
+        socket.post('/mod-notifications', {
+          __sign__: true,
+          body: {
+            content: 'DON’T PANIC',
+            sticky: true
+          }
+        }).then(result => {
+          assert.ok(result._success);
+        }),
+        socket.once('feed-mod-notification')
+      ]);
     });
   });
   

@@ -49,7 +49,7 @@ class WatchlistAdd extends api.Requestable {
         type: 'object',
         properties: {
           stockid: {
-            type: 'integer',
+            type: ['integer', 'string'],
             description: 'The numerical stock id or symbol of the stock to be added'
           }
         },

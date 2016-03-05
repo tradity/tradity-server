@@ -61,9 +61,6 @@ function NodeSoTradeConnection (opt) {
   
   const fn = options => {
     options = Object.assign({
-      headers: Object.assign({
-        'X-Sotrade-Auth': key
-      }, options.headers),
       hawk: (!opt.noSignByDefault || options.__sign__) ? {
         credentials: cfg.hawk || {
           id: 'KCHpWKIpisiKqUN',
@@ -71,11 +68,15 @@ function NodeSoTradeConnection (opt) {
           algorithm: 'sha256'
         }
       } : undefined,
+      json: true
+    }, options, {
+      headers: Object.assign({
+        'X-Sotrade-Auth': key
+      }, options.headers),
       qs: options.qs || options.cache === false ? Object.assign({
         noCache: Date.now()
-      }, options.qs || {}) : undefined,
-      json: true
-    }, options);
+      }, options.qs || {}) : undefined
+    });
       
     return new Promise((resolve, reject) => {
       req(options, (err, httpResponse, body) => {

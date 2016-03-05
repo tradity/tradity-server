@@ -140,7 +140,6 @@ describe('achievements', function() {
           }).then(result => {
             assert.ok(result._success);
             
-            console.log('result=',result);
             return socket.get('/user/$self', { cache: false, __sign__: true });
           }).then(userInfo => {
             assert.ok(userInfo._success);

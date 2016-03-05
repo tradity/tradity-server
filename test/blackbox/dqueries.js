@@ -37,15 +37,17 @@ describe('dqueries', function() {
     it('Should let users delay queries', function() {
       return socket.post('/dqueries', {
         body: {
-          condition: 'time > ' + parseInt(Date.now()/1000 + 5),
+          condition: 'time > ' + parseInt(Date.now()/1000 + 2),
           query: { type: 'Ping' }
         }
       }).then(res => {
         assert.ok(res._success);
       }).then(() => {
         return Promise.all([
-          //socket.once('dquery-exec'),
-          socket.post('/dqueries/check-all', { __sign__: true })
+          socket.once('feed-dquery-exec'),
+          promiseUtil.delay(4000).then(() => {
+            return socket.post('/dqueries/check-all', { __sign__: true })
+          })
         ]);
       });
     });

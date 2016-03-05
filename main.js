@@ -163,7 +163,7 @@ class Main extends api.Component {
       './user.js', './misc.js', './dqueries.js',
       './background-worker.js',
       './admin.js', './schools.js', './fsdb.js', './achievements.js',
-      './achievement-list.js', './chats.js',
+      './achievement-list.js',
       './watchlist.js', './wordpress-feed.js', './questionnaires.js',
       './user-info.js', './ranking.js'
     ];

@@ -635,7 +635,6 @@ class ValidateEmail extends api.Requestable {
     return ctx.query('SELECT uid FROM users ' +
       'WHERE email = ? AND email_verif ORDER BY NOT(uid != ?) FOR UPDATE',
       [query.email, uid]).then(res => {
-      console.log(query.email, uid, res);
       if (res.length > 0 && res[0].uid !== uid) {
         throw new this.ClientError('already-present');
       }
@@ -691,6 +690,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
   }
   
   updateUser(query_, type, ctx, cfg, xdata) {
+    console.trace(cfg);
     // make a copy since we actually want to provide defaults for some values here
     const query = Object.assign({}, query_);
     

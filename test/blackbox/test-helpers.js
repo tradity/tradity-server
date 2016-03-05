@@ -105,6 +105,7 @@ const getTestUser = _.memoize(function() {
         }
       });
     }).then(result => {
+      console.log('User register result', result);
       assert.ok(result._success);
       
       return socket.post('/login', {

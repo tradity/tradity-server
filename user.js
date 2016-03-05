@@ -709,7 +709,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
       }
       
       if (query.gender !== null && genders.genders.indexOf(query.gender) === -1) {
-        throw new this.ClientError('reg-unknown-gender');
+        throw new this.ClientError('unknown-gender');
       }
       
       query.giv_name = String(query.giv_name || '');
@@ -728,7 +728,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
       
       query.lang = String(query.lang || cfg.languages[0].id);
       if (_.chain(cfg.languages).map('id').indexOf(query.lang).value() === -1) {
-        throw new this.ClientError('reg-invalid-language');
+        throw new this.ClientError('invalid-language');
       }
       
       if (!query.school) { // e.g. empty string
@@ -748,7 +748,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     }).then(βkey => {
       if (cfg.betakeyRequired && (βkey.length === 0 || βkey[0].key !== betakey[1]) && 
         type === 'register' && !ctx.access.has('userdb')) {
-        throw new this.ClientError('reg-beta-necessary');
+        throw new this.ClientError('beta-necessary');
       }
       
       if (query.school === null) {
@@ -759,7 +759,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
     }).then(res => {
       if (res.length === 0 && query.school !== null) {
         if (parseInt(query.school) === parseInt(query.school) || !query.school) {
-          throw new this.ClientError('reg-unknown-school');
+          throw new this.ClientError('unknown-school');
         }
         
         let possibleSchoolPath = '/' + String(query.school).toLowerCase().replace(/[^\w_-]/g, '');

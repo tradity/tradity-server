@@ -64,7 +64,7 @@ function NodeSoTradeConnection (opt) {
       hawk: (!opt.noSignByDefault || options.__sign__) ? {
         credentials: cfg.hawk || {
           id: 'KCHpWKIpisiKqUN',
-          key: cfg.db.password,
+          key: cfg.db.password + '_hawk',
           algorithm: 'sha256'
         }
       } : undefined,

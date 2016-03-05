@@ -482,7 +482,7 @@ class Requestable extends Component {
         return new Promise((resolve, reject) => {
           Hawk.server.authenticate(req, (id, cb) => {
             return cb(null, cfg.hawk || {
-              key: cfg.db.password,
+              key: cfg.db.password + '_hawk',
               algorithm: 'sha256',
               user: 'DB-authorized user'
             });

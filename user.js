@@ -690,7 +690,6 @@ class UpdateUserRequestable extends UserManagementRequestable {
   }
   
   updateUser(query_, type, ctx, cfg, xdata) {
-    console.trace(cfg);
     // make a copy since we actually want to provide defaults for some values here
     const query = Object.assign({}, query_);
     

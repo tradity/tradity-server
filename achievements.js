@@ -317,7 +317,7 @@ class ClientAchievement extends api.Requestable {
   handle(query, ctx, cfg, verified) {
     debug('Entering client-side achievement', query.name, verified);
     
-    if (this.load('AchievementListProvider').getClientAchievementList()
+    if (this.load('AchievementListProvider').getClientAchievementList().map(a => a.name)
       .indexOf(query.name) === -1)
     {
       throw new this.ClientError('unknown-achievement');
@@ -352,13 +352,12 @@ class ClientDLAchievement extends api.Requestable {
       },
       writing: true,
       description: 'Mark a client-side daily login achievement as completed.',
-      depends: ['SignedMessaging']
+      depends: ['SignedMessaging', ClientAchievement]
     });
   }
   
-  handle(query, ctx) {
+  handle(query, ctx, cfg) {
     const uid = ctx.user.uid;
-    const cfg = this.load('Config').config();
 
     return Promise.all(query.certs.map(cert => 
       this.load('SignedMessaging').verifySignedMessage(cert, cfg.DLAValidityDays * 24 * 60 * 60)
@@ -383,7 +382,7 @@ class ClientDLAchievement extends api.Requestable {
       
       return _.range(2, Math.min(longestStreak, 20) + 1).map(i => {
         return () => {
-          return this.clientAchievement({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, 1);
+          return this.load(ClientAchievement).handle({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, cfg, 1);
         };
       }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve()).then(() => {
         return { code: 200, streak: longestStreak };

@@ -254,7 +254,7 @@ class GetSchoolInfo extends SchoolUtilRequestable {
   constructor() {
     super({
       identifier: 'GetSchoolInfo',
-      url: '/school/:lookfor',
+      url: ['/school/:lookfor', '/school'],
       methods: ['GET'],
       returns: [
         { code: 200 },
@@ -281,7 +281,7 @@ class GetSchoolInfo extends SchoolUtilRequestable {
 class SchoolExists extends SchoolUtilRequestable {
   constructor() {
     super({
-      url: '/school-exists/:lookfor',
+      url: ['/school-exists/:lookfor', '/school-exists'],
       methods: ['GET'],
       returns: [
         { code: 200 },
@@ -540,7 +540,7 @@ class CreateSchool extends api.Requestable {
   
   handle(query, ctx) {
     const schoolpath = query.schoolpath ||
-      query.schoolname.toLowerCase().replace(/[^\w_-]/g, '');
+      '/' + query.schoolname.toLowerCase().replace(/[^\w_-]/g, '');
       
     return ctx.query('SELECT COUNT(*) AS c FROM schools WHERE path = ?', [schoolpath]).then(r => {
       assert.equal(r.length, 1);

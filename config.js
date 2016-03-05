@@ -257,11 +257,17 @@ class ConfigInfo extends api.Requestable {
       returns: [
         { code: 200 }
       ],
-      description: 'Show the current server config.'
+      description: 'Show the current server config.',
+      depends: ['Achievements', 'ReadonlyStore'],
+      writing: 'maybe'
     });
   }
   
   handle(query, ctx, cfg) {
+    if (!this.load('ReadonlyStore').readonly && ctx.user) {
+      this.load('Achievements').checkAchievements(ctx.clone());
+    }
+    
     return { code: 200, data: _.pick(cfg, cfg.clientconfig) };
   }
 }

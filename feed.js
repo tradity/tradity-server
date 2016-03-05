@@ -143,16 +143,17 @@ class FeedInserter extends api.Component {
       
       return conn.query(query, params);
     }).then(() => {
-      debug('Invoking push-events', data.type);
+      debug('Publishing event', data.type);
       this.load('PubSub').publish('feed-' + data.type, data);
       return eventid;
     });
   }
 }
 
-class FeedFetcher extends api.Component {
+class FeedFetcher extends api.Requestable {
   constructor() {
     super({
+      url: '/events',
       identifier: 'FeedFetcher',
       description: 'Loads events for a given user’s feed.',
       schema: {
@@ -171,23 +172,22 @@ class FeedFetcher extends api.Component {
             description: 'If possible, list events for *all* users'
           },
           types: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'List of event types to filer for'
+            type: 'string',
+            description: 'Comma-separated list of event types to filer for'
           }
         }
       }
     });
   }
   
-  fetch(query, ctx) {
+  handle(query, ctx) {
     let since, upto, count;
     assert.ok(query);
     
     since = parseInt(query.since);
     upto = parseInt(query.upto);
     count = parseInt(query.count);
-    const types = Array.from(query.types || []).map(String);
+    const types = String(query.types || '').split(',').filter(t => t);
     
     if (since !== since) {
       since = parseInt(Date.now() / 1000);
@@ -231,7 +231,7 @@ class FeedFetcher extends api.Component {
       (omitUidFilter ? ' ' : 'AND events_users.uid = ? ') +
       (types.length > 0 ? 'AND events.type IN (' + types.map(() => '?').join(',') + ') ' : ' ') +
       'ORDER BY events.time DESC LIMIT ?',
-      [since, upto, ctx.user.uid].concat(types).concat([count])).then(r => {
+      [since, upto].concat(omitUidFilter ? [] : [ctx.user.uid]).concat(types).concat([count])).then(r => {
       return r.map(ev => {
         if (ev.json) {
           const json = JSON.parse(ev.json);
@@ -265,7 +265,7 @@ class FeedFetcher extends api.Component {
         delete ev.json;
         return ev;
       }).filter(ev => ev); /* filter out false-y results */
-    });
+    }).then(evlist => ({ code: 200, data: evlist }));
   }
 }
 
@@ -323,7 +323,7 @@ class CommentPost extends api.Requestable {
             type: 'boolean'
           }
         },
-        required: ['eventid', 'comment', 'ishtml']
+        required: ['eventid', 'comment']
       },
       transactional: true,
       description: 'Comment on a given event.'

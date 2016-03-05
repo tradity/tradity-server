@@ -200,7 +200,8 @@ class Login extends UserManagementRequestable {
           }
         },
         required: ['name', 'pw', 'stayloggedin']
-      }
+      },
+      depends: ['Achievements']
     });
   }
   
@@ -273,6 +274,10 @@ class Login extends UserManagementRequestable {
       if (this.load('ReadonlyStore').readonly) {
         return;
       }
+      
+      const achievementsCtx = ctx.clone();
+      achievementsCtx.user = { uid: uid };
+      this.load('Achievements').checkAchievements(achievementsCtx);
       
       debug('Update passwords', xdata.remoteip, name, uid, r.pwid);
       return Promise.all([

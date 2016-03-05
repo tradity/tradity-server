@@ -32,7 +32,7 @@ describe('achievements', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('list-all-achievements', function() {
+  describe('/achievements/list', function() {
     it('Should be successful and return multiple achievement types', function() {
       return socket.get('/achievements/list').then(result => {
         assert.ok(result._success);
@@ -47,7 +47,7 @@ describe('achievements', function() {
     });
   });
   
-  describe('get-daily-login-certificate', function() {
+  describe('/achievements/client/daily-login-cert', function() {
     it('Should be successful and return a valid server certificate', function() {
       return socket.get('/achievements/client/daily-login-cert').then(result => {
         assert.ok(result._success);
@@ -65,7 +65,7 @@ describe('achievements', function() {
     });
   });
   
-  describe('achievement', function() {
+  describe('/achievements/client', function() {
     it('Should fail for unknown achievements', function() {
       return socket.post('/achievements/client', {
         body: { name: 'NONEXISTENT_ACHIEVEMENT' }
@@ -113,7 +113,7 @@ describe('achievements', function() {
     });
   });
   
-  describe('dl-achievement', function() {
+  describe('/achievements/client/daily-login-cert', function() {
     it('Should register achievements for being logged in multiple days in a row', function() {
       return _.range(2, 10).map(N => {
         return () => {
@@ -127,7 +127,7 @@ describe('achievements', function() {
           return Promise.all(dates.map(date => {
             return socket.get('/achievements/client/daily-login-cert', {
               __sign__: true,
-              today: date
+              qs: { today: date }
             }).then(result => {
               assert.ok(result._success);
               
@@ -135,12 +135,13 @@ describe('achievements', function() {
             });
           })).then(certs => {
             return socket.post('/achievements/client/daily-login-submit', {
-              certs: certs
+              body: { certs: certs }
             });
           }).then(result => {
             assert.ok(result._success);
             
-            return socket.get('/user/$self', { cache: false });
+            console.log('result=',result);
+            return socket.get('/user/$self', { cache: false, __sign__: true });
           }).then(userInfo => {
             assert.ok(userInfo._success);
             

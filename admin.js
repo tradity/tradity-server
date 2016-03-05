@@ -52,26 +52,6 @@ class ListAllUsers extends api.Requestable {
   }
 }
 
-class ListAllEvents extends api.Requestable {
-  constructor() {
-    super({
-      url: '/events/all',
-      methods: ['GET'],
-      returns: [
-        { code: 200 }
-      ],
-      requiredAccess: 'feed',
-      description: 'Returns a list of all events for a given timespan.',
-      depends: ['FeedFetcher']
-    });
-  }
-  
-  handle(query, ctx) {
-    return this.load('FeedFetcher').fetch(query, ctx.clone())
-      .then(evlist => ({ code: 200, data: evlist }));
-  }
-}
-
 // XXX make impersonation *and* privileges permanent
 class ImpersonateUser extends api.Requestable {
   constructor() {
@@ -279,7 +259,7 @@ class NotificationsUnstickAll extends api.Requestable {
 /**
  * A notice from the admins to the general community.
  * 
- * @typedef s2c~mod-notification
+ * @typedef s2c~mod-notification XXX
  * @type {Event}
  * 
  * @property {string} notifcontent  The HTML string to display to the readers
@@ -356,7 +336,7 @@ class RenameSchool extends api.Requestable {
             description: 'The school’s new human-readable name'
           }
         },
-        required: ['schoolid', 'schoolpath', 'schoolname']
+        required: ['schoolid', 'schoolname']
       },
       transactional: true,
       requiredAccess: 'schooldb',
@@ -494,7 +474,7 @@ class MergeSchools extends api.Requestable {
 class ListFollowers extends api.Requestable {
   constructor() {
     super({
-      url: '/user/:lookfor/followers',
+      url: '/user/:uid/followers',
       methods: ['GET'],
       returns: [
         { code: 200 }
@@ -597,7 +577,7 @@ class EventStatistics extends api.Requestable {
     const todayEnd = now - (now % 86400) + 86400;
     const ndays = parseInt(query.ndays) || 365;
     const timespanStart = todayEnd - ndays * 86400;
-    const types = String(query.types || '').split(',');
+    const types = String(query.types || '').split(',').filter(t => t);
     
     return ctx.query('SELECT FLOOR(time/?)*? AS timeindex, COUNT(eventid) AS nevents, COUNT(DISTINCT srcuser) AS nuser ' +
       'FROM events ' +
@@ -612,7 +592,6 @@ class EventStatistics extends api.Requestable {
 
 exports.components = [
   ListAllUsers,
-  ListAllEvents,
   ImpersonateUser,
   DeleteUser,
   ChangeUserEmail,

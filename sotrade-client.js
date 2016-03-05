@@ -63,7 +63,7 @@ function NodeSoTradeConnection (opt) {
   const fn = options => {
     options = Object.assign({
       headers: Object.assign({
-        'Authorization': key
+        'X-Sotrade-Auth': key
       }, options.headers),
       hawk: (!opt.noSignByDefault || options.__sign__) ? {
         credentials: cfg.hawk || {
@@ -72,6 +72,9 @@ function NodeSoTradeConnection (opt) {
           algorithm: 'sha256'
         }
       } : undefined,
+      qs: options.qs || options.cache === false ? Object.assign({
+        noCache: Date.now()
+      }, options.qs || {}) : undefined
     }, options);
       
     return new Promise((resolve, reject) => {
@@ -80,7 +83,13 @@ function NodeSoTradeConnection (opt) {
           return reject(err);
         }
         
+        if (!body) {
+          body = {};
+        }
+        
         body._success = httpResponse.statusCode >= 200 && httpResponse.statusCode <= 299;
+        
+        debug('Got response with status code', httpResponse.statusCode, body._success ? '' : JSON.stringify(body));
         
         if (body.key) {
           debug('Setting session key', body.key);

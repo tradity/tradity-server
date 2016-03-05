@@ -37,19 +37,19 @@ describe('admin', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('list-all-users', function() {
+  describe('/users', function() {
     it('Should fail for non-admin users', function() {
-      return socket.emit('list-all-users').then(result => {
-        assert.equal(result.code, 'permission-denied');
+      return socket.get('/users').then(result => {
+        assert.equal(result.code, 403);
       });
     });
     
     it('Should provide a list of all users', function() {
-      return socket.emit('list-all-users', { __sign__: true }).then(result => {
-        assert.equal(result.code, 'list-all-users-success');
+      return socket.get('/users', { __sign__: true }).then(result => {
+        assert.ok(result._success);
         
-        assert.ok(result.results.length > 0);
-        const ownUserEntry = result.results.filter(listedUser => {
+        assert.ok(result.data.length > 0);
+        const ownUserEntry = result.data.filter(listedUser => {
           return listedUser.name === user.name;
         })[0];
         
@@ -61,308 +61,309 @@ describe('admin', function() {
     });
   });
   
-  describe('impersonate-user', function() {
+  describe('/impersonate', function() {
     it('Should fail for non-admin users', function() {
-      return socket.emit('impersonate-user').then(result => {
-        assert.equal(result.code, 'permission-denied');
+      return socket.post('/impersonate/' + user.uid).then(result => {
+        assert.equal(result.code, 403);
       });
     });
     
     it('Should fail for impersonating invalid users', function() {
-      return socket.emit('impersonate-user', {
-        __sign__: true,
-        uid: 'ABC'
+      return socket.post('/impersonate/ABC', {
+        __sign__: true
       }).then(result => {
-        assert.equal(result.code, 'permission-denied');
+        assert.equal(result.code, 400);
       });
     });
     
     it('Should fail for impersonating nonexistent users', function() {
-      return socket.emit('impersonate-user', {
-        __sign__: true,
-        uid: -1
+      return socket.post('/impersonate/-1', {
+        __sign__: true
       }).then(result => {
-        assert.equal(result.code, 'impersonate-user-notfound');
+        assert.equal(result.code, 404);
       });
     });
     
     it('Should leave the session untouched when impersonating the active user', function() {
-      return socket.emit('impersonate-user', {
-        __sign__: true,
-        uid: user.uid
+      return socket.post('/impersonate/' + user.uid, {
+        __sign__: true
       }).then(result => {
-        assert.equal(result.code, 'impersonate-user-success');
+        assert.ok(result._success);
         
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true
+        return socket.get('/user/$self', {
+          cache: false, __sign__: true
         });
       }).then(userInfo => {
-        assert.equal(userInfo.code, 'get-user-info-success');
+        assert.ok(userInfo._success);
         
-        assert.strictEqual(userInfo.result.uid, user.uid);
-        assert.strictEqual(userInfo.result.name, user.name);
+        assert.strictEqual(userInfo.data.uid, user.uid);
+        assert.strictEqual(userInfo.data.name, user.name);
       });
     });
   });
   
-  describe('change-user-email', function() {
+  describe('/user/…/email', function() {
     it('Should fail for invalid user ids', function() {
-      return socket.emit('change-user-email', {
-        __sign__: true,
-        uid: 'Banana'
+      return socket.put('/user/Banana/email', {
+        __sign__: true
       }).then(result => {
-        assert.equal(result.code, 'format-error');
+        assert.equal(result.code, 400);
       });
     });
     
     it('Should be able to change the active user’s mail address', function() {
       const email = 'nonexistent' + parseInt(Math.random() * 100000) + '@invalid.invalid';
       
-      return socket.emit('change-user-email', {
+      return socket.put('/user/' + user.uid + '/email', {
         __sign__: true,
-        uid: user.uid,
-        emailverif: 1,
-        email: email
+        body: {
+          emailverif: true,
+          email: email
+        }
       }).then(result => {
+        assert.ok(result._success);
         user.email = email;
-        assert.equal(result.code, 'change-user-email-success');
       });
     });
   });
   
-  describe('change-comment-text', function() {
+  describe('/events/comments/…', function() {
     it('Should be able to change the text of a recently made comment', function() {
       const newCommentText = '<a>New comment</a>';
       const newCState = 'Banananana';
       
-      return socket.emit('get-user-info', {
-        lookfor: '$self',
-        noCache: true, __sign__: true
+      return socket.get('/user/$self', {
+        cache: false, __sign__: true
       }).then(userInfo => {
-        assert.equal(userInfo.code, 'get-user-info-success');
-        assert.ok(userInfo.result.registerevent);
+        assert.ok(userInfo._success);
+        assert.ok(userInfo.data.registerevent);
         
-        return socket.emit('comment', {
-          eventid: userInfo.result.registerevent,
-          comment: 'Old comment'
+        return socket.post('/events/' + userInfo.data.registerevent + '/comments', {
+          __sign__: true,
+          body: {
+            comment: 'Old comment'
+          }
         });
       }).then(result => {
-        assert.equal(result.code, 'comment-success');
+        assert.ok(result._success);
         
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true
+        return socket.get('/user/$self', {
+          cache: false, __sign__: true
         });
       }).then(userInfo => {
-        assert.equal(userInfo.code, 'get-user-info-success');
+        assert.ok(userInfo._success);
         
         assert.ok(userInfo.pinboard);
         assert.ok(userInfo.pinboard.length > 0);
         
-        return socket.emit('change-comment-text', {
+        return socket.put('/events/comments/' + userInfo.pinboard[0].commentid, {
           __sign__: true,
-          comment: newCommentText,
-          trustedhtml: 1,
-          commentid: userInfo.pinboard[0].commentid,
-          cstate: newCState
+          body: {
+            comment: newCommentText,
+            trustedhtml: true,
+            cstate: newCState
+          }
         });
       }).then(result => {
-        assert.equal(result.code, 'change-comment-text-success');
+        assert.ok(result._success);
         
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true
+        return socket.get('/user/$self', {
+          cache: false, __sign__: true
         });
       }).then(userInfo => {
-        assert.equal(userInfo.code, 'get-user-info-success');
+        assert.ok(userInfo._success);
         
         assert.ok(userInfo.pinboard);
         assert.ok(userInfo.pinboard.length > 0);
         assert.equal(userInfo.pinboard[0].comment, newCommentText);
         assert.equal(userInfo.pinboard[0].cstate, newCState);
+        assert.ok(userInfo.pinboard[0].trustedhtml);
       });
     });
   });
   
-  describe('notify-unstick-all', function() {
+  describe('/mod-notifications/unstick-all', function() {
     it('Should remove the sticky flag from all moderator notifications', function() {
-      return socket.emit('notify-unstick-all', {
+      return socket.post('/mod-notifications/unstick-all', {
         __sign__: true
       }).then(result => {
-        assert.equal(result.code, 'notify-unstick-all-success');
+        assert.ok(result._success);
       });
     });
   });
   
-  describe('notify-all', function() {
+  describe('/mod-notifications', function() {
     it('Should write events to all feeds', function() {
-      return socket.emit('notify-all', {
+      return socket.post('/mod-notifications', {
         __sign__: true,
-        content: 'DON’T PANIC',
-        sticky: 1,
+        body: {
+          content: 'DON’T PANIC',
+          sticky: true
+        }
       }).then(result => {
-        assert.equal(result.code, 'notify-all-success');
-        
-        return socket.once('mod-notification');
+        assert.ok(result._success);
       });
     });
   });
   
-  describe('rename-school', function() {
+  describe('/school/…/name', function() {
     it('Should fail for nonexistent schools', function() {
-      return socket.emit('rename-school', {
+      return socket.put('/school/-1/name', {
         __sign__: true,
-        schoolid: -1,
-        schoolname: 'SCHOOL 42',
-        schoolpath: '/abcdef'
+        body: {
+          schoolname: 'SCHOOL 42',
+          schoolpath: '/abcdef'
+        }
       }).then(res => {
-        assert.equal(res.code, 'rename-school-notfound');
+        assert.equal(res.code, 404);
       });
     });
     
     it('Should change the name of a school', function() {
       let school;
       
-      return socket.emit('list-schools').then(res => {
-        assert.ok(res.result.length > 0);
-        school = res.result.filter(s => parentPath(s) === '/')[0];
+      return socket.get('/schools').then(res => {
+        assert.ok(res.data.length > 0);
+        school = res.data.filter(s => parentPath(s) === '/')[0];
         
-        return socket.emit('rename-school', {
+        return socket.put('/school/' + school.schoolid + '/name', {
           __sign__: true,
-          schoolid: school.schoolid,
-          schoolname: 'SCHOOL 42',
-          schoolpath: '/nonexistent/invalidPath'
+          body: {
+            schoolname: 'SCHOOL 42',
+            schoolpath: '/nonexistent/invalidPath'
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'rename-school-notfound');
+        assert.equal(res.code, 404);
         
-        return socket.emit('rename-school', {
+        return socket.put('/school/' + school.schoolid + '/name', {
           __sign__: true,
-          schoolid: school.schoolid,
-          schoolname: 'SCHOOL 42',
-          schoolpath: '/' + sha256(school.path)
+          body: {
+            schoolname: 'SCHOOL 42',
+            schoolpath: '/' + sha256(school.path)
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'rename-school-success');
+        assert.ok(res._success);
         
         // rename again without really changing the school path
-        return socket.emit('rename-school', {
+        return socket.put('/school/' + school.schoolid + '/name', {
           __sign__: true,
-          schoolid: school.schoolid,
-          schoolname: 'SCHOOL 42',
-          schoolpath: '/' + sha256(school.path)
+          body: {
+            schoolname: 'SCHOOL 42',
+            schoolpath: '/' + sha256(school.path)
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'rename-school-already-exists');
+        assert.equal(res.code, 403);
         
         // do not give a school path this time
-        return socket.emit('rename-school', {
+        return socket.put('/school/' + school.schoolid + '/name', {
           __sign__: true,
-          schoolid: school.schoolid,
-          schoolname: 'SCHOOL 42'
+          body: {
+            schoolname: 'SCHOOL 42'
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'rename-school-success');
+        assert.ok(res._success);
       });
     });
   });
   
-  describe('join-schools', function() {
+  describe('/school/…/merge/…', function() {
     it('Should merge two schools together', function() {
       const prefix = 'S' + Date.now();
       let id1, id2;
       
       return Promise.all([prefix + 'Aj', prefix + 'Bj'].map(name => {
-        return socket.emit('create-school', {
+        return socket.post('/school', {
           __sign__: true,
-          schoolname: name,
+          body: {
+            schoolname: name
+          }
         }).then(res => {
-          assert.equal(res.code, 'create-school-success');
+          assert.ok(res._success);
           
-          return socket.emit('school-exists', {
-            lookfor: res.path
+          return socket.get('/school-exists', {
+            qs: { lookfor: res.path }
           });
         }).then(res => {
-          assert.equal(res.code, 'school-exists-success');
-          assert.ok(res.exists);
-          assert.ok(res.path);
-          assert.strictEqual(parseInt(res.schoolid), res.schoolid);
+          assert.ok(res._success);
+          assert.ok(res.data.exists);
+          assert.ok(res.data.path);
+          assert.strictEqual(typeof res.data.schoolid, 'number');
           
-          return res.schoolid;
+          return res.data.schoolid;
         });
       })).then(spread((id1_, id2_) => {
         id1 = id1_, id2 = id2_;
         
-        return socket.emit('join-schools', {
-          __sign__: true,
-          masterschool: id1,
-          subschool: id2
+        return socket.post('/school/' + id1 + '/merge/' + id2, {
+          __sign__: true
         });
       })).then(res => {
-        assert.equal(res.code, 'join-schools-success');
+        assert.ok(res._success);
         
-        return socket.emit('list-schools');
+        return socket.get('/schools');
       }).then(res => {
-        assert.equal(res.code, 'list-schools-success');
-        assert.ok(res.result);
-        assert.notEqual(_.map(res.result, 'schoolid').indexOf(id1), -1);
-        assert.equal   (_.map(res.result, 'schoolid').indexOf(id2), -1);
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.notEqual(_.map(res.data, 'schoolid').indexOf(id1), -1);
+        assert.equal   (_.map(res.data, 'schoolid').indexOf(id2), -1);
       });
     });
     
     it('Should fail if one of the schools does not exist', function() {
-      return socket.emit('list-schools').then(res => {
-        assert.equal(res.code, 'list-schools-success');
-        assert.ok(res.result);
+      return socket.get('/schools').then(res => {
+        assert.ok(res._success);
+        assert.ok(res.data);
         
-        const existentIDs = _.map(res.result, 'schoolid');
+        const existentIDs = _.map(res.data, 'schoolid');
         const nonexistentID = (Math.max.apply(Math, existentIDs) || 0) + 1;
         
-        return socket.emit('join-schools', {
+        return socket.post('/school/' + nonexistentID + '/merge/' + (nonexistentID + 1), {
           __sign__: true,
-          masterschool: nonexistentID,
-          subschool: nonexistentID + 1,
         });
       }).then(res => {
-        assert.equal(res.code, 'join-schools-notfound');
+        assert.equal(res.code, 404);
       });
     });
   });
   
-  describe('get-followers', function() {
+  describe('/user/…/followers', function() {
     it('Should provide a list of followers', function() {
       let leader;
       const amount = 7;
       
-      return socket.emit('list-all-users', {
+      return socket.get('/users', {
         __sign__: true
       }).then(result => {
-        assert.equal(result.code, 'list-all-users-success');
+        assert.ok(result._success);
+        assert.ok(result.data.length > 0);
         
-        assert.ok(result.results.length > 0);
+        leader = result.data[0];
         
-        leader = result.results[0];
-        
-        return socket.emit('stock-buy', {
-          amount: amount,
-          value: null,
-          stockid: null,
-          leader: leader.uid,
-          forceNow: true
-        });
-      }).then(result => {
-        assert.equal(result.code, 'stock-buy-success');
-        
-        return socket.emit('get-followers', {
+        return socket.post('/trade', {
           __sign__: true,
-          uid: leader.uid
+          body: {
+            amount: amount,
+            value: null,
+            stockid: null,
+            leader: leader.uid,
+            forceNow: true
+          }
         });
       }).then(result => {
-        assert.equal(result.code, 'get-followers-success');
-        assert.ok(result.results.length > 0);
+        assert.ok(result._success);
         
-        const ownUserFollowerEntry = result.results.filter(follower => follower.uid === user.uid)[0];
+        return socket.get('/user/' + leader.uid + '/followers', {
+          __sign__: true
+        });
+      }).then(result => {
+        assert.ok(result._success);
+        assert.ok(result.data.length > 0);
+        
+        const ownUserFollowerEntry = result.data.filter(follower => follower.uid === user.uid)[0];
         
         assert.ok(ownUserFollowerEntry);
         assert.equal(ownUserFollowerEntry.amount, amount);
@@ -370,77 +371,72 @@ describe('admin', function() {
     });
   });
   
-  describe('get-server-statistics', function() {
-    it('Should return a list of servers', function() {
-      return socket.emit('get-server-statistics', {
-        __sign__: true
-      }).then(res => {
-        assert.equal(res.code, 'get-server-statistics-success');
-        assert.ok(res.servers.length > 0);
-      });
-    });
-  });
-  
-  describe('get-ticks-statistics', function() {
+  describe('/activity/ticks', function() {
     it('Should return a timeline of tick statistics', function() {
-      return socket.emit('prod', { __sign__: true }).then(() => {
-        return socket.emit('get-ticks-statistics', { __sign__: true });
+      return socket.post('/regular-callback', { __sign__: true }).then(() => {
+        return socket.get('/activity/ticks', { __sign__: true });
       }).then(res => {
-        assert.equal(res.code, 'get-ticks-statistics-success');
-        assert.ok(res.results.length > 0);
-        assert.ok(res.results[0].timeindex);
-        assert.ok(res.results[0].ticksum);
+        assert.ok(res._success);
+        assert.ok(res.data.length > 0);
+        assert.ok(res.data[0].timeindex);
+        assert.ok(res.data[0].ticksum);
       });
     });
   });
   
-  describe('get-event-statistics', function() {
+  describe('/activity/events', function() {
     it('Should return a histogram of event counts', function() {
-      return socket.emit('get-event-statistics', {
+      return socket.get('/activity/events', {
         __sign__: true,
-        ndays: 10000
+        qs: {
+          ndays: 10000
+        }
       }).then(res => {
-        assert.equal(res.code, 'get-event-statistics-success');
-        assert.ok(res.result.length > 0);
-        assert.ok(res.result[0].timeindex);
+        assert.ok(res._success);
+        assert.ok(res.data.length > 0);
+        assert.ok(res.data[0].timeindex);
         
         // only days where events *happened* included
         // -> this should be okay
-        assert.ok(res.result[0].nevents);
-        assert.ok(res.result[0].nuser);
+        assert.ok(res.data[0].nevents);
+        assert.ok(res.data[0].nuser);
       });
     });
     
     it('Should return a histogram of event counts, filtered by type', function() {
-      return socket.emit('get-event-statistics', {
+      return socket.get('/activity/events', {
         __sign__: true,
-        ndays: 10000,
-        types: ['comment']
+        qs: {
+          ndays: 10000,
+          types: 'comment' // XXX change this in the client
+        }
       }).then(res => {
-        assert.equal(res.code, 'get-event-statistics-success');
-        assert.ok(res.result.length > 0);
-        assert.ok(res.result[0].timeindex);
+        assert.ok(res._success);
+        assert.ok(res.data.length > 0);
+        assert.ok(res.data[0].timeindex);
         
         // only days where events *happened* included
         // -> this should be okay
-        assert.ok(res.result[0].nevents);
-        assert.ok(res.result[0].nuser);
+        assert.ok(res.data[0].nevents);
+        assert.ok(res.data[0].nuser);
       });
     });
   });
   
-  describe('list-all-events', function() {
+  describe('/events (omitUidFilter == true)', function() {
     it('Should return all events within a given timespan', function() {
-      return socket.emit('list-all-events', {
+      return socket.get('/events', {
         __sign__: true,
-        omitUidFilter: true,
-        includeDeletedComments: true,
-        since: 1446054731,
-        upto: 1446054955 // events for these dates are in the test DB
+        qs: {
+          omitUidFilter: true,
+          includeDeletedComments: true,
+          since: 1446054731,
+          upto: 1446054955 // events for these dates are in the test DB
+        }
       }).then(res => {
-        assert.equal(res.code, 'list-all-events-success');
-        assert.ok(res.results.length > 0);
-        assert.ok(res.results[0].eventtime);
+        assert.ok(res._success);
+        assert.ok(res.data.length > 0);
+        assert.ok(res.data[0].eventtime);
       });
     });
   });

@@ -183,29 +183,41 @@ class Registry extends _Component {
 }
 
 class URLMatcher {
-  constructor(path) {
-    this.path = path;
-    this.parameters = [];
+  constructor(paths) {
+    this.paths = paths.map(path => {
+      const parameters = [];
     
-    let i = 1;
-    this.regexp = new RegExp('^' + path.replace(/\((\?:?)?/g, '(?:')
-      .replace(/:([^/]+?)\b/g, (match, name) => {
-      this.parameters[i++] = name;
-      return '([^/]*)';
-    }) + '$');
+      let i = 1;
+      const regexp = new RegExp('^' + path.replace(/\((\?:?)?/g, '(?:')
+        .replace(/:([^/]+?)\b/g, (match, name) => {
+        parameters[i++] = name;
+        return '([^/]*)';
+      }) + '$');
+      
+      return {
+        regexp: regexp,
+        parameters: parameters
+      };
+    });
   }
   
   match(url) {
-    const match = url.match(this.regexp);
-    if (!match) {
-      return null;
+    for (let i = 0; i < this.paths.length; ++i) {
+      const match = url.match(this.paths[i].regexp);
+      if (!match) {
+        continue;
+      }
+      
+      const parameters = this.paths[i].parameters;
+      
+      return Object.assign.apply(Object, [{}, match].concat(
+        match.map((content, index) => (
+          parameters[index] ? { [parameters[index]]: content } : {}
+        ))
+      ));
     }
     
-    return Object.assign.apply(Object, [{}, match].concat(
-      match.map((content, index) => (
-        this.parameters[index] ? { [this.parameters[index]]: content } : {}
-      ))
-    ));
+    return null;
   }
 }
 
@@ -217,16 +229,19 @@ class Requestable extends Component {
       throw new TypeError('Requestable instances need url property');
     }
     
+    if (typeof options.url === 'string') {
+      options = Object.assign(options, { url: [options.url] });
+    }
+    
     if (!options.identifier && !options.anonymous) {
       options = Object.assign({
-        identifier: '_API: ' + options.url + '@[' + (options.methods || ['GET']).join(',') + ']'
+        identifier: '_API: ' + options.url.join(',') + '@[' + (options.methods || ['GET']).join(',') + ']'
       }, options);
     }
     
     options = Object.assign({}, options, {
       depends: (options.depends || []).concat([
-        'ReadonlyStore', 'UpdateUserStatistics', 'LoadSessionUser',
-        'Achievements'
+        'ReadonlyStore', 'UpdateUserStatistics', 'LoadSessionUser'
       ])
     });
     
@@ -270,7 +285,7 @@ class Requestable extends Component {
       this.schema = Object.assign({}, this.options.schema);
       
       if (!this.schema.title) {
-        this.schema.title = this.options.url + ' (' + this.options.methods.join(', ') + ')';
+        this.schema.title = this.options.url.join(',') + ' (' + this.options.methods.join(', ') + ')';
       }
     }
     
@@ -286,7 +301,7 @@ class Requestable extends Component {
           throw new TypeError('No identifier info available for ' + identifier);
         }
         
-        super(requestable.options.url + ': ' + info.code + ': ' + identifier);
+        super(requestable.options.url.join(',') + ': ' + info.code + ': ' + identifier);
         
         Object.assign(this, info);
       }
@@ -405,7 +420,7 @@ class Requestable extends Component {
     const ctx = this.getQContext(req);
     const cfg = this.load('Config').config();
     
-    let query, masterAuthorization = false, hadUser;
+    let query, masterAuthorization = false;
     
     return Promise.resolve().then(() => {
       if (this.load('ReadonlyStore').readonly && this.options.writing === true) {
@@ -433,7 +448,10 @@ class Requestable extends Component {
       // key: undefined filters any possible ?key=… from the query string
       query = Object.assign({}, uriMatch, { key: undefined }, postData);
       
-      const headerKey = req.headers['authorization'] || req.headers['x-authorization'];
+      const headerKey = req.headers['x-sotrade-auth'] ||
+        req.headers['authorization'] ||
+        req.headers['x-authorization'];
+      
       if (headerKey) {
         query.key = headerKey;
       }
@@ -460,9 +478,7 @@ class Requestable extends Component {
         }
       }
       
-      hadUser = !!ctx.user;
-      
-      if (query.key && /^Hawk /.test(query.key)) {
+      if (/^Hawk /.test(req.headers['authorization'])) {
         return new Promise((resolve, reject) => {
           Hawk.server.authenticate(req, (id, cb) => {
             return cb(null, cfg.hawk || {
@@ -476,10 +492,12 @@ class Requestable extends Component {
             }
             
             masterAuthorization = true;
-            resolve(null);
+            resolve();
           });
         });
-      } else if (query.key) {
+      }
+    }).then(() => {
+      if (query.key) {
         return this.load('LoadSessionUser').handle(query.key, ctx);
       } else {
         return null;
@@ -501,12 +519,10 @@ class Requestable extends Component {
         }
       }
       
+      const hadUser = !!ctx.user;
+      
       ctx.user = user;
       ctx.access[['grant', 'drop'][ctx.user && ctx.user.email_verif ? 0 : 1]]('email_verif');
-      
-      if (!hadUser && ctx.user !== null) {
-        this.load('Achievements').checkAchievements(ctx.clone());
-      }
       
       if (this.options.requiredLogin &&
           ctx.user === null &&
@@ -527,7 +543,7 @@ class Requestable extends Component {
         handler = useCTX.txwrap(handler);
       }
       
-      return this.handleWithRequestInfo(query, useCTX, cfg, {
+      return handler(query, useCTX, cfg, {
         remoteip: remoteAddress,
         headers: req.headers,
         rawRequest: req
@@ -540,7 +556,8 @@ class Requestable extends Component {
       throw err;
     }).then(answer => {
       const headers = {
-        'Content-Type': 'application/json;charset=utf-8'
+        'Content-Type': 'application/json;charset=utf-8',
+        'Cache-control': 'private, max-age=0, no-cache'
       };
       
       let compressor;
@@ -557,7 +574,7 @@ class Requestable extends Component {
       res.writeHead(answer.code, headers);
       if (answer.code === 204) {
         // If we say “no content”, we stick to it.
-        assert.equal(Object.keys(answer), ['code']);
+        assert.deepEqual(Object.keys(answer), ['code']);
         res.end();
       } else {
         const outJSON = JSONStream.stringify('', '', '');
@@ -583,21 +600,36 @@ class Requestable extends Component {
   handleRequest(req, res, uriMatch, parsedURI) {
     const qsParameters = parsedURI.query;
     
+    uriMatch = Object.assign({}, qsParameters, uriMatch);
+    
+    const booleanTable = {
+      '0': false, 'false': false,
+      '1': true,  'true':  true
+    };
+    
     // convert ?x=0 from { x: '0' } to { x: 0 } when indicated by schema
-    if (this.schema) {
-      for (let key of Object.keys(qsParameters)) {
-        if (this.schema.properties && this.schema.properties[key]) {
+    if (this.schema && this.schema.properties) {
+      for (let key of Object.keys(uriMatch)) {
+        if (this.schema.properties[key]) {
           const type = this.schema.properties[key].type;
-          if (type === 'integer') {
-            qsParameters[key] = parseInt(qsParameters[key]);
-          } else if (type === 'float') {
-            qsParameters[key] = parseFloat(qsParameters[key]);
+          if (type === 'integer' || type.indexOf('integer') !== -1) {
+            const converted = parseInt(uriMatch[key]);
+            if (!isNaN(converted)) {
+              uriMatch[key] = converted;
+            }
+          } else if (type === 'float' || type.indexOf('float') !== -1) {
+            const converted = parseFloat(uriMatch[key]);
+            if (!isNaN(converted)) {
+              uriMatch[key] = converted;
+            }
+          } else if (type === 'boolean' || type.indexOf('boolean') !== -1) {
+            if (uriMatch[key] in booleanTable) {
+              uriMatch[key] = booleanTable[uriMatch[key]];
+            }
           }
         }
       }
     }
-    
-    uriMatch = Object.assign({}, qsParameters, uriMatch);
     
     return Promise.resolve().then(() => {
       return this._handleRequest(req, res, uriMatch);

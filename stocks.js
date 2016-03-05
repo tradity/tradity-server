@@ -651,7 +651,8 @@ class StockTrade extends api.Requestable {
           dquerydata: {
             type: 'object',
             description: 'A generic data object to be used with delayed ' +
-              'query support (for closed stock exchanges or unmet preconditions)'
+              'query support (for closed stock exchanges or unmet preconditions)',
+            properties: { _dummyProperty: { type: 'null' } }
           },
           _isDelayed: {
             type: 'boolean',
@@ -718,7 +719,7 @@ class StockTrade extends api.Requestable {
       assert.ok(ctx.access);
       
       stocktextid = query.leader === null ? query.stocktextid : 
-        query.stocktextid = '__LEADER_' + query.leader + '__';
+        '__LEADER_' + query.leader + '__';
       
       if (opt.testOnly) {
         return {

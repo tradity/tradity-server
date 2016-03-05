@@ -142,14 +142,14 @@ class Database extends api.Component {
    * @param {boolean} readonly  Indicates whether this query can use the read-only pool
    */
   query(query, args, readonly) {
-    const origArgs = arguments;
+    const origArgs = Array.prototype.slice.call(arguments);
     
     if (typeof readonly !== 'boolean') {
       readonly = (query.trim().indexOf('SELECT') === 0);
     }
     
     return this._getConnection(true, /* restart */() => {
-      return this._query.apply(this, origArgs);
+      return this.query.apply(this, origArgs);
     }, readonly).then(connection => {
       return connection.query(query, args || []);
     });

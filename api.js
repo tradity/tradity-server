@@ -211,7 +211,7 @@ class URLMatcher {
       const parameters = this.paths[i].parameters;
       
       return Object.assign.apply(Object, [{}, match].concat(
-        match.map((content, index) => (
+        match.map((content, index) => ( // jshint ignore:line
           parameters[index] ? { [parameters[index]]: content } : {}
         ))
       ));
@@ -486,7 +486,7 @@ class Requestable extends Component {
               algorithm: 'sha256',
               user: 'DB-authorized user'
             });
-          }, {}, (err, credentials, artifacts) => {
+          }, {}, (err/*, credentials, artifacts*/) => {
             if (err) {
               return reject(err);
             }
@@ -518,8 +518,6 @@ class Requestable extends Component {
           user = {uid: query.uid};
         }
       }
-      
-      const hadUser = !!ctx.user;
       
       ctx.user = user;
       ctx.access[['grant', 'drop'][ctx.user && ctx.user.email_verif ? 0 : 1]]('email_verif');

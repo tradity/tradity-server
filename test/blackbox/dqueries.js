@@ -46,7 +46,7 @@ describe('dqueries', function() {
         return Promise.all([
           socket.once('feed-dquery-exec'),
           promiseUtil.delay(4000).then(() => {
-            return socket.post('/dqueries/check-all', { __sign__: true })
+            return socket.post('/dqueries/check-all', { __sign__: true });
           })
         ]);
       });

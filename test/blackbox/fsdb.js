@@ -69,9 +69,9 @@ describe('fsdb', function() {
         const externalURI = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0] + res.data.profilepic;
         
         return new Promise((resolve, reject) => {
-          request(externalURI, (err, res, body) => {
+          request(externalURI, (err, res/*, body*/) => {
             if (err) {
-              reject(e);
+              reject(err);
             }
             
             resolve(res.statusCode);

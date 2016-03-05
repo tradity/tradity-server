@@ -107,7 +107,7 @@ function NodeSoTradeConnection (opt) {
         return resolve(body);
       });
     });
-  }
+  };
   
   fn.get    = (uri, opt) => fn(Object.assign({ uri: uri, method: 'GET'    }, opt || {}));
   fn.post   = (uri, opt) => fn(Object.assign({ uri: uri, method: 'POST'   }, opt || {}));

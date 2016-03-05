@@ -20,10 +20,10 @@ const _ = require('lodash');
 const http = require('http');
 const https = require('https');
 const assert = require('assert');
-const bl = require('bl');
 const sha256 = require('./lib/sha256.js');
 const qctx = require('./qctx.js');
 const api = require('./api.js');
+const promiseUtil = require('./lib/promise-util.js');
 const debug = require('debug')('sotrade:fsdb');
 
 class FSDBRequestable extends api.Requestable {
@@ -92,7 +92,7 @@ class FSDBRequestable extends api.Requestable {
             headers['Content-Encoding'] = 'gzip';
           }
           
-          return { code: 200, finalize: res => res.content };
+          return { code: 200, finalize: res => res.end(r.content) };
         }
       }
       
@@ -142,30 +142,7 @@ class FSDBRequestable extends api.Requestable {
  * @type {Event}
  */
 
-/**
- * Publishes a file.
- * 
- * @param {boolean} query.proxy  Whether the content of this file is hosted remotely
- *                               and this software acts as a proxy.
- * @param {string} query.mime  The MIME type of this file.
- * @param {string} query.role  A string identifying the role of this file. Allowed roles
- *                             and user-unique roles can be specified in the server config.
- * @param {boolean} query.base64  If truthy, then decode the file content from base64.
- * @param {Buffer} query.content  The file contents (URI in case of proxy publishing).
- * 
- * @return {object} Returns with one of the following codes:
- *                  <ul>
- *                      <li><code>publish-proxy-not-allowed</code></li>
- *                      <li><code>publish-inacceptable-mime</code></li>
- *                      <li><code>publish-quota-exceed</code></li>
- *                      <li><code>publish-inacceptable-role</code></li>
- *                      <li><code>publish-success</code></li>
- *                      <li>or a common error code</li>
- *                  </ul>
- * 
- * @noreadonly
- * @function c2s~publish
- */
+/** */
 class FSDBPublish extends api.Requestable {
   constructor() {
     super({
@@ -173,7 +150,7 @@ class FSDBPublish extends api.Requestable {
       url: '/dynamic/files',
       methods: ['POST'],
       returns: [
-        { code: 204 },
+        { code: 200 },
         { code: 403, identifier: 'proxy-not-allowed' },
         { code: 403, identifier: 'inacceptable-role' },
         { code: 415, identifier: 'inacceptable-mime' },
@@ -208,79 +185,81 @@ class FSDBPublish extends api.Requestable {
     
     return Promise.resolve().then(() => {
       mime = xdata.headers['content-type'] || 'application/octet-stream';
-      length = xdata.headers['content-length'];
+      length = parseInt(xdata.headers['content-length']);
+      
+      if (length < 0 || isNaN(length)) {
+        throw this.BadRequest(new TypeError('Content-Length header needs integer value'));
+      }
       
       debug('Upload file', mime, role);
     
       uniqrole = cfg.fsdb.uniqroles[role];
     
-      return ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
-        [ctx.user ? ctx.user.uid : null]);
+      return uniqrole ? [{total: 0}] :
+        ctx.query('SELECT SUM(LENGTH(content)) AS total FROM httpresources WHERE uid = ? FOR UPDATE',
+          [ctx.user ? ctx.user.uid : null]);
     }).then(res => {
-      totalUsedBytes = uniqrole ? 0 : res[0].total;
+      totalUsedBytes = res[0].total;
       
-      if (ctx.access.has('filesystem')) {
-        // skip the access tests
-        return;
-      }
+      if (!ctx.access.has('filesystem')) {
+        // some access tests
       
-      if (length + totalUsedBytes > cfg.fsdb.userquota) {
-        throw new this.ClientError('quota-exceeded');
-      }
-      
-      if (cfg.fsdb.allowroles.indexOf(role) === -1) {
-        throw new this.ClientError('inacceptable-role');
-      }
-      
-      return (new Promise((resolve, reject) => {
-        xdata.rawRequest.pipe(bl((err, data) => {
-          if (err) {
-            reject(err);
-          }
-          
-          content = data;
-          resolve();
-        }));
-      })).then(() => {
-        if (content.length + totalUsedBytes > cfg.fsdb.userquota) {
+        if (length + totalUsedBytes > cfg.fsdb.userquota) {
           throw new this.ClientError('quota-exceeded');
         }
         
-        if (query.proxy) {
-          let hasRequiredAccess = false;
+        if (cfg.fsdb.allowroles.indexOf(role) === -1) {
+          throw new this.ClientError('inacceptable-role');
+        }
+      }
+      
+      return promiseUtil.bufferFromStream(xdata.rawRequest);
+    }).then(content_ => {
+      content = content_;
+      
+      if (ctx.access.has('filesystem')) {
+        // we can skip the rest of the access tests
+        return;
+      }
+      
+      if (content.length + totalUsedBytes > cfg.fsdb.userquota) {
+        throw new this.ClientError('quota-exceeded');
+      }
+      
+      if (query.proxy) {
+        let hasRequiredAccess = false;
+        
+        for (let i = 0; i < cfg.fsdb.allowProxyURIs.length && !hasRequiredAccess; ++i) {
+          const p = cfg.fsdb.allowProxyURIs[i];
+          assert.ok(p.regex);
+          assert.ok(p.requireAccess);
           
-          for (let i = 0; i < cfg.fsdb.allowProxyURIs.length && !hasRequiredAccess; ++i) {
-            const p = cfg.fsdb.allowProxyURIs[i];
-            assert.ok(p.regex);
-            assert.ok(p.requireAccess);
-            
-            const match = query.content.match(p.regex);
-            if (match) {
-              if (typeof p.requireAccess === 'function') {
-                hasRequiredAccess = p.requireAccess(ctx, match);
-              } else {
-                hasRequiredAccess = p.requireAccess.length === 0;
-                for (let i = 0; i < p.requireAccess.length; ++i) {
-                  if (ctx.access.has(p.requireAccess[i])) {
-                    hasRequiredAccess = true;
-                    break;
-                  }
+          const match = query.content.match(p.regex);
+          if (match) {
+            if (typeof p.requireAccess === 'function') {
+              hasRequiredAccess = p.requireAccess(ctx, match);
+            } else {
+              hasRequiredAccess = p.requireAccess.length === 0;
+              for (let i = 0; i < p.requireAccess.length; ++i) {
+                if (ctx.access.has(p.requireAccess[i])) {
+                  hasRequiredAccess = true;
+                  break;
                 }
               }
             }
           }
-          
-          if (!hasRequiredAccess) {
-            throw new this.ClientError('proxy-not-allowed');
-          }
-        } else {
-          // local mime type is ignored for proxy requests
-          
-          if (cfg.fsdb.allowmime.indexOf(query.mime) === -1) {
-            throw new this.ClientError('inacceptable-mime');
-          }
         }
-      });
+        
+        if (!hasRequiredAccess) {
+          throw new this.ClientError('proxy-not-allowed');
+        }
+      } else {
+        // local mime type is ignored for proxy requests
+        
+        if (cfg.fsdb.allowmime.indexOf(mime) === -1) {
+          throw new this.ClientError('inacceptable-mime');
+        }
+      }
     }).then(() => {
       filehash = sha256(content + String(Date.now())).substr(0, 32);
       const name = query.name ? String(query.name) : filehash;
@@ -313,7 +292,7 @@ class FSDBPublish extends api.Requestable {
     }).then(() => {
       return ctx.query('INSERT INTO httpresources(uid, name, url, mime, hash, role, uploadtime, content, groupassoc, proxy) '+
         'VALUES (?, ?, ?, ?, ?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
-        [ctx.user ? ctx.user.uid : null, filename, url, query.mime ? String(query.mime) : null, filehash,
+        [ctx.user ? ctx.user.uid : null, filename, url, mime, filehash,
         role, content, groupassoc, query.proxy ? 1:0]);
     }).then(res => {
       if (ctx.user) {
@@ -325,7 +304,7 @@ class FSDBPublish extends api.Requestable {
         });
       }
     }).then(() => {
-      return { code: 204, repush: true };
+      return { code: 200, repush: true };
     });
   }
 }

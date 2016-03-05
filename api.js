@@ -424,7 +424,7 @@ class Requestable extends Component {
     
     return Promise.resolve().then(() => {
       if (this.load('ReadonlyStore').readonly && this.options.writing === true) {
-        throw this.ServerReadonly();
+        throw new this.ServerReadonly();
       }
       
       if (req.method === 'GET') {

@@ -33,63 +33,65 @@ describe('dqueries', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('dquery', function() {
+  describe('/dqueries (POST)', function() {
     it('Should let users delay queries', function() {
-      return socket.emit('dquery', {
-        condition: 'time > ' + parseInt(Date.now()/1000 + 5),
-        query: { type: 'ping' }
+      return socket.post('/dqueries', {
+        body: {
+          condition: 'time > ' + parseInt(Date.now()/1000 + 5),
+          query: { type: 'Ping' }
+        }
       }).then(res => {
-        assert.equal(res.code, 'dquery-success');
-        
-        return promiseUtil.delay(10000);
+        assert.ok(res._success);
       }).then(() => {
         return Promise.all([
-          socket.once('dquery-exec'),
-          socket.emit('dquery-checkall', { __sign__: true })
+          //socket.once('dquery-exec'),
+          socket.post('/dqueries/check-all', { __sign__: true })
         ]);
       });
     });
   });
   
-  describe('dquery-list', function() {
+  describe('/dqueries (GET)', function() {
     it('Should list a user’s delayed queries', function() {
-      return socket.emit('dquery', {
-        condition: 'time > ' + parseInt(Date.now()/1000 + 60),
-        query: { type: 'ping' }
+      return socket.post('/dqueries', {
+        body: {
+          condition: 'time > ' + parseInt(Date.now()/1000 + 60),
+          query: { type: 'Ping' }
+        }
       }).then(res => {
-        assert.equal(res.code, 'dquery-success');
+        assert.ok(res._success);
         
-        return socket.emit('dquery-list');
+        return socket.get('/dqueries');
       }).then(res => {
-        assert.equal(res.code, 'dquery-list-success');
-        assert.ok(res.results);
-        assert.ok(res.results.length > 0);
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.length > 0);
       });
     });
   });
   
-  describe('dquery-list', function() {
+  describe('/dqueries/… (DELETE)', function() {
     it('Should remove a delayed query', function() {
       let queryid;
       
-      return socket.emit('dquery', {
-        condition: 'time > ' + parseInt(Date.now()/1000 + 60),
-        query: { type: 'ping' }
+      return socket.post('/dqueries', {
+        body: {
+          condition: 'time > ' + parseInt(Date.now()/1000 + 60),
+          query: { type: 'Ping' }
+        }
       }).then(res => {
-        assert.equal(res.code, 'dquery-success');
+        assert.ok(res._success);
         queryid = res.queryid;
         
-        return socket.emit('dquery-remove', {
-          queryid: queryid
-        });
+        return socket.delete('/dqueries/' + queryid);
       }).then(res => {
-        assert.equal(res.code, 'dquery-remove-success');
+        assert.ok(res._success);
         
-        return socket.emit('dquery-list');
+        return socket.get('/dqueries');
       }).then(res => {
-        assert.equal(res.code, 'dquery-list-success');
-        assert.ok(res.results);
-        assert.equal(_.map(res.results, 'queryid').indexOf(queryid), -1);
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.equal(_.map(res.data, 'queryid').indexOf(queryid), -1);
       });
     });
   });

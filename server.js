@@ -180,9 +180,14 @@ class SoTradeServer extends api.Component {
    * Node.js HTTP handlers.
    */
   handleHTTPRequest(req, res) {
-    debug('HTTP Request', req.url);
+    debug('HTTP Request', req.method, req.url);
     
     const parsedURI = url.parse(req.url, true);
+    
+    if (parsedURI.pathname.match(/^\/dynamic\/files\//)) {
+      // backwards compability
+      parsedURI.pathname = '/api/v1' + parsedURI.pathname;
+    }
     
     let handled = false;
     if (parsedURI.pathname.match(/^\/api\/v1/)) {

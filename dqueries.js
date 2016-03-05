@@ -448,14 +448,19 @@ class DelayedQueryAdd extends api.Requestable {
         properties: {
           query: {
             type: 'object',
-            description: 'The query which is to be delayed'
+            description: 'The query which is to be delayed',
+            properties: {
+              type: {
+                type: 'string'
+              }
+            }
           },
           condition: {
             type: 'string',
             description: 'The conditions under which the query will be executed'
           }
         },
-        required: ['queryid']
+        required: ['query', 'condition']
       },
       description: 'Add a delayed request by the current user.',
       depends: [DelayedQueries]
@@ -484,7 +489,7 @@ class DelayedQueryAdd extends api.Requestable {
     }
     
     if (db.allowedQueryTypes.indexOf(query.query.type) === -1) {
-      throw new this.Client('unknown-query-type');
+      throw new this.ClientError('unknown-query-type');
     }
     
     const userinfo = _.clone(ctx.user);
@@ -495,13 +500,15 @@ class DelayedQueryAdd extends api.Requestable {
     
     return ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
       [String(query.condition), qstr, JSON.stringify(userinfo), ctx.access.toJSON()]).then(r => {
-      query.queryid = r.insertId;
-      query.userinfo = ctx.user;
-      query.accessinfo = ctx.access;
+      const newQuery = Object.assign({
+        queryid: r.insertId,
+        userinfo: ctx.user,
+        accessinfo: ctx.access
+      }, query);
       
-      return db.addQuery(ctx, query);
-    }).then(() => {
-      return { code: 200, queryid: query.queryid };
+      return db.addQuery(ctx, newQuery).then(() => newQuery.queryid);
+    }).then(queryid => {
+      return { code: 200, queryid: queryid };
     });
   }
 }

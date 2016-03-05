@@ -201,7 +201,7 @@ class Login extends UserManagementRequestable {
         },
         required: ['name', 'pw', 'stayloggedin']
       },
-      depends: ['Achievements']
+      depends: ['Achievements', 'SignedMessaging']
     });
   }
   
@@ -473,7 +473,7 @@ class LoadSessionUser extends api.Component {
     super({
       identifier: 'LoadSessionUser',
       description: 'Load information on the current user from the database.',
-      depends: ['ReadonlyStore', 'UpdateUserStatistics']
+      depends: ['ReadonlyStore', 'UpdateUserStatistics', 'SignedMessaging']
     });
   }
   
@@ -1236,7 +1236,7 @@ class CreateInviteLink extends api.Component {
     return this.load('Mailer').sendTemplateMail(
       {'sendername': data.sender.name, 'sendermail': data.sender.email, 'email': data.email, 'url': data.url},
       'invite-email.eml', ctx
-    ).then(() => ({ code: 204 }));
+    ).then(() => ({ code: 200 }));
   }
   
   handle(query, ctx, cfg, ErrorProvider, schoolid) {
@@ -1248,6 +1248,10 @@ class CreateInviteLink extends api.Component {
     let key, url, email;
     
     schoolid = typeof schoolid !== 'undefined' ? schoolid : query.schoolid;
+    
+    if (typeof schoolid === 'undefined') {
+      schoolid = null;
+    }
     
     if (schoolid && isNaN(parseInt(query.schoolid))) {
       throw new ErrorProvider.BadRequest(new Error('Need school id'));
@@ -1279,7 +1283,7 @@ class CreateInviteLink extends api.Component {
       return ctx.query('INSERT INTO invitelink ' +
         '(uid, `key`, email, ctime, schoolid) VALUES ' +
         '(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-        [ctx.user.uid, key, email, typeof schoolid !== 'undefined' ? parseInt(query.schoolid) : null]);
+        [ctx.user.uid, key, email, schoolid !== null ? parseInt(query.schoolid) : null]);
     })).then(() => {
       url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
     
@@ -1291,7 +1295,7 @@ class CreateInviteLink extends api.Component {
         }, ctx);
       } else {
         sendKeyToCaller = true;
-        return { code: 204 };
+        return { code: 200 };
       }
     }).then(ret => {
       if (sendKeyToCaller) {

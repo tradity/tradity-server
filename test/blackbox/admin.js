@@ -202,6 +202,8 @@ describe('admin', function() {
         }
       }).then(result => {
         assert.ok(result._success);
+        
+        // XXX socket.once('mod-notification')
       });
     });
   });

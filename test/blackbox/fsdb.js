@@ -23,6 +23,7 @@ const Config = require('../../config.js');
 const cfg = new Config().reloadConfig().config();
 const promiseUtil = require('../../lib/promise-util.js');
 const readFile = promiseUtil.ncall(fs.readFile);
+const request = require('request');
 
 describe('fsdb', function() {
   let socket, user;
@@ -37,41 +38,44 @@ describe('fsdb', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
-  describe('publish', function() {
+  describe('/dynamic/files', function() {
     it('Should publish files', function() {
       return readFile('res/bob.jpg').then(data => {
-        return socket.emit('publish', {
-          base64: true,
-          content: data.toString('base64'),
-          role: 'profile.image',
-          mime: 'image/jpeg',
-          name: 'bob.jpg'
+        return socket.post('/dynamic/files', {
+          json: false,
+          body: data,
+          headers: {
+            'Content-Type': 'image/jpeg'
+          },
+          qs: {
+            role: 'profile.image',
+            name: 'bob.jpg'
+          }
         });
       }).then(res => {
-        assert.equal(res.code, 'publish-success');
+        assert.ok(res._success);
         
-        return socket.once('file-publish');
+        //return socket.once('file-publish');
       }).then(() => {
-        return socket.emit('get-user-info', {
-          lookfor: '$self',
-          noCache: true, __sign__: true,
-          nohistory: true
+        return socket.get('/user/$self', {
+          cache: false, __sign__: true,
+          qs: { nohistory: true }
         });
       }).then(res => {
-        assert.equal(res.code, 'get-user-info-success');
-        assert.ok(res.result.profilepic);
+        assert.ok(res._success);
+        assert.ok(res.data.profilepic);
         
-        const externalURI = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0] + res.result.profilepic;
+        const externalURI = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0] + res.data.profilepic;
         
-        const deferred = Promise.defer();
-        
-        require(cfg.protocol).get(externalURI, function(res) {
-          deferred.resolve(res.statusCode);
-        }).on('error', function(e) {
-          deferred.reject(e);
+        return new Promise((resolve, reject) => {
+          request(externalURI, (err, res, body) => {
+            if (err) {
+              reject(e);
+            }
+            
+            resolve(res.statusCode);
+          });
         });
-        
-        return deferred.promise;
       }).then(status => {
         assert.equal(status, 200);
       });

@@ -45,7 +45,7 @@ class SchoolUtilRequestable extends api.Requestable {
     soft = soft || false;
     
     if (soft && !query.schoolid) {
-      return;
+      return Promise.resolve(null);
     }
     
     return this.isSchoolAdmin(ctx, status, query.schoolid).then(schoolAdminResult => {
@@ -340,7 +340,7 @@ class ChangeSchoolDescription extends SchoolUtilRequestable {
   }
   
   handle(query, ctx) {
-    this.requireSchoolAdmin(query, ctx).then(schoolid => {
+    return this.requireSchoolAdmin(query, ctx).then(schoolid => {
       return ctx.query('UPDATE schools SET descpage = ? WHERE schoolid = ?',
         [String(query.descpage), schoolid]);
     }).then(() => ({ code: 204 }));
@@ -380,7 +380,7 @@ class ChangeMemberStatus extends SchoolUtilRequestable {
   
   handle(query, ctx) {
     let schoolid;
-    this.requireSchoolAdmin(query, ctx).then(schoolid_ => {
+    return this.requireSchoolAdmin(query, ctx).then(schoolid_ => {
       const uid = query.uid;
       schoolid = schoolid_;
       
@@ -428,7 +428,7 @@ class DeleteComment extends SchoolUtilRequestable {
   }
   
   handle(query, ctx) {
-    this.requireSchoolAdmin(query, ctx).then(schoolid => {
+    return this.requireSchoolAdmin(query, ctx).then(schoolid => {
       return ctx.query('SELECT c.commentid AS cid FROM ecomments AS c ' +
         'JOIN events AS e ON e.eventid = c.eventid ' +
         'WHERE c.commentid = ? AND e.targetid = ? AND e.type = "school-create"',
@@ -657,7 +657,7 @@ class PublishBanner extends SchoolUtilRequestable {
   
   handleWithRequestInfo(query, ctx, cfg, xdata) {
     return this.requireSchoolAdmin(query, ctx, false).then(schoolid => {
-      return this.load('PublishFile').handle(query, ctx, cfg, xdata, {
+      return this.load('PublishFile').handleWithRequestInfo(query, ctx, cfg, xdata, {
         groupassoc: schoolid,
         role: 'schools.banner'
       });
@@ -668,11 +668,11 @@ class PublishBanner extends SchoolUtilRequestable {
 class CreateInviteLinkGroup extends SchoolUtilRequestable {
   constructor() {
     super({
-      url: '/school/:schoolid/create-invitelink',
+      url: ['/school/:schoolid/create-invitelink', '/create-invitelink'],
       methods: ['POST'],
       writing: true,
       returns: [
-        { code: 204 },
+        { code: 200 },
         { code: 403, identifier: 'invalid-email' },
         { code: 403, identifier: 'email-not-verified' },
         { code: 404, identifier: 'school-not-found' }

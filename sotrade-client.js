@@ -54,8 +54,7 @@ function NodeSoTradeConnection (opt) {
     baseUrl: opt.url,
     headers: {
       'User-Agent': opt.clientSoftwareVersion
-    },
-    json: true
+    }
   });
   
   let key = null;
@@ -74,13 +73,21 @@ function NodeSoTradeConnection (opt) {
       } : undefined,
       qs: options.qs || options.cache === false ? Object.assign({
         noCache: Date.now()
-      }, options.qs || {}) : undefined
+      }, options.qs || {}) : undefined,
+      json: true
     }, options);
       
     return new Promise((resolve, reject) => {
       req(options, (err, httpResponse, body) => {
         if (err) {
           return reject(err);
+        }
+        
+        if (!options.json &&
+            httpResponse.headers['content-type'].match(/^application\/json/)) {
+          try {
+            body = JSON.parse(body);
+          } catch (e) {}
         }
         
         if (!body) {

@@ -51,31 +51,19 @@ class SetClientstorage extends api.Requestable {
       url: '/options/clientstorage',
       methods: ['PUT'],
       writing: true,
-      schema: {
-        type: 'object',
-        properties: {
-          storage: {
-            description: 'Some blob (convertible to Buffer)'
-          }
-        },
-        required: ['storage']
-      },
       returns: [
         { code: 204 }
       ],
-      description: 'Update the client storage for a certain user.'
+      description: 'Update the client storage for a certain user with arbitrary data.'
     });
   }
   
-  handle(query, ctx) {
-    let storage;
-    try {
-      storage = new Buffer(query.storage);
-    } catch (e) {
-      throw new this.BadRequest(e);
-    }
-    
-    return ctx.query('UPDATE users_data SET clientstorage = ? WHERE uid = ?', [storage, ctx.user.uid]).then(() => {
+  handleWithRequestInfo(query, ctx, cfg, xdata) {
+    return promiseUtil.bufferFromStream(xdata.rawRequest).then(storage => {
+      assert.ok(Buffer.isBuffer(storage));
+      
+      return ctx.query('UPDATE users_data SET clientstorage = ? WHERE uid = ?', [storage, ctx.user.uid]);
+    }).then(() => {
       return { code: 204 };
     });
   }

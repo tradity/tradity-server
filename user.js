@@ -143,7 +143,7 @@ class UserManagementRequestable extends api.Requestable {
       stayloggedin: true,
     }, ctx, xdata, true, true).then(loginResp_ => {
       loginResp = loginResp_;
-      assert.equal(loginResp.code, 'login-success');
+      assert.ok(loginResp.code >= 200 && loginResp.code <= 299);
       
       return randomBytes(16);
     }).then(buf => {

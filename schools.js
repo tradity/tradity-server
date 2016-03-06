@@ -212,7 +212,8 @@ class SchoolUtilRequestable extends api.Requestable {
         return c;
       });
       
-      assert.ok(typeof parentResult.code === 'undefined' || parentResult.code === 'get-school-info-success');
+      assert.ok(typeof parentResult.code === 'undefined' ||
+        (parentResult.code >= 200 && parentResult.code <= 299));
       
       s.parentSchool = parentResult;
       s.config = deepupdate({}, cfg.schoolConfigDefaults,

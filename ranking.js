@@ -138,6 +138,10 @@ class RankingListing extends api.Requestable {
           includeAll: {
             type: 'boolean',
             description: 'Whether users should be included that are not considered qualified for ranking entries (e.g. without verified e-mail address)'
+          },
+          search: {
+            type: 'string',
+            description: 'A string to filter user names for'
           }
         }
       },
@@ -148,6 +152,7 @@ class RankingListing extends api.Requestable {
   handle(query, ctx) {
     let likestringWhere = '';
     let likestringUnit = [];
+    let likestring;
     let cacheKey;
     
     let join = 'FROM users AS u ' +
@@ -161,6 +166,12 @@ class RankingListing extends api.Requestable {
     
     if (!query.includeAll) {
       likestringWhere += ' AND email_verif != 0 ';
+    }
+    
+    if (query.search) {
+      likestring = '%' + String(query.search).replace(/%/g, '\\%') + '%';
+      likestringWhere += 'AND u.name LIKE ? ';
+      likestringUnit.push(likestring);
     }
     
     return Promise.resolve().then(() => {

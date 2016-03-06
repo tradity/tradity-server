@@ -514,6 +514,15 @@ class DelayedQueryDelete extends DelayedQueryRemoteRequestable {
   }
 }
 
+class DelayedQueryAddFromTrade extends api.Component {
+  constructor() {
+    super({
+      identifier: 'DelayedQueryAddFromTrade',
+      description: 'Delivers delayed queries from stock trading into the database'
+    });
+  }
+}
+
 class DelayedQueryAdd extends DelayedQueryRemoteRequestable {
   constructor() {
     super({
@@ -545,18 +554,14 @@ class DelayedQueryAdd extends DelayedQueryRemoteRequestable {
         required: ['query', 'condition']
       },
       description: 'Add a delayed request by the current user.',
-      depends: [DelayedQueries]
+      depends: [DelayedQueries, DelayedQueryAddFromTrade]
     });
   }
   
   init() {
     return Promise.resolve(super.init()).then(() => {
-      const ctx = new qctx.QContext({parentComponent: this});
-      
-      return this.load('PubSub').on('DelayedQueryAdd:handle', query => {
-        if (this.load(DelayedQueries).enabled) {
-          return this.handle(query, ctx);
-        }
+      return this.load(DelayedQueryAddFromTrade).on('add', (query, ctx) => {
+        return this.handle(query, ctx);
       });
     });
   }
@@ -633,6 +638,7 @@ class DelayedQueryCheckAll extends DelayedQueryRemoteRequestable {
 
 exports.components = [
   DelayedQueries,
+  DelayedQueryAddFromTrade,
   DelayedQueryAdd,
   DelayedQueryCheckAll,
   DelayedQueryDelete,

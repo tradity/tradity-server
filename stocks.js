@@ -774,10 +774,10 @@ class StockTrade extends api.Requestable {
             type: StockTrade
           }, query);
           
-          this.load('PubSub').publish('DelayedQueryAdd:handle', { 
+          this.load('DelayedQueryAddFromTrade').emit('add', {
             condition: 'stock::' + r.stocktextid + '::exchange-open > 0',
             query: dquery
-          });
+          }, ctx);
           
           throw new this.ClientError('autodelay-sxnotopen');
         } else {

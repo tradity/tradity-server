@@ -47,7 +47,7 @@ class BouncedMailHandler extends api.Requestable {
       methods: ['POST'],
       writing: true,
       returns: [
-        { code: 204 },
+        { code: 200 },
         { code: 404, identifier: 'mail-not-found' }
       ],
       schema: {

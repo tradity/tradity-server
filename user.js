@@ -35,6 +35,8 @@ const pbkdf2 = promiseUtil.ncall(crypto.pbkdf2);
 
 class UserManagementRequestable extends api.Requestable {
   constructor(opt) {
+    opt.depends = opt.depends || [];
+    opt.depends.push('Mailer');
     super(opt);
   }
 
@@ -133,17 +135,18 @@ class UserManagementRequestable extends api.Requestable {
    * @return  Returns with <code>reg-success</code>.
    */
   sendRegisterEmail(data, ctx, xdata) {
+    const cfg = this.load('Config').config();
     ctx.access.drop('email_verif');
     
     debug('Prepare register email', data.email);
     
     let loginResp, key;
-    return this.login({
+    return this.load('Login').handleWithRequestInfo({
       name: data.email,
       stayloggedin: true,
-    }, ctx, xdata, true, true).then(loginResp_ => {
+    }, ctx, cfg, xdata, true, true).then(loginResp_ => {
       loginResp = loginResp_;
-      assert.ok(loginResp.code >= 200 && loginResp.code <= 299);
+      assert.equal(loginResp.code, 200);
       
       return randomBytes(16);
     }).then(buf => {
@@ -159,13 +162,13 @@ class UserManagementRequestable extends api.Requestable {
         .replace(/\{\$uid\}/g, ctx.user.uid));
       
       debug('Send register email', data.email, data.lang, data.name, ctx.user.uid);
-      return this.load('sendTemplateMail').sendTemplateMail(
+      return this.load('Mailer').sendTemplateMail(
         {'url': url, 'username': data.name, 'email': data.email},
         'register-email.eml',
         ctx, data.lang
       );
     }).then(() => {
-      loginResp.code = 204;
+      loginResp.code = 200;
       return loginResp;
     });
   }
@@ -174,6 +177,7 @@ class UserManagementRequestable extends api.Requestable {
 class Login extends UserManagementRequestable {
   constructor() {
     super({
+      identifier: 'Login',
       url: '/login',
       requiredLogin: false,
       methods: ['POST'],
@@ -671,7 +675,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
           fam_name: { type: ['string', 'null'] },
           wprovision: { type: ['integer', 'null'] },
           lprovision: { type: ['integer', 'null'] },
-          birthday: { type: ['integer', 'null'] },
+          birthday: { type: ['integer', 'string', 'null'] },
           desc: { type: ['string', 'null'] },
           street: { type: ['string', 'null'] },
           town: { type: ['string', 'null'] },
@@ -685,7 +689,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
         required: ['email', 'name']
       },
       writing: true,
-      depends: [ValidateEmail, ValidateUsername]
+      depends: [ValidateEmail, ValidateUsername, 'Login']
     }, options));
   }
   
@@ -719,7 +723,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
       query.fam_name = String(query.fam_name || '');
       query.wprovision = parseInt(query.wprovision) || cfg.defaultWProvision;
       query.lprovision = parseInt(query.lprovision) || cfg.defaultLProvision;
-      query.birthday = query.birthday ? parseInt(query.birthday) : null;
+      query.birthday = query.birthday ? (parseInt(query.birthday) || new Date(query.birthday).getTime()/1000) : null;
       query.street = query.street ? String(query.street) : null;
       query.town = query.town ? String(query.town) : null;
       query.zipcode = query.zipcode ? String(query.zipcode) : null;
@@ -1232,7 +1236,7 @@ class CreateInviteLink extends api.Component {
    * @param {string} data.url  The URL of the invite link.
    * @param {module:qctx~QContext} ctx  A QContext to provide database access.
    * 
-   * @return  Returns with <code>{ code: 204 }</code>.
+   * @return  Returns with <code>{ code: 200 }</code>.
    */
   sendInviteEmail(data, ctx) {
     debug('Send invite email', data.email, data.url, ctx.user && ctx.user.uid);

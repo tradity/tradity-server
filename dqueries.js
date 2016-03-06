@@ -67,7 +67,7 @@ class DelayedQueries extends api.Component {
           });
         }
       }),
-      this.load('PubSub').on('DelayedQueryAdd:resetUser', query => {
+      this.load('PubSub').on('DelayedQueries:resetUser', query => {
         if (this.enabled) {
           return this.resetUser(query.uid, ctx);
         }
@@ -398,7 +398,6 @@ class DelayedQueryRemoteRequestable extends api.Requestable {
   }
   
   init() {
-    const ctx = new qctx.QContext({parentComponent: this});
     const pubsub = this.load('PubSub');
     
     pubsub.on(this._internalID + ':handle:DQ', data => {
@@ -429,7 +428,7 @@ class DelayedQueryRemoteRequestable extends api.Requestable {
       const pubsub = this.load('PubSub');
       const id = this._localNodeID + '@' + (this._queryCounter++);
       
-      return new Promise((resolve, reject) => {
+      return new Promise(resolve => {
         pubsub.publish(this._internalID + ':handle:DQ', {
           query: query,
           user: JSON.parse(JSON.stringify(ctx.user)),

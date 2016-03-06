@@ -202,6 +202,8 @@ class SoTradeServer extends api.Component {
     }
     
     let handled = false;
+    let allowedMethods = [];
+    
     if (parsedURI.pathname.match(/^\/api\/v1/)) {
       parsedURI.pathname = parsedURI.pathname.replace(/^\/api\/v1/, '');
       
@@ -223,16 +225,19 @@ class SoTradeServer extends api.Component {
         handled = true;
         
         if (req.method === 'OPTIONS') {
-          defaultHeaders['Allow'] = rq.handledMethods().join(',').toUpperCase();
-          defaultHeaders['Content-Type'] = 'text/plain;charset=utf-8';
-          res.writeHead(200, defaultHeaders);
-          res.end();
+          allowedMethods = allowedMethods.concat(rq.handledMethods());
+        } else {
+          rq.handleRequest(req, res, uriMatch, parsedURI, defaultHeaders);
           break;
         }
-        
-        rq.handleRequest(req, res, uriMatch, parsedURI, defaultHeaders);
-        break;
       }
+    }
+    
+    if (handled && req.method === 'OPTIONS') {
+      defaultHeaders['Allow'] = allowedMethods.join(',').toUpperCase();
+      defaultHeaders['Content-Type'] = 'text/plain;charset=utf-8';
+      res.writeHead(200, defaultHeaders);
+      res.end();
     }
     
     if (!handled) {

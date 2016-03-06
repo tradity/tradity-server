@@ -1253,7 +1253,7 @@ class CreateInviteLink extends api.Component {
       schoolid = null;
     }
     
-    if (schoolid && isNaN(parseInt(query.schoolid))) {
+    if (schoolid && isNaN(parseInt(schoolid))) {
       throw new ErrorProvider.BadRequest(new Error('Need school id'));
     }
     
@@ -1283,7 +1283,7 @@ class CreateInviteLink extends api.Component {
       return ctx.query('INSERT INTO invitelink ' +
         '(uid, `key`, email, ctime, schoolid) VALUES ' +
         '(?, ?, ?, UNIX_TIMESTAMP(), ?)', 
-        [ctx.user.uid, key, email, schoolid !== null ? parseInt(query.schoolid) : null]);
+        [ctx.user.uid, key, email, schoolid !== null ? schoolid : null]);
     })).then(() => {
       url = cfg.varReplace(cfg.inviteurl.replace(/\{\$key\}/g, key));
     

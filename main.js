@@ -417,7 +417,9 @@ class Main extends api.Component {
         isBackgroundWorker: this.isBackgroundWorker
       }, this.registry.listInstances().filter(f => f instanceof api.Requestable));
       
-      this.load('DelayedQueries').enable();
+      if (this.isBackgroundWorker) {
+        this.load('DelayedQueries').enable();
+      }
       
       return stserver.initRegistryFromParent(this).then(() => stserver);
     }).then(stserver => {

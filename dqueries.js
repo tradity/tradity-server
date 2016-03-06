@@ -58,24 +58,31 @@ class DelayedQueries extends api.Component {
   
   init() {
     const ctx = new qctx.QContext({parentComponent: this});
+    const pubsub = this.load('PubSub');
     
     return Promise.all([
-      this.load('PubSub').on('stock-update', ev => {
+      pubsub.on('stock-update', ev => {
         if (this.enabled && this.neededStocks['s-'+ev.stockid]) {
           _.each(this.neededStocks['s-'+ev.stockid], entryid => {
             return this.checkAndExecute(ctx, this.queries[entryid]);
           });
         }
       }),
-      this.load('PubSub').on('DelayedQueries:resetUser', query => {
+      pubsub.on('DelayedQueries:resetUser', query => {
         if (this.enabled) {
           return this.resetUser(query.uid, ctx);
+        }
+      }),
+      pubsub.on('DelayedQueries:ping', query => {
+        if (this.enabled) {
+          pubsub.publish('DelayedQueries:pong', {hostname: require('os').hostname()});
         }
       })
     ]);
   }
   
   enable() {
+    debug('Enabling delayed queries loader', require('os').hostname());
     this.enabled = true;
     return this.loadDelayedQueries();
   }
@@ -423,7 +430,7 @@ class DelayedQueryRemoteRequestable extends api.Requestable {
   handle(query, ctx) {
     const db = this.load(DelayedQueries);
     if (db.enabled) {
-      return this.handleDQ(query, ctx);
+      return Promise.resolve(this.handleDQ(query, ctx));
     } else {
       const pubsub = this.load('PubSub');
       const id = this._localNodeID + '@' + (this._queryCounter++);

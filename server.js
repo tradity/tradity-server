@@ -201,7 +201,6 @@ class SoTradeServer extends api.Component {
       parsedURI.pathname = '/api/v1' + parsedURI.pathname;
     }
     
-    let handled = false;
     let allowedMethods = [];
     
     let handler = null;
@@ -224,7 +223,7 @@ class SoTradeServer extends api.Component {
           continue;
         }
         
-        handler = () => rq.handleRequest(req, res, uriMatch, parsedURI, defaultHeaders);
+        handler = () => rq.handleRequest(req, res, uriMatch, parsedURI, defaultHeaders); // jshint ignore:line
         allowedMethods = allowedMethods.concat(rq.handledMethods());
       }
     }

@@ -73,7 +73,7 @@ class DelayedQueries extends api.Component {
           return this.resetUser(query.uid, ctx);
         }
       }),
-      pubsub.on('DelayedQueries:ping', query => {
+      pubsub.on('DelayedQueries:ping', () => {
         if (this.enabled) {
           pubsub.publish('DelayedQueries:pong', {hostname: require('os').hostname()});
         }

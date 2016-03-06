@@ -707,6 +707,10 @@ class UpdateUserRequestable extends UserManagementRequestable {
         throw new this.ClientError('too-short-pw');
       }
       
+      if (!query.gender) {
+        query.gender = null;
+      }
+      
       if (query.gender !== null && genders.genders.indexOf(query.gender) === -1) {
         throw new this.ClientError('unknown-gender');
       }
@@ -1299,8 +1303,10 @@ class CreateInviteLink extends api.Component {
       }
     }).then(ret => {
       if (sendKeyToCaller) {
-        ret.url = url;
-        ret.key = key; 
+        ret.data = {
+          url: url,
+          key: key
+        };
       }
       
       return ret;

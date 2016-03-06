@@ -204,6 +204,8 @@ class SoTradeServer extends api.Component {
     let handled = false;
     let allowedMethods = [];
     
+    let handler = null;
+    
     if (parsedURI.pathname.match(/^\/api\/v1/)) {
       parsedURI.pathname = parsedURI.pathname.replace(/^\/api\/v1/, '');
       
@@ -222,25 +224,23 @@ class SoTradeServer extends api.Component {
           continue;
         }
         
-        handled = true;
-        
-        if (req.method === 'OPTIONS') {
-          allowedMethods = allowedMethods.concat(rq.handledMethods());
-        } else {
-          rq.handleRequest(req, res, uriMatch, parsedURI, defaultHeaders);
-          break;
-        }
+        handler = () => rq.handleRequest(req, res, uriMatch, parsedURI, defaultHeaders);
+        allowedMethods = allowedMethods.concat(rq.handledMethods());
       }
     }
     
-    if (handled && req.method === 'OPTIONS') {
-      defaultHeaders['Allow'] = allowedMethods.join(',').toUpperCase();
-      defaultHeaders['Content-Type'] = 'text/plain;charset=utf-8';
-      res.writeHead(200, defaultHeaders);
-      res.end();
-    }
+    defaultHeaders['Allow'] = allowedMethods.join(',').toUpperCase();
+    defaultHeaders['Access-Control-Allow-Methods'] = allowedMethods.join(',').toUpperCase();
     
-    if (!handled) {
+    if (handler !== null) {
+      if (req.method !== 'OPTIONS') {
+        handler();
+      } else {
+        defaultHeaders['Content-Type'] = 'text/plain;charset=utf-8';
+        res.writeHead(200, defaultHeaders);
+        res.end();
+      }
+    } else {
       debug('No handler for URI', parsedURI.pathname);
       res.writeHead(404, {'Content-Type': 'application/json;charset=utf-8'});
       res.end(JSON.stringify({

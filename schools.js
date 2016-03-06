@@ -682,7 +682,7 @@ class CreateInviteLinkGroup extends SchoolUtilRequestable {
         type: 'object',
         properties: {
           schoolid: {
-            type: 'integer',
+            type: ['integer', 'string'],
             description: 'The numerical id of the school to create an invite link for'
           },
           email: {

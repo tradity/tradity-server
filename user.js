@@ -663,7 +663,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
       schema: {
         type: 'object',
         properties: {
-          betakey: { type: 'string' },
+          betakey: { type: ['string', 'null'] },
           email: { type: 'string' },
           name: { type: 'string' },
           gender: { type: ['string', 'null'] },
@@ -677,7 +677,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
           town: { type: ['string', 'null'] },
           zipcode: { type: ['string', 'null'] },
           lang: { type: ['string', 'null'] },
-          school: { type: ['string', 'integer'] },
+          school: { type: ['string', 'integer', 'null'] },
           schoolclass: { type: ['string', 'null'] },
           realnamepublish: { type: 'boolean' },
           invitekey: { type: 'string' }

@@ -69,7 +69,7 @@ function NodeSoTradeConnection (opt) {
         }
       } : undefined,
       json: true
-    }, options, {
+    }, cfg.ssl, options, {
       headers: Object.assign({
         'X-Sotrade-Auth': key
       }, options.headers),

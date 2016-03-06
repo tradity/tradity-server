@@ -773,7 +773,7 @@ class StockTrade extends api.Requestable {
             retainUntilCode: 200
           }, query);
           
-          this.load('PubSub').publish('dquery-should-be-added', { 
+          this.load('PubSub').publish('DelayedQueryAdd:handle', { 
             condition: 'stock::' + r.stocktextid + '::exchange-open > 0',
             query: dquery
           });

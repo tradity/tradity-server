@@ -361,23 +361,10 @@ class Requestable extends Component {
   }
   
   // XXX: drop “school” from public API
-  // XXX: test schema validation
-  // XXX: decide on PermissionDenied
-  // XXX: Docs?
-  // XXX: Publicize code-based documentation
-  // XXX: Check for parseInt/parseFloat/isNan/etc.
-  // XXX: console.warn for 204/200 mismatch
-  // XXX: Check `data:` wrappers
-  // XXX: enforce requiredAccess:
   // XXX: validation for non-Requestable components?
-  // XXX: dependencies which have not been explicitly loaded into the registry
   // XXX: schema forwarding/inclusion
   // XXX: readonly? can we handle that one better?
-  // XXX: test requiredAccess
-  // XXX: dquery??
   // XXX: Markdown
-  // XXX: other XXXes
-  // XXX: handle writing: or transactional:
   // XXX: repush
   
   // wrap this.handle() for some backwards compatibility
@@ -623,6 +610,10 @@ class Requestable extends Component {
           } else if (type === 'boolean' || type.indexOf('boolean') !== -1) {
             if (uriMatch[key] in booleanTable) {
               uriMatch[key] = booleanTable[uriMatch[key]];
+            }
+          } else if (type === 'null' || type.indexOf('null') !== -1) {
+            if (uriMatch[key] === 'null') {
+              uriMatch[key] = null;
             }
           }
         }

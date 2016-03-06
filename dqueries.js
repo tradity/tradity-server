@@ -21,6 +21,7 @@ const assert = require('assert');
 const qctx = require('./qctx.js');
 const Access = require('./access.js').Access;
 const api = require('./api.js');
+const sha256 = require('./lib/sha256.js');
 const debug = require('debug')('sotrade:dqueries');
 
 /**
@@ -52,21 +53,30 @@ class DelayedQueries extends api.Component {
     
     this.neededStocks = {}; // XXX make this a map
     this.allowedQueryTypes = allowedQueryTypes;
+    this.enabled = false;
   }
   
   init() {
     const ctx = new qctx.QContext({parentComponent: this});
     
-    return this.load('PubSub').on('stock-update', ev => {
-      if (this.neededStocks['s-'+ev.stockid]) {
-        _.each(this.neededStocks['s-'+ev.stockid], entryid => {
-          return this.checkAndExecute(ctx, this.queries[entryid]);
-        });
-      }
-    });
+    return Promise.all([
+      this.load('PubSub').on('stock-update', ev => {
+        if (this.enabled && this.neededStocks['s-'+ev.stockid]) {
+          _.each(this.neededStocks['s-'+ev.stockid], entryid => {
+            return this.checkAndExecute(ctx, this.queries[entryid]);
+          });
+        }
+      }),
+      this.load('PubSub').on('DelayedQueryAdd:resetUser', query => {
+        if (this.enabled) {
+          return this.resetUser(query.uid, ctx);
+        }
+      })
+    ]);
   }
   
   enable() {
+    this.enabled = true;
     return this.loadDelayedQueries();
   }
 
@@ -136,6 +146,9 @@ class DelayedQueries extends api.Component {
     // can be removed after next reset
     if (query.query.type === 'stock-buy') {
       query.query.type = 'StockTrade';
+      query.retainUntilCode = 'success';
+    } else if (query.query.type === 'ping') {
+      query.query.type = 'Ping';
       query.retainUntilCode = 'success';
     }
 
@@ -354,13 +367,12 @@ class DelayedQueries extends api.Component {
    * @param {object} query  The delayed query.
    * @param {module:qctx~QContext} ctx  A QContext to provide database access.
    */
-  // XXX was available via bus
-  resetUser(ctx) {
+  resetUser(uid, ctx) {
     const toBeDeleted = [];
     for (let queryid in this.queries) {
       const q = this.queries[queryid];
       
-      if (q.userinfo.uid === ctx.user.uid || (q.query.leader === ctx.user.uid)) {
+      if (q.userinfo.uid === uid || (q.query.leader === uid)) {
         toBeDeleted.push(q);
       }
     }
@@ -371,7 +383,73 @@ class DelayedQueries extends api.Component {
   }
 }
 
-class DelayedQueryList extends api.Requestable {
+class DelayedQueryRemoteRequestable extends api.Requestable {
+  constructor(options) {
+    super(options);
+    
+    const os = require('os');
+    this._internalID = sha256(JSON.stringify([options.url, options.methods]));
+    this._localNodeID = sha256(JSON.stringify([
+      os.hostname(), os.networkInterfaces(),
+      Math.random(), Date.now(),
+      this._internalID
+    ]));
+    this._queryCounter = 0;
+  }
+  
+  init() {
+    const ctx = new qctx.QContext({parentComponent: this});
+    const pubsub = this.load('PubSub');
+    
+    pubsub.on(this._internalID + ':handle:DQ', data => {
+      if (!this.load(DelayedQueries).enabled) {
+        return;
+      }
+        
+      const ctx = new qctx.QContext({
+        parentComponent: this,
+        user: data.user,
+        access: Access.fromJSON(data.access)
+      });
+      
+      const query = data.query;
+      return this.handle(query, ctx).then(result => {
+        pubsub.publish(data.queryid, { result: result });
+      }, err => {
+        pubsub.publish(data.queryid, { error: err });
+      });
+    });
+  }
+  
+  handle(query, ctx) {
+    const db = this.load(DelayedQueries);
+    if (db.enabled) {
+      return this.handleDQ(query, ctx);
+    } else {
+      const pubsub = this.load('PubSub');
+      const id = this._localNodeID + '@' + (this._queryCounter++);
+      
+      return new Promise((resolve, reject) => {
+        pubsub.publish(this._internalID + ':handle:DQ', {
+          query: query,
+          user: JSON.parse(JSON.stringify(ctx.user)),
+          access: ctx.access.toJSON(),
+          queryid: id
+        });
+        
+        resolve(pubsub.once(id).then(resultWrap => {
+          if (resultWrap.error) {
+            throw resultWrap.error;
+          } else {
+            return resultWrap.result;
+          }
+        }));
+      });
+    }
+  }
+}
+
+class DelayedQueryList extends DelayedQueryRemoteRequestable {
   constructor() {
     super({
       url: '/dqueries',
@@ -384,7 +462,7 @@ class DelayedQueryList extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handleDQ(query, ctx) {
     return {
       code: 200, 
       data: _.chain(this.load(DelayedQueries).queries).values()
@@ -395,7 +473,7 @@ class DelayedQueryList extends api.Requestable {
   }
 }
 
-class DelayedQueryDelete extends api.Requestable {
+class DelayedQueryDelete extends DelayedQueryRemoteRequestable {
   constructor() {
     super({
       url: '/dqueries/:queryid',
@@ -421,7 +499,7 @@ class DelayedQueryDelete extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handleDQ(query, ctx) {
     const db = this.load(DelayedQueries);
     const queryid = query.queryid;
     
@@ -437,7 +515,7 @@ class DelayedQueryDelete extends api.Requestable {
   }
 }
 
-class DelayedQueryAdd extends api.Requestable {
+class DelayedQueryAdd extends DelayedQueryRemoteRequestable {
   constructor() {
     super({
       identifier: 'DelayedQueryAdd',
@@ -473,14 +551,18 @@ class DelayedQueryAdd extends api.Requestable {
   }
   
   init() {
-    const ctx = new qctx.QContext({parentComponent: this});
-    
-    this.load('PubSub').on('dquery-should-be-added', query => {
-      return this.handle(query, ctx);
+    return Promise.resolve(super.init()).then(() => {
+      const ctx = new qctx.QContext({parentComponent: this});
+      
+      return this.load('PubSub').on('DelayedQueryAdd:handle', query => {
+        if (this.load(DelayedQueries).enabled) {
+          return this.handle(query, ctx);
+        }
+      });
     });
   }
   
-  handle(query, ctx) {
+  handleDQ(query, ctx) {
     debug('Add dquery', query.condition);
     const db = this.load(DelayedQueries);
     
@@ -518,7 +600,7 @@ class DelayedQueryAdd extends api.Requestable {
   }
 }
 
-class DelayedQueryCheckAll extends api.Requestable {
+class DelayedQueryCheckAll extends DelayedQueryRemoteRequestable {
   constructor() {
     super({
       url: '/dqueries/check-all',
@@ -533,7 +615,7 @@ class DelayedQueryCheckAll extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
+  handleDQ(query, ctx) {
     debug('Check all dqueries');
     
     if (!ctx.access.has('dqueries')) {

@@ -1061,7 +1061,7 @@ class ResetUser extends api.Requestable {
           [val, val, val, val, val, ctx.user.uid]),
         ctx.query('DELETE FROM valuehistory WHERE uid = ?', [ctx.user.uid]),
         ctx.feed({'type': 'user-reset', 'targetid': ctx.user.uid, 'srcuser': ctx.user.uid}),
-        this.request({name: 'dqueriesResetUser', ctx: ctx}) // XXX
+        this.load('PubSub').publish('DelayedQueries:resetUser', { uid: ctx.user.uid })
       ]);
     }).then(() => ({ code: 204 }));
   }

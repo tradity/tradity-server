@@ -88,6 +88,7 @@ class PubSub extends api._Component {
     
     this.subclient.on('message', (channel, message) => {
       const msg = JSON.parse(message);
+      debug('Receiving', msg.name, msg.kind);
       this.emit(msg.name, msg.data);
     });
   }
@@ -97,13 +98,14 @@ class PubSub extends api._Component {
     
     if (data instanceof Error) {
       kind = 'error';
-      data = {
+      data = Object.assign({
         message: data.message,
         name: data.name,
         stack: data.stack
-      };
+      }, data);
     }
     
+    debug('Publishing', name, kind);
     this.pubclient.publish(this.cfg._channel, JSON.stringify({
       name: name,
       data: data,
@@ -385,7 +387,6 @@ class Main extends api.Component {
         debug('received SBW', process.pid);
         
         this.isBackgroundWorker = true;
-        this.load('DelayedQueries').enable();
       } else if (msg.cmd === 'startStandardWorker') {
         assert.ok(msg.port);
         
@@ -411,6 +412,8 @@ class Main extends api.Component {
       const stserver = new server.Server({
         isBackgroundWorker: this.isBackgroundWorker
       }, this.registry.listInstances().filter(f => f instanceof api.Requestable));
+      
+      this.load('DelayedQueries').enable();
       
       return stserver.initRegistryFromParent(this).then(() => stserver);
     }).then(stserver => {

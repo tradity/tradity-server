@@ -639,7 +639,7 @@ class Requestable extends Component {
     return this.urlMatcher;
   }
   
-  handledMethods(m) {
+  handledMethods() {
     return this.options.methods;
   }
 }

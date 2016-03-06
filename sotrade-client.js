@@ -85,6 +85,7 @@ function NodeSoTradeConnection (opt) {
         }
         
         if (!options.json &&
+            httpResponse.headers['content-type'] &&
             httpResponse.headers['content-type'].match(/^application\/json/)) {
           try {
             body = JSON.parse(body);

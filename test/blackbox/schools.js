@@ -385,9 +385,10 @@ describe('schools', function() {
         });
       }).then(res => {
         assert.ok(res._success);
-        assert.ok(res.key);
+        assert.ok(res.data);
+        assert.ok(res.data.key);
         
-        return socket.get('/invitekey/' + res.key);
+        return socket.get('/invitekey/' + res.data.key);
       }).then(res => {
         assert.ok(res._success);
         assert.ok(res.data);

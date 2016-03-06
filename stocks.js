@@ -682,7 +682,7 @@ class StockTrade extends api.Requestable {
         { code: 403, identifier: 'single-paper-share-exceeded' }
       ],
       depends: [
-        StockExchangeIsOpen
+        StockExchangeIsOpen, 'DelayedQueryAddFromTrade'
       ]
     });
   }

@@ -677,7 +677,7 @@ class StockTrade extends api.Requestable {
         { code: 503, identifier: 'sxnotopen' },
         { code: 200, identifier: 'autodelay-sxnotopen' },
         { code: 403, identifier: 'not-enough-stocks' },
-        { code: 403, identifier: 'ouf-of-money' },
+        { code: 403, identifier: 'out-of-money' },
         { code: 403, identifier: 'over-pieces-limit' },
         { code: 403, identifier: 'single-paper-share-exceeded' }
       ],
@@ -818,7 +818,7 @@ class StockTrade extends api.Requestable {
       
       if ((r.amount + amount) * r.bid >= ures[0].totalvalue * cfg['maxSingleStockShare'] && price >= 0 &&
           !ctx.access.has('stocks')) {
-        throw new this.ClientError('single-paper-share-exceed');
+        throw new this.ClientError('single-paper-share-exceeded');
       }
       
       if (Math.abs(amount) + tradedToday > r.pieces && !ctx.access.has('stocks') && !forceNow) {

@@ -679,6 +679,7 @@ class StockTrade extends api.Requestable {
         { code: 403, identifier: 'not-enough-stocks' },
         { code: 403, identifier: 'out-of-money' },
         { code: 403, identifier: 'over-pieces-limit' },
+        { code: 403, identifier: 'no-leader-trades' },
         { code: 403, identifier: 'single-paper-share-exceeded' }
       ],
       depends: [

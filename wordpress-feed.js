@@ -42,7 +42,7 @@ class ProcessBlogs extends api.Requestable {
       'LEFT JOIN blogposts ON feedblogs.blogid = blogposts.blogid ' +
       'WHERE feedblogs.active ' +
       'GROUP BY blogid FOR UPDATE').then(res => {
-      return Promise.all(res.map(function(bloginfo) {
+      return Promise.all(res.map(bloginfo => {
         const wp = new WP({endpoint: bloginfo.endpoint});
         const catFilter = bloginfo.category ? {category_name: bloginfo.category} : null;
         

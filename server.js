@@ -208,8 +208,8 @@ class SoTradeServer extends api.Component {
     if (parsedURI.pathname.match(/^\/api\/v1/)) {
       parsedURI.pathname = parsedURI.pathname.replace(/^\/api\/v1/, '');
       
-      if (parsedURI.pathname === '/index' || parsedURI.pathname === '/') {
-        res.writeHead(200, {'Content-Type': 'application/json;charset=utf-8'});
+      if (parsedURI.pathname === '/api-index' || parsedURI.pathname === '/') {
+        res.writeHead(200, defaultHeaders);
         res.end(this.apiv1Index);
       }
       

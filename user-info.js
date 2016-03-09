@@ -19,6 +19,7 @@
 const _ = require('lodash');
 const assert = require('assert');
 const api = require('./api.js');
+const moment = require('moment-timezone');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
 
@@ -138,6 +139,9 @@ class UserInfo extends api.Requestable {
         return this.cache.use(cacheKey);
       }
       
+      const today = moment.tz(moment.tz(cfg.timezone).format('YYYY MM DD'), 'YYYY MM DD', cfg.timezone);
+      const sunday = today.clone().day(0);
+      
       return this.cache.add(cacheKey, 60000, ctx.query('SELECT ' + columns + ' FROM users AS u ' +
         'JOIN users_finance AS uf ON u.uid = uf.uid ' +
         'JOIN users_data AS ud ON u.uid = ud.uid ' +
@@ -150,7 +154,7 @@ class UserInfo extends api.Requestable {
         'LEFT JOIN httpresources ON httpresources.uid = u.uid AND httpresources.role = "profile.image" ' +
         'LEFT JOIN events ON events.targetid = u.uid AND events.type = "user-register" ' +
         'WHERE u.' + lookforColumn + ' = ?',
-        [Date.parse('Sunday').getTime() / 1000, Date.parse('00:00').getTime() / 1000, lookfor]));
+        [sunday.format('X'), today.format('X'), lookfor]));
     }).then(users => {
       if (users.length === 0) {
         throw new this.ClientError('user-not-found');

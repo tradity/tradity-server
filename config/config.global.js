@@ -86,6 +86,7 @@ module.exports = {
     'Frankfurt': {open: '8:00', close: '20:00', days: [1,2,3,4,5]},
     'tradity': {open: '8:00', close: '20:00', days: [1,2,3,4,5]}
   },
+  'timezone': 'Europe/Berlin',
   'requireCurrency': 'EUR',
   'minAskPrice': 10,
   'infopushMinDelta': 60000,

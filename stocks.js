@@ -20,11 +20,11 @@ const _ = require('lodash');
 const assert = require('assert');
 const validator = require('validator');
 const debug = require('debug')('sotrade:stocks');
+const moment = require('moment-timezone');
 const qctx = require('./qctx.js');
 const api = require('./api.js');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
-require('datejs'); // XXX
 
 const leaderStockTextIDFormat = /^__LEADER_(\d+)__$/;
 
@@ -582,11 +582,11 @@ class StockExchangeIsOpen extends api.Component {
       return false;
     }
 
-    const opentime = Date.parse(sxdata.open).getTime();
-    const closetime = Date.parse(sxdata.close).getTime();
-    const now = new Date();
+    const opentime = moment.tz(sxdata.open, 'HH:mm', cfg.timezone);
+    const closetime = moment.tz(sxdata.close, 'HH:mm', cfg.timezone);
+    const now = moment();
     
-    const res = now.getTime() >= opentime && now.getTime() < closetime && sxdata.days.indexOf(now.getUTCDay()) !== -1;
+    const res = opentime.isBefore(now) && closetime.isAfter(now) && sxdata.days.indexOf(now.day()) !== -1;
     
     return res;
   }

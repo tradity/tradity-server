@@ -27,7 +27,6 @@ const qctx = require('./qctx.js');
 const debug = require('debug')('sotrade:user');
 const promiseUtil = require('./lib/promise-util.js');
 const spread = promiseUtil.spread;
-require('datejs'); // XXX
 
 const randomBytes = promiseUtil.ncall(crypto.randomBytes);
 const pseudoRandomBytes = promiseUtil.ncall(crypto.pseudoRandomBytes);

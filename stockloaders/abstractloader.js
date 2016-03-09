@@ -34,7 +34,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     this.cacheTime = typeof opt.cacheTime === 'undefined' ? CACHE_TIME_DEFAULT : opt.cacheTime;
     this.maxlen = typeof opt.maxlen === 'undefined' ? MAXLEN_DEFAULT : opt.maxlen;
     this.requestRetries = typeof opt.requestRetries === 'undefined' ? 10 : opt.requestRetries;
-    this.cache = {};
+    this.cache = new Map();
   }
 
   _handleRecord(record, cached) {
@@ -43,7 +43,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
         record.fetchTime = Date.now();
       }
 
-      this.cache['s-' + record.symbol] = record;
+      this.cache.set(record.symbol, record);
     }
     
     this.emit('record', record);
@@ -54,13 +54,13 @@ class AbstractLoader extends promiseUtil.EventEmitter {
   _makeQuoteRequest(stocklist) {
     let cachedResults = [];
     stocklist = stocklist.filter(stockid => {
-      const cv = this.cache['s-' + stockid];
+      const cv = this.cache.get(stockid);
       if (cv) {
         if (cv.fetchTime > Date.now() - this.cacheTime) {
           cachedResults.push(this._handleRecord(cv, true));
           return false;
         } else {
-          delete this.cache['s-' + stockid];
+          this.cache.delete(stockid);
         }
       }
       

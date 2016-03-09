@@ -25,6 +25,7 @@ const debug = require('debug')('sotrade:server');
 const api = require('./api.js');
 const qctx = require('./qctx.js');
 const promiseUtil = require('./lib/promise-util.js');
+const sha256 = require('./lib/sha256.js');
 
 /**
  * Provides the HTTP endpoint for all client connections
@@ -73,6 +74,7 @@ class SoTradeServer extends api.Component {
         })
       }
     });
+    this.apiv1IndexETag = JSON.stringify(sha256(this.apiv1Index));
   }
   
   internalServerStatistics(qctxDebug) {
@@ -209,8 +211,15 @@ class SoTradeServer extends api.Component {
       parsedURI.pathname = parsedURI.pathname.replace(/^\/api\/v1/, '');
       
       if (parsedURI.pathname === '/api-index' || parsedURI.pathname === '/') {
-        res.writeHead(200, defaultHeaders);
-        res.end(this.apiv1Index);
+        const headers = Object.assign({'ETag': this.apiv1IndexETag}, defaultHeaders);
+        if (req.headers['if-none-match'] === this.apiv1IndexETag) {
+          res.writeHead(304, headers);
+          res.end();
+        } else {
+          res.writeHead(200, headers);
+          res.end(this.apiv1Index);
+        }
+        return;
       }
       
       for (let rq of this.requestables) {

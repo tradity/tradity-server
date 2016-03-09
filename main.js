@@ -33,16 +33,20 @@ class StockQuoteLoaderProvider extends api.Component {
       description: 'Decides which stock quote loader to use.'
     });
     
+    this.stockLoaders = {};
     this.defaultStockLoader = null;
   }
   
-  resolve() {
-    return this.defaultStockLoader;
+  resolve(name) {
+    if (!name) {
+      return this.defaultStockLoader;
+    }
+    
+    return this.stockLoaders[name];
   }
   
   init() {
     debug('Running StockQuoteLoaderProvider init');
-    const stockLoaders = {};
     const cfg = this.load('Config').config();
     
     Error.stackTraceLimit = cfg.stackTraceLimit || 20;
@@ -52,16 +56,19 @@ class StockQuoteLoaderProvider extends api.Component {
         continue;
       }
       
-      const stockloaderConfig = _.clone(cfg.stockloaders[i]);
-      stockloaderConfig.userAgent = cfg.userAgent;
-      stockloaderConfig.ctx = new qctx.QContext({parentComponent: this});
+      const stockloaderConfig = Object.assign({}, cfg.stockloaders[i], {
+        userAgent: cfg.userAgent,
+        ctx: new qctx.QContext({parentComponent: this}),
+        timezone: cfg.timezone
+      });
       
       const slModule = require(stockloaderConfig.path);
-      stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig);
-      stockLoaders[i].on('error', e => this.load('PubSub').emit('error', e));
+      this.stockLoaders[i] = new slModule.QuoteLoader(stockloaderConfig, this);
+      this.stockLoaders[i].on('error', e => this.load('PubSub').emit('error', e));
     }
 
-    this.defaultStockLoader = stockLoaders[cfg.stockloaders._defaultStockLoader];
+    this.defaultStockLoader = this.stockLoaders[cfg.stockloaders._defaultStockLoader];
+    assert.ok(this.defaultStockLoader);
     
     debug('Set up default stock loader');
   }

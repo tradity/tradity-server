@@ -26,7 +26,9 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
     
     assert.ok(opt);
     assert.ok(opt.ctx);
+    assert.equal(typeof opt.literal, 'boolean');
     
+    this.literal = opt.literal;
     this.ctx = opt.ctx;
   }
 
@@ -40,15 +42,19 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
         record.symbol = record.isin;
         record.failure = null;
         record.currency_name = 'EUR';
+        record.last = record.lastvalue;
         
-        record.pieces = 10000;
-        
-        if (record.leader === null) {
-          record.ask *= 1.000001 / 10000.0;
-          record.bid *= 1.000001 / 10000.0;
+        if (!this.literal) {
+          record.pieces = 10000;
+          
+          if (record.leader === null) {
+            record.ask *= 1.000001 / 10000.0;
+            record.bid *= 1.000001 / 10000.0;
+          }
+          
+          record.last = (record.ask + record.bid)/2.0;
         }
         
-        record.last = (record.ask + record.bid)/2.0;
         record.lastTradePrice = record.last;
         
         return this._handleRecord(record, false);

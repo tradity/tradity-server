@@ -34,7 +34,7 @@ module.exports = {
     'pbkdf2MinIterations': 1
   },
   'stockloaders': {
-    '_defaultStockLoader': 'loopback'
+    '_defaultStockLoader': 'temporally-composite-testing'
   },
   'login': {
     'minWait': 1,

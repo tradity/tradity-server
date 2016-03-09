@@ -151,9 +151,44 @@ module.exports = {
       'apiPassword': 'missing'
     },
     'loopback': {
-      'path': './stockloaders/loopbackloader.js'
+      'path': './stockloaders/loopbackloader.js',
+      'literal': false
     },
-    '_defaultStockLoader': 'boerse-frankfurt'
+    'loopback-literal': {
+      'path': './stockloaders/loopbackloader.js',
+      'literal': true
+    },
+    'temporally-composite': {
+      'path': './stockloaders/temporally-composite.js',
+      'bases': [
+        {
+          'conditions': [
+            { 'type': 'after',  'time': '07:57' },
+            { 'type': 'before', 'time': '20:03' }
+          ],
+          'loader': 'boerse-frankfurt'
+        },
+        {
+          'loader': 'loopback-literal'
+        }
+      ]
+    },
+    'temporally-composite-testing': {
+      'path': './stockloaders/temporally-composite.js',
+      'bases': [
+        {
+          'conditions': [
+            { 'type': 'after',  'time': '07:57' },
+            { 'type': 'before', 'time': '20:03' }
+          ],
+          'loader': 'loopback'
+        },
+        {
+          'loader': 'loopback-literal'
+        }
+      ]
+    },
+    '_defaultStockLoader': 'temporally-composite'
   },
   'passwords': {
     'pbkdf2Iterations': 18,

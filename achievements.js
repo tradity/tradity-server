@@ -18,6 +18,7 @@
 
 const _ = require('lodash');
 const assert = require('assert');
+const moment = require('moment-timezone');
 const qctx = require('./qctx.js');
 const debug = require('debug')('sotrade:achievements');
 const api = require('./api.js');
@@ -267,8 +268,8 @@ class GetDailyLoginCertificate extends api.Requestable {
     });
   }
   
-  handle(query, ctx) {
-    let today = new Date().toJSON().substr(0, 10);
+  handle(query, ctx, cfg) {
+    let today = moment.tz(cfg.timezone).format('YYYY-MM-DD');
     
     if (query.today) {
       if (!ctx.access.has('achievements')) {
@@ -364,14 +365,13 @@ class ClientDLAchievement extends api.Requestable {
     )).then(verifiedCerts => {
       const dates = verifiedCerts
         .filter(c => c && c.uid === uid && c.certType === 'wasOnline')
-        .map(c => new Date(c.date))
-        .sort((a, b) => a.getTime() - b.getTime()); // ascending sort
+        .map(c => moment.tz(c.date, 'YYYY-MM-DD', cfg.timezone))
+        .sort((a, b) => a.isBefore(b) ? -1 : +1); // ascending sort
       
       let currentStreak = 1;
       let longestStreak = 1;
       for (let i = 1; i < dates.length; ++i) {
-        // not beautiful, but works
-        if (dates[i].getTime() - dates[i-1].getTime() === 86400000) {
+        if (dates[i-1].clone().add(1, 'day').isSame(dates[i])) {
           ++currentStreak;
         } else {
           currentStreak = 1;

@@ -18,7 +18,10 @@
 
 const assert = require('assert');
 const _ = require('lodash');
+const moment = require('moment-timezone');
 const testHelpers = require('./test-helpers.js');
+const Config = require('../../config.js');
+const cfg = new Config().reloadConfig().config();
 
 describe('achievements', function() {
   let socket;
@@ -117,11 +120,11 @@ describe('achievements', function() {
     it('Should register achievements for being logged in multiple days in a row', function() {
       return _.range(2, 10).map(N => {
         return () => {
-          const now = Date.now();
+          const now = moment.tz(cfg.timezone);
           
           // compute dates of the previous 10 days
           const dates = _.range(0, N).map(x => {
-            return new Date(now - x * 86400 * 1000).toJSON().substr(0, 10);
+            return now.clone().subtract(x, 'days').format('YYYY-MM-DD');
           });
           
           return Promise.all(dates.map(date => {
@@ -168,10 +171,10 @@ describe('achievements', function() {
     });
     
     it('Should register achievements for being logged in multiple days with breaks', function() {
-      const now = Date.now();
+      const now = moment.tz(cfg.timezone);
       
       const dates = [2,3,4,6,7].map(x => {
-        return new Date(now - x * 86400 * 1000).toJSON().substr(0, 10);
+        return now.clone().subtract(x, 'days').format('YYYY-MM-DD');
       });
       
       return Promise.all(dates.map(date => {

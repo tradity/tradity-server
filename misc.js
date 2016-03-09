@@ -97,7 +97,7 @@ class ArtificialError extends api.Requestable {
       returns: [
         { code: 204 }
       ],
-      requiredPrivileges: 'server',
+      requiredAccess: 'server',
       description: 'Throws an error (for testing error handling systems).'
     });
   }
@@ -118,7 +118,7 @@ class ArtificialDeadlock extends api.Requestable {
         { code: 204 }
       ],
       writing: true,
-      requiredPrivileges: 'server',
+      requiredAccess: 'server',
       description: 'Internally produces a database deadlock (for testing purposes).'
     });
   }
@@ -164,7 +164,7 @@ class ArtificialStaleLock extends api.Requestable {
       returns: [
         { code: 204 }
       ],
-      requiredPrivileges: 'server',
+      requiredAccess: 'server',
       description: 'Internally produces a DB transaction which is released after 5 minutes.'
     });
   }
@@ -196,7 +196,7 @@ class ForceReadonly extends api.Requestable {
         },
         required: ['readonly']
       },
-      requiredPrivileges: 'server',
+      requiredAccess: 'server',
       description: 'Throws an error (for testing error handling systems).'
     });
   }
@@ -219,7 +219,7 @@ class ArtificialDBError extends api.Requestable {
       returns: [
         { code: 200 }
       ],
-      requiredPrivileges: 'server',
+      requiredAccess: 'server',
       description: 'Internally produces a DB error.'
     });
   }

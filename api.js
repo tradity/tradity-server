@@ -516,7 +516,7 @@ class Requestable extends Component {
         throw new this.LoginRequired();
       }
       
-      if (this.options.requiredAccess && !ctx.access.has('requiredAccess')) {
+      if (this.options.requiredAccess && !ctx.access.has(this.options.requiredAccess)) {
         throw new this.Forbidden();
       }
       

@@ -44,12 +44,15 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
         record.currency_name = 'EUR';
         record.last = record.lastvalue;
         
+        record.ask /= 10000.0;
+        record.bid /= 10000.0;
+        
         if (!this.literal) {
           record.pieces = 10000;
           
           if (record.leader === null) {
-            record.ask *= 1.000001 / 10000.0;
-            record.bid *= 1.000001 / 10000.0;
+            record.ask *= 1.000001;
+            record.bid *= 1.000001;
           }
           
           record.last = (record.ask + record.bid)/2.0;

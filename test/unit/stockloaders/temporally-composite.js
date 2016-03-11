@@ -18,6 +18,7 @@
 
 const assert = require('assert');
 const moment = require('moment-timezone');
+const promiseEvents = require('promise-events');
 
 const tcl = require('../../../stockloaders/temporally-composite.js');
 
@@ -58,6 +59,7 @@ describe('Temporally composite stockloader', function() {
       },
       on(ev, cb) {
         assert.strictEqual(ev, 'record');
+        assert.strictEqual(typeof cb, 'function');
       }
     },
     
@@ -67,6 +69,7 @@ describe('Temporally composite stockloader', function() {
       },
       on(ev, cb) {
         assert.strictEqual(ev, 'record');
+        assert.strictEqual(typeof cb, 'function');
       }
     },
   });
@@ -114,5 +117,38 @@ describe('Temporally composite stockloader', function() {
     
     const loader = new tcl.QuoteLoader(mockConfig, mockQuoteLoaderProvider);
     return loader._makeQuoteRequestFetch(stocklist);
+  });
+  
+  it('Should forward "record" events from the base loaders', function() {
+    const mockConfig = {
+      timezone: tz,
+      bases: [
+        { loader: 'A', conditions: unfulfilledConditions },
+        { loader: 'B' }
+      ]
+    };
+    
+    const mockQuoteLoaderProvider = {
+      resolve(name) {
+        return this[name];
+      }
+    };
+    
+    const A = mockQuoteLoaderProvider['A'] = new promiseEvents.EventEmitter();
+    const B = mockQuoteLoaderProvider['B'] = new promiseEvents.EventEmitter();
+    A._makeQuoteRequestFetch = () => Promise.resolve();
+    B._makeQuoteRequestFetch = () => Promise.resolve();
+    
+    const loader = new tcl.QuoteLoader(mockConfig, mockQuoteLoaderProvider);
+    
+    const sources = [];
+    loader.on('record', data => sources.push(data.source));
+    
+    return loader._makeQuoteRequestFetch()
+      .then(() => A.emit('record', { source: 'A' }))
+      .then(() => B.emit('record', { source: 'B' }))
+      .then(() => A.emit('record', { source: 'A' }))
+      .then(() => A.emit('thingy', { source: 'A' }))
+      .then(() => assert.deepEqual(sources, ['A', 'B', 'A']));
   });
 });

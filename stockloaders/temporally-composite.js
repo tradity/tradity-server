@@ -32,9 +32,20 @@ class TemporallyCompositeLoader extends abstractloader.AbstractLoader {
     this.bases = opt.bases;
     this.timezone = opt.timezone;
     this.quoteLoaderProvider = quoteLoaderProvider;
+    
+    this.setupEventForwarding = false;
   }
 
   _makeQuoteRequestFetch(stocklist) {
+    if (!this.setupEventForwarding) {
+      this.setupEventForwarding = true;
+      
+      this.bases.forEach(b => {
+        this.quoteLoaderProvider.resolve(b.loader)
+          .on('record', r => this.emit('record', r));
+      });
+    }
+    
     for (let i = 0; i < this.bases.length; ++i) {
       const base = this.bases[i];
       

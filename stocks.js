@@ -118,6 +118,8 @@ class StockQuoteLoaderInterface extends api.Component {
       return;
     }
     
+    debug('Updating stock value', rec.symbol);
+    
     const cfg = this.load('Config').config();
     assert.notEqual(rec.lastTradePrice, null);
     if (rec.lastTradePrice === 0 || rec.ask < cfg.minAskPrice) { // happens with API sometimes.

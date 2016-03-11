@@ -55,12 +55,18 @@ describe('Temporally composite stockloader', function() {
     A: {
       _makeQuoteRequestFetch(stocklist) {
         return qlcall('A', expected, stocklist);
+      },
+      on(ev, cb) {
+        assert.strictEqual(ev, 'record');
       }
     },
     
     B: {
       _makeQuoteRequestFetch(stocklist) {
         return qlcall('B', expected, stocklist);
+      },
+      on(ev, cb) {
+        assert.strictEqual(ev, 'record');
       }
     },
   });

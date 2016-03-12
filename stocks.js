@@ -211,7 +211,7 @@ class StockValueUpdater extends api.Component {
     
     return ctx.query('SELECT * FROM stocks ' +
       'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
-    [cfg.lrutimeLimit, cfg.refetchLimit]).then(res => {
+    [cfg.refetchLimit, cfg.lrutimeLimit]).then(res => {
       stocklist = _.map(res, 'stocktextid');
       
       const dqNeededStocks = this.load('DelayedQueries').getNeededStocks();

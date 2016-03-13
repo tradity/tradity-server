@@ -93,10 +93,6 @@ class PubSub extends api._Component {
     this.subclient = redis.createClient(this.cfg);
     this.subclient.subscribe(this.cfg._channel);
     
-    if (this.cfg.password) {
-      [this.pubclient, this.subclient].forEach(c => c.auth(this.cfg.password));
-    }
-    
     this.subclient.on('message', (channel, message) => {
       const msg = JSON.parse(message);
       debug('Receiving', msg.name, msg.kind);

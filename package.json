@@ -49,7 +49,7 @@
     "promise-events": "^0.1.0",
     "promise-ratelimit": "^0.0.2",
     "promise-semaphore": ">=0.2.4",
-    "redis": "^2.4.2",
+    "redis": "^2.5.0-1",
     "request": "^2.67.0",
     "unionfind": "^0.0.3",
     "validator": "^5.1.0",

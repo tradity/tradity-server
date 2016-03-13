@@ -122,7 +122,7 @@ class StockQuoteLoaderInterface extends api.Component {
     
     const cfg = this.load('Config').config();
     assert.notEqual(rec.lastTradePrice, null);
-    if (rec.lastTradePrice === 0 || rec.ask < cfg.minAskPrice) { // happens with API sometimes.
+    if (rec.lastTradePrice === 0 || rec.ask * 10000 < cfg.minAskPrice) { // happens with API sometimes.
       return;
     }
     

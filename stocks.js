@@ -122,7 +122,7 @@ class StockQuoteLoaderInterface extends api.Component {
     
     const cfg = this.load('Config').config();
     assert.notEqual(rec.lastTradePrice, null);
-    if (rec.lastTradePrice === 0 || rec.ask < cfg.minAskPrice) { // happens with API sometimes.
+    if (rec.lastTradePrice === 0 || rec.ask * 10000 < cfg.minAskPrice) { // happens with API sometimes.
       return;
     }
     
@@ -211,7 +211,7 @@ class StockValueUpdater extends api.Component {
     
     return ctx.query('SELECT * FROM stocks ' +
       'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
-    [cfg.lrutimeLimit, cfg.refetchLimit]).then(res => {
+    [cfg.refetchLimit, cfg.lrutimeLimit]).then(res => {
       stocklist = _.map(res, 'stocktextid');
       
       const dqNeededStocks = this.load('DelayedQueries').getNeededStocks();

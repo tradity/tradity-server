@@ -48,7 +48,7 @@ class ProcessBlogs extends api.Requestable {
         
         debug('Fetching blog posts', bloginfo.endpoint, bloginfo.category);
         
-        return Promise.resolve(wp.posts().filter(catFilter)).then(posts => {
+        return Promise.resolve(wp.posts().namespace('').version('').filter(catFilter)).then(posts => {
           return Promise.all(posts.filter(post => {
             post.date_unix = new Date(post.date_gmt).getTime() / 1000;
             

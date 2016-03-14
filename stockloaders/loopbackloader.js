@@ -42,10 +42,12 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
         record.symbol = record.isin;
         record.failure = null;
         record.currency_name = 'EUR';
-        record.last = record.lastvalue;
         
+        record.lastvalue /= 10000.0;
         record.ask /= 10000.0;
         record.bid /= 10000.0;
+        
+        record.last = record.lastvalue;
         
         if (!this.literal) {
           record.pieces = 10000;

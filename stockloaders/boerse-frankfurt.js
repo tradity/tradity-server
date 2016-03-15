@@ -181,6 +181,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     
     this._stockinfoCache = new Map();
     this._pushReverseLookup = new Map();
+    this._nonexistentStocks = new Set();
   }
   
   _getStockinfoCacheEntry(stockid) {
@@ -259,8 +260,8 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       return this.request(requrl, null, {
         'Authorization': auth.restAPI
       }).catch(e => {
-        if (e.statusCode === 404) {
-          return 'null';
+        if (e && e.statusCode === 404) {
+          return '{"statusCode":404}';
         }
         
         throw e;
@@ -271,12 +272,24 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
   _getBasicInfo(stockid, loadFromPush) {
     const cacheEntry = this._getStockinfoCacheEntry(stockid);
     
+    // debug('Regular data cache', stockid, cacheEntry, cacheEntry, loadFromPush);
+    
     if (cacheEntry.isLive) {
       return cacheEntry.data;
     }
     
+    if (this._nonexistentStocks.has(stockid)) {
+      return null;
+    }
+    
     return cacheEntry.data = this._restAPICall('/papers/' + stockid).then(res => {
       debug('Basic stock info fetched', stockid, !!res);
+      if (res && res.statusCode === 404) {
+        debug('Marking stock as nonexistent', stockid);
+        this._nonexistentStocks.add(stockid);
+        return null;
+      }
+      
       if (!res) {
         return null;
       }
@@ -315,6 +328,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
   _getTradedAmountToday(stockid, needCurrent) {
     const cacheEntry = this._getStockinfoCacheEntry(stockid);
     
+    // debug('Pieces cache hm', stockid, cacheEntry, needCurrent);
     if (cacheEntry.pieces && !needCurrent) {
       return cacheEntry.pieces;
     }
@@ -324,7 +338,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     }).then(res => {
       debug('Day-based stock info fetched', stockid, !!res);
       
-      if (!res) {
+      if (!res || res.statusCode === 404) {
         return null;
       }
       
@@ -347,14 +361,14 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
   }
   
   _makeQuoteRequestFetch(stocklist, options) {
-    debug('Fetching stocks', stocklist.length);
+    debug('Fetching stocks', stocklist.length, JSON.stringify(options), process.pid);
     
     return Promise.all(stocklist.map(stockid => this._fetchSingleStockInfo(stockid, options)))
       .then(results => {
         debug('Fetched stocks', stocklist.length + ' queries', results.length + ' results');
         
         if (options.loadFromPush) {
-          const pushCodes = results.map(r => r.pushCode).filter(c => c);
+          const pushCodes = results.map(r => r && r.pushCode).filter(c => c);
           
           this._pushService.subscribeStockInfos(pushCodes);
         }

@@ -192,7 +192,9 @@ class StockQuoteLoaderInterface extends api.Component {
     const cfg = this.load('Config').config();
     
     return this.quoteLoader.loadQuotesList(_.uniq(stockIDs), Object.assign({
-      rec: filter.test(cfg, rec)
+      filter(rec) {
+        return filter.test(cfg, rec);
+      }
     }, options || {}));
   }
 }

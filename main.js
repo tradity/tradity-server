@@ -95,7 +95,6 @@ class PubSub extends api._Component {
     
     this.subclient.on('message', (channel, message) => {
       const msg = JSON.parse(message);
-      debug('Receiving', msg.name, msg.kind);
       this.emit(msg.name, msg.data);
     });
   }

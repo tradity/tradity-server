@@ -839,8 +839,7 @@ class StockTrade extends api.Requestable {
       
       // point of no return
       if (opt.testOnly) {
-        // XXX
-        throw { code: 200, testOnly: true };
+        throw { code: 200, testOnly: true, testSuccess: true };
       }
       
       fee = Math.max(Math.abs(cfg['transactionFeePerc'] * price), cfg['transactionFeeMin']);
@@ -932,8 +931,8 @@ class StockTrade extends api.Requestable {
       return { code: 200, data: { fee: fee, tradeid: tradeID }, repush: true };
     }).catch(err => {
       return (conn ? conn.rollback() : Promise.resolve()).then(() => {
-        // XXX i don’t know why exactly but this can’t possibly work
-        if (err.code === 200) {
+        if (err.testSuccess) {
+          assert.strictEqual(err.code, 200);
           return err; // for testOnly runs
         } else {
           throw err; // re-throw

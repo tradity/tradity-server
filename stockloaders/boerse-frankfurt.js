@@ -123,7 +123,7 @@ class BoerseFFPushCacheService extends promiseEvents.EventEmitter {
       s.setDataAdapter(this.opt.dataAdapter);
       s.setRequestedSnapshot('yes');
       
-      return new Promise((resolve, reject) => {
+      return new Promise(resolve => {
         s.addListener({
           onSubscription: () => {
             debug('LS Subcribed with ' + this.subscribedStocks.size + ' stocks');
@@ -269,7 +269,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     }).then(JSON.parse);
   }
   
-  _getBasicInfo(stockid, loadFromPush) {
+  _getBasicInfo(stockid) {
     const cacheEntry = this._getStockinfoCacheEntry(stockid);
     
     // debug('Regular data cache', stockid, cacheEntry, cacheEntry, loadFromPush);
@@ -348,7 +348,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
   
   _fetchSingleStockInfo(stockid, options) {
     return Promise.all([
-      this._getBasicInfo(stockid, options.loadFromPush),
+      this._getBasicInfo(stockid),
       this._getTradedAmountToday(stockid, options.needCurrentPieces)
     ]).then(r => {
       if (!r[0]) {

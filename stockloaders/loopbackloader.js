@@ -32,7 +32,7 @@ class LoopbackQuoteLoader extends abstractloader.AbstractLoader {
     this.ctx = opt.ctx;
   }
 
-  _makeQuoteRequestFetch(stocklist, options) {
+  _makeQuoteRequestFetch(stocklist/*, options*/) {
     debug('Fetching stocks from table', stocklist.length);
     return this.ctx.query('SELECT * FROM stocks WHERE stocktextid IN (' +
       stocklist.map(() => '?').join(',') + ')', stocklist).then(results => {

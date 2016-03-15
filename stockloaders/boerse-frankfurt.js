@@ -123,6 +123,10 @@ class BoerseFFPushCacheService extends promiseEvents.EventEmitter {
       s.setDataAdapter(this.opt.dataAdapter);
       s.setRequestedSnapshot('yes');
       
+      if (this.opt.maxFrequency) {
+        s.setRequestedMaxFrequency(this.opt.maxFrequency);
+      }
+      
       return new Promise(resolve => {
         s.addListener({
           onSubscription: () => {
@@ -182,6 +186,8 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     this._stockinfoCache = new Map();
     this._pushReverseLookup = new Map();
     this._nonexistentStocks = new Set();
+    
+    this.lsMaxFrequency = opt.lsMaxFrequency || null;
   }
   
   _getStockinfoCacheEntry(stockid) {
@@ -217,7 +223,8 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
         url: result.lightstreamerURL,
         dataAdapter: result.lightstreamerDataAdapter,
         adapterSet: result.lightstreamerAdapterSet,
-        fields: ['quotetime', 'bid', 'ask']
+        fields: ['quotetime', 'bid', 'ask'],
+        maxFrequency: this.lsMaxFrequency
       });
       
       this._pushService.on('error', e => {
@@ -382,6 +389,10 @@ exports.QuoteLoader = BoerseFFQuoteLoader;
 
 function test() {
   const options = minimist(process.argv.slice(2));
+  
+  if (options['max-frequency']) {
+    options.lsMaxFrequency = parseFloat(options['max-frequency']);
+  }
   
   const ql = new BoerseFFQuoteLoader(options);
   ql.on('error', e => console.log(e, e.stack + ''));

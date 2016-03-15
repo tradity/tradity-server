@@ -36,7 +36,7 @@ class TemporallyCompositeLoader extends abstractloader.AbstractLoader {
     this.setupEventForwarding = false;
   }
 
-  _makeQuoteRequestFetch(stocklist) {
+  _makeQuoteRequestFetch(stocklist, options) {
     if (!this.setupEventForwarding) {
       this.setupEventForwarding = true;
       
@@ -56,7 +56,7 @@ class TemporallyCompositeLoader extends abstractloader.AbstractLoader {
       debug('Using base loader', base.loader);
       const instance = this.quoteLoaderProvider.resolve(base.loader);
       
-      return instance._makeQuoteRequestFetch(stocklist);
+      return instance._makeQuoteRequestFetch(stocklist, options);
     }
     
     throw new Error('No base loader matching the current conditions found');

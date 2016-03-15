@@ -148,7 +148,8 @@ module.exports = {
     'boerse-frankfurt': {
       'path': './stockloaders/boerse-frankfurt.js',
       'apiUsername': 'missing',
-      'apiPassword': 'missing'
+      'apiPassword': 'missing',
+      'timezone': 'Europe/Berlin'
     },
     'loopback': {
       'path': './stockloaders/loopbackloader.js',

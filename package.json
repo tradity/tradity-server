@@ -57,5 +57,8 @@
     "wordpress-rest-api": "^0.6.0",
     "z-schema": "^3.16.1"
   },
+  "optionalDependencies": {
+    "lightstreamer-client": "^6.2.7"
+  },
   "private": true
 }

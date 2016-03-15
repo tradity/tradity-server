@@ -187,11 +187,13 @@ class StockQuoteLoaderInterface extends api.Component {
     });
   }
   
-  loadQuotesList(stockIDs) {
+  loadQuotesList(stockIDs, options) {
     const filter = this.load(StocksFilter);
     const cfg = this.load('Config').config();
     
-    return this.quoteLoader.loadQuotesList(_.uniq(stockIDs), rec => filter.test(cfg, rec));
+    return this.quoteLoader.loadQuotesList(_.uniq(stockIDs), Object.assign({
+      rec: filter.test(cfg, rec)
+    }, options || {}));
   }
 }
 
@@ -221,7 +223,10 @@ class StockValueUpdater extends api.Component {
       stocklist = stocklist.filter(s => !leaderStockTextIDFormat.test(s));
       
       if (stocklist.length > 0) {
-        return this.load(StockQuoteLoaderInterface).loadQuotesList(stocklist);
+        return this.load(StockQuoteLoaderInterface).loadQuotesList(stocklist, {
+          needCurrentPieces: false,
+          loadFromPush: true
+        });
       }
     });
   }
@@ -521,7 +526,9 @@ class StockSearch extends api.Requestable {
         externalStocksIDs.push(str.toUpperCase());
       }
       
-      return this.load(StockQuoteLoaderInterface).loadQuotesList(externalStocksIDs);
+      return this.load(StockQuoteLoaderInterface).loadQuotesList(externalStocksIDs, {
+        needCurrentPieces: true
+      });
     })).then(externalResults => {
       let results = _.union(localResults, externalResults.map(r => {
         return {

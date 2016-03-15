@@ -51,7 +51,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     return record;
   }
 
-  _makeQuoteRequest(stocklist) {
+  _makeQuoteRequest(stocklist, options) {
     let cachedResults = [];
     stocklist = stocklist.filter(stockid => {
       const cv = this.cache.get(stockid);
@@ -73,12 +73,12 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     
     // split stocklist into groups of maximum length maxlen
     // and flatten the resulting chunked array of records
-    const chunkedStocklist = _.chunk(stocklist, this.maxlen);
+    const chunkedStocklist = this.maxlen !== null ? _.chunk(stocklist, this.maxlen) : [stocklist];
     
     debug('Fetching stock list', stocklist.length, chunkedStocklist.length + ' chunks');
     
     return Promise.all(chunkedStocklist.map(chunk => {
-      return this._makeQuoteRequestFetch(chunk);
+      return this._makeQuoteRequestFetch(chunk, options);
     })).then(recordListChunks => {
       const fetchedRecordList = _.flatten(recordListChunks).filter(entry => entry);
       
@@ -98,11 +98,13 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     });
   }
 
-  loadQuotesList(stocklist, filter) {
-    filter = filter || (() => true);
+  loadQuotesList(stocklist, options) {
+    options = options || {};
+    
+    const filter = options.filter || (() => true);
     
     return Promise.resolve().then(() => {
-      return this._makeQuoteRequest(stocklist);
+      return this._makeQuoteRequest(stocklist, options);
     }).then(records => records.filter(filter));
   }
 

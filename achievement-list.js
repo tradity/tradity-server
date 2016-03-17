@@ -17,7 +17,6 @@
 "use strict";
 /*jshint unused:false */
 
-const _ = require('lodash');
 const assert = require('assert');
 
 /**
@@ -215,7 +214,7 @@ const ClientAchievements = [
   { name: 'LEARNING_TECHNICAL_ANALYSIS', xp: 100, requireVerified: false, category: 'LEARNING' },
 ];
 
-const dailyLoginAchievements = _.range(2,21);
+const dailyLoginAchievements = [...Array(21).keys()].slice(2); // [2, ..., 20]
 
 for (let i = 0; i < dailyLoginAchievements.length; ++i) {
   const count = dailyLoginAchievements[i];
@@ -254,25 +253,6 @@ for (let i = 0; i < ClientAchievements.length; ++i) {
     isClientAchievement: true
   });
 }
-
-AchievementList.push({
-  name: 'CHAT_PARTICIPANTS_5',
-  fireOn: {
-    'feed-chat-start': (ev, ctx) => ev.endpoints,
-    'feed-chat-user-added': (ev, ctx) => _.union([ev.addedChats], _.map(ev.endpoints, 'uid'))
-  },
-  xp: 400,
-  check: (uid, userAchievements, cfg, ctx) => {
-    return ctx.query('SELECT MAX((SELECT COUNT(*) ' +
-        'FROM chatmembers ' +
-        'WHERE chatid = cm.chatid)) ' +
-      'AS membercount ' +
-      'FROM `chatmembers` AS cm WHERE uid = ?', [uid])
-      .then(res => (res[0].membercount >= 5));
-  },
-  version: 0,
-  category: 'SOCIAL'
-});
 
 AchievementList.push({
   name: 'TRADE_VOLUME_25K',

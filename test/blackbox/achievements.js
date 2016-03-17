@@ -17,11 +17,12 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const moment = require('moment-timezone');
 const testHelpers = require('./test-helpers.js');
 const Config = require('../../config.js');
 const cfg = new Config().reloadConfig().config();
+
+const range = (start, end) => [...Array(end).keys()].slice(start);
 
 describe('achievements', function() {
   let socket;
@@ -118,12 +119,12 @@ describe('achievements', function() {
   
   describe('/achievements/client/daily-login-cert', function() {
     it('Should register achievements for being logged in multiple days in a row', function() {
-      return _.range(2, 10).map(N => {
+      return range(2, 10).map(N => {
         return () => {
           const now = moment.tz(cfg.timezone);
           
           // compute dates of the previous 10 days
-          const dates = _.range(0, N).map(x => {
+          const dates = range(0, N).map(x => {
             return now.clone().subtract(x, 'days').format('YYYY-MM-DD');
           });
           

@@ -18,7 +18,6 @@
 
 const crypto = require('crypto');
 const assert = require('assert');
-const _ = require('lodash');
 const validator = require('validator');
 const genders = require('genders');
 const sha256 = require('./lib/sha256.js');
@@ -240,7 +239,7 @@ class Login extends UserManagementRequestable {
       
       /* if there is an user with a verified e-mail address
        * do not allow other users with the same e-mail address to log in */
-      const haveVerifiedEMail = _.some(_.map(res, 'email_verif'));
+      const haveVerifiedEMail = res.some(entry => entry.email_verif);
       
       return res.map(r => {
         return (foundUser => {
@@ -733,7 +732,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
       }
       
       query.lang = String(query.lang || cfg.languages[0].id);
-      if (_.chain(cfg.languages).map('id').indexOf(query.lang).value() === -1) {
+      if (!cfg.languages.some(l => l.id === query.lang)) {
         throw new this.ClientError('invalid-language');
       }
       
@@ -1100,19 +1099,16 @@ class ListGenders extends api.Requestable {
       /* if something went wrong, everything still is just fine */
       return [];
     }).then(stats => {
-      const genderRanking = _.map(stats, 'gender').slice(0, 4);
-      genders.genders = _.sortBy(genders.genders, gender => {
-        let rankingIndex = genderRanking.indexOf(gender);
-        if (rankingIndex === -1) {
-          rankingIndex = Infinity;
-        }
-        
-        return [rankingIndex, gender];
-      });
+      const genderRanking = stats.map(row => row.gender).slice(0, 4);
       
       return {
         code: 200,
-        data: genders
+        data: {
+          genders: genderRanking.concat(genders.genders.filter(
+            g => genderRanking.indexOf(g) === -1
+          )),
+          translations: genders.translations
+        }
       };
     });
   }
@@ -1268,7 +1264,7 @@ class CreateInviteLink extends api.Component {
       email = query.email ? String(query.email) : null;
       
       if (!ctx.access.has('userdb')) {
-        if (email && !/([\w_+.-]+)@([\w.-]+)$/.test(email)) { // XXX validator.js
+        if (email && !validator.isEmail(email)) {
           throw new ErrorProvider.ClientError('invalid-email');
         }
         

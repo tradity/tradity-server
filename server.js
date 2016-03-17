@@ -77,6 +77,7 @@ class SoTradeServer extends api.Component {
     this.apiv1IndexETag = JSON.stringify(sha256(this.apiv1Index));
   }
   
+  // XXX dead end code currently
   internalServerStatistics(qctxDebug) {
     if (typeof gc === 'function') {
       gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)

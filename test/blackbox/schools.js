@@ -18,7 +18,6 @@
 
 const assert = require('assert');
 const fs = require('fs');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 const promiseUtil = require('../../lib/promise-util.js');
 const readFile = promiseUtil.ncall(fs.readFile);
@@ -156,7 +155,7 @@ describe('schools', function() {
         assert.ok(res._success);
         assert.ok(res.data.admins);
         assert.ok(res.data.admins.length > 0);
-        assert.notEqual(_.map(res.data.admins, 'adminid').indexOf(user.uid), -1);
+        assert.notEqual(res.data.admins.map(a => a.adminid).indexOf(user.uid), -1);
         
         return socket.put('/school/' + school.schoolid + '/members/' + user.uid, {
           __sign__: true,
@@ -173,7 +172,7 @@ describe('schools', function() {
       }).then(res => {
         assert.ok(res._success);
         assert.ok(res.data.admins);
-        assert.equal(_.map(res.data.admins, 'adminid').indexOf(user.uid), -1);
+        assert.equal(res.data.admins.map(a => a.adminid).indexOf(user.uid), -1);
       });
     });
   });
@@ -334,7 +333,7 @@ describe('schools', function() {
       }).then(res => {
         assert.ok(res._success);
         assert.ok(res.data);
-        assert.notEqual(_.map(res.data, 'path').indexOf(path), -1);
+        assert.notEqual(res.data.map(s => s.path).indexOf(path), -1);
       });
     });
   });

@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const fs = require('fs');
 const util = require('util');
 const PSemaphore = require('promise-semaphore');
@@ -100,8 +99,10 @@ class ErrorHandler extends api.Component {
           }
         }).then(() => {
           if (cfg && cfg.mail) {
-            const opt = _.clone(cfg.mail['errorBase']);
-            opt.text = longErrorText;
+            const opt = Object.assign({}, cfg.mail['errorBase'], {
+              text: longErrorText
+            });
+            
             return this.load('Mailer').sendMail(opt, null, null, 'error').catch(() => {});
           } else {
             console.warn('Could not send error mail due to missing config!');

@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const api = require('./api.js');
 const moment = require('moment-timezone');
@@ -192,8 +191,12 @@ class UserInfo extends api.Requestable {
        * this is not necessary; however, it may help catch bugs long 
        * before they actually do a lot of harm. */
       const levelArray = schools.map(s => s.path.replace(/[^\/]/g, '').length); // count '/'
-      if (_.intersection(levelArray, _.range(1, levelArray.length+1)).length !== levelArray.length) {
-        return this.load('PubSub').emit('error', new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
+      const expectedLevels = new Set([...Array(levelArray.length+1).keys()].slice(1)); // range(1, n+1)
+      
+      if (levelArray.length !== expectedLevels.size ||
+          levelArray.some(e => !expectedLevels.has(e)))
+      {
+        this.load('PubSub').emit('error', new Error('Invalid school chain for user: ' + JSON.stringify(schools)));
       }
       
       xuser.schools = schools;

@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const api = require('./api.js');
 const deepupdate = require('./lib/deepupdate.js');
@@ -49,7 +48,7 @@ class Database extends api.Component {
     this.deadlockCount = 0;
     this.queryCount= 0;
     this.isShuttingDown = false;
-    this.writableNodes = [];
+    this.writableNodes = new Set();
     this.id = 0;
   }
   
@@ -62,7 +61,7 @@ class Database extends api.Component {
     
     this.wConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
     this.rConnectionPool = this.dbmod.createPoolCluster(cfg.db.clusterOptions);
-    this.writableNodes = [];
+    this.writableNodes = new Set();
     
     for (let i = 0; i < cfg.db.clusterOptions.order.length; ++i) {
       const id = cfg.db.clusterOptions.order[i];
@@ -76,7 +75,7 @@ class Database extends api.Component {
       debug('Create pool node', opt.writable, opt.readable, id);
       
       if (opt.writable) {
-        this.writableNodes.push(id);
+        this.writableNodes.add(id);
         this.wConnectionPool.add(id, opt);
       }
       
@@ -88,8 +87,8 @@ class Database extends api.Component {
     this.wConnectionPool.on('remove', nodeId => {
       debug('Connection removed from writing pool!');
       
-      this.writableNodes = _.without(this.writableNodes, nodeId);
-      if (this.writableNodes.length === 0) {
+      this.writableNodes.delete(nodeId);
+      if (this.writableNodes.size === 0) {
         return this.load('ReadonlyStore').readonly = true;
       }
     });
@@ -127,7 +126,7 @@ class Database extends api.Component {
     return {
       deadlockCount: this.deadlockCount,
       queryCount: this.queryCount,
-      writableNodes: this.writableNodes.length
+      writableNodes: this.writableNodes.size
     };
   }
 
@@ -142,14 +141,14 @@ class Database extends api.Component {
    * @param {boolean} readonly  Indicates whether this query can use the read-only pool
    */
   query(query, args, readonly) {
-    const origArgs = Array.prototype.slice.call(arguments);
+    const origArgs = [...arguments];
     
     if (typeof readonly !== 'boolean') {
       readonly = (query.trim().indexOf('SELECT') === 0);
     }
     
     return this._getConnection(true, /* restart */() => {
-      return this.query.apply(this, origArgs);
+      return this.query(...origArgs);
     }, readonly).then(connection => {
       return connection.query(query, args || []);
     });

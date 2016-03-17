@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const lapack = require('lapack');
 const UnionFind = require('unionfind');
 const assert = require('assert');
@@ -171,7 +170,7 @@ class UpdateLeaderMatrix extends api.Component {
       ]);
     }).then(spread((users, res_static, res_static2, res_leader) => {
       res_static = res_static.concat(res_static2);
-      users = _.uniq(_.map(users, 'uid'));
+      users = [...new Set(users.map(row => row.uid))];
       
       const lmuFetchData = Date.now();
       
@@ -231,8 +230,8 @@ class UpdateLeaderMatrix extends api.Component {
         }
         
         const A = identityMatrix(n); // slightly faster than the lodash equivalent via 2 map()s
-        const B = _.map(_.range(n), () => [0.0, 0.0]);
-        const prov_sum = _.map(_.range(n), () => [0.0]);
+        const B = [...Array(n).keys()].map(() => [0.0, 0.0]);
+        const prov_sum = [...Array(n).keys()].map(() => [0.0]);
         
         for (let k = 0; k < cusers.length; ++k) {
           const uid = cusers[k];
@@ -284,8 +283,8 @@ class UpdateLeaderMatrix extends api.Component {
         sgesvTotalTime += sgesvET - sgesvST;
         presgesvTotalTime += sgesvST - componentStartTime;
         
-        const X =  _.map(res.X, 0);
-        const Xa = _.map(res.X, 1);
+        const X =  res.X.map(row => row[0]);
+        const Xa = res.X.map(row => row[1]);
 
         for (let i = 0; i < n; ++i) {
           assert.notStrictEqual(X[i],  null);

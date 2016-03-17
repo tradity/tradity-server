@@ -17,7 +17,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 const promiseUtil = require('../../lib/promise-util.js');
 
@@ -93,7 +92,7 @@ describe('dqueries', function() {
       }).then(res => {
         assert.ok(res._success);
         assert.ok(res.data);
-        assert.equal(_.map(res.data, 'queryid').indexOf(queryid), -1);
+        assert.equal(res.data.map(q => q.queryid).indexOf(queryid), -1);
       });
     });
   });

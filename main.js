@@ -17,7 +17,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const cluster = require('cluster');
 const redis = require('redis');
@@ -243,11 +242,14 @@ class Main extends api.Component {
   getFreePort(pid) {
     if (this.useCluster) {
       // free all ports assigned to dead workers first
-      const pids = _.chain(this.workers).map('process').map('pid').value();
+      const pids = this.workers.map(w => w.process.pid);
       this.assignedPorts = this.assignedPorts.filter(p => pids.indexOf(p.pid) !== -1);
     }
     
-    const freePorts = _.difference(this.load('Config').config().wsports, _.map(this.assignedPorts, 'port'));
+    const assignedPortSet = new Set(this.assignedPorts.map(p => p.port));
+    const wsports = this.load('Config').config().wsports;
+    const freePorts = wsports.filter(port => !assignedPortSet.has(port));
+    
     assert.ok(freePorts.length > 0);
     this.assignedPorts.push({pid: pid, port: freePorts[0]});
     return freePorts[0];

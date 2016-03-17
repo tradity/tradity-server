@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const moment = require('moment-timezone');
 const qctx = require('./qctx.js');
@@ -110,19 +109,19 @@ class Achievements extends api.Component {
       }
       
       let lookfor = achievementEntry.requireAchievementInfo;
-      lookfor = _.union(lookfor, [achievementEntry.name]); // implicit .uniq
+      lookfor = [...new Set([achievementEntry.name].concat(lookfor))]; // implicit .uniq
       
       return ctx.query('SELECT * FROM achievements ' +
         'WHERE uid = ? AND achname IN (' + lookfor.map(() => '?').join(',') + ')',
         [uid].splice(0).concat(lookfor));
     }).then(userAchievements => {
-      userAchievements = _.chain(userAchievements).map(a => [a.achname, a]).fromPairs().value();
+      userAchievements = new Map(userAchievements.map(a => [a.achname, a]));
       
-      if (userAchievements[achievementEntry.name]) {
-        const dbver = userAchievements[achievementEntry.name].version;
+      if (userAchievements.has(achievementEntry.name)) {
+        const dbver = userAchievements.get(achievementEntry.name).version;
         if (dbver > achievementEntry.version) {
           this.load('PubSub').emit('error', new Error(
-            'Version mismatch for achievement ' + userAchievements[achievementEntry.name] + ' vs ' + achievementEntry.version
+            'Version mismatch for achievement ' + userAchievements.get(achievementEntry.name) + ' vs ' + achievementEntry.version
           ));
         }
         
@@ -131,15 +130,17 @@ class Achievements extends api.Component {
         }
       }
     
-      if (_.difference(achievementEntry.prereqAchievements, _.keys(userAchievements)).length > 0) {
+      if (!achievementEntry.prereqAchievements.every(a => userAchievements.has(a))) {
         return; // not all prereqs fulfilled
       }
       
-      return Promise.resolve(
-        (_.intersection(achievementEntry.implicatingAchievements, _.keys(userAchievements)).length > 0) ?
-          true : 
-          achievementEntry.check(uid, userAchievements, cfg, ctx)
-      ).then(hasBeenAchieved => {
+      return Promise.resolve().then(() => {
+        if (achievementEntry.implicatingAchievements.some(a => userAchievements.has(a))) {
+          return true;
+        }
+        
+        return achievementEntry.check(uid, userAchievements, cfg, ctx);
+      }).then(hasBeenAchieved => {
         assert.equal(typeof hasBeenAchieved, 'boolean');
         if (!hasBeenAchieved) {
           return;
@@ -162,7 +163,7 @@ class Achievements extends api.Component {
         }).then(() => {
           return Promise.all(this.achievementList.map(ae => {
             // look for achievements of which we have changed the prereq/implicating achievements list
-            if (_.union(ae.implicatingAchievements, ae.prereqAchievements).indexOf(achievementEntry.name) === -1) {
+            if (!new Set(ae.implicatingAchievements.concat(ae.prereqAchievements)).has(achievementEntry.name)) {
               return -1;
             }
             
@@ -182,8 +183,10 @@ class Achievements extends api.Component {
   registerObservers(achievementEntry) {
     const ctx = new qctx.QContext({parentComponent: this});
 
-    return _.each(achievementEntry.fireOn, (checkCallback, eventName) => {
-      this.load('PubSub').on(eventName, data => {
+    return Promise.all(Object.keys(achievementEntry.fireOn).map(eventName => {
+      const checkCallback = achievementEntry.fireOn[eventName];
+      
+      return this.load('PubSub').on(eventName, data => {
         return Promise.resolve(checkCallback.call(achievementEntry, data, ctx)).then(userIDs => {
           assert.ok(userIDs);
           assert.notEqual(typeof userIDs.length, 'undefined');
@@ -193,7 +196,7 @@ class Achievements extends api.Component {
           }));
         });
       });
-    });
+    }));
   }
 
   /**
@@ -209,18 +212,22 @@ class Achievements extends api.Component {
         implicatingAchievements: []
       });
       
-      e.requireAchievementInfo = _.union(e.requireAchievementInfo, e.prereqAchievements, e.implicatingAchievements);
+      e.requireAchievementInfo = [...new Set(
+        e.requireAchievementInfo
+          .concat(e.prereqAchievements)
+          .concat(e.implicatingAchievements)
+        )];
       
       return e;
     });
     
     this.achievementList = this.achievementList.concat(list);
     
-    list.forEach(achievementEntry => {
+    return Promise.all(list.map(achievementEntry => {
       assert.notStrictEqual(achievementEntry.version, null);
       
-      this.registerObservers(achievementEntry);
-    });
+      return this.registerObservers(achievementEntry);
+    }));
   }
 }
 
@@ -325,7 +332,7 @@ class ClientAchievement extends api.Requestable {
     }
     
     return ctx.query('REPLACE INTO achievements_client (uid, achname, verified) VALUES(?, ?, ?)',
-      [ctx.user.uid, query.name, verified || 0]).then(() => {
+      [ctx.user.uid, query.name, verified ? 1 : 0]).then(() => {
       return this.load('PubSub').publish('clientside-achievement', {srcuser: ctx.user.uid, name: query.name});
     }).then(() => ({ code: 204 }));
   }
@@ -380,9 +387,10 @@ class ClientDLAchievement extends api.Requestable {
         longestStreak = Math.max(longestStreak, currentStreak);
       }
       
-      return _.range(2, Math.min(longestStreak, 20) + 1).map(i => {
+      // range(2, min(ls, 20)+1)
+      return [...Array(Math.min(longestStreak, 20) + 1).keys()].slice(2).map(i => {
         return () => {
-          return this.load(ClientAchievement).handle({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, cfg, 1);
+          return this.load(ClientAchievement).handle({name: 'DAILY_LOGIN_DAYS_' + i}, ctx, cfg, true);
         };
       }).reduce((a,b) => Promise.resolve(a).then(b), Promise.resolve()).then(() => {
         return { code: 200, streak: longestStreak };

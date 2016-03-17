@@ -13,7 +13,7 @@ function tryReadSync(filename) {
   try {
     return fs.readFileSync(filename);
   } catch (e) {
-    console.error(e);
+    console.error(e.message, 'while reading', filename);
     return null;
   }
 }

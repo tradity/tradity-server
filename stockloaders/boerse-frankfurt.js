@@ -25,7 +25,6 @@
 
 const assert = require('assert');
 const minimist = require('minimist');
-const _ = require('lodash');
 const os = require('os');
 const promiseEvents = require('promise-events');
 const abstractloader = require('./abstractloader.js');
@@ -137,8 +136,8 @@ class BoerseFFPushCacheService extends promiseEvents.EventEmitter {
             debug('LS Update', obj.getItemName());
             
             return Promise.resolve().then(() => {
-              return this.emit('update', Object.assign.apply(null,
-                s.getFields().map(f => ({ [f]: obj.getValue(f) }))
+              return this.emit('update', Object.assign(
+                ...s.getFields().map(f => ({ [f]: obj.getValue(f) }))
                 .concat([{
                   subscriptionID: obj.getItemName()
                 }])));
@@ -401,7 +400,7 @@ function test() {
     needCurrentPieces: true,
     loadFromPush: true
   }).then(rec => {
-    console.log(rec.length, _.map(rec, 'name'));
+    console.log(rec.length, rec.map(r => r.name));
   }).catch(e => {
     console.error('Sorry, an error was encountered:');
     console.trace(e);

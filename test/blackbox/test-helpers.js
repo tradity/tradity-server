@@ -20,12 +20,13 @@ const setup = require('./test-setup.js');
 const sotradeClient = require('../../sotrade-client.js');
 const sha256 = require('../../lib/sha256.js');
 const main = require('../../main.js');
-const _ = require('lodash');
 const assert = require('assert');
 
 let server;
 
-const startServer = _.memoize(function() {
+const memoize = fn => () => fn._result || (fn._result = fn());
+
+const startServer = memoize(() => {
   return setup.setupDatabase().then(() => {
     return setup.generateKeys();
   }).then(() => {
@@ -42,7 +43,7 @@ const startServer = _.memoize(function() {
   });
 });
 
-const getSocket = _.memoize(function() {
+const getSocket = memoize(() => {
   return startServer().then(() => {
     const socket = new sotradeClient.SoTradeConnection({
       noSignByDefault: true
@@ -54,7 +55,7 @@ const getSocket = _.memoize(function() {
   });
 });
 
-const getTestUser = _.memoize(function() {
+const getTestUser = memoize(() => {
   const name = 'mm' + Date.now() * (process.pid | 0x100) + String(parseInt(Math.random() * 1000));
   const password = sha256(name).substr(0, 12);
   const email = name + '@invalid.invalid';

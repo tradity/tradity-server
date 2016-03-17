@@ -210,7 +210,7 @@ class URLMatcher {
       
       const parameters = this.paths[i].parameters;
       
-      return Object.assign.apply(Object, [{}, match].concat(
+      return Object.assign(...[{}, match].concat(
         match.map((content, index) => ( // jshint ignore:line
           parameters[index] ? { [parameters[index]]: content } : {}
         ))
@@ -364,7 +364,6 @@ class Requestable extends Component {
   // XXX: validation for non-Requestable components?
   // XXX: schema forwarding/inclusion
   // XXX: readonly? can we handle that one better?
-  // XXX: Markdown
   // XXX: repush
   
   // wrap this.handle() for some backwards compatibility

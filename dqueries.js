@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const qctx = require('./qctx.js');
 const Access = require('./access.js').Access;
@@ -33,8 +32,8 @@ const debug = require('debug')('sotrade:dqueries');
 /**
  * Main object of the {@link module:dqueries} module
  * 
- * @property {object} queries  A local copy of the delayed queries table.
- * @property {object} neededStocks  A stock id -> list of delayed queries map; The latter
+ * @property {Map} queries  A local copy of the delayed queries table.
+ * @property {Map} neededStocks  A stock id -> list of delayed queries map; The latter
  *                                  will be informed about updates on the stock data.
  * @property {string[]} allowedQueryTypes  A list of query types which may be delayed.
  * 
@@ -49,9 +48,9 @@ class DelayedQueries extends api.Component {
       depends: ['StockExchangeIsOpen', 'ReadonlyStore'].concat(allowedQueryTypes)
     });
     
-    this.queries = {}; // XXX make this a map
+    this.queries = new Map();
     
-    this.neededStocks = {}; // XXX make this a map
+    this.neededStocks = new Map();
     this.allowedQueryTypes = allowedQueryTypes;
     this.enabled = false;
   }
@@ -62,9 +61,9 @@ class DelayedQueries extends api.Component {
     
     return Promise.all([
       pubsub.on('stock-update', ev => {
-        if (this.enabled && this.neededStocks['s-'+ev.stockid]) {
-          _.each(this.neededStocks['s-'+ev.stockid], entryid => {
-            return this.checkAndExecute(ctx, this.queries[entryid]);
+        if (this.enabled && this.neededStocks.has(ev.stockid)) {
+          return [...this.neededStocks.get(ev.stockid).values()].map(entryid => {
+            return this.checkAndExecute(ctx, this.queries.get(entryid));
           });
         }
       }),
@@ -91,9 +90,7 @@ class DelayedQueries extends api.Component {
    * Return all stocks which the delayed queries database needs as a string array.
    */
   getNeededStocks() {
-    return Object.keys(this.neededStocks).map(stocktextid => {
-      return stocktextid.substr(2); // strip s- prefix
-    });
+    return [...this.neededStocks.keys()];
   }
 
   /**
@@ -164,9 +161,8 @@ class DelayedQueries extends api.Component {
     query.check = cond.check;
     query.neededStocks = cond.neededStocks;
     
-    const entryid = String(query.queryid);
-    assert.ok(!this.queries[entryid]);
-    this.queries[entryid] = query;
+    assert.ok(!this.queries.has(query.queryid));
+    this.queries.set(query.queryid, query);
     query.neededStocks.forEach(stocktextid => this.addNeededStock(query.queryid, stocktextid));
     return this.checkAndExecute(ctx, query);
   }
@@ -178,11 +174,11 @@ class DelayedQueries extends api.Component {
    * @param {string} stocktextid  The stock’s id (ISIN/etc.).
    */
   addNeededStock(queryid, stocktextid) {
-    if (this.neededStocks['s-'+stocktextid]) {
-      assert.equal(this.neededStocks['s-'+stocktextid].indexOf(queryid), -1);
-      this.neededStocks['s-'+stocktextid].push(queryid);
+    if (this.neededStocks.has(stocktextid)) {
+      assert.ok(!this.neededStocks.get(stocktextid).has(queryid));
+      this.neededStocks.get(stocktextid).add(queryid);
     } else {
-      this.neededStocks['s-'+stocktextid] = [queryid];
+      this.neededStocks.set(stocktextid, new Set([queryid]));
     }
   }
 
@@ -310,7 +306,7 @@ class DelayedQueries extends api.Component {
       return query.executionPromise;
     }
     
-    assert.strictEqual(this.queries[query.queryid], query);
+    assert.strictEqual(this.queries.get(query.queryid), query);
     
     const cfg = this.load('Config').config();
     
@@ -357,12 +353,14 @@ class DelayedQueries extends api.Component {
    */
   removeQuery(query, ctx) {
     return ctx.query('DELETE FROM dqueries WHERE queryid = ?', [parseInt(query.queryid)]).then(() => {
-      delete this.queries[query.queryid];
+      assert.ok(this.queries.has(query.queryid));
+      this.queries.delete(query.queryid);
+      
       query.neededStocks.forEach(stock => {
-        this.neededStocks['s-'+stock] = _.without(this.neededStocks['s-'+stock], query.queryid);
+        this.neededStocks.get(stock).delete(query.queryid);
         
-        if (this.neededStocks['s-'+stock].length === 0) {
-          delete this.neededStocks['s-'+stock];
+        if (this.neededStocks.get(stock).size === 0) {
+          this.neededStocks.delete(stock);
         }
       });
     });
@@ -375,18 +373,12 @@ class DelayedQueries extends api.Component {
    * @param {module:qctx~QContext} ctx  A QContext to provide database access.
    */
   resetUser(uid, ctx) {
-    const toBeDeleted = [];
-    for (let queryid in this.queries) {
-      const q = this.queries[queryid];
-      
-      if (q.userinfo.uid === uid || (q.query.leader === uid)) {
-        toBeDeleted.push(q);
-      }
-    }
+    const toBeDeleted = [...this.queries.values()]
+      .filter(q => q.userinfo.uid === uid || q.query.leader === uid);
     
-    for (let i = 0; i < toBeDeleted.length; ++i) {
-      this.removeQuery(toBeDeleted[i], ctx);
-    }
+    return Promise.all(toBeDeleted.map(q => {
+      return this.removeQuery(q, ctx);
+    }));
   }
 }
 
@@ -471,10 +463,9 @@ class DelayedQueryList extends DelayedQueryRemoteRequestable {
   handleDQ(query, ctx) {
     return {
       code: 200, 
-      data: _.chain(this.load(DelayedQueries).queries).values()
-        .filter(q => (q.userinfo.uid === ctx.user.uid))
-        .map(q => _.omit(q, 'userinfo', 'accessinfo'))
-        .value()
+      data: [...this.load(DelayedQueries).queries.values()]
+        .filter(q => q.userinfo.uid === ctx.user.uid)
+        .map(q => Object.assign({}, q, {userinfo: undefined, accessinfo: undefined}))
     };
   }
 }
@@ -511,8 +502,8 @@ class DelayedQueryDelete extends DelayedQueryRemoteRequestable {
     
     debug('Remove dquery', queryid);
     
-    if (db.queries[queryid] && db.queries[queryid].userinfo.uid === ctx.user.uid) {
-      return db.removeQuery(db.queries[queryid], ctx).then(() => {
+    if (db.queries.has(queryid) && db.queries.get(queryid).userinfo.uid === ctx.user.uid) {
+      return db.removeQuery(db.queries.get(queryid), ctx).then(() => {
         return { code: 204 };
       });
     } else {
@@ -590,11 +581,13 @@ class DelayedQueryAdd extends DelayedQueryRemoteRequestable {
       throw new this.ClientError('unknown-query-type');
     }
     
-    const userinfo = _.clone(ctx.user);
+    const userinfo = Object.assign({}, ctx.user, {
+      clientopt: undefined,
+      clientstorage: undefined
+    });
+    
     assert.ok(!userinfo.pwsalt);
     assert.ok(!userinfo.pwhash);
-    delete userinfo.clientopt;
-    delete userinfo.clientstorage;
     
     return ctx.query('INSERT INTO dqueries (`condition`, query, userinfo, accessinfo) VALUES(?,?,?,?)',
       [String(query.condition), qstr, JSON.stringify(userinfo), ctx.access.toJSON()]).then(r => {
@@ -635,9 +628,9 @@ class DelayedQueryCheckAll extends DelayedQueryRemoteRequestable {
     
     const db = this.load(DelayedQueries);
     
-    return Promise.all(_.chain(db.queries).values().map(q => {
+    return Promise.all([...db.queries.values()].map(q => {
       return db.checkAndExecute(ctx, q);
-    }).value()).then(() => {
+    })).then(() => {
       return { code: 204 };
     });
   }

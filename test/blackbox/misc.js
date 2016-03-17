@@ -17,7 +17,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 
 describe('misc', function() {
@@ -46,7 +45,7 @@ describe('misc', function() {
   
   describe('/options/clientstorage', function() {
     it('Should save information in arbitrary Buffers', function() {
-      const buf = new Buffer(_.range(0, 256));
+      const buf = new Buffer([...Array(256).keys()]);
       
       return socket.put('/options/clientstorage', {
         body: buf,

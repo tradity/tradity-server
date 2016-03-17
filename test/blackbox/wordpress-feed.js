@@ -17,7 +17,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 
 describe('wordpress-feed', function() {
@@ -78,7 +77,7 @@ describe('wordpress-feed', function() {
       }).then(res => {
         assert.ok(res._success);
         
-        assert.equal(_.map(res.data, 'endpoint').indexOf(endpoint), -1);
+        assert.equal(res.data.map(f => f.endpoint).indexOf(endpoint), -1);
       });
     });
   });

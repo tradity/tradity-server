@@ -21,7 +21,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const minimist = require('minimist');
-const _ = require('lodash');
 const debug = require('debug')('sotrade:config');
 
 const api = require('./api.js');
@@ -245,7 +244,7 @@ class Config extends api._Component {
       r.push(prefix + suffix + '.js');
     }
     
-    return _.uniq(r);
+    return [...new Set(r)]; // uniq
   }
 }
 
@@ -268,7 +267,10 @@ class ConfigInfo extends api.Requestable {
       this.load('Achievements').checkAchievements(ctx.clone());
     }
     
-    return { code: 200, data: _.pick(cfg, cfg.clientconfig) };
+    return {
+      code: 200,
+      data: Object.assign(...cfg.clientconfig.map(prop => ({ [prop]: cfg[prop] })))
+    };
   }
 }
 
@@ -290,10 +292,10 @@ if (require.main === module) {
         console.log(config.otherConfigFiles[i]);
       }
     } else if (path.length > 0) {
-      console.log(_.get(config.config(), path));
+      console.log(path.reduce((obj, prop) => obj[prop], config.config()));
     } else {
       console.log('Config files:', config.otherConfigFiles);
       console.log('Config:', config.config());
     }
-  });
+  }).catch(e => console.error(e));
 }

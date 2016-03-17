@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const api = require('./api.js');
 const debug = require('debug')('sotrade:questionnaires');
@@ -27,7 +26,7 @@ class QuestionnaireDatabase extends api.Component {
   constructor() {
     super({
       local: true,
-      description: 'Perform the initial load of all questionnaires.',
+      description: 'Perform the initial load of all questionnaires.'
     });
   }
   
@@ -37,16 +36,20 @@ class QuestionnaireDatabase extends api.Component {
       return this.questionnaires;
     }
     
-    let loadQuestionnaire, loadQuestion, loadAnswer, groupByLanguage;
+    let loadQuestionnaire, loadQuestion, loadAnswer;
     
-    groupByLanguage = listWithLangAttribute => {
-      const ret = _.groupBy(listWithLangAttribute, 'language');
-      return _.mapValues(ret, list => _.omit(list[0], 'language'));
+    const groupByLanguage = listWithLangAttribute => {
+      return Object.assign(
+        ...listWithLangAttribute.map(entry => ({
+          [entry.language]: Object.assign({}, entry, { language: undefined })
+        }))
+      );
     };
     
     loadQuestionnaire = questionnaire => {
       return Promise.all([
-        ctx.query('SELECT language, qtext FROM qn_questionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id]).then(groupByLanguage),
+        ctx.query('SELECT language, qtext FROM qn_questionnaire_text WHERE questionnaire_id = ?', [questionnaire.questionnaire_id])
+          .then(groupByLanguage),
         ctx.query('SELECT qn_questions.question_id, question_multiple_answers, `order` ' + 
           'FROM qn_questions_questionnaires AS qlist ' +
           'JOIN qn_questions ON qn_questions.question_id = qlist.question_id ' +
@@ -55,15 +58,16 @@ class QuestionnaireDatabase extends api.Component {
           return Promise.all(res.map(loadQuestion));
         })
       ]).then(spread((texts, questions) => {
-        return _.mapValues(texts, (entry, lang) => {
-          return _.extend(entry, questionnaire, {
-            questions: _.map(questions, lang)
-          });
-        });
-      })).then(questionnaireObject => {
-        questionnaireObject.questionnaire_id = questionnaire.questionnaire_id;
-        return questionnaireObject;
-      });
+        return Object.assign(
+          ...Object.keys(texts).map(lang => ({
+            [lang]: Object.assign({}, texts[lang], questionnaire, {
+              questions: questions.map(question => question[lang])
+            })
+          })).concat([{
+            questionnaire_id: questionnaire.questionnaire_id
+          }])
+        );
+      }));
     };
     
     loadQuestion = question => {
@@ -76,20 +80,24 @@ class QuestionnaireDatabase extends api.Component {
           return Promise.all(res.map(loadAnswer));
         })
       ]).then(spread((texts, answers) => {
-        return _.mapValues(texts, (entry, lang) => {
-          return _.extend(entry, question, {
-            answers: _.map(answers, lang)
-          });
-        });
+        return Object.assign(
+          ...Object.keys(texts).map(lang => ({
+            [lang]: Object.assign({}, texts[lang], question, {
+              answers: answers.map(answer => answer[lang])
+            })
+          }))
+        );
       }));
     };
     
     loadAnswer = answer => {
       return ctx.query('SELECT language, atext FROM qn_answer_texts WHERE answer_id = ?', [answer.answer_id]).then(groupByLanguage)
       .then(texts => {
-        return _.mapValues(texts, entry => {
-          return _.extend(entry, answer);
-        });
+        return Object.assign(
+          ...Object.keys(texts).map(lang => ({
+            [lang]: Object.assign({}, texts[lang], answer)
+          }))
+        );
       });
     };
     
@@ -98,7 +106,9 @@ class QuestionnaireDatabase extends api.Component {
     }).then(questionnaires => {
       debug('Loaded questionnaires', questionnaires.length);
       
-      return _.mapValues(_.groupBy(questionnaires, 'questionnaire_id'), 0);
+      return Object.assign(
+        ...questionnaires.map(qn => ({ [qn.questionnaire_id]: qn }))
+      );
     });
   }
 }
@@ -131,12 +141,16 @@ class QuestionnairesList extends api.Requestable {
           'WHERE uid = ? AND qn_result_sets.questionnaire_id = qn_questionnaires.questionnaire_id) = 0 '
         ), uid === null ? [] : [uid])
       ]).then(spread((questionnaires, res) => {
-      const ids = _.map(res, 'questionnaire_id');
+      const ids = new Set(res.map(row => row.questionnaire_id));
       
       return {
         code: 200,
         data: {
-          questionnaires: _.pick(questionnaires, ids),
+          questionnaires: Object.assign(
+            ...Object.keys(questionnaires).map(id => ids.has(id) ? {
+              [id]: questionnaires[id]
+            } : {})
+          ),
           isPersonalized: uid !== null
         }
       };
@@ -217,10 +231,11 @@ class QuestionnaireSave extends api.Requestable {
       
       assert.ok(questionnaire.questionnaire_id);
       
-      const answeredQuestions = _.map(query.results, 'question');
-      const availableQuestions = _.map(questionnaire.questions, 'question_id');
+      const answeredQuestions = new Set(query.results.map(r => r.question));
+      const availableQuestions = new Set(questionnaire.questions.map(q => q.question_id));
       
-      if (_.xor(answeredQuestions, availableQuestions).length > 0) {
+      if (answeredQuestions.size !== availableQuestions.size ||
+        [...answeredQuestions].some(id => !availableQuestions.has(id))) {
         throw new this.ClientError('incomplete');
       }
       
@@ -238,13 +253,14 @@ class QuestionnaireSave extends api.Requestable {
             ' (' + JSON.stringify(question) + ')');
         }
         
-        const chosenAnswers = _.map(answers, 'answer');
-        const availableAnswers = _.map(question.answers, 'answer_id');
+        const chosenAnswers = answers.map(a => a.answer);
+        const availableAnswers = new Set(question.answers.map(a => a.answer_id));
+        const invalidAnswers = chosenAnswers.filter(id => !availableAnswers.has(id)); // jshint ignore:line
         
-        if (_.difference(chosenAnswers, availableAnswers).length > 0) {
+        if (invalidAnswers.length !== 0) {
           throw new this.ClientError('invalid-answers',
             'Invalid answer(s) for question ' + question.question_id + ': ' +
-            JSON.stringify(_.difference(chosenAnswers, availableAnswers)) +
+            JSON.stringify(invalidAnswers) +
             ' (' + JSON.stringify(question) + ')');
         }
         

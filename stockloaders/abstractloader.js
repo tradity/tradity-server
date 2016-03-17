@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const request = require('request');
 const debug = require('debug')('sotrade:stockloader');
@@ -24,6 +23,11 @@ const promiseUtil = require('../lib/promise-util.js');
 
 const MAXLEN_DEFAULT = 196;
 const CACHE_TIME_DEFAULT = 25000;
+
+const chunk = (arr, len) => (
+  [...Array(Math.ceil(arr.length/len)).keys()]
+    .map(o => arr.slice(o * len, (o+1) * len))
+);
 
 class AbstractLoader extends promiseUtil.EventEmitter {
   constructor(opt) {
@@ -73,23 +77,23 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     
     // split stocklist into groups of maximum length maxlen
     // and flatten the resulting chunked array of records
-    const chunkedStocklist = this.maxlen !== null ? _.chunk(stocklist, this.maxlen) : [stocklist];
+    const chunkedStocklist = this.maxlen !== null ? chunk(stocklist, this.maxlen) : [stocklist];
     
     debug('Fetching stock list', stocklist.length, chunkedStocklist.length + ' chunks');
     
     return Promise.all(chunkedStocklist.map(chunk => {
       return this._makeQuoteRequestFetch(chunk, options);
     })).then(recordListChunks => {
-      const fetchedRecordList = _.flatten(recordListChunks).filter(entry => entry);
+      const fetchedRecordList = [].concat(...recordListChunks).filter(entry => entry);
       
-      const receivedStocks = [];
+      const receivedStocks = new Set();
       fetchedRecordList.forEach(record => {
-        if (record.symbol) { receivedStocks.push(record.symbol); }
-        if (record.isin)   { receivedStocks.push(record.isin); }
-        if (record.wkn)    { receivedStocks.push(record.wkn); }
+        if (record.symbol) { receivedStocks.add(record.symbol); }
+        if (record.isin)   { receivedStocks.add(record.isin); }
+        if (record.wkn)    { receivedStocks.add(record.wkn); }
       });
       
-      const notReceivedStocks = _.difference(stocklist, receivedStocks);
+      const notReceivedStocks = stocklist.filter(s => !receivedStocks.has(s));
       notReceivedStocks.forEach(failedName => {
         return this._handleRecord({failure: failedName}, false);
       });
@@ -114,7 +118,7 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     }
     
     method = (method || 'get').toLowerCase();
-    headers = _.extend({
+    headers = Object.assign({
       'User-Agent': this.userAgent
     }, headers || {});
     

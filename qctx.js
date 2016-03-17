@@ -20,7 +20,6 @@ const Access = require('./access.js').Access;
 const assert = require('assert');
 const weak = require('weak');
 const api = require('./api.js');
-const _ = require('lodash');
 const debug = require('debug')('sotrade:qctx');
 
 /**
@@ -114,7 +113,7 @@ class QContext extends api.Component {
       parentComponent: this
     });
     
-    c.properties = _.clone(this.properties);
+    c.properties = Object.assign({}, this.properties);
     
     return c;
   }
@@ -284,7 +283,7 @@ class QContext extends api.Component {
     
     const postTransaction = doRelease => {
       delete this.openConnections[oci];
-      if (_.compact(this.openConnections).length === 0) {
+      if (this.openConnections.filter(d => d).length === 0) {
         this.openConnections = [];
       }
       
@@ -381,7 +380,7 @@ class QContext extends api.Component {
       
       notifyTimer = null;
       delete this.tableLocks[tli];
-      if (_.compact(this.tableLocks).length === 0) {
+      if (this.tableLocks.filter(l => l).length === 0) {
         this.tableLocks = [];
       }
       
@@ -487,8 +486,8 @@ class QContext extends api.Component {
       rv[i] = this.properties[i].value;
     }
     
-    rv.tableLocks = _.compact(this.tableLocks);
-    rv.openConnections = _.compact(this.openConnections);
+    rv.tableLocks = this.tableLocks.filter(l => l);
+    rv.openConnections = this.openConnections.filter(c => c);
     rv.queryCount = this.queryCount;
     rv.incompleteQueryCount = this.incompleteQueryCount;
     

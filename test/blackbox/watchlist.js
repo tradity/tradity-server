@@ -17,7 +17,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const testHelpers = require('./test-helpers.js');
 
 describe('watchlist', function() {
@@ -110,7 +109,7 @@ describe('watchlist', function() {
         assert.ok(res._success);
         assert.ok(res.data);
         
-        assert.equal(_.map(res.data, 'uid').indexOf(uid), -1);
+        assert.equal(res.data.map(entry => entry.uid).indexOf(uid), -1);
       });
     });
   });

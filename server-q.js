@@ -21,7 +21,6 @@
 Error.stackTraceLimit = Infinity;
 
 const assert = require('assert');
-const _ = require('lodash');
 
 const sotradeClient = require('./sotrade-client.js');
 
@@ -65,7 +64,7 @@ return socket({
   if (query.resultPath) {
     const path = String(query.resultPath).split('.');
     
-    console.log(_.reduce(path, _.result, result));
+    console.log(path.reduce((obj, prop) => obj[prop], result));
   }
   
   process.exit(result._success ? 0 : 1);

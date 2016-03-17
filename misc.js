@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const api = require('./api.js');
 const debug = require('debug')('sotrade:misc');
@@ -38,7 +37,7 @@ class GetOwnOptions extends api.Requestable {
   handle(query, ctx) {
     assert.ok(ctx.user);
     
-    const r = _.clone(ctx.user);
+    const r = Object.assign({}, ctx.user);
     assert.ok(!r.pwsalt);
     assert.ok(!r.pwhash);
     return { code: 200, data: r };

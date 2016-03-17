@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const validator = require('validator');
 const debug = require('debug')('sotrade:stocks');
@@ -191,7 +190,7 @@ class StockQuoteLoaderInterface extends api.Component {
     const filter = this.load(StocksFilter);
     const cfg = this.load('Config').config();
     
-    return this.quoteLoader.loadQuotesList(_.uniq(stockIDs), Object.assign({
+    return this.quoteLoader.loadQuotesList([...new Set(stockIDs)], Object.assign({
       filter(rec) {
         return filter.test(cfg, rec);
       }
@@ -213,15 +212,14 @@ class StockValueUpdater extends api.Component {
     
     let stocklist = [];
     
-    return ctx.query('SELECT * FROM stocks ' +
+    return ctx.query('SELECT stocktextid FROM stocks ' +
       'WHERE leader IS NULL AND UNIX_TIMESTAMP()-lastchecktime > ? AND UNIX_TIMESTAMP()-lrutime < ?',
     [cfg.refetchLimit, cfg.lrutimeLimit]).then(res => {
-      stocklist = _.map(res, 'stocktextid');
+      stocklist = res.map(res => res.stocktextid);
       
       const dqNeededStocks = this.load('DelayedQueries').getNeededStocks();
       
-      stocklist = _.union(stocklist, dqNeededStocks);
-      
+      stocklist = stocklist.concat(dqNeededStocks);
       stocklist = stocklist.filter(s => !leaderStockTextIDFormat.test(s));
       
       if (stocklist.length > 0) {
@@ -522,7 +520,7 @@ class StockSearch extends api.Requestable {
         [xstr, xstr])
     ]).then(spread((localResults_, externalStocks) => {
       localResults = cfg.forbidLeaderTrades ? [] : localResults_;
-      const externalStocksIDs = _.map(externalStocks, 'stocktextid');
+      const externalStocksIDs = externalStocks.map(row => row.stocktextid);
 
       if (validator.isISIN(str.toUpperCase())) {
         externalStocksIDs.push(str.toUpperCase());
@@ -532,7 +530,7 @@ class StockSearch extends api.Requestable {
         needCurrentPieces: true
       });
     })).then(externalResults => {
-      let results = _.union(localResults, externalResults.map(r => {
+      let results = localResults.concat(externalResults.map(r => {
         return {
           'stocktextid': r.symbol,
           'lastvalue': r.lastTradePrice * 10000,
@@ -550,8 +548,10 @@ class StockSearch extends api.Requestable {
       
       debug('Search for stock', str, localResults.length + ' local', externalResults.length + ' external', results.length + ' unique');
       
-      results = _.uniq(results, false, r => r.stocktextid);
-      let symbols = _.map(results, 'stocktextid');
+      // uniq by .stocktextid
+      const resultMap = new Map(results.map(r => [r.stocktextid, r]));
+      
+      let symbols = [...resultMap.keys()];
       
       if (symbols.length > 0 && !this.load('ReadonlyStore').readonly) {
         symbols = symbols.map(encodeURIComponent);
@@ -559,7 +559,7 @@ class StockSearch extends api.Requestable {
           'WHERE stocktextid IN (' + symbols.map(() => '?').join(',') + ')', symbols);
       }
       
-      return { code: 200, data: results };
+      return { code: 200, data: [...resultMap.values()] };
     });
   }
 }
@@ -722,8 +722,8 @@ class StockTrade extends api.Requestable {
         return { code: 200, skippedTest: true }; // [sic]
       }
       
-      const modifiedOptions = _.clone(opt);
-      modifiedOptions.testOnly = true;
+      const modifiedOptions = Object.assign({}, opt, { testOnly: true });
+      
       return this.handle(query, ctx, cfg, modifiedOptions); // may throw exception!
     }).then(result => {
       assert.strictEqual(result.code, 200); // everything else should have thrown

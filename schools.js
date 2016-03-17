@@ -18,7 +18,6 @@
 
 const parentPath = require('./lib/parentpath.js');
 const deepupdate = require('./lib/deepupdate.js');
-const _ = require('lodash');
 const assert = require('assert');
 const debug = require('debug')('sotrade:schools');
 const api = require('./api.js');
@@ -169,8 +168,10 @@ class SchoolUtilRequestable extends api.Requestable {
           'WHERE feedblogs.schoolid = ?',
           [s.schoolid]).then(blogposts => {
             return blogposts.map(post => {
-              const expost = _.extend(post, JSON.parse(post.postjson));
-              delete expost.postjson;
+              const expost = Object.assign({}, post, JSON.parse(post.postjson), {
+                postjson: undefined
+              });
+              
               return expost;
             });
           }), // blogposts

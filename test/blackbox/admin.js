@@ -17,7 +17,6 @@
 'use strict';
 
 const assert = require('assert');
-const _ = require('lodash');
 const sha256 = require('../../lib/sha256.js');
 const parentPath = require('../../lib/parentpath.js');
 const testHelpers = require('./test-helpers.js');
@@ -311,8 +310,8 @@ describe('admin', function() {
       }).then(res => {
         assert.ok(res._success);
         assert.ok(res.data);
-        assert.notEqual(_.map(res.data, 'schoolid').indexOf(id1), -1);
-        assert.equal   (_.map(res.data, 'schoolid').indexOf(id2), -1);
+        assert.notEqual(res.data.map(s => s.schoolid).indexOf(id1), -1);
+        assert.equal   (res.data.map(s => s.schoolid).indexOf(id2), -1);
       });
     });
     
@@ -321,8 +320,8 @@ describe('admin', function() {
         assert.ok(res._success);
         assert.ok(res.data);
         
-        const existentIDs = _.map(res.data, 'schoolid');
-        const nonexistentID = (Math.max.apply(Math, existentIDs) || 0) + 1;
+        const existentIDs = res.data.map(s => s.schoolid);
+        const nonexistentID = (Math.max(...existentIDs) || 0) + 1;
         
         return socket.post('/school/' + nonexistentID + '/merge/' + (nonexistentID + 1), {
           __sign__: true,

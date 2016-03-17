@@ -16,7 +16,6 @@
 
 "use strict";
 
-const _ = require('lodash');
 const assert = require('assert');
 const api = require('./api.js');
 const debug = require('debug')('sotrade:feed');
@@ -76,7 +75,7 @@ class FeedInserter extends api.Component {
     assert.equal(data.srcuser, parseInt(data.srcuser));
     
     const json = JSON.stringify(data.json ? data.json : {});
-    data = _.extend(data, data.json);
+    data = Object.assign({}, data, data.json);
     
     conn = conn || ctx; // both db connections and QContexts expose .query()
     
@@ -242,18 +241,18 @@ class FeedFetcher extends api.Requestable {
             return null;
           }
           
-          ev = _.extend(ev, json);
+          Object.assign(ev, json, { json: undefined });
         }
         
         if (ev.postjson) {
           const postjson = JSON.parse(ev.postjson);
           
-          // move type to wptype so it does not override the event type
-          postjson.wptype = postjson.type;
-          delete postjson.type;
-          
-          ev = _.extend(ev, postjson);
-          delete ev.postjson;
+          ev = Object.assign(ev, postjson, {
+            // ev.type -> ev.type, postjson.type -> ev.wptype
+            wptype: postjson.type,
+            type: ev.type,
+            postjson: undefined
+          });
         }
         
         if (!includeDeletedComments && 
@@ -262,7 +261,6 @@ class FeedFetcher extends api.Requestable {
           return null;
         }
         
-        delete ev.json;
         return ev;
       }).filter(ev => ev); /* filter out false-y results */
     }).then(evlist => ({ code: 200, data: evlist }));

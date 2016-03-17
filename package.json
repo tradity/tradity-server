@@ -30,6 +30,7 @@
     "istanbul": "*",
     "jshint": "*",
     "mocha": "*",
+    "nock": "^7.4.0",
     "nodemailer-sendmail-transport": "^1.0.0"
   },
   "dependencies": {

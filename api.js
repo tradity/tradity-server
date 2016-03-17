@@ -84,6 +84,7 @@ class _Component extends promiseEvents.EventEmitter {
   }
   
   init() {
+    return Promise.resolve();
   }
   
   load(dependency) {

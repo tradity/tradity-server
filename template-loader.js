@@ -16,8 +16,10 @@
 
 "use strict";
 
+const path = require('path');
+const fs = require('fs');
 const api = require('./api.js');
-const templates = require('./templates-compiled.js');
+const promiseUtil = require('./lib/promise-util.js');
 const debug = require('debug')('sotrade:template-loader');
 
 class TemplateReader extends api.Component {
@@ -26,6 +28,51 @@ class TemplateReader extends api.Component {
       identifier: 'TemplateReader',
       description: 'Read a template and optionally substitute variables.',
       notes: 'The strings which are substituted are of the format `${varname}`'
+    });
+    
+    this.loadedTemplates = new Map();
+  }
+  
+  loadRawTemplate(lang, template) {
+    const key = lang + ':' + template;
+    
+    if (this.loadedTemplates.has(key)) {
+      return this.loadedTemplates.get(key);
+    }
+    
+    const filename = path.join(
+      typeof __dirname !== 'undefined' ? __dirname : './',
+      'templates',
+      lang,
+      template);
+    
+    return promiseUtil.bufferFromStream(fs.createReadStream(filename))
+      .catch(e => {
+        if (e.code === 'ENOENT') {
+          return null;
+        }
+        
+        throw e;
+      }).then(data => {
+        this.loadedTemplates.set(key, data);
+        
+        return data === null ? null : data.toString('utf-8');
+      });
+  }
+  
+  findRawTemplate(lang, template, cfg) {
+    return this.loadRawTemplate(lang, template).then(content => {
+      if (content) {
+        return content;
+      }
+      
+      return cfg.languages.reduce((prevContent, lang) => {
+        if (prevContent) {
+          return prevContent;
+        }
+        
+        return this.loadRawTemplate(lang.id, template);
+      }, null);
     });
   }
   
@@ -36,27 +83,23 @@ class TemplateReader extends api.Component {
     
     variables = variables || {};
     
-    let t = templates[lang] && templates[lang][template];
-    
-    for (let i = 0; !t && i < cfg.languages.length; ++i) {
-      t = templates[cfg.languages[i].id][template];
-    }
-    
-    if (!t) {
-      throw new Error('Template not found: ' + template);
-    }
-    
-    Object.keys(variables).forEach(e => {
-      const r = new RegExp('\\$\\{' + e + '\\}', 'g');
-      t = t.replace(r, variables[e]);
+    return this.findRawTemplate(lang, template, cfg).then(t => {
+      if (!t) {
+        throw new Error('Template not found: ' + template);
+      }
+      
+      Object.keys(variables).forEach(e => {
+        const r = new RegExp('\\$\\{' + e + '\\}', 'g');
+        t = t.replace(r, variables[e]);
+      });
+      
+      const unresolved = t.match(/\$\{([^\}]*)\}/);
+      if (unresolved) {
+        throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
+      }
+      
+      return t;
     });
-    
-    const unresolved = t.match(/\$\{([^\}]*)\}/);
-    if (unresolved) {
-      throw new Error('Unknown variable “' + unresolved[1] + '” in template ' + template);
-    }
-    
-    return Promise.resolve(t);
   }
 
   readEMailTemplate(template, lang, variables) {

@@ -10,7 +10,7 @@
     "test": "mocha --recursive -s 20000 -t 50000",
     "test-cov": "istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 20000 -t 80000 && istanbul report html",
     "jshint": "jshint .",
-    "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js && ./compile-templates.sh"
+    "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js"
   },
   "repository": {
     "type": "git",

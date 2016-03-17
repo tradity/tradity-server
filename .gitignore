@@ -1,6 +1,5 @@
 node_modules
 output.log
-templates-compiled.js
 errors.log
 errors-*.log
 errors.*.log

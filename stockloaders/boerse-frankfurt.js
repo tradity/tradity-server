@@ -45,7 +45,8 @@ class BoerseFFPushCacheService extends promiseEvents.EventEmitter {
     
     this.ls = null;
     try {
-      this.ls = require('lightstreamer-client');
+      this.ls = typeof opt.lightstreamer !== 'undefined' ?
+        opt.lightstreamer : require('lightstreamer-client');
     } catch (e) {
       console.error(e);
     }
@@ -78,7 +79,7 @@ class BoerseFFPushCacheService extends promiseEvents.EventEmitter {
       debug('LS connecting', this.opt.url);
       this.conn = new this.ls.LightstreamerClient(this.opt.url, this.opt.adapterSet);
       this.conn.addListener({
-        onStatusChange: (newStatus) => {
+        onStatusChange: newStatus => {
           debug('LS connection status change', newStatus);
           if (/^CONNECTED:.*(STREAMING|POLLING)$/i.test(newStatus)) {
             resolve(this.conn);
@@ -187,6 +188,8 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     this._nonexistentStocks = new Set();
     
     this.lsMaxFrequency = opt.lsMaxFrequency || null;
+    this.lightstreamer = typeof opt.lightstreamer !== 'undefined' ?
+      opt.lightstreamer : undefined;
   }
   
   _getStockinfoCacheEntry(stockid) {
@@ -223,12 +226,16 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
         dataAdapter: result.lightstreamerDataAdapter,
         adapterSet: result.lightstreamerAdapterSet,
         fields: ['quotetime', 'bid', 'ask'],
-        maxFrequency: this.lsMaxFrequency
+        maxFrequency: this.lsMaxFrequency,
+        lightstreamer: this.lightstreamer
       });
       
       this._pushService.on('error', e => {
         if (e.isLSUnavailable) {
-          console.info('lightstreamer PUSH API connection not available');
+          if (typeof this.lightstreamer === 'undefined') {
+            console.info('lightstreamer PUSH API connection not available');
+          }
+          
           return;
         }
         

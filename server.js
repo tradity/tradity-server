@@ -23,7 +23,6 @@ const https = require('https');
 const url = require('url');
 const debug = require('debug')('sotrade:server');
 const api = require('./api.js');
-const qctx = require('./qctx.js');
 const promiseUtil = require('./lib/promise-util.js');
 const sha256 = require('./lib/sha256.js');
 
@@ -35,8 +34,6 @@ const sha256 = require('./lib/sha256.js');
  *                                                             active clients
  * @property {boolean} isShuttingDown  Indicates whether the serve is in shut-down mode
  * @property {int} creationTime  Unix timestamp of the object creation
- * @property {int} deadQueryCount  Total number of queries of disconnected clients
- * @property {int} connectionCount  Total number of client connections
  * 
  * @public
  */
@@ -49,13 +46,11 @@ class SoTradeServer extends api.Component {
     });
     
     this.httpServer = null;
-    this.clients = [];
     this.isShuttingDown = false;
     this.creationTime = Date.now() / 1000;
     
-    this.deadQueryCount = 0;
+    this.msgCount = 0;
     
-    this.connectionCount = 0;
     this.info = info || {};
     this.requestables = requestables;
     
@@ -77,30 +72,6 @@ class SoTradeServer extends api.Component {
     this.apiv1IndexETag = JSON.stringify(sha256(this.apiv1Index));
   }
   
-  // XXX dead end code currently
-  internalServerStatistics(qctxDebug) {
-    if (typeof gc === 'function') {
-      gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
-    }
-    
-    return {
-      pid: process.pid,
-      hostname: os.hostname(),
-      isBackgroundWorker: this.info.isBackgroundWorker,
-      creationTime: this.creationTime,
-      clients: this.clients.map(x => x.stats()),
-      bus: this.bus.stats(),
-      msgCount: this.msgCount,
-      msgLZMACount: this.msgLZMACount,
-      connectionCount: this.connectionCount,
-      deadQueryCount: this.deadQueryCount,
-      now: Date.now(),
-      qcontexts: qctxDebug ? qctx.QContext.getMasterQueryContext().getStatistics(true) : null,
-      readonly: this.load('ReadonlyStore').readonly,
-      dbstats: this.load('Database').usageStatistics()
-    };
-  }
-
   /**
    * Set up the server for listening on HTTP
    * 
@@ -233,7 +204,10 @@ class SoTradeServer extends api.Component {
           continue;
         }
         
-        handler = () => rq.handleRequest(req, res, uriMatch, parsedURI, defaultHeaders); // jshint ignore:line
+        handler = () => rq.handleRequest( // jshint ignore:line
+          req, res, uriMatch, parsedURI,
+          defaultHeaders, this);
+        
         allowedMethods = allowedMethods.concat(rq.handledMethods());
       }
     }
@@ -258,6 +232,47 @@ class SoTradeServer extends api.Component {
       }));
     }
   }
+  
+  internalServerStatistics() {
+    if (typeof gc === 'function') {
+      gc(); // perform garbage collection, if available (e.g. via the v8 --expose-gc option)
+    }
+    
+    return {
+      pid: process.pid,
+      hostname: os.hostname(),
+      isBackgroundWorker: this.info.isBackgroundWorker,
+      creationTime: this.creationTime,
+      msgCount: this.msgCount,
+      now: Date.now()/1000,
+      readonly: this.load('ReadonlyStore').readonly,
+      dbstats: this.load('Database').usageStatistics()
+    };
+  }
+}
+
+class InternalServerStatistics extends api.Requestable {
+  constructor() {
+    super({
+      url: '/_srvstats',
+      methods: ['GET'],
+      returns: [
+        { code: 200 }
+      ],
+      requiredAccess: 'server',
+      description: 'Return server status and statistics.'
+    });
+  }
+  
+  handleWithRequestInfo(query, ctx, cfg, xdata) {
+    return {
+      code: 200,
+      data: xdata.serverInstance.internalServerStatistics()
+    };
+  }
 }
 
 exports.Server = SoTradeServer;
+exports.components = [
+  InternalServerStatistics
+];

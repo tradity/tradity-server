@@ -400,7 +400,7 @@ class Requestable extends Component {
     return ctx;
   }
   
-  _handleRequest(req, res, uriMatch, defaultHeaders) {
+  _handleRequest(req, res, uriMatch, defaultHeaders, srv) {
     // get the remote address asap since it is lost with early disconnects
     const remoteAddress = req.socket.remoteAddress;
     const ctx = this.getQContext(req);
@@ -530,7 +530,8 @@ class Requestable extends Component {
       return handler(query, useCTX, cfg, {
         remoteip: remoteAddress,
         headers: req.headers,
-        rawRequest: req
+        rawRequest: req,
+        serverInstance: srv
       });
     }).catch(err => {
       if (typeof err.code === 'number') {
@@ -582,7 +583,7 @@ class Requestable extends Component {
     });
   }
   
-  handleRequest(req, res, uriMatch, parsedURI, defaultHeaders) {
+  handleRequest(req, res, uriMatch, parsedURI, defaultHeaders, srv) {
     const qsParameters = parsedURI.query;
     
     uriMatch = Object.assign({}, qsParameters, uriMatch);
@@ -621,7 +622,7 @@ class Requestable extends Component {
     }
     
     return Promise.resolve().then(() => {
-      return this._handleRequest(req, res, uriMatch, defaultHeaders);
+      return this._handleRequest(req, res, uriMatch, defaultHeaders, srv);
     }).catch(e => {
       res.writeHead(500, {'Content-Type': 'application/json;charset=utf-8'});
       res.end(JSON.stringify({

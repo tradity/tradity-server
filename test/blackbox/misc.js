@@ -70,4 +70,19 @@ describe('misc', function() {
       });
     });
   });
+  
+  describe('/_srvstats', function() {
+    it('Should return some server statistics', function() {
+      return socket.get('/_srvstats', { __sign__: true }).then(res => {
+        assert.ok(res.data);
+        assert.strictEqual(typeof res.data.pid, 'number');
+        assert.strictEqual(typeof res.data.hostname, 'string');
+        assert.strictEqual(typeof res.data.creationTime, 'number');
+        assert.strictEqual(typeof res.data.now, 'number');
+        assert.strictEqual(typeof res.data.msgCount, 'number');
+        assert.strictEqual(typeof res.data.readonly, 'boolean');
+        assert.strictEqual(typeof res.data.dbstats, 'object');
+      });
+    });
+  });
 });

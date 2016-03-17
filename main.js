@@ -172,7 +172,7 @@ class Main extends api.Component {
       './admin.js', './schools.js', './fsdb.js', './achievements.js',
       './achievement-list.js',
       './watchlist.js', './wordpress-feed.js', './questionnaires.js',
-      './user-info.js', './ranking.js'
+      './user-info.js', './ranking.js', './server.js'
     ];
     
     this.shutdownSignals = ['SIGTERM', 'SIGINT'];

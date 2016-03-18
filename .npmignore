@@ -10,3 +10,4 @@ core
 coverage
 npm-debug.log
 output.*.log
+.nyc_output

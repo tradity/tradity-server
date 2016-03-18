@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "mocha --recursive -s 20000 -t 50000",
-    "test-cov": "istanbul cover ./node_modules/.bin/_mocha --report lcovonly --  --recursive -R spec -s 20000 -t 80000 && istanbul report html",
+    "test-cov": "nyc --reporter=lcov --reporter=html mocha --recursive -s 20000 -t 80000",
     "jshint": "jshint .",
     "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js"
   },
@@ -27,11 +27,11 @@
   "homepage": "https://github.com/tradity/tradity-server#readme",
   "devDependencies": {
     "coveralls": "^2.11.6",
-    "istanbul": "*",
     "jshint": "*",
     "mocha": "*",
     "nock": "^7.4.0",
-    "nodemailer-sendmail-transport": "^1.0.0"
+    "nodemailer-sendmail-transport": "^1.0.0",
+    "nyc": "^6.1.1"
   },
   "dependencies": {
     "JSONStream": "^1.1.1",

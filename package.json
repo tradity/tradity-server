@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "mocha --recursive -s 20000 -t 50000",
-    "test-cov": "nyc --reporter=lcov --reporter=html mocha --recursive -s 20000 -t 80000",
+    "test-cov": "nyc mocha --recursive -s 20000 -t 80000",
     "jshint": "jshint .",
     "install": "echo \"module.exports = 'SOTS$(date +%s)-$(git rev-parse HEAD)';\" > buildstamp.js"
   },
@@ -26,7 +26,6 @@
   },
   "homepage": "https://github.com/tradity/tradity-server#readme",
   "devDependencies": {
-    "coveralls": "^2.11.6",
     "jshint": "*",
     "mocha": "*",
     "nock": "^7.4.0",

@@ -107,18 +107,7 @@ mailparser.on('end', mail_ => {
   debug('Have parsed mail');
   mail = mail_;
 
-  if (serverConfigReceived) {
-    handleMail(mail);
-  }
+  handleMail(mail);
 });
 
 process.stdin.pipe(mailparser);
-
-socket.once('server-config').then(() => {
-  debug('Have server config');
-  serverConfigReceived = true;
-  
-  if (mail) {
-    handleMail(mail);
-  }
-});

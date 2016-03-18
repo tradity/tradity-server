@@ -49,7 +49,13 @@ const getSocket = memoize(() => {
       noSignByDefault: true
     });
     
-    socket.once = evname => server.load('PubSub').once(evname);
+    socket.once = evname => Promise.race(
+      [
+        server.load('PubSub').once(evname)
+      ].concat(server.nonClusterWorkers.map(worker => 
+        worker.load('PubSub').once(evname)
+      ))
+    );
     
     return socket;
   });

@@ -20,27 +20,27 @@ const assert = require('assert');
 const testHelpers = require('./test-helpers.js');
 let socket, user;
 
-before(function() {
-  return testHelpers.standardSetup().then(data => {
-    socket = data.socket;
-    user = data.user;
-  });
-});
-
-after(testHelpers.standardTeardown);
-
-afterEach(function() {
-  return socket.post('/force-readonly', {
-    __sign__: true,
-    body: {
-      readonly: false
-    }
-  }).then(res => {
-    assert.ok(res._success);
-  });
-});
-
 describe('Readonly Login', function() {
+  before(function() {
+    return testHelpers.standardSetup().then(data => {
+      socket = data.socket;
+      user = data.user;
+    });
+  });
+
+  after(testHelpers.standardTeardown);
+
+  afterEach(function() {
+    return socket.post('/force-readonly', {
+      __sign__: true,
+      body: {
+        readonly: false
+      }
+    }).then(res => {
+      assert.ok(res._success);
+    });
+  });
+
   it('Provides means of logging in when the server has entered read-only mode', function() {
     return socket.post('/logout').then(res => {
       assert.ok(res._success);

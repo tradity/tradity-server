@@ -154,6 +154,7 @@ class Main extends api.Component {
     
     this.bwpid = null;
     this.workers = [];
+    this.nonClusterWorkers = [];
     this.assignedPorts = [];
     this.hasReceivedStartCommand = false;
     this.port = opt.port || null;
@@ -263,6 +264,8 @@ class Main extends api.Component {
       useCluster: false,
       port: port
     });
+    
+    this.nonClusterWorkers.push(m);
     
     return m.start();
   }

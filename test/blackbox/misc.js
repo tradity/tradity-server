@@ -85,4 +85,40 @@ describe('misc', function() {
       });
     });
   });
+  
+  describe('Artificially created error testing', function() {
+    beforeEach('Set SOTRADE_DO_NOT_OUTPUT_ERRORS', function() {
+      process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS = 'y';
+    });
+    
+    afterEach('Unset SOTRADE_DO_NOT_OUTPUT_ERRORS', function() {
+      process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS = '';
+    });
+  
+    describe('/artificial-error', function() {
+      it('Should emit an internal "error" event', function() {
+        return Promise.all([
+          socket.once('error').then(err => {
+            assert.ok(err.message.match(/Client-induced non-failure/));
+          }),
+          socket.post('/artificial-error', { __sign__: true })
+        ]);
+      });
+    });
+    
+    describe('/artificial-db-error', function() {
+      it('Leads to an artificial database error', function() {
+        return Promise.all([
+          socket.post('/artificial-db-error', { __sign__: true }).then(res => {
+            assert.ok(res._success);
+            assert.ok(res.data.err);
+          }),
+          socket.once('error').then(err => {
+            console.log(err);
+            assert.ok(err.message.match(/ER_PARSE_ERROR/));
+          })
+        ]);
+      });
+    });
+  });
 });

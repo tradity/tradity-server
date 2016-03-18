@@ -233,6 +233,7 @@ class Database extends api.Component {
             
             // make sure that the error event is emitted -> release() will be called in next tick
             Promise.resolve().then(release).catch(e => { throw e; });
+            autorelease = false;
             
             deferred.reject(err || exception);
             

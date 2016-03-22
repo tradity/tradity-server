@@ -609,7 +609,7 @@ class ListSchools extends api.Requestable {
     let where = 'WHERE 1 ';
     let params = [];
     if (parentPath) {
-      where = 'AND p.path LIKE ? OR p.path = ? ';
+      where += 'AND p.path LIKE ? OR p.path = ? ';
       params.push(parentPath + '/%', parentPath);
     }
     

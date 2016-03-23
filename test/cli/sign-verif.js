@@ -43,4 +43,16 @@ describe('sign.js and verify.js', function() {
     
     assert.deepStrictEqual(JSON.parse(verifiedOutput), message);
   });
+  
+  it('Fails with missing arguments', function() {
+      const signed = spawnSync('./sign.js', [], { stdio: 'pipe' });
+      
+      assert.notStrictEqual(signed.status, 0);
+  });
+  
+  it('Fails with missing arguments', function() {
+      const signed = spawnSync('./verify.js', [], { stdio: 'pipe' });
+      
+      assert.notStrictEqual(signed.status, 0);
+  });
 });

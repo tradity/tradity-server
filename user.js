@@ -1256,9 +1256,7 @@ class CreateInviteLink extends api.Component {
       schoolid = null;
     }
     
-    if (schoolid && isNaN(parseInt(schoolid))) {
-      throw new ErrorProvider.BadRequest(new Error('Need school id'), 422);
-    }
+    assert.ok(schoolid === null || (typeof schoolid === 'number' && !isNaN(schoolid)));
     
     return Promise.resolve().then(() => {
       email = query.email ? String(query.email) : null;

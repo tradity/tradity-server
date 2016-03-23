@@ -338,7 +338,7 @@ describe('schools', function() {
     });
   });
   
-  describe('school-publish-banner', function() {
+  describe('/school/…/banner', function() {
     it('Should provide schools with banners', function() {
       let school;
       
@@ -371,7 +371,7 @@ describe('schools', function() {
     });
   });
   
-  describe('create-invite-link', function() {
+  describe('/create-invitelink', function() {
     it('Should assign school IDs to invitation links', function() {
       let school;
       
@@ -380,7 +380,9 @@ describe('schools', function() {
         
         return socket.post('/school/' + school.schoolid + '/create-invitelink', {
           __sign__: true,
-          email: null
+          body: {
+            email: null
+          }
         });
       }).then(res => {
         assert.ok(res._success);
@@ -392,6 +394,17 @@ describe('schools', function() {
         assert.ok(res._success);
         assert.ok(res.data);
         assert.equal(res.data.schoolid, school.schoolid);
+      });
+    });
+    
+    it('Fails for invalid emails', function() {
+      return socket.post('/create-invitelink', {
+        body: {
+          email: 'invalid'
+        }
+      }).then(res => {
+        assert.strictEqual(res.code, 403);
+        assert.strictEqual(res.identifier, 'invalid-email');
       });
     });
   });

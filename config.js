@@ -258,7 +258,8 @@ class ConfigInfo extends api.Requestable {
       ],
       description: 'Show the current server config.',
       depends: ['Achievements', 'ReadonlyStore'],
-      writing: 'maybe'
+      writing: 'maybe',
+      requiredLogin: false
     });
   }
   

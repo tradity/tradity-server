@@ -86,6 +86,16 @@ describe('misc', function() {
     });
   });
   
+  describe('/config', function() {
+    it('Should return an excerpt of the server config', function() {
+      return socket.get('/config').then(res => {
+        assert.ok(res._success);
+        assert.ok(res.data);
+        assert.ok(res.data.ranking);
+      });
+    });
+  });
+  
   describe('Artificially created error testing', function() {
     beforeEach('Set SOTRADE_DO_NOT_OUTPUT_ERRORS', function() {
       process.env.SOTRADE_DO_NOT_OUTPUT_ERRORS = 'y';

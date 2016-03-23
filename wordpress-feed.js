@@ -118,7 +118,7 @@ class AddFeed extends api.Requestable {
       description: 'Add an associated blog for a given feed.',
       returns: [
         { code: 200 },
-        { code: 400, identifier: 'missingdata',
+        { code: 404, identifier: 'missingdata',
           description: 'in case no general blog previous blog entry was found in order to choose endpoint' }
       ],
       schema: {

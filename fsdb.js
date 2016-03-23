@@ -183,7 +183,7 @@ class FSDBPublish extends api.Requestable {
       length = parseInt(xdata.headers['content-length']);
       
       if (length < 0 || isNaN(length)) {
-        throw this.BadRequest(new TypeError('Content-Length header needs integer value'));
+        throw this.BadRequest(new TypeError('Content-Length header needs integer value'), 400);
       }
       
       debug('Upload file', mime, role);

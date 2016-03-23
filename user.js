@@ -1257,7 +1257,7 @@ class CreateInviteLink extends api.Component {
     }
     
     if (schoolid && isNaN(parseInt(schoolid))) {
-      throw new ErrorProvider.BadRequest(new Error('Need school id'));
+      throw new ErrorProvider.BadRequest(new Error('Need school id'), 422);
     }
     
     return Promise.resolve().then(() => {

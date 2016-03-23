@@ -71,7 +71,7 @@ describe('admin', function() {
       return socket.post('/impersonate/ABC', {
         __sign__: true
       }).then(result => {
-        assert.equal(result.code, 400);
+        assert.equal(result.code, 422);
       });
     });
     
@@ -106,7 +106,7 @@ describe('admin', function() {
       return socket.put('/user/Banana/email', {
         __sign__: true
       }).then(result => {
-        assert.equal(result.code, 400);
+        assert.equal(result.code, 422);
       });
     });
     

@@ -310,10 +310,12 @@ class Requestable extends Component {
     
     this.BadRequest =
     class BadRequest extends Error {
-      constructor(underlying) {
+      constructor(underlying, code) {
+        assert.ok(code === 422 || code === 400);
+        
         super('Bad Request: ' + String(underlying));
         
-        this.code = 400;
+        this.code = code;
         this.identifier = 'bad-request';
         this.schema = requestable.schema;
         this.underlying = underlying;
@@ -428,7 +430,7 @@ class Requestable extends Component {
         jsonStream.on('data', resolve);
         
         jsonStream.on('error', e => {
-          reject(new this.BadRequest(e));
+          reject(new this.BadRequest(e), 400);
         });
       });
     }).then(postData => {
@@ -461,7 +463,7 @@ class Requestable extends Component {
         
         const isValid = validator.validate(query, this.schema);
         if (!isValid) {
-          throw new this.BadRequest(validator.getLastError());
+          throw new this.BadRequest(validator.getLastError(), 422);
         }
       }
       

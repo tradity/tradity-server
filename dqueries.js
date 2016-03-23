@@ -574,7 +574,7 @@ class DelayedQueryAdd extends DelayedQueryRemoteRequestable {
     try {
       qstr = JSON.stringify(query.query);
     } catch (e) {
-      throw new this.BadRequest(e);
+      throw new this.BadRequest(e, 400);
     }
     
     if (db.allowedQueryTypes.indexOf(query.query.type) === -1) {

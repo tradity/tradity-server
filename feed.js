@@ -305,7 +305,7 @@ class CommentPost extends api.Requestable {
       methods: ['POST'],
       returns: [
         { code: 204 },
-        { code: 400, identifier: 'not-found' }
+        { code: 404, identifier: 'not-found' }
       ],
       schema: {
         type: 'object',

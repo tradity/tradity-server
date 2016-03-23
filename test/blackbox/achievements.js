@@ -158,7 +158,7 @@ describe('achievements', function() {
     
     it('Should fail when no certificates are given', function() {
       return socket.post('/achievements/client/daily-login-submit').then(result => {
-        assert.equal(result.code, 400);
+        assert.equal(result.code, 422);
       });
     });
     

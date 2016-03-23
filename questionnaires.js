@@ -147,7 +147,7 @@ class QuestionnairesList extends api.Requestable {
         code: 200,
         data: {
           questionnaires: Object.assign(
-            ...Object.keys(questionnaires).map(id => ids.has(id) ? {
+            ...Object.keys(questionnaires).map(id => ids.has(parseInt(id)) ? {
               [id]: questionnaires[id]
             } : {})
           ),

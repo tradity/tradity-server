@@ -47,7 +47,7 @@ describe('questionnaires', function() {
     });
   });
   
-  describe('save-questionnaire-feed', function() {
+  describe('/questionnaire/:id', function() {
     it('Should save a questionnaire’s results', function() {
       return socket.get('/questionnaires').then(result => {
         assert.ok(result._success);
@@ -73,7 +73,7 @@ describe('questionnaires', function() {
         assert.ok(questionnaire.questions);
         assert.ok(questionnaire.questions.length > 0);
         
-        const results = questionnaire.questions.map(function(qn) {
+        const results = questionnaire.questions.map(qn => {
           assert.ok(qn.qtext);
           assert.equal(typeof qn.question_id, 'number');
           assert.equal(typeof qn.order, 'number');
@@ -110,8 +110,8 @@ describe('questionnaires', function() {
             fill_time: Date.now() - startTime,
             fill_language: lang
           }
-        }).then(data => {
-          assert.ok(data._success);
+        }).then(result => {
+          assert.ok(result._success);
           
           return socket.get('/questionnaires');
         }).then(result => {

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Tradity.de Server
 // Copyright (C) 2016 Tradity.de Tech Team <tech@tradity.de>
 
@@ -15,20 +14,33 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"use strict";
+'use strict';
 
-const SignedMessaging = require('./signedmsg.js').SignedMessaging;
-const Config = require('./config.js');
-const cfg = new Config().reloadConfig().config();
+const assert = require('assert');
+const spawnSync = require('./cli-helpers.js').spawnSync;
 
-const smdb = new SignedMessaging();
-smdb.useConfig(cfg);
+const message = {
+  apeWants: 'BANANA'
+};
 
-if (process.argv.length < 2) {
-  console.log('signing requires a JSON-encoded object as a parameter');
-  process.exit(0);
-}
-
-smdb.createSignedMessage(JSON.parse(process.argv[2])).then(msg => {
-  console.log(msg);
-}).catch(e => console.trace(e));
+describe('sign.js and verify.js', function() {
+  it('Can create and verify signed messages', function() {
+    const signed = spawnSync('./sign.js', [
+      JSON.stringify(message)
+    ]);
+    
+    assert.strictEqual(signed.status, 0);
+    assert.ok(signed.stdout.toString('utf8'));
+    
+    const verified = spawnSync('./verify.js', [
+      signed.stdout
+    ]);
+    
+    const verifiedOutput = verified.stdout.toString('utf8');
+    
+    assert.strictEqual(verified.status, 0);
+    assert.ok(verifiedOutput);
+    
+    assert.deepStrictEqual(JSON.parse(verifiedOutput), message);
+  });
+});

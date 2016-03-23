@@ -17,7 +17,8 @@
 
 "use strict";
 const SignedMessaging = require('./signedmsg.js').SignedMessaging;
-const cfg = require('./config.js').config();
+const Config = require('./config.js');
+const cfg = new Config().reloadConfig().config();
 
 const smdb = new SignedMessaging();
 smdb.useConfig(cfg);

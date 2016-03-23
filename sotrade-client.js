@@ -73,9 +73,9 @@ function NodeSoTradeConnection (opt) {
       headers: Object.assign({
         'X-Sotrade-Auth': key
       }, options.headers),
-      qs: options.qs || options.cache === false ? Object.assign({
+      qs: options.cache === false ? Object.assign({
         noCache: Date.now()
-      }, options.qs || {}) : undefined
+      }, options.qs || {}) : options.qs
     });
       
     return new Promise((resolve, reject) => {

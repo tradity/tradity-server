@@ -84,18 +84,6 @@ describe('user', function() {
     });
   });
   
-  describe('/ranking', function() {
-    it('Should return a list of all users', function() {
-      return socket.get('/ranking').then(res => {
-        assert.ok(res._success);
-        assert.ok(res.data);
-        assert.ok(res.data.length > 0);
-        assert.ok(res.data[0].name);
-        assert.ok(res.data[0].totalvalue);
-      });
-    });
-  });
-  
   describe('/validate-username', function() {
     it('Should allow valid user names', function() {
       return socket.get('/validate-username/Banana1992').then(res => {

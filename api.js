@@ -367,7 +367,6 @@ class Requestable extends Component {
   // XXX: validation for non-Requestable components?
   // XXX: schema forwarding/inclusion
   // XXX: readonly? can we handle that one better?
-  // XXX: repush
   
   // wrap this.handle() for some backwards compatibility
   handleWithRequestInfo(query, ctx, cfg /*, xdata */) {

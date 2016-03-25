@@ -93,7 +93,7 @@ class UserInfo extends api.Requestable {
     let xuser, queryLookfor;
     
     let resultCacheKey = '';
-    const cacheable = !(ctx.access.has('caching') && query.noCache);
+    const cacheable = !query.noCache;
     
     if (query.lookfor === '$self' && ctx.user) {
       queryLookfor = ctx.user.uid;

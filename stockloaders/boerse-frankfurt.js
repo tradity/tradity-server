@@ -138,7 +138,7 @@ class BoerseFFPushCacheService extends promiseEvents.EventEmitter {
             
             return Promise.resolve().then(() => {
               return this.emit('update', Object.assign(
-                ...s.getFields().map(f => ({ [f]: obj.getValue(f) }))
+                {}, ...s.getFields().map(f => ({ [f]: obj.getValue(f) }))
                 .concat([{
                   subscriptionID: obj.getItemName()
                 }])));

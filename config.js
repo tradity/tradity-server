@@ -270,7 +270,7 @@ class ConfigInfo extends api.Requestable {
     
     return {
       code: 200,
-      data: Object.assign(...cfg.clientconfig.map(prop => ({ [prop]: cfg[prop] })))
+      data: Object.assign({}, ...cfg.clientconfig.map(prop => ({ [prop]: cfg[prop] })))
     };
   }
 }

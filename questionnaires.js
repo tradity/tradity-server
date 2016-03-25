@@ -40,7 +40,7 @@ class QuestionnaireDatabase extends api.Component {
     
     const groupByLanguage = listWithLangAttribute => {
       return Object.assign(
-        ...listWithLangAttribute.map(entry => ({
+        {}, ...listWithLangAttribute.map(entry => ({
           [entry.language]: Object.assign({}, entry, { language: undefined })
         }))
       );
@@ -59,7 +59,7 @@ class QuestionnaireDatabase extends api.Component {
         })
       ]).then(spread((texts, questions) => {
         return Object.assign(
-          ...Object.keys(texts).map(lang => ({
+          {}, ...Object.keys(texts).map(lang => ({
             [lang]: Object.assign({}, texts[lang], questionnaire, {
               questions: questions.map(question => question[lang])
             })
@@ -81,7 +81,7 @@ class QuestionnaireDatabase extends api.Component {
         })
       ]).then(spread((texts, answers) => {
         return Object.assign(
-          ...Object.keys(texts).map(lang => ({
+          {}, ...Object.keys(texts).map(lang => ({
             [lang]: Object.assign({}, texts[lang], question, {
               answers: answers.map(answer => answer[lang])
             })
@@ -94,7 +94,7 @@ class QuestionnaireDatabase extends api.Component {
       return ctx.query('SELECT language, atext FROM qn_answer_texts WHERE answer_id = ?', [answer.answer_id]).then(groupByLanguage)
       .then(texts => {
         return Object.assign(
-          ...Object.keys(texts).map(lang => ({
+          {}, ...Object.keys(texts).map(lang => ({
             [lang]: Object.assign({}, texts[lang], answer)
           }))
         );
@@ -107,7 +107,7 @@ class QuestionnaireDatabase extends api.Component {
       debug('Loaded questionnaires', questionnaires.length);
       
       return Object.assign(
-        ...questionnaires.map(qn => ({ [qn.questionnaire_id]: qn }))
+        {}, ...questionnaires.map(qn => ({ [qn.questionnaire_id]: qn }))
       );
     });
   }

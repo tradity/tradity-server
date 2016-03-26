@@ -16,7 +16,6 @@
 
 "use strict";
 
-const assert = require('assert');
 const api = require('./api.js');
 
 class SustainabilityRanking extends api.Requestable {
@@ -60,18 +59,13 @@ class SustainabilityRanking extends api.Requestable {
   }
   
   handle(query, ctx) {
-    let likestringWhere = '';
-    let likestringUnit = [];
-    let likestring;
-    let cacheKey;
-    
     return ctx.query('DROP TEMPORARY TABLE IF EXISTS sranking_scores; ' +
       'CREATE TEMPORARY TABLE sranking_scores (' +
         'stocktextid VARCHAR(32), ' +
         'score DOUBLE' +
       ');' +
       'INSERT INTO sranking_scores (stocktextid, score) VALUES' + 
-        query.scoreTable.map(entry => '(?,?)').join(',') +
+        query.scoreTable.map(() => '(?,?)').join(',') +
       ';' +
       'SELECT u.uid, u.email, u.name, now_va.totalvalue AS totalvalue, ' +
       'weightedbuys.totalscore ' +

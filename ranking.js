@@ -156,7 +156,7 @@ class RankingListing extends api.Requestable {
     let cacheKey;
     
     let join = 'FROM users AS u ' +
-      'JOIN users_data ON users_data.uid = u.uid ' +
+      'JOIN users_data ON users_data.uid = u.uid ' + // used for real names
       'LEFT JOIN schoolmembers AS sm ON u.uid = sm.uid ' +
       'LEFT JOIN schools AS c ON sm.schoolid = c.schoolid ' +
       'JOIN (SELECT uid, MIN(time) AS min_t, MAX(time) AS max_t FROM valuehistory ' +

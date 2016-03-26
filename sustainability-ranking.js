@@ -63,7 +63,7 @@ class SustainabilityRanking extends api.Requestable {
       'CREATE TEMPORARY TABLE sranking_scores (' +
         'stocktextid VARCHAR(32), ' +
         'score DOUBLE' +
-      ');' +
+      ') DEFAULT CHARSET=utf8;' +
       'INSERT INTO sranking_scores (stocktextid, score) VALUES' + 
         query.scoreTable.map(() => '(?,?)').join(',') +
       ';' +

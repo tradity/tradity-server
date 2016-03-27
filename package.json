@@ -26,8 +26,8 @@
   },
   "homepage": "https://github.com/tradity/tradity-server#readme",
   "devDependencies": {
-    "jshint": "*",
-    "mocha": "*",
+    "jshint": "^2.9.1",
+    "mocha": "^2.4.5",
     "nock": "^7.4.0",
     "nodemailer-sendmail-transport": "^1.0.0",
     "nyc": "^6.1.1"
@@ -47,8 +47,8 @@
     "nodemailer-smtp-pool": "^2.0.0",
     "promise-events": "^0.1.0",
     "promise-ratelimit": "^0.0.2",
-    "promise-semaphore": ">=0.2.4",
-    "redis": "^2.5.0-1",
+    "promise-semaphore": "^0.2.4",
+    "redis": "^2.5.3",
     "request": "^2.67.0",
     "unionfind": "^0.0.3",
     "validator": "^5.1.0",

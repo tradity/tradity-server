@@ -48,6 +48,7 @@
     "promise-events": "^0.1.0",
     "promise-ratelimit": "^0.0.2",
     "promise-semaphore": "^0.2.4",
+    "readable-stream": "^2.0.6",
     "redis": "^2.5.3",
     "request": "^2.67.0",
     "unionfind": "^0.0.3",

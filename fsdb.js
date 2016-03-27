@@ -18,6 +18,7 @@
 
 const request = require('request');
 const assert = require('assert');
+const stream = require('readable-stream');
 const sha256 = require('./lib/sha256.js');
 const qctx = require('./qctx.js');
 const api = require('./api.js');
@@ -93,26 +94,35 @@ class FSDBRequestable extends api.Requestable {
         }
       }
       
-      return new Promise((resolve, reject) => {
+      // create a PassThrough stream to buffer up data while we are already
+      // reading the response and have not written all headers yet
+      const dataPassThrough = new stream.PassThrough();
+      
+      return (new Promise((resolve, reject) => {
         const proxyURL = r.content.toString('utf8');
         
-        const preq = request.get(proxyURL, {
+        request.get(proxyURL, {
           headers: {
             'If-Modified-Since': req.headers['if-modified-since'],
             'User-Agent': cfg.userAgent
           }
-        }).on('response', resp => {
-          const pheaders = Object.assign(
-            ...['cache-control', 'expires', 'last-modified', 'source-age', 'content-type']
-              .map(header => ({
-                [header.replace(/(-|^)\w/g, w => w.toUpperCase())]: resp.headers[header]
-              }))
-            );
-          
-          Object.assign(headers, pheaders);
-          
-          resolve({ code: resp.statusCode, finalize: res => preq.pipe(res) });
-        }).on('error', reject);
+        }).on('response', resolve)
+          .on('error', e => {
+            this.load('PubSub').emit('error', e);
+            reject(e);
+          })
+          .pipe(dataPassThrough);
+      })).then(resp => {
+        const pheaders = Object.assign(
+          ...['cache-control', 'expires', 'last-modified', 'source-age', 'content-type']
+            .map(header => ({
+              [header.replace(/(-|^)\w/g, w => w.toUpperCase())]: resp.headers[header]
+            }))
+          );
+        
+        Object.assign(headers, pheaders);
+        
+        return { code: resp.statusCode, finalize: res => dataPassThrough.pipe(res) };
       });
     }).then(resultInfo => {
       if (!resultInfo) {
@@ -299,7 +309,7 @@ class FSDBPublish extends api.Requestable {
         });
       }
     }).then(() => {
-      return { code: 200, repush: true };
+      return { code: 200, repush: true, filename: filename };
     });
   }
 }

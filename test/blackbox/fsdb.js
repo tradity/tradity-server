@@ -24,6 +24,7 @@ const cfg = new Config().reloadConfig().config();
 const promiseUtil = require('../../lib/promise-util.js');
 const readFile = promiseUtil.ncall(fs.readFile);
 const request = require('request');
+const nock = require('nock');
 
 describe('fsdb', function() {
   let socket, user;
@@ -38,7 +39,22 @@ describe('fsdb', function() {
   beforeEach(testHelpers.standardReset);
   after(testHelpers.standardTeardown);
 
+  const externalURIBase = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0];
+  const fakeContent = new Buffer('Hello, World! 你好!');
+  const fakeContentType = 'text/x-hello-world;charset=utf-8';
+  
   describe('/dynamic/files', function() {
+    
+    before(function() {
+      nock('https://example.com')
+        .persist()
+        .get(/\/fake-profile-pic$/)
+        .reply(200, fakeContent, {
+          'Content-Type': fakeContentType,
+          'X-Ignored-Header': 'meow'
+        });
+    });
+    
     it('Should publish files', function() {
       return readFile('res/bob.jpg').then(data => {
         return Promise.all([
@@ -66,7 +82,7 @@ describe('fsdb', function() {
         assert.ok(res._success);
         assert.ok(res.data.profilepic);
         
-        const externalURI = cfg.protocol + '://' + cfg.wshost + ':' + cfg.wsports[0] + res.data.profilepic;
+        const externalURI = externalURIBase + res.data.profilepic;
         
         return new Promise((resolve, reject) => {
           request(externalURI, (err, res/*, body*/) => {
@@ -78,8 +94,61 @@ describe('fsdb', function() {
           });
         });
       }).then(status => {
-        assert.equal(status, 200);
+        assert.strictEqual(status, 200);
       });
+    });
+    
+    it('Can create proxied URLs', function() {
+      return socket.post('/dynamic/files', {
+        json: false,
+        body: 'https://example.com/fake-profile-pic',
+        headers: {
+          'Content-Type': 'text/plain'
+        },
+        qs: {
+          role: 'profile.image',
+          proxy: true
+        },
+        __sign__: true
+      }).then(res => {
+        assert.ok(res._success);
+        assert.ok(res.filename);
+        
+        const externalURI = externalURIBase + '/dynamic/files/' + res.filename;
+        
+        return new Promise((resolve, reject) => {
+          request(externalURI, (err, res) => {
+            if (err) {
+              reject(err);
+            }
+            
+            resolve(res);
+          });
+        });
+      }).then(proxiedResponse => {
+        assert.strictEqual(proxiedResponse.statusCode, 200);
+        assert.deepStrictEqual(new Buffer(proxiedResponse.body), fakeContent);
+        assert.strictEqual(proxiedResponse.headers['content-type'], fakeContentType);
+        assert.strictEqual(proxiedResponse.headers['x-ignored-header'], undefined);
+      });
+    });
+  });
+  
+  describe('/dynamic/files/:filename', function() {
+    it('Should return 404 for non-existent files', function() {
+      const externalURI = externalURIBase + '/dynamic/files/nonexistent';
+      
+      return new Promise((resolve, reject) => {
+        request(externalURI, (err, res) => {
+            if (err) {
+              reject(err);
+            }
+            
+            resolve(res.statusCode);
+          });
+        }).then(status => {
+          assert.strictEqual(status, 404);
+        });
     });
   });
 });

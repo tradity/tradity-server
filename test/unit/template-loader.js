@@ -71,6 +71,42 @@ describe('TemplateReader', function() {
     });
   });
   
+  it('Uses cached values when available', function() {
+    const r = new TemplateReader();
+    
+    let hasCalled = 0, getCalled = 0;
+    
+    r.load = fakeConfigLoader;
+    r.loadedTemplates = {
+      has(entry) {
+        assert.strictEqual(entry, 'en:register-email.eml');
+        ++hasCalled;
+        return true;
+      },
+      
+      get(entry) {
+        assert.strictEqual(entry, 'en:register-email.eml');
+        ++getCalled;
+        return 'Bananas';
+      },
+      
+      set() {
+        throw Error('.set() should not be called when using the cache');
+      }
+    };
+    
+    return r.init().then(() => {
+      return r.readTemplate('register-email.eml', 'en', {
+        username: 'User 123',
+        url: 'https://example.org/verify-email'
+      });
+    }).then(content => {
+      assert.strictEqual(content, 'Bananas');
+      assert.strictEqual(hasCalled, 1);
+      assert.strictEqual(getCalled, 1);
+    });
+  });
+  
   it('Falls back to another language when the primary language is unavailable', function() {
     const r = new TemplateReader();
     

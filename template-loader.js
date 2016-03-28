@@ -37,7 +37,7 @@ class TemplateReader extends api.Component {
     const key = lang + ':' + template;
     
     if (this.loadedTemplates.has(key)) {
-      return this.loadedTemplates.get(key);
+      return Promise.resolve(this.loadedTemplates.get(key));
     }
     
     const filename = path.join(

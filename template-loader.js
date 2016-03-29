@@ -54,9 +54,12 @@ class TemplateReader extends api.Component {
         
         throw e;
       }).then(data => {
-        this.loadedTemplates.set(key, data);
+        if (data !== null) {
+          data = data.toString('utf-8');
+        }
         
-        return data === null ? null : data.toString('utf-8');
+        this.loadedTemplates.set(key, data);
+        return data;
       });
   }
   
@@ -66,12 +69,14 @@ class TemplateReader extends api.Component {
         return content;
       }
       
-      return cfg.languages.reduce((prevContent, lang) => {
-        if (prevContent) {
-          return prevContent;
-        }
-        
-        return this.loadRawTemplate(lang.id, template);
+      return cfg.languages.reduce((prevContent_, lang) => {
+        return Promise.resolve(prevContent_).then(prevContent => {
+          if (prevContent) {
+            return prevContent;
+          }
+          
+          return this.loadRawTemplate(lang.id, template);
+        });
       }, null);
     });
   }

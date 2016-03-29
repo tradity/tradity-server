@@ -137,4 +137,18 @@ describe('TemplateReader', function() {
       assert.ok(err.message.match(/Template not found/));
     });
   });
+  
+  it('Fails for unknown template names from unknown languages', function() {
+    const r = new TemplateReader();
+    
+    r.load = fakeConfigLoader;
+    
+    return r.init().then(() => {
+      return r.readTemplate('nonexistent-template.eml', 'xyz', {});
+    }).then((/*content*/) => {
+      assert.ok(false);
+    }, err => {
+      assert.ok(err.message.match(/Template not found/));
+    });
+  });
 });

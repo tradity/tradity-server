@@ -58,7 +58,12 @@ class UpdateProvisions extends api.Component {
     });
   }
   
-  handle(ctx) {
+  handle(ctx, cfg) {
+    if (cfg.forbidLeaderTrades) {
+      debug('Skipping update of provisions');
+      return;
+    }
+    
     debug('Update provisions');
     
     return ctx.startTransaction([

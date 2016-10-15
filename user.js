@@ -784,7 +784,7 @@ class UpdateUserRequestable extends UserManagementRequestable {
           
           debug('Create school for user update', possibleSchoolPath);
           
-          return conn.query('INSERT INTO schools (name, path) VALUES(?, ?)',
+          return conn.query('INSERT INTO schools (name, path, descpage, config) VALUES(?, ?, "", "")',
             [String(query.school), possibleSchoolPath]);
         });
       } else {
@@ -822,8 +822,8 @@ class UpdateUserRequestable extends UserManagementRequestable {
             String(query.email), query.email === ctx.user.email ? 1 : 0, 
             query.delayorderhist ? 1:0, query.skipwalkthrough ? 1:0, uid]),
           conn.query('UPDATE users_data SET giv_name = ?, fam_name = ?, realnamepublish = ?, ' +
-            'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, traditye = ?, ' +
-            'clientopt = ?, dla_optin = ?, schoolclass = ?, lang = ?, gender = ? WHERE uid = ?',
+            'birthday = ?, `desc` = ?, street = ?, zipcode = ?, town = ?, clientopt = ?, ' +
+            'traditye = ?, dla_optin = ?, schoolclass = ?, lang = ?, gender = ? WHERE uid = ?',
             [String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,
             query.birthday, String(query.desc), String(query.street),
             String(query.zipcode), String(query.town), JSON.stringify(query.clientopt || {}),
@@ -910,8 +910,8 @@ class UpdateUserRequestable extends UserManagementRequestable {
           });
         }).then(() => {
           return conn.query('INSERT INTO users ' +
-            '(name, delayorderhist, email, email_verif, registertime) ' +
-            'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP())',
+            '(name, delayorderhist, email, email_verif, registertime, access) ' +
+            'VALUES (?, ?, ?, ?, UNIX_TIMESTAMP(), "")',
             [String(query.name), query.delayorderhist?1:0,
             String(query.email), (inv.email && inv.email === query.email) ? 1 : 0]);
         }).then(res => {
@@ -920,7 +920,8 @@ class UpdateUserRequestable extends UserManagementRequestable {
           return query.password ? this.generatePassword(query.password, 'changetime', uid, conn) : Promise.resolve();
         }).then(() => {
           return conn.query('INSERT INTO users_data (uid, giv_name, fam_name, realnamepublish, traditye, ' +
-            'street, zipcode, town, schoolclass, lang, gender) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?); ' +
+            'street, zipcode, town, schoolclass, lang, gender, `desc`, clientopt, clientstorage) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "", "", ""); ' +
             'INSERT INTO users_finance(uid, wprovision, lprovision, freemoney, totalvalue) '+
             'VALUES (?, ?, ?, ?, ?)',
             [uid, String(query.giv_name), String(query.fam_name), query.realnamepublish?1:0,

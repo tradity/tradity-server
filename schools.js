@@ -175,7 +175,7 @@ class SchoolUtilRequestable extends api.Requestable {
               return expost;
             });
           }), // blogposts
-        ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
+        ctx.query('SELECT oh.stocktextid, MIN(oh.stockname), ' +
           'SUM(ABS(money)) AS moneysum, ' +
           'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
           'FROM orderhistory AS oh ' +
@@ -564,7 +564,7 @@ class CreateSchool extends api.Requestable {
         throw new this.ClientError('missing-parent');
       }
       
-      return ctx.query('INSERT INTO schools (name, path) VALUES(?, ?)',
+      return ctx.query('INSERT INTO schools (name, path, descpage, config) VALUES(?, ?, "", "")',
         [query.schoolname, schoolpath]);
     }).then(res => {
       return ctx.feed({
@@ -621,7 +621,7 @@ class ListSchools extends api.Requestable {
       params.push(likestring, likestring);
     }
     
-    return ctx.query('SELECT p.schoolid, p.name, COUNT(sm.uid) AS usercount, p.path, url AS banner ' +
+    return ctx.query('SELECT p.schoolid, p.name, COUNT(sm.uid) AS usercount, p.path, MIN(url) AS banner ' +
       'FROM schools AS p '+
       'LEFT JOIN schools AS c ON c.path LIKE CONCAT(p.path, "/%") OR p.schoolid = c.schoolid ' +
       'LEFT JOIN schoolmembers AS sm ON sm.schoolid = c.schoolid AND NOT pending ' +

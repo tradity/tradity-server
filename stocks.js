@@ -325,10 +325,10 @@ class StocksRegularTasks extends api.Component {
     debug('Update ranking information');
     
     return ctx.query('UPDATE users_finance SET ' +
-      'fperf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.stockid ' +
-        'WHERE uid = users_finance.uid AND leader IS NOT NULL), ' +
-      'operf_cur = (SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.stockid ' +
-        'WHERE uid = users_finance.uid AND leader IS NULL)');
+      'fperf_cur = COALESCE((SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.stockid ' +
+        'WHERE uid = users_finance.uid AND leader IS NOT NULL), 0), ' +
+      'operf_cur = COALESCE((SELECT SUM(ds.amount * s.bid) FROM depot_stocks AS ds JOIN stocks AS s ON ds.stockid = s.stockid ' +
+        'WHERE uid = users_finance.uid AND leader IS NULL), 0)');
   }
 
   /**
@@ -919,11 +919,15 @@ class StockTrade extends api.Requestable {
       } else {
         return conn.query('UPDATE depot_stocks SET ' +
           'buytime = UNIX_TIMESTAMP(), buymoney = buymoney + ?, ' +
-          'provision_hwm = (provision_hwm * amount + ?) / (amount + ?), ' +
-          'provision_lwm = (provision_lwm * amount + ?) / (amount + ?), ' +
+          'provision_hwm = IF(-amount != ?, (provision_hwm * amount + ?) / (amount + ?), 0), ' +
+          'provision_lwm = IF(-amount != ?, (provision_lwm * amount + ?) / (amount + ?), 0), ' +
           'amount = amount + ? ' +
           'WHERE uid = ? AND stockid = ?', 
-          [price, price, amount, price, amount, amount, ctx.user.uid, r.stockid]);
+          [price,
+           amount, price, amount,
+           amount, price, amount,
+           amount,
+           ctx.user.uid, r.stockid]);
       }
     }).then(() => {
       return conn.commit();
@@ -1134,7 +1138,7 @@ class PopularStocks extends api.Requestable {
       days = cfg.popularStocksDays;
     }
     
-    return ctx.query('SELECT oh.stocktextid, oh.stockname, ' +
+    return ctx.query('SELECT oh.stocktextid, MIN(oh.stockname), ' +
       'SUM(ABS(money)) AS moneysum, ' +
       'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
       'FROM orderhistory AS oh ' +

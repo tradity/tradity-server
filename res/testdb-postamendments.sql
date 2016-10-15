@@ -19,3 +19,34 @@ UPDATE qn_answer_texts SET language="en" WHERE answer_id = 90 and atext = "… w
 
 ALTER TABLE qn_answer_texts ADD UNIQUE KEY `answer_id` (`answer_id`, `language`);
 ALTER TABLE qn_questions_texts ADD UNIQUE KEY `question_id` (`question_id`, `language`);
+
+ALTER TABLE `events_users` CHANGE `seen` `seen` TINYINT(1) NOT NULL DEFAULT '0';
+ALTER TABLE `users` CHANGE `tradecount` `tradecount` INT(11) NOT NULL DEFAULT '0';
+
+ALTER TABLE `users_finance` CHANGE `fperf_bought` `fperf_bought` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `fperf_cur` `fperf_cur` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `fperf_sold` `fperf_sold` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `operf_bought` `operf_bought` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `operf_cur` `operf_cur` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `operf_sold` `operf_sold` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `wprovision` `wprovision` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `wprov_sum` `wprov_sum` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `lprovision` `lprovision` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `users_finance` CHANGE `lprov_sum` `lprov_sum` BIGINT(20) NOT NULL DEFAULT '0';
+
+ALTER TABLE `stocks` CHANGE `lastvalue` `lastvalue` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `stocks` CHANGE `ask` `ask` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `stocks` CHANGE `bid` `bid` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `stocks` CHANGE `daystartvalue` `daystartvalue` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `stocks` CHANGE `weekstartvalue` `weekstartvalue` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `stocks` CHANGE `lastchecktime` `lastchecktime` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `stocks` CHANGE `lrutime` `lrutime` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `stocks` CHANGE `pieces` `pieces` BIGINT(20) NOT NULL DEFAULT '0';
+
+ALTER TABLE `depot_stocks` CHANGE `amount` `amount` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `depot_stocks` CHANGE `buytime` `buytime` BIGINT(20) NULL DEFAULT NULL;
+ALTER TABLE `depot_stocks` CHANGE `provision_hwm` `provision_hwm` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `depot_stocks` CHANGE `buymoney` `buymoney` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `depot_stocks` CHANGE `wprov_sum` `wprov_sum` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `depot_stocks` CHANGE `provision_lwm` `provision_lwm` BIGINT(20) NOT NULL DEFAULT '0';
+ALTER TABLE `depot_stocks` CHANGE `lprov_sum` `lprov_sum` BIGINT(20) NOT NULL DEFAULT '0';

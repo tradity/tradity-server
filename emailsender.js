@@ -191,8 +191,9 @@ class Mailer extends api.Component {
     
     return Promise.resolve().then(() => {
       if (ctx && !this.load('ReadonlyStore').readonly) {
-        return ctx.query('INSERT INTO sentemails (uid, messageid, sendingtime, templatename, mailtype, recipient) ' +
-          'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?)',
+        return ctx.query('INSERT INTO sentemails ' +
+          '(uid, messageid, sendingtime, templatename, mailtype, recipient, diagnostic_code) ' +
+          'VALUES (?, ?, UNIX_TIMESTAMP(), ?, ?, ?, "")',
           [uid || (ctx.user && ctx.user.uid) || null, String(shortId), String(template) || null,
           String(mailtype), String(origTo)]);
       }

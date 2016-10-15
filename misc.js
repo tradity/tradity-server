@@ -124,8 +124,10 @@ class ArtificialDeadlock extends api.Requestable {
   
   handle(query, ctx) {
     debug('Creating artificial deadlock');
-    let conn1, conn2, id;
-    const deferred = Promise.defer();
+    let conn1, conn2, id, resolve;
+    const deferred = new Promise(resolve_ => {
+      resolve = resolve_;
+    });
     
     return ctx.query('CREATE TABLE IF NOT EXISTS deadlocktest (id INT AUTO_INCREMENT, value INT, PRIMARY KEY (id))').then(() => {
       return ctx.query('INSERT INTO deadlocktest (value) VALUES (0), (0)');
@@ -133,7 +135,7 @@ class ArtificialDeadlock extends api.Requestable {
       id = r.insertId;
       return ctx.startTransaction({}, {restart: () => {
         return ctx.query('DROP TABLE deadlocktest').then(() => {
-          return deferred.resolve({ code: 204 });
+          return resolve({ code: 204 });
         });
       }});
     }).then(conn1_ => {
@@ -149,7 +151,7 @@ class ArtificialDeadlock extends api.Requestable {
     }).then(() => {
       return conn2.query('UPDATE deadlocktest SET value = 4 WHERE id = ?', [id]);
     }).then(() => {
-      return deferred.promise;
+      return deferred;
     });
   }
 }

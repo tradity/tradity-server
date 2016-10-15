@@ -200,63 +200,62 @@ class Database extends api.Component {
             return conn.query('ROLLBACK; UNLOCK TABLES; SET autocommit = 1');
           }
         };
-        
-        const deferred = Promise.defer();
-        const startTime = Date.now();
-        conn.query(q, args, (err, res) => {
-          debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
-            (res && typeof res.length !== 'undefined' ? res.length + ' results' :
-             res && typeof res.affectedRows !== 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
-             ' in ' + (Date.now() - startTime) + ' ms');
-          
-          if (err && (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.code === 'ER_LOCK_DEADLOCK')) {
-            this.deadlockCount++;
-            rollback();
+
+        return new Promise((resolve, reject) => {
+          const startTime = Date.now();
+          conn.query(q, args, (err, res) => {
+            debugSQL(id + '\t' + (q.length > 100 ? q.substr(0, 100) + '…' : q) + ' -> ' + (err ? err.code :
+              (res && typeof res.length !== 'undefined' ? res.length + ' results' :
+               res && typeof res.affectedRows !== 'undefined' ? res.affectedRows + ' updates' : 'OK')) + 
+               ' in ' + (Date.now() - startTime) + ' ms');
             
-            release();
-            
-            return deferred.resolve(Promise.resolve().then(restart));
-          }
-          
-          let exception = null;
-          
-          if (!err) {
-            try {
-              deferred.resolve(res);
-            } catch (e) {
-              exception = e;
+            if (err && (err.code === 'ER_LOCK_WAIT_TIMEOUT' || err.code === 'ER_LOCK_DEADLOCK')) {
+              this.deadlockCount++;
+              rollback();
+              
+              release();
+              
+              return resolve(Promise.resolve().then(restart));
             }
-          }
-          
-          if (err || exception) {
-            rollback();
             
-            // make sure that the error event is emitted -> release() will be called in next tick
-            Promise.resolve().then(release).catch(e => { throw e; });
-            autorelease = false;
+            let exception = null;
             
-            deferred.reject(err || exception);
-            
-            if (err) {
-              // query-related error
-              const datajson = JSON.stringify(args);
-              const querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
-            
-              this.load('PubSub').emit('error', q ? new Error(
-                err + '\nCaused by ' + querydesc
-              ) : err);
-            } else {
-              // exception in callback
-              this.load('PubSub').emit('error', exception);
+            if (!err) {
+              try {
+                resolve(res);
+              } catch (e) {
+                exception = e;
+              }
             }
-          }
-          
-          if (autorelease) {
-            release();
-          }
+            
+            if (err || exception) {
+              rollback();
+              
+              // make sure that the error event is emitted -> release() will be called in next tick
+              Promise.resolve().then(release).catch(e => { throw e; });
+              autorelease = false;
+              
+              reject(err || exception);
+              
+              if (err) {
+                // query-related error
+                const datajson = JSON.stringify(args);
+                const querydesc = '<<' + q + '>>' + (datajson.length <= 1024 ? ' with arguments [' + new Buffer(datajson).toString('base64') + ']' : '');
+              
+                this.load('PubSub').emit('error', q ? new Error(
+                  err + '\nCaused by ' + querydesc
+                ) : err);
+              } else {
+                // exception in callback
+                this.load('PubSub').emit('error', exception);
+              }
+            }
+            
+            if (autorelease) {
+              release();
+            }
+          });
         });
-        
-        return deferred.promise;
       };
       
       return {

@@ -127,52 +127,51 @@ class AbstractLoader extends promiseUtil.EventEmitter {
     }
     
     debug('Loading', url, method);
-    
-    const requestDeferred = Promise.defer();
-    const req = request[method]({
-      url: url,
-      headers: headers,
-      gzip: true,
-      timeout: 5000
-    }, (err, res, body) => {
-      const retry = () => promiseUtil.delay(750).then(() =>
-        this.request(url, attemptsLeft - 1, headers, method, content));
-      
-      if (err) {
-        debug('Loaded [error]', url, attemptsLeft, err);
+
+    return new Promise((resolve, reject) => {
+      const req = request[method]({
+        url: url,
+        headers: headers,
+        gzip: true,
+        timeout: 5000
+      }, (err, res, body) => {
+        const retry = () => promiseUtil.delay(750).then(() =>
+          this.request(url, attemptsLeft - 1, headers, method, content));
         
-        if (attemptsLeft > 0) {
-          return requestDeferred.resolve(retry());
+        if (err) {
+          debug('Loaded [error]', url, attemptsLeft, err);
+          
+          if (attemptsLeft > 0) {
+            return resolve(retry());
+          }
+          
+          return reject(err);
         }
         
-        return requestDeferred.reject(err);
-      }
-      
-      if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0) {
-        debug('Loaded [retrying]', url, attemptsLeft, res.statusCode);
-        return requestDeferred.resolve(retry());
-      }
-      
-      if (res.statusCode !== 200) {
-        debug('Loaded [failed]', url, res.statusCode);
-        err = new Error('Stock loader error: URL ' + url + ' returned status code ' + res.statusCode);
-        err.statusCode = res.statusCode;
+        if (res.statusCode >= 500 && res.statusCode <= 599 && attemptsLeft > 0) {
+          debug('Loaded [retrying]', url, attemptsLeft, res.statusCode);
+          return resolve(retry());
+        }
         
-        return requestDeferred.reject(err);
+        if (res.statusCode !== 200) {
+          debug('Loaded [failed]', url, res.statusCode);
+          err = new Error('Stock loader error: URL ' + url + ' returned status code ' + res.statusCode);
+          err.statusCode = res.statusCode;
+          
+          return reject(err);
+        }
+        
+        debug('Loaded', url, res.statusCode);
+        
+        return resolve(body);
+      });
+      
+      if (method !== 'get') {
+        assert.ok(typeof content !== 'undefined');
+        
+        req.end(content);
       }
-      
-      debug('Loaded', url, res.statusCode);
-      
-      requestDeferred.resolve(body);
     });
-    
-    if (method !== 'get') {
-      assert.ok(typeof content !== 'undefined');
-      
-      req.end(content);
-    }
-    
-    return requestDeferred.promise;
   }
 }
 

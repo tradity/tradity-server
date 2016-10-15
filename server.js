@@ -105,48 +105,46 @@ class SoTradeServer extends api.Component {
   listen(port, host) {
     assert.ok(port);
     
-    const deferred = Promise.defer();
-    
-    let listenSuccess = false;
-    
-    const listenHandler = () => {
-      this.httpServer.on('error', e => this.load('PubSub').emit('error', e));
+    return new Promise((resolve, reject) => {
+      let listenSuccess = false;
       
-      listenSuccess = true;
-      deferred.resolve();
-    };
-    
-    this.httpServer.once('error', e => {
-      if (listenSuccess) { // only handle pre-listen errors
-        return;
-      }
+      const listenHandler = () => {
+        this.httpServer.on('error', e => this.load('PubSub').emit('error', e));
+        
+        listenSuccess = true;
+        resolve();
+      };
       
-      this.httpServer.removeListener('listening', listenHandler);
-      
-      if (e.code !== 'EADDRINUSE') {
-        return deferred.reject(e);
-      }
-      
-      console.log(process.pid, 'has address in use on', port, host);
-      deferred.resolve(promiseUtil.delay(500).then(() => {
-        try {
-          this.httpServer.close();
-        } catch(e2) {
-          console.warn(e2);
+      this.httpServer.once('error', e => {
+        if (listenSuccess) { // only handle pre-listen errors
+          return;
         }
         
-        return this.listen(port, host);
-      }));
+        this.httpServer.removeListener('listening', listenHandler);
+        
+        if (e.code !== 'EADDRINUSE') {
+          return reject(e);
+        }
+        
+        console.log(process.pid, 'has address in use on', port, host);
+        resolve(promiseUtil.delay(500).then(() => {
+          try {
+            this.httpServer.close();
+          } catch(e2) {
+            console.warn(e2);
+          }
+          
+          return this.listen(port, host);
+        }));
+      });
+      
+      this.httpServer.addListener('listening', listenHandler);
+      
+      process.nextTick(() => {
+        debug('listening', process.pid, 'port ' + port, 'host ' + host);
+        this.httpServer.listen(port, host);
+      });
     });
-    
-    this.httpServer.addListener('listening', listenHandler);
-    
-    process.nextTick(() => {
-      debug('listening', process.pid, 'port ' + port, 'host ' + host);
-      this.httpServer.listen(port, host);
-    });
-    
-    return deferred.promise;
   }
 
   /**

@@ -74,55 +74,51 @@ const setupDatabase = function() {
   
   sqlSetupStream.pipe(mysqlRunner.stdin);
   
-  const deferred = Promise.defer();
-  
-  mysqlRunner.on('close', code => {
-    fs.unlinkSync(mysqlConfigFilename);
-    
-    if (code !== 0) {
-      return deferred.reject(new Error('mysql process exited with error code ' + code));
-    }
-    
-    console.error("Set up database.");
-    return deferred.resolve();
-  });
-  
-  return deferred.promise;
+  return new Promise((resolve, reject) => {
+    mysqlRunner.on('close', code => {
+      fs.unlinkSync(mysqlConfigFilename);
+      
+      if (code !== 0) {
+        return reject(new Error('mysql process exited with error code ' + code));
+      }
+      
+      console.error("Set up database.");
+      return resolve();
+   });
+ });
 };
 
 const generateKeys = function() {
-  const deferred = Promise.defer();
-  
-  console.error("Generating keys...");
-  
-  /* make sure we are not overwriting actual non-testing private keys */
-  assert.equal(cfg.privateKey, 'res/test-id_rsa');
-  assert.equal(cfg.publicKeys[0], 'res/test-id_rsa.pub');
-  
-  const privateKeyGen = spawn('openssl', ['genrsa', '1024'], {
-    stdio: ['ignore', fs.openSync(cfg.privateKey, 'w'), process.stderr]
-  });
-  
-  privateKeyGen.on('close', code => {
-    if (code !== 0) {
-      return deferred.reject(new Error('openssl genrsa exited with error code ' + code));
-    }
+  return new Promise((resolve, reject) => {  
+    console.error("Generating keys...");
     
-    const publicKeyGen = spawn('openssl', ['rsa', '-in', cfg.privateKey, '-pubout'], {
-      stdio: ['ignore', fs.openSync(cfg.publicKeys[0], 'w'), process.stderr]
+    /* make sure we are not overwriting actual non-testing private keys */
+    assert.equal(cfg.privateKey, 'res/test-id_rsa');
+    assert.equal(cfg.publicKeys[0], 'res/test-id_rsa.pub');
+    
+    const privateKeyGen = spawn('openssl', ['genrsa', '1024'], {
+      stdio: ['ignore', fs.openSync(cfg.privateKey, 'w'), process.stderr]
     });
     
-    publicKeyGen.on('close', code => {
+    privateKeyGen.on('close', code => {
       if (code !== 0) {
-        return deferred.reject(new Error('openssl rsa -pubout exited with error code ' + code));
+        return reject(new Error('openssl genrsa exited with error code ' + code));
       }
       
-      console.error("Generated keys.");
-      return deferred.resolve();
+      const publicKeyGen = spawn('openssl', ['rsa', '-in', cfg.privateKey, '-pubout'], {
+        stdio: ['ignore', fs.openSync(cfg.publicKeys[0], 'w'), process.stderr]
+      });
+      
+      publicKeyGen.on('close', code => {
+        if (code !== 0) {
+          return reject(new Error('openssl rsa -pubout exited with error code ' + code));
+        }
+        
+        console.error("Generated keys.");
+        return resolve();
+      });
     });
   });
-  
-  return deferred.promise;
 };
 
 exports.setupDatabase = setupDatabase;

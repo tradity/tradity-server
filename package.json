@@ -27,10 +27,10 @@
   "homepage": "https://github.com/tradity/tradity-server#readme",
   "devDependencies": {
     "jshint": "^2.9.1",
-    "mocha": "^2.4.5",
-    "nock": "^7.4.0",
+    "mocha": "^3.1.2",
+    "nock": "^8.1.0",
     "nodemailer-sendmail-transport": "^1.0.0",
-    "nyc": "^6.1.1"
+    "nyc": "^8.3.1"
   },
   "dependencies": {
     "JSONStream": "^1.1.1",
@@ -52,7 +52,7 @@
     "redis": "^2.5.3",
     "request": "^2.67.0",
     "unionfind": "^0.0.3",
-    "validator": "^5.1.0",
+    "validator": "^6.0.0",
     "weak": "^1.0.0",
     "wordpress-rest-api": "^0.6.0",
     "z-schema": "^3.16.1"

@@ -32,7 +32,7 @@ const debug = require('debug')('sotrade:stockloader:bff');
 
 const INFO_LINK_DEFAULT = 'http://mobileapi.dbagproject.de';
 const USER_AGENT_DEFAULT = '(+tech@tradity.de node' + process.version + '@' + os.hostname() + ' http)';
-const EXCHANGE_DEFAULT = 'FSE';
+const EXCHANGE_DEFAULT = 'FRA';
 
 // Using lightstreamer-client is purely optional
 class BoerseFFPushCacheService extends promiseEvents.EventEmitter {

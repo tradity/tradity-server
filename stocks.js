@@ -730,7 +730,7 @@ class StockTrade extends api.Requestable {
       assert.ok(ctx.user);
       assert.ok(ctx.access);
       
-      stocktextid = query.leader === null ? query.stocktextid : 
+      stocktextid = query.leader == null ? query.stocktextid : 
         '__LEADER_' + query.leader + '__';
       
       if (opt.testOnly) {

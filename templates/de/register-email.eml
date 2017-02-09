@@ -5,13 +5,8 @@ X-Mailtype: register
 
 <p>
 Hallo ${username}, <br />
-Wir freuen uns, dass Du bei Tradity dabei bist. Dein Account wurde hiermit erfolgreich eingerichtet. <br />
-Um Deine Registrierung für das Börsenspiel Tradity zu vollenden, gewinnberechtigt zu sein und die „Social Trading“-Funktion freizuschalten,
-bestätige bitte Deine E-Mail-Adresse: <a href="${url}">${url}</a>
-</p>
-
-<p>
-Bitte wähle auch deine Uni bzw. Stadt/Schule auf der Gruppenseite aus, falls du an TradityU oder einem Schul-Stadtwettbewerb teilnimmst und dies noch nicht getan hast, um für den jeweiligen Wettbewerb gewinnberechtigt zu sein.
+Willkommen bei Tradity - dein Account ist eingerichtet! <br />
+Um Deine Registrierung für das Börsenspiel Tradity zu vollenden und gewinnberechtigt zu sein, bestätige bitte Deine E-Mail-Adresse: <a href="${url}">${url}</a>
 </p>
 
 <p>

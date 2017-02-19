@@ -604,19 +604,23 @@ class Requestable extends Component {
             const converted = parseInt(uriMatch[key]);
             if (!isNaN(converted)) {
               uriMatch[key] = converted;
+              continue;
             }
-          } else if (type === 'float' || type.indexOf('float') !== -1) {
+          } if (type === 'float' || type.indexOf('float') !== -1) {
             const converted = parseFloat(uriMatch[key]);
             if (!isNaN(converted)) {
               uriMatch[key] = converted;
+              continue;
             }
-          } else if (type === 'boolean' || type.indexOf('boolean') !== -1) {
+          } if (type === 'boolean' || type.indexOf('boolean') !== -1) {
             if (uriMatch[key] in booleanTable) {
               uriMatch[key] = booleanTable[uriMatch[key]];
+              continue;
             }
-          } else if (type === 'null' || type.indexOf('null') !== -1) {
+          } if (type === 'null' || type.indexOf('null') !== -1) {
             if (uriMatch[key] === 'null') {
               uriMatch[key] = null;
+              continue;
             }
           }
         }

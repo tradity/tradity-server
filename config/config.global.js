@@ -108,7 +108,7 @@ module.exports = {
       }
     ]
   },
-  'hostname': 'tradity.de',
+  'hostname': 'game.tradity.de',
   'protocol': 'https',
   'resetAllowed': false,
   'schoolConfigDefaults': {

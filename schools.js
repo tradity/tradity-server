@@ -175,7 +175,7 @@ class SchoolUtilRequestable extends api.Requestable {
               return expost;
             });
           }), // blogposts
-        ctx.query('SELECT oh.stocktextid, MIN(oh.stockname), ' +
+        ctx.query('SELECT oh.stocktextid, MIN(oh.stockname) AS stockname, ' +
           'SUM(ABS(money)) AS moneysum, ' +
           'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
           'FROM orderhistory AS oh ' +

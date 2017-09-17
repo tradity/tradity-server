@@ -176,11 +176,13 @@ class SchoolUtilRequestable extends api.Requestable {
             });
           }), // blogposts
         ctx.query('SELECT oh.stocktextid, MIN(oh.stockname) AS stockname, ' +
-          'SUM(ABS(money)) AS moneysum, ' +
-          'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
+          'SUM(ABS(oh.money)) AS moneysum, ' +
+          'SUM(ABS(oh.money) / (UNIX_TIMESTAMP() - oh.buytime + 300)) AS wsum, ' +
+          's.lastvalue, s.ask, s.bid, s.pieces ' +
           'FROM orderhistory AS oh ' +
+          'JOIN stocks AS s ON oh.stocktextid = s.stocktextid ' +
           'JOIN schoolmembers AS sm ON sm.uid = oh.uid AND sm.jointime < oh.buytime AND sm.schoolid = ? ' +
-          'WHERE buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
+          'WHERE oh.buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
           'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 10', [s.schoolid, cfg.popularStocksDays]), // popularStocks
         !ctx.access.has('wordpress') ? [] : 
           // compare wordpress-feed.js

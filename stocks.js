@@ -1139,10 +1139,12 @@ class PopularStocks extends api.Requestable {
     }
     
     return ctx.query('SELECT oh.stocktextid, MIN(oh.stockname) AS stockname, ' +
-      'SUM(ABS(money)) AS moneysum, ' +
-      'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
+      'SUM(ABS(oh.money)) AS moneysum, ' +
+      'SUM(ABS(oh.money) / (UNIX_TIMESTAMP() - oh.buytime + 300)) AS wsum, ' +
+      's.lastvalue, s.ask, s.bid, s.pieces ' +
       'FROM orderhistory AS oh ' +
-      'WHERE buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
+      'JOIN stocks AS s ON oh.stocktextid = s.stocktextid ' +
+      'WHERE oh.buytime > UNIX_TIMESTAMP() - 86400 * ? ' +
       'GROUP BY stocktextid ORDER BY wsum DESC LIMIT 20', [days])
     .then(popular => {
       return { code: 200, data: popular };

@@ -1138,7 +1138,7 @@ class PopularStocks extends api.Requestable {
       days = cfg.popularStocksDays;
     }
     
-    return ctx.query('SELECT oh.stocktextid, MIN(oh.stockname), ' +
+    return ctx.query('SELECT oh.stocktextid, MIN(oh.stockname) AS stockname, ' +
       'SUM(ABS(money)) AS moneysum, ' +
       'SUM(ABS(money) / (UNIX_TIMESTAMP() - buytime + 300)) AS wsum ' +
       'FROM orderhistory AS oh ' +

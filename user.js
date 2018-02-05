@@ -420,10 +420,10 @@ class EmailVerify extends api.Requestable {
         ctx.access.grant('email_verif');
       }).then(conn.commit, conn.rollbackAndThrow);
     }).then(() => {
-      return this.load(Login).handle({
+      return this.load(Login).handleWithRequestInfo({
         name: email,
         stayloggedin: true,
-      }, new qctx.QContext({access: ctx.access, parentComponent: this}), xdata, true, true);
+      }, new qctx.QContext({access: ctx.access, parentComponent: this}), cfg, xdata, true, true);
     });
   }
 }

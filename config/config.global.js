@@ -139,9 +139,9 @@ module.exports = {
   'socketIORemotes': [],
   'ssl': {
     'ca': [
-      tryReadSync('/etc/ssl/certs/startssl-sub.class2.server.ca.pem'),
-      tryReadSync('/etc/ssl/certs/StartCom_Certification_Authority.pem'),
-      tryReadSync('/etc/mysql/ca.pem')
+      tryReadSync('/etc/ssl/certs/alphassl_root.pem'),
+      tryReadSync('/etc/ssl/certs/alphassl_intermediate_domain.crt'),
+      tryReadSync('/etc/mysql/ca-cert.pem')
     ].filter(f => f)
   },
   'stockloaders': {

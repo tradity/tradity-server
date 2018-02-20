@@ -339,9 +339,9 @@ class Logout extends UserManagementRequestable {
   }
   
   handle(query, ctx) {
-    debug('Logout', query.key);
+    debug('Logout', query.authKey);
     
-    return ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.key)]).then(() => {
+    return ctx.query('DELETE FROM sessions WHERE `key` = ?', [String(query.authKey)]).then(() => {
       return { code: 200, key: null };
     });
   }

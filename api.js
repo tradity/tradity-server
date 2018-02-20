@@ -441,13 +441,13 @@ class Requestable extends Component {
         req.headers['x-authorization'];
       
       if (headerKey) {
-        query.key = headerKey;
+        query.authKey = headerKey;
       }
       
-      if (query.key) {
-        query.key = String(query.key);
+      if (query.authKey) {
+        query.authKey = String(query.authKey);
       } else {
-        query.key = null;
+        query.authKey = null;
       }
     }).then(() => {
       deepFreeze(query);
@@ -485,8 +485,8 @@ class Requestable extends Component {
         });
       }
     }).then(() => {
-      if (query.key) {
-        return this.load('LoadSessionUser').handle(query.key, ctx);
+      if (query.authKey) {
+        return this.load('LoadSessionUser').handle(query.authKey, ctx);
       } else {
         return null;
       }

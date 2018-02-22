@@ -101,7 +101,7 @@ class UserInfo extends api.Requestable {
       queryLookfor = query.lookfor;
     }
     
-    const columns = (ctx.access.has('userdb') || query.lookfor === ctx.user.uid ? [
+    const columns = (ctx.access.has('userdb') || queryLookfor === ctx.user.uid ? [
       'u.*', 'ud.*', 'uf.*',
     ] : [
       'IF(realnamepublish != 0,giv_name,NULL) AS giv_name',

@@ -139,8 +139,7 @@ module.exports = {
   'socketIORemotes': [],
   'ssl': {
     'ca': [
-      tryReadSync('/etc/ssl/certs/alphassl_root.pem'),
-      tryReadSync('/etc/ssl/certs/alphassl_intermediate_domain.crt'),
+      tryReadSync('/etc/ssl/certs/letsencrypt_chain.pem'),
       tryReadSync('/etc/mysql/ca-cert.pem')
     ].filter(f => f)
   },

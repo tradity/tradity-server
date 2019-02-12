@@ -137,13 +137,7 @@ module.exports = {
   'publicKeys': [ 'acceptedPublicKeys' ],
   'startBackgroundWorker': true,
   'socketIORemotes': [],
-  'ssl': {
-    'ca': [
-      tryReadSync('/etc/ssl/certs/letsencrypt_isrgrootx1.pem'),
-      tryReadSync('/etc/ssl/certs/letsencrypt_chain.pem'),
-      tryReadSync('/etc/mysql/ca-cert.pem')
-    ].filter(f => f)
-  },
+  'ssl': {},
   'stockloaders': {
     'boerse-frankfurt': {
       'path': './stockloaders/boerse-frankfurt.js',

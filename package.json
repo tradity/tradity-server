@@ -37,6 +37,7 @@
     "bl": "^1.1.2",
     "deep-freeze": "^0.0.1",
     "genders": "^1.0.1",
+    "hawk": "^6.0.2",
     "lapack": "^0.1.0",
     "lzma-native": "^1.0.3",
     "mailparser": "^0.5.0",

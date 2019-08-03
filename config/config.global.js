@@ -1,21 +1,11 @@
 "use strict";
 
 const crypto = require('crypto');
-const fs = require('fs');
 
 function md5(s) {
   const h = crypto.createHash('md5');
   h.end(s);
   return h.read().toString('hex');
-}
-
-function tryReadSync(filename) {
-  try {
-    return fs.readFileSync(filename);
-  } catch (e) {
-    console.error(e.message, 'while reading', filename);
-    return null;
-  }
 }
 
 module.exports = {

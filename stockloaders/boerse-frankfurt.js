@@ -62,8 +62,8 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     const requrl = this.infoLink + url;
     
     return this.request(requrl, null).catch(e => {
-      if (e && e.statusCode === 500) {
-        return '{"statusCode":500}';
+      if (e && [404, 500].includes(e.statusCode)) {
+        return '{"statusCode":' + e.statusCode + '}';
       }
       
       throw e;
@@ -86,9 +86,11 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     return cacheEntry.data = Promise.all([
         this._restAPICall('/global_search/limitedsearch/de?searchTerms=' + stockid),
         this._restAPICall('/data/bid_ask_overview/single?isin=' + stockid + '&mic=' + this.mic)
-      ]).then(([res, orderbook]) => {
+      ]).then(res => {
+      const orderbook = res[1];
+      res = res[0];
       debug('Basic stock info fetched', stockid, !!res);
-      if ((!res || res.length === 0) || (!orderbook || orderbook.statusCode === 500)) {
+      if ((!res || res.length === 0) || (!orderbook || [404, 500].includes(orderbook.statusCode))) {
         debug('Marking stock as nonexistent', stockid);
         this._nonexistentStocks.add(stockid);
         return null;
@@ -125,7 +127,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     return cacheEntry.pieces = this._restAPICall('/papers/' + stockid + '/quotes?exchange=' + this.mic + '&period=d').then(res => {
       debug('Day-based stock info fetched', stockid, !!res);
       
-      if (!res || res.statusCode === 500) {
+      if (!res || [404, 500].includes(res.statusCode)) {
         debug('Marking stock as nonexistent', stockid);
         this._nonexistentStocks.add(stockid);
         return null;

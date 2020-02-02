@@ -62,7 +62,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     const requrl = this.infoLink + url;
     
     return this.request(requrl, null).catch(e => {
-      if (e && [404, 500].includes(e.statusCode)) {
+      if (e && (e.statusCode === 500 || e.statusCode === 404)) {
         return '{"statusCode":' + e.statusCode + '}';
       }
       
@@ -90,7 +90,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       const orderbook = res[1];
       res = res[0];
       debug('Basic stock info fetched', stockid, !!res);
-      if ((!res || res.length === 0) || (!orderbook || [404, 500].includes(orderbook.statusCode))) {
+      if ((!res || res.length === 0) || (!orderbook || orderbook.statusCode === 500 || orderbook.statusCode === 404)) {
         debug('Marking stock as nonexistent', stockid);
         this._nonexistentStocks.add(stockid);
         return null;
@@ -127,7 +127,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     return cacheEntry.pieces = this._restAPICall('/papers/' + stockid + '/quotes?exchange=' + this.mic + '&period=d').then(res => {
       debug('Day-based stock info fetched', stockid, !!res);
       
-      if (!res || [404, 500].includes(res.statusCode)) {
+      if (!res || res.statusCode === 500 || res.statusCode === 404) {
         debug('Marking stock as nonexistent', stockid);
         this._nonexistentStocks.add(stockid);
         return null;

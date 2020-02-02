@@ -73,8 +73,8 @@ module.exports = {
   'popularStocksDays': 21,
   'DLAValidityDays': 100,
   'stockExchanges': {
-    'Frankfurt': {open: '8:00', close: '20:00', days: [1,2,3,4,5]},
-    'tradity': {open: '8:00', close: '20:00', days: [1,2,3,4,5]}
+    'XETR': {open: '9:00', close: '17:30', days: [1,2,3,4,5]},
+    'tradity': {open: '9:00', close: '17:30', days: [1,2,3,4,5]}
   },
   'timezone': 'Europe/Berlin',
   'requireCurrency': 'EUR',
@@ -131,10 +131,9 @@ module.exports = {
   'stockloaders': {
     'boerse-frankfurt': {
       'path': './stockloaders/boerse-frankfurt.js',
-      'apiUsername': 'missing',
-      'apiPassword': 'missing',
-      'timezone': 'Europe/Berlin',
-      'lsMaxFrequency': 0.03 // 0.03 Hz ~ 1/(33 s)
+      'infoLink': 'missing',
+      'mic': 'XETR',
+      'timezone': 'Europe/Berlin'
     },
     'loopback': {
       'path': './stockloaders/loopbackloader.js',
@@ -149,8 +148,8 @@ module.exports = {
       'bases': [
         {
           'conditions': [
-            { 'type': 'after',  'time': '07:57' },
-            { 'type': 'before', 'time': '20:03' }
+            { 'type': 'after',  'time': '08:57' },
+            { 'type': 'before', 'time': '17:33' }
           ],
           'loader': 'boerse-frankfurt'
         },
@@ -164,8 +163,8 @@ module.exports = {
       'bases': [
         {
           'conditions': [
-            { 'type': 'after',  'time': '07:57' },
-            { 'type': 'before', 'time': '20:03' }
+            { 'type': 'after',  'time': '08:57' },
+            { 'type': 'before', 'time': '17:33' }
           ],
           'loader': 'loopback'
         },

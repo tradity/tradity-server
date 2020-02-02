@@ -26,170 +26,26 @@
 const assert = require('assert');
 const minimist = require('minimist');
 const os = require('os');
-const promiseEvents = require('promise-events');
 const abstractloader = require('./abstractloader.js');
 const debug = require('debug')('sotrade:stockloader:bff');
 
-const INFO_LINK_DEFAULT = 'http://mobileapi.dbagproject.de';
-const USER_AGENT_DEFAULT = '(+tech@tradity.de node' + process.version + '@' + os.hostname() + ' http)';
-const EXCHANGE_DEFAULT = 'FRA';
-
-// Using lightstreamer-client is purely optional
-class BoerseFFPushCacheService extends promiseEvents.EventEmitter {
-  constructor(opt) {
-    assert.ok(opt.url);
-    assert.ok(opt.dataAdapter);
-    assert.ok(opt.adapterSet);
-    
-    super();
-    
-    this.ls = null;
-    try {
-      this.ls = typeof opt.lightstreamer !== 'undefined' ?
-        opt.lightstreamer : require('lightstreamer-client');
-    } catch (e) {
-      console.error(e);
-    }
-    
-    this.subscribedStocks = new Set();
-    
-    this.opt = opt;
-    this.reset();
-  }
-  
-  reset() {
-    this.conn = null;
-    this.connectionPromise = null;
-    this.subscription = null;
-    this.subscriptionPromise = null;
-  }
-  
-  connect() {
-    if (!this.ls) {
-      const err = new Error('LightStreamer features not available');
-      err.isLSUnavailable = true;
-      return Promise.reject(err);
-    }
-    
-    if (this.connectionPromise) {
-      return this.connectionPromise;
-    }
-    
-    return this.connectionPromise = new Promise((resolve, reject) => {
-      debug('LS connecting', this.opt.url);
-      this.conn = new this.ls.LightstreamerClient(this.opt.url, this.opt.adapterSet);
-      this.conn.addListener({
-        onStatusChange: newStatus => {
-          debug('LS connection status change', newStatus);
-          if (/^CONNECTED:.*(STREAMING|POLLING)$/i.test(newStatus)) {
-            resolve(this.conn);
-          } else if (/^(DISCONNECTED|STALLED)/i.test(newStatus)) {
-            this.reset();
-            reject(new Error('LS Received status ' + newStatus));
-          } else if (/^(CONNECTED:STREAM-SENSING|CONNECTING)$/i.test(newStatus)) {
-            // do nothing
-          } else {
-            this.emit('error', new Error('LS Unknown status: ' + newStatus));
-          }
-        },
-        
-        onServerError: (errorCode, errorMessage) => {
-          this.emit('error', new Error('LS Server error: ' + errorCode + ', ' + errorMessage));
-        }
-      });
-      
-      this.conn.connect();
-    });
-  }
-  
-  subscribe(needResubscribe) {
-    if (this.subscriptionPromise && !needResubscribe) {
-      return this.subscriptionPromise;
-    }
-    
-    return this.subscriptionPromise = this.connect().then(() => {
-      if (this.subscription) {
-        this.conn.unsubscribe(this.subscription);
-        this.subscription = null;
-      }
-      
-      const s = new this.ls.Subscription(
-        'MERGE',
-        Array.from(this.subscribedStocks),
-        this.opt.fields);
-      
-      this.subscription = s;
-      
-      s.setDataAdapter(this.opt.dataAdapter);
-      s.setRequestedSnapshot('yes');
-      
-      if (this.opt.maxFrequency) {
-        s.setRequestedMaxFrequency(this.opt.maxFrequency);
-      }
-      
-      return new Promise(resolve => {
-        s.addListener({
-          onSubscription: () => {
-            debug('LS Subcribed with ' + this.subscribedStocks.size + ' stocks');
-            resolve();
-          },
-          onItemUpdate: (obj) => {
-            debug('LS Update', obj.getItemName());
-            
-            return Promise.resolve().then(() => {
-              return this.emit('update', Object.assign(
-                {}, ...s.getFields().map(f => ({ [f]: obj.getValue(f) }))
-                .concat([{
-                  subscriptionID: obj.getItemName()
-                }])));
-            }).catch(e => this.emit('error', e));
-          }
-        });
-        
-        this.conn.subscribe(this.subscription);
-      });
-    });
-  }
-  
-  subscribeStockInfos(stocklist) {
-    const needResubscribe = stocklist.map(subscriptionID => {
-      if (this.subscribedStocks.has(subscriptionID)) {
-        return false;
-      }
-      
-      this.subscribedStocks.add(subscriptionID);
-      return true;
-    }).some(x => x);
-    
-    return this.subscribe(needResubscribe).catch(e => this.emit('error', e));
-  }
-}
+const USER_AGENT_DEFAULT = '(+tech@tradity.de node' + '@' + os.hostname() + ' http)';
+const EXCHANGE_DEFAULT = 'XETR';
 
 class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
   constructor(opt) {
     assert.ok(opt);
-    assert.ok(opt.apiUsername);
-    assert.ok(opt.apiPassword);
+    assert.ok(opt.infoLink);
+    assert.ok(opt.mic);
     
     super(Object.assign({}, opt, { maxlen: null }));
     
-    this.exchange = opt.exchange || EXCHANGE_DEFAULT;
-    this.infoLink = opt.infoLink || INFO_LINK_DEFAULT;
+    this.mic = opt.mic || EXCHANGE_DEFAULT;
+    this.infoLink = opt.infoLink;
     this.userAgent = 'Boerse FF API loader script ' + (opt.userAgent || USER_AGENT_DEFAULT);
     
-    this._loginInfo = { login: opt.apiUsername, password: opt.apiPassword };
-    this._loginPromise = null;
-    this._exchangeInfo = null;
-    
-    this._pushService = null;
-    
     this._stockinfoCache = new Map();
-    this._pushReverseLookup = new Map();
     this._nonexistentStocks = new Set();
-    
-    this.lsMaxFrequency = opt.lsMaxFrequency || null;
-    this.lightstreamer = typeof opt.lightstreamer !== 'undefined' ?
-      opt.lightstreamer : undefined;
   }
   
   _getStockinfoCacheEntry(stockid) {
@@ -202,83 +58,15 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     return entry;
   }
   
-  _login() {
-    const requrl = this.infoLink + '/session?lang=de&app=xetra.ios';
-    const json = JSON.stringify(this._loginInfo);
-    
-    if (this._loginPromise) {
-      return this._loginPromise;
-    }
-    
-    return this._loginPromise = this.request(requrl, null, {
-      'Content-Type': 'application/json'
-    }, 'post', json).then(result_ => {
-      const result = JSON.parse(result_);
-      
-      const exchanges = result.mappings.exchanges;
-      this._exchangeInfo = exchanges.filter(e => e.gatrixxCode === this.exchange)[0];
-      assert.ok(this._exchangeInfo);
-      
-      debug('Logged in, got API key');
-      
-      this._pushService = new BoerseFFPushCacheService({
-        url: result.lightstreamerURL,
-        dataAdapter: result.lightstreamerDataAdapter,
-        adapterSet: result.lightstreamerAdapterSet,
-        fields: ['quotetime', 'bid', 'ask'],
-        maxFrequency: this.lsMaxFrequency,
-        lightstreamer: this.lightstreamer
-      });
-      
-      this._pushService.on('error', e => {
-        if (e.isLSUnavailable) {
-          if (typeof this.lightstreamer === 'undefined') {
-            console.info('lightstreamer PUSH API connection not available');
-          }
-          
-          return;
-        }
-        
-        return this.emit('error', e);
-      });
-      
-      this._pushService.on('update', data => {
-        const stockid = this._pushReverseLookup.get(data.subscriptionID);
-        assert.ok(stockid);
-        
-        const cacheEntry = this._stockinfoCache.get(stockid);
-        assert.ok(cacheEntry);
-        
-        return Promise.resolve(cacheEntry.data).then(cacheData => {
-          assert.ok(cacheData);
-          
-          debug('Updating cached data from push API', stockid);
-          Object.assign(cacheData, data);
-          cacheEntry.isLive = true;
-          
-          return this._handleRecord(cacheData);
-        });
-      });
-      
-      return {
-        restAPI: result.sid
-      };
-    });
-  }
-  
   _restAPICall(url) {
     const requrl = this.infoLink + url;
     
-    return this._login().then(auth => {
-      return this.request(requrl, null, {
-        'Authorization': auth.restAPI
-      }).catch(e => {
-        if (e && e.statusCode === 404) {
-          return '{"statusCode":404}';
-        }
-        
-        throw e;
-      });
+    return this.request(requrl, null).catch(e => {
+      if (e && e.statusCode === 500) {
+        return '{"statusCode":500}';
+      }
+      
+      throw e;
     }).then(JSON.parse);
   }
   
@@ -295,45 +83,33 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       return null;
     }
     
-    return cacheEntry.data = this._restAPICall('/papers/' + stockid).then(res => {
+    return cacheEntry.data = Promise.all([
+        this._restAPICall('/global_search/limitedsearch/de?searchTerms=' + stockid),
+        this._restAPICall('/data/bid_ask_overview/single?isin=' + stockid + '&mic=' + this.mic)
+      ]).then(([res, orderbook]) => {
       debug('Basic stock info fetched', stockid, !!res);
-      if (res && res.statusCode === 404) {
+      if ((!res || res.length === 0) || (!orderbook || orderbook.statusCode === 500)) {
         debug('Marking stock as nonexistent', stockid);
         this._nonexistentStocks.add(stockid);
         return null;
       }
+
+      res = res[0][0];
       
-      if (!res) {
+      assert.strictEqual(res.isin, orderbook.isin);
+      
+      if (orderbook.data.length === 0) {
         return null;
-      }
-      
-      const exchangeInfos = (res.listings || [])
-        .filter(l => l.exchangeSymbol === this.exchange && l.price);
-      
-      if (exchangeInfos.length === 0) {
-        return null;
-      }
-      
-      assert.strictEqual(exchangeInfos.length, 1);
-      Object.assign(res, exchangeInfos[0]);
-      
-      if (res.ask === null || res.bid === null) {
-        return null;
-      }
-      
-      if (res.pushCode) {
-        this._pushReverseLookup.set(res.pushCode, stockid);
       }
       
       return {
         symbol: res.isin,
-        ask: res.ask,
-        bid: res.bid,
-        currency_name: res.currency,
-        lastTradePrice: res.price,
+        ask: orderbook.data[0].askPrice,
+        bid: orderbook.data[0].bidPrice,
+        currency_name: 'EUR',
+        lastTradePrice: (orderbook.data[0].askPrice + orderbook.data[0].bidPrice) / 2, // temporary workaround
         name: res.name,
-        exchange: res.exchangeSymbol === this._exchangeInfo.gatrixxCode ? this._exchangeInfo.name : res.exchangeSymbol,
-        pushCode: res.pushCode
+        exchange: this.mic
       };
     });
   }
@@ -346,16 +122,18 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       return cacheEntry.pieces;
     }
     
-    return cacheEntry.pieces = this._login().then(() => { // need login for exchange info
-      return this._restAPICall('/papers/' + stockid + '/quotes?exchange=' + this._exchangeInfo.id);
-    }).then(res => {
+    return cacheEntry.pieces = this._restAPICall('/papers/' + stockid + '/quotes?exchange=' + this.mic + '&period=d').then(res => {
       debug('Day-based stock info fetched', stockid, !!res);
       
-      if (!res || res.statusCode === 404) {
+      if (!res || res.statusCode === 500) {
+        debug('Marking stock as nonexistent', stockid);
+        this._nonexistentStocks.add(stockid);
         return null;
       }
+
+      if (res.quotes.length === 0) return 0;
       
-      return res.quotes.map(q => q.s).reduce((a, b) => a + b, 0);
+      return res.quotes[0].pieces;
     });
   }
   
@@ -380,12 +158,6 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       .then(results => {
         debug('Fetched stocks', stocklist.length + ' queries', results.length + ' results');
         
-        if (options.loadFromPush) {
-          const pushCodes = results.map(r => r && r.pushCode).filter(c => c);
-          
-          this._pushService.subscribeStockInfos(pushCodes);
-        }
-        
         return results;
       });
   }
@@ -395,10 +167,6 @@ exports.QuoteLoader = BoerseFFQuoteLoader;
 
 function test() {
   const options = minimist(process.argv.slice(2));
-  
-  if (options['max-frequency']) {
-    options.lsMaxFrequency = parseFloat(options['max-frequency']);
-  }
   
   const ql = new BoerseFFQuoteLoader(options);
   ql.on('error', e => console.log(e, e.stack + ''));

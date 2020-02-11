@@ -122,7 +122,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
         return null;
       }
 
-      assert.strictEqual(res.isin, stockid);
+      assert.strictEqual(res[0][0].isin, stockid);
 
       return res[0][0].name;
     });

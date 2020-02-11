@@ -70,7 +70,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
     }).then(JSON.parse);
   }
   
-  _getBasicInfo(stockid) {
+  _getPriceInfo(stockid) {
     const cacheEntry = this._getStockinfoCacheEntry(stockid);
     
     // debug('Regular data cache', stockid, cacheEntry, cacheEntry, loadFromPush);
@@ -79,40 +79,47 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       return cacheEntry.data;
     }
     
-    if (this._nonexistentStocks.has(stockid)) {
-      return null;
-    }
-    
-    return cacheEntry.data = Promise.all([
-        this._restAPICall('/global_search/limitedsearch/de?searchTerms=' + stockid),
-        this._restAPICall('/data/bid_ask_overview/single?isin=' + stockid + '&mic=' + this.mic)
-      ]).then(res => {
-      const orderbook = res[1];
-      res = res[0];
-      debug('Basic stock info fetched', stockid, !!res);
-      if ((!res || res.length === 0) || (!orderbook || orderbook.statusCode === 500 || orderbook.statusCode === 404)) {
+    return cacheEntry.data = this._restAPICall('/data/bid_ask_overview/single?isin=' + stockid + '&mic=' + this.mic).then(res => {
+      debug('Stock price info fetched', stockid, !!res);
+      if (!res || res.statusCode === 500 || res.statusCode === 404) {
         debug('Marking stock as nonexistent', stockid);
         this._nonexistentStocks.add(stockid);
         return null;
-      }
-
-      res = res[0][0];
+      }      
       
-      assert.strictEqual(res.isin, orderbook.isin);
+      assert.strictEqual(res.isin, stockid);
       
-      if (orderbook.data.length === 0) {
+      if (res.data.length === 0) {
         return null;
       }
       
       return {
         symbol: res.isin,
-        ask: orderbook.data[0].askPrice,
-        bid: orderbook.data[0].bidPrice,
+        ask: res.data[0].askPrice,
+        bid: res.data[0].bidPrice,
         currency_name: 'EUR',
-        lastTradePrice: (orderbook.data[0].askPrice + orderbook.data[0].bidPrice) / 2, // temporary workaround
-        name: res.name,
+        lastTradePrice: (res.data[0].askPrice + res.data[0].bidPrice) / 2, // temporary workaround
         exchange: this.mic
       };
+    });
+  }
+
+  _getName(stockid) {
+    const cacheEntry = this._getStockinfoCacheEntry(stockid);
+    if (cacheEntry.name) return cacheEntry.name;
+
+    return this._restAPICall('/global_search/limitedsearch/de?searchTerms=' + stockid).then(res => {
+      debug('Stock name fetched', stockid, !!res);
+
+      if (!res || res.length === 0) {
+        debug('Marking stock as nonexistent', stockid);
+        this._nonexistentStocks.add(stockid);
+        return null;
+      }
+
+      assert.strictEqual(res.isin, stockid);
+
+      return res[0][0].name;
     });
   }
   
@@ -140,15 +147,20 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
   }
   
   _fetchSingleStockInfo(stockid, options) {
+    if (this._nonexistentStocks.has(stockid)) {
+      return null;
+    }
     return Promise.all([
-      this._getBasicInfo(stockid),
+      this._getPriceInfo(stockid),
+      this._getName(stockid),
       this._getTradedAmountToday(stockid, options.needCurrentPieces)
     ]).then(r => {
-      if (!r[0]) {
+      if (!r[0] || !r[1]) {
         return null;
       }
       
-      r[0].pieces = r[1] || 0;
+      r[0].name = r[1];
+      r[0].pieces = r[2] || 0;
       return this._handleRecord(r[0], false);
     });
   }

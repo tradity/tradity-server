@@ -96,7 +96,7 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
       const data = res.data[0];
 
       // protect against api nonsense
-      if (data.askPrice <= 0 || data.askPrice > 100000 || data.bidPrice <= 0 || data.bidPrice > 100000) return null;
+      if (data.askPrice < 0 || data.askPrice > 100000 || data.bidPrice < 0 || data.bidPrice > 100000) return null;
       
       return {
         symbol: res.isin,

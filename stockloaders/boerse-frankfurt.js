@@ -85,20 +85,25 @@ class BoerseFFQuoteLoader extends abstractloader.AbstractLoader {
         debug('Marking stock as nonexistent', stockid);
         this._nonexistentStocks.add(stockid);
         return null;
-      }      
+      }
       
       assert.strictEqual(res.isin, stockid);
       
       if (res.data.length === 0) {
         return null;
       }
+
+      const data = res.data[0];
+
+      // protect against api nonsense
+      if (data.askPrice <= 0 || data.askPrice > 100000 || data.bidPrice <= 0 || data.bidPrice > 100000) return null;
       
       return {
         symbol: res.isin,
-        ask: res.data[0].askPrice,
-        bid: res.data[0].bidPrice,
+        ask: data.askPrice,
+        bid: data.bidPrice,
         currency_name: 'EUR',
-        lastTradePrice: (res.data[0].askPrice + res.data[0].bidPrice) / 2, // temporary workaround
+        lastTradePrice: (data.askPrice + data.bidPrice) / 2, // temporary workaround
         exchange: this.mic
       };
     });

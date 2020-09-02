@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "JSONStream": "^1.1.1",
-    "bl": "^1.1.2",
+    "bl": "^4.0.3",
     "deep-freeze": "^0.0.1",
     "genders": "^1.0.1",
     "hawk": "^6.0.2",
